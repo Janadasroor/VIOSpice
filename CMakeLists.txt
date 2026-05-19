@@ -514,12 +514,6 @@ if(BUILD_VIOSPICE_APP)
     )
 
 
-    set_target_properties(VioraEDA PROPERTIES
-        BUILD_RPATH "\$ORIGIN;${VIOSPICE_PREFERRED_ENGINE_DIR};${FLUXSCRIPT_LIB_DIR}"
-        INSTALL_RPATH "\$ORIGIN;${VIOSPICE_PREFERRED_ENGINE_DIR};${FLUXSCRIPT_LIB_DIR}"
-        BUILD_WITH_INSTALL_RPATH TRUE
-        BUILD_RPATH_USE_ORIGIN TRUE
-    )
     if(VIOSPICE_DEV_MODE AND FLUX_LLVM_LIB)
         add_custom_command(TARGET VioraEDA POST_BUILD
             COMMAND ${CMAKE_COMMAND} -E copy_if_different
@@ -547,6 +541,14 @@ if(BUILD_VIOSPICE_APP)
     if(QT_VERSION_MAJOR EQUAL 6)
         qt_finalize_executable(VioraEDA)
     endif()
+
+    # RPATH must be set after qt_finalize_executable to avoid being overridden.
+    # BUILD_RPATH uses absolute paths (not $ORIGIN) because Make interprets
+    # $ORIGIN as a shell variable and silently drops it.
+    set_target_properties(VioraEDA PROPERTIES
+        BUILD_RPATH "${CMAKE_BINARY_DIR};${VIOSPICE_PREFERRED_ENGINE_DIR};${FLUXSCRIPT_LIB_DIR}"
+        INSTALL_RPATH "\$ORIGIN;${VIOSPICE_PREFERRED_ENGINE_DIR};${FLUXSCRIPT_LIB_DIR}"
+    )
 endif()
 
 # Semantic merge tool (for Git integration)
