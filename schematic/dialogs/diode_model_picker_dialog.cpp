@@ -103,7 +103,8 @@ void DiodeModelPickerDialog::loadModels() {
     bool foundAny = false;
 
     for (const auto& mi : allModels) {
-        if (mi.type != "Diode") continue;
+        QString t = mi.type.toUpper();
+        if (t != "D" && t != "DIODE") continue;
 
         // Filter by library file name
         const QString libName = QFileInfo(mi.libraryPath).fileName().toLower();
@@ -123,7 +124,8 @@ void DiodeModelPickerDialog::loadModels() {
     // If library-based filtering found nothing, fall back to all diode models
     if (!foundAny) {
         for (const auto& mi : allModels) {
-            if (mi.type != "Diode") continue;
+            QString t = mi.type.toUpper();
+            if (t != "D" && t != "DIODE") continue;
             auto* item = new QListWidgetItem(mi.name);
             item->setData(Qt::UserRole, mi.name);
             item->setData(Qt::UserRole + 1, QString("%1\nParams: %2")

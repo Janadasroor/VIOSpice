@@ -26,13 +26,22 @@
 
 const QVector<MosPropertiesDialog::LevelInfo>& MosPropertiesDialog::knownLevels() {
     static const QVector<LevelInfo> levels = {
+        {"None",     ""},
         {"MOS1",     "mos1.json"},
         {"MOS2",     "mos2.json"},
         {"MOS3",     "mos3.json"},
+        {"MOS6",     ""},
+        {"MOS9",     ""},
+        {"BSIM1",    ""},
+        {"BSIM2",    ""},
         {"BSIM3",    "bsim3.json"},
         {"BSIM4",    "bsim4.json"},
         {"BSIMSOI",  "bsimsoi.json"},
+        {"BSIM3SOI", ""},
         {"HISIM2",   "hisim2.json"},
+        {"HISIM_HV", "hisim_hv.json"},
+        {"VDMOS",    ""},
+        {"SOI3",     ""},
     };
     return levels;
 }
@@ -69,7 +78,10 @@ void MosPropertiesDialog::setupUI() {
         for (const auto& info : ModelLibraryManager::instance().allModels()) {
             QString t = info.type.toUpper();
             if (t == "NMOS" || t == "PMOS" || t == "VDMOS" || t == "NMF" || t == "PMF" ||
-                t == "BSIM4" || t == "BSIM3" || t == "BSIMSOI") {
+                t == "BSIM4" || t == "BSIM3" || t == "BSIMSOI" || t == "BSIM3SOI" ||
+                t == "HISIM2" || t == "HISIM_HV" || t == "MOS1" || t == "MOS2" ||
+                t == "MOS3" || t == "MOS6" || t == "MOS9" || t == "BSIM1" ||
+                t == "BSIM2" || t == "SOI3") {
                 mosModels.append(info.name);
             }
         }
@@ -82,6 +94,9 @@ void MosPropertiesDialog::setupUI() {
         m_modelNameEdit->setCompleter(modelCompleter);
         connect(modelCompleter, QOverload<const QString&>::of(&QCompleter::activated),
                 this, &MosPropertiesDialog::fillFromModel);
+        connect(m_modelNameEdit, &QLineEdit::textEdited, this, [this]() {
+            m_pickedModelName.clear();
+        });
     }
 
     auto* typeLevelLayout = new QHBoxLayout();
@@ -185,6 +200,46 @@ bool MosPropertiesDialog::isPmosSelected() const {
     return isPmos();
 }
 
+void MosPropertiesDialog::addEssentialDefaults(MosModelDef& def, const QString& levelName, bool pmos) {
+    if (levelName.startsWith("HISIM")) {
+        MosParamCategory core;
+        core.name = "Core Parameters";
+        core.params = {{"Vth0", pmos ? "-0.4" : "0.4", "V", "Threshold voltage"},
+                       {"Vmax", "2e6", "m/s", "Saturation velocity"},
+                       {"Tox", "5n", "m", "Oxide thickness"},
+                       {"Xld", "0", "m", "Length offset (XLD=0 fixes negative length error)"}};
+        def.categories.append(core);
+
+        MosParamCategory geo;
+        geo.name = "Geometry";
+        geo.params = {{"L", "2u", "m", "Channel length"},
+                      {"W", "10u", "m", "Channel width"}};
+        def.categories.append(geo);
+        return;
+    }
+
+    MosParamCategory dc;
+    dc.name = "DC Parameters";
+    dc.params = {{"Vth0", pmos ? "-0.4" : "0.4", "V", "Threshold voltage"},
+                 {"U0", "0.05", "m^2/V-s", "Low-field mobility"},
+                 {"Tox", levelName.contains("3") ? "10n" : "5n", "m", "Oxide thickness"}};
+    def.categories.append(dc);
+
+    MosParamCategory hf;
+    hf.name = "RF / Stability";
+    hf.params = {{"Cgso", "200p", "F/m", "Gate-source overlap"},
+                 {"Cgdo", "200p", "F/m", "Gate-drain overlap"},
+                 {"Rg", "2.0", "ohm", "Gate resistance"},
+                 {"Rb", "1.0", "ohm", "Substrate resistance"}};
+    def.categories.append(hf);
+
+    MosParamCategory geo;
+    geo.name = "Geometry";
+    geo.params = {{"L", "0.18u", "m", "Channel length"},
+                  {"W", "2u", "m", "Channel width"}};
+    def.categories.append(geo);
+}
+
 void MosPropertiesDialog::loadModelDef(const QString& levelName) {
     m_currentDef = MosModelDef();
 
@@ -224,32 +279,43 @@ void MosPropertiesDialog::loadModelDef(const QString& levelName) {
     }
 
     if (jsonPath.isEmpty()) {
-        // Fallback: create inline defaults
-        if (levelName == "MOS1") {
-            m_currentDef.model = "MOS1";
-            m_currentDef.level = 1;
-            m_currentDef.spiceType = "NMOS";
-            MosParamCategory cat;
-            cat.name = "DC";
-            cat.params = {{"Vto", "2", "V", "Threshold voltage"},
-                          {"Kp", "100u", "A/V^2", "Transconductance parameter"},
-                          {"Lambda", "0.02", "V^-1", "Channel length modulation"},
-                          {"Gamma", "0", "V^0.5", "Body effect coefficient"},
-                          {"Phi", "0.6", "V", "Surface potential"},
-                          {"Rd", "1", "ohm", "Drain resistance"},
-                          {"Rs", "1", "ohm", "Source resistance"},
-                          {"Rg", "0", "ohm", "Gate resistance"}};
-            m_currentDef.categories.append(cat);
+        m_currentDef.model = levelName;
+        const bool pmos = isPmosSelected();
 
-            MosParamCategory capCat;
-            capCat.name = "Capacitance";
-            capCat.params = {{"Cgso", "50p", "F/m", "Gate-source overlap capacitance"},
-                             {"Cgdo", "50p", "F/m", "Gate-drain overlap capacitance"},
-                             {"Cgbo", "0", "F/m", "Gate-body overlap capacitance"},
-                             {"Cbd", "0", "F", "Bulk-drain capacitance"},
-                             {"Cbs", "0", "F", "Bulk-source capacitance"},
-                             {"Pb", "0.8", "V", "Bulk junction potential"}};
-            m_currentDef.categories.append(capCat);
+        auto addCat = [&](const QString& name, const QVector<MosParamDef>& params) {
+            MosParamCategory cat;
+            cat.name = name;
+            cat.params = params;
+            m_currentDef.categories.append(cat);
+        };
+
+        if (levelName.startsWith("MOS") || levelName == "None") {
+            addCat("DC", {{"Vto", pmos ? "-2" : "2", "V", "Threshold voltage"},
+                          {"Kp", "100u", "A/V^2", "Transconductance"},
+                          {"Lambda", "0.02", "V^-1", "Channel modulation"},
+                          {"Rd", "0", "ohm", "Drain resistance"},
+                          {"Rs", "0", "ohm", "Source resistance"}});
+            addCat("Capacitance", {{"Cgso", "50p", "F/m", "Gate-source overlap"},
+                                   {"Cgdo", "50p", "F/m", "Gate-drain overlap"},
+                                   {"Cj", "0", "F/m^2", "Junction capacitance"}});
+        } else if (levelName.startsWith("BSIM")) {
+            addEssentialDefaults(m_currentDef, levelName, pmos);
+        } else if (levelName == "VDMOS") {
+            addCat("DC", {{"Vto", pmos ? "-2" : "2", "V", "Threshold voltage"},
+                          {"Kp", "1.0", "A/V^2", "Transconductance"},
+                          {"Rd", "0.1", "ohm", "Drain resistance"},
+                          {"Rs", "0.1", "ohm", "Source resistance"},
+                          {"Rb", "0.01", "ohm", "Base resistance"}});
+            addCat("Capacitance", {{"Cgdmax", "500p", "F", "Max gate-drain cap"},
+                                   {"Cgdmin", "50p", "F", "Min gate-drain cap"},
+                                   {"Cgs", "1n", "F", "Gate-source cap"}});
+        } else {
+            // Generic fallback for SOI3, HISIM, etc.
+            addCat("Basic Parameters", {{"Vth0", pmos ? "-0.4" : "0.4", "V", "Threshold voltage"},
+                                        {"U0", "0.05", "m^2/V-s", "Low-field mobility"},
+                                        {"Tox", "5n", "m", "Oxide thickness"},
+                                        {"L", "1u", "m", "Channel length"},
+                                        {"W", "1u", "m", "Channel width"}});
         }
         return;
     }
@@ -289,40 +355,43 @@ void MosPropertiesDialog::loadModelDef(const QString& levelName) {
 }
 
 void MosPropertiesDialog::rebuildParamForm(const MosModelDef& def) {
-    // Clear existing param widgets
-    for (auto* w : m_categoryWidgets) {
-        m_paramLayout->removeWidget(w);
-        w->deleteLater();
+    // Clear existing param widgets and layout items
+    QLayoutItem* item;
+    while ((item = m_paramLayout->takeAt(0))) {
+        if (item->widget()) {
+            item->widget()->deleteLater();
+        }
+        delete item;
     }
     m_categoryWidgets.clear();
     m_paramEdits.clear();
 
-    if (def.categories.isEmpty()) return;
+    if (!def.categories.isEmpty()) {
+        for (const auto& cat : def.categories) {
+            auto* groupBox = new QGroupBox(cat.name);
+            groupBox->setCheckable(false);
+            auto* form = new QFormLayout(groupBox);
+            form->setLabelAlignment(Qt::AlignRight);
 
-    for (const auto& cat : def.categories) {
-        auto* groupBox = new QGroupBox(cat.name);
-        groupBox->setCheckable(false);
-        auto* form = new QFormLayout(groupBox);
-        form->setLabelAlignment(Qt::AlignRight);
+            for (const auto& param : cat.params) {
+                auto* edit = new QLineEdit();
+                edit->setText(param.defaultVal);
+                QString unitStr = param.unit.isEmpty() ? "" : QString(" [%1]").arg(param.unit);
+                QString tooltip = param.desc;
+                if (!param.unit.isEmpty()) tooltip += QString("\nUnit: %1").arg(param.unit);
+                edit->setToolTip(tooltip);
 
-        for (const auto& param : cat.params) {
-            auto* edit = new QLineEdit();
-            edit->setText(param.defaultVal);
-            QString unitStr = param.unit.isEmpty() ? "" : QString(" [%1]").arg(param.unit);
-            QString tooltip = param.desc;
-            if (!param.unit.isEmpty()) tooltip += QString("\nUnit: %1").arg(param.unit);
-            edit->setToolTip(tooltip);
+                QString label = param.name;
+                if (!unitStr.isEmpty()) label += unitStr;
+                form->addRow(label + ":", edit);
 
-            QString label = param.name;
-            if (!unitStr.isEmpty()) label += unitStr;
-            form->addRow(label + ":", edit);
+                connect(edit, &QLineEdit::textChanged, this, &MosPropertiesDialog::updateCommandPreview);
+                m_paramEdits[param.name.toUpper()] = edit;
+            }
 
-            connect(edit, &QLineEdit::textChanged, this, &MosPropertiesDialog::updateCommandPreview);
-            m_paramEdits[param.name.toUpper()] = edit;
+            m_paramLayout->addWidget(groupBox);
+            m_categoryWidgets.append(groupBox);
         }
-
-        m_paramLayout->addWidget(groupBox);
-        m_categoryWidgets.append(groupBox);
     }
 
     // Add stretch at end
@@ -332,19 +401,76 @@ void MosPropertiesDialog::rebuildParamForm(const MosModelDef& def) {
 void MosPropertiesDialog::onLevelChanged(int index) {
     if (index < 0 || index >= knownLevels().size()) return;
     const QString levelName = knownLevels()[index].name;
+
+    if (levelName == "None") {
+        if (!m_pickedModelName.isEmpty()) {
+            m_modelNameEdit->setText(m_pickedModelName);
+        }
+        updateCommandPreview();
+        return;
+    }
+
+    // Preserve current session edits before rebuilding the form
+    QMap<QString, QString> currentSessionEdits;
+    for (auto it = m_paramEdits.begin(); it != m_paramEdits.end(); ++it) {
+        currentSessionEdits[it.key()] = it.value()->text().trimmed();
+    }
+
     loadModelDef(levelName);
     rebuildParamForm(m_currentDef);
 
-    // Try to fill values from existing item data
+    // Fill values: Priority 1: Current session edits (if parameter exists in new level)
+    // Priority 2: Existing item data
+    QMap<QString, QString> itemData;
     if (m_item) {
         const auto pe = m_item->paramExpressions();
         for (auto it = pe.begin(); it != pe.end(); ++it) {
             QString key = it.key().toUpper();
             if (key.startsWith("MOS.")) key = key.mid(4);
-            if (m_paramEdits.contains(key)) {
-                m_paramEdits[key]->setText(it.value());
-            }
+            itemData[key] = it.value();
         }
+    }
+
+    for (auto it = m_paramEdits.begin(); it != m_paramEdits.end(); ++it) {
+        const QString key = it.key();
+        if (currentSessionEdits.contains(key) && !currentSessionEdits[key].isEmpty()) {
+            it.value()->setText(currentSessionEdits[key]);
+        } else if (itemData.contains(key)) {
+            it.value()->setText(itemData[key]);
+        }
+    }
+
+    // Handle parameters that didn't find a field in the built form (Fallback Group)
+    QGroupBox* fallbackGroup = nullptr;
+    QFormLayout* fallbackForm = nullptr;
+
+    auto addFallback = [&](const QString& key, const QString& val) {
+        if (val.isEmpty()) return;
+        const QString upperKey = key.toUpper();
+        if (upperKey == "LEVEL" || upperKey == "TYPE") return;
+        if (m_paramEdits.contains(upperKey)) return;
+
+        if (!fallbackGroup) {
+            fallbackGroup = new QGroupBox("Model Parameters");
+            fallbackForm = new QFormLayout(fallbackGroup);
+            fallbackForm->setLabelAlignment(Qt::AlignRight);
+            // Insert before the final stretch
+            m_paramLayout->insertWidget(m_paramLayout->count() - 1, fallbackGroup);
+            m_categoryWidgets.append(fallbackGroup);
+        }
+        auto* edit = new QLineEdit(val);
+        fallbackForm->addRow(upperKey + ":", edit);
+        connect(edit, &QLineEdit::textChanged, this, &MosPropertiesDialog::updateCommandPreview);
+        m_paramEdits[upperKey] = edit;
+    };
+
+    // Check session edits first (to preserve manually added ones)
+    for (auto it = currentSessionEdits.begin(); it != currentSessionEdits.end(); ++it) {
+        addFallback(it.key(), it.value());
+    }
+    // Then item data
+    for (auto it = itemData.begin(); it != itemData.end(); ++it) {
+        addFallback(it.key(), it.value());
     }
 
     // Update default model name when level changes
@@ -356,28 +482,31 @@ void MosPropertiesDialog::onLevelChanged(int index) {
 
         // Compute the expected default for the new level
         QString newDefault;
-        if (levelName == "BSIM4") {
-            newDefault = pmos ? "BSIM4_PMOS" : "BSIM4_NMOS";
-        } else if (levelName == "BSIM3") {
-            newDefault = pmos ? "BSIM3_PMOS" : "BSIM3_NMOS";
-        } else if (levelName == "BSIMSOI") {
-            newDefault = pmos ? "BSIMSOI_PMOS" : "BSIMSOI_NMOS";
-        } else if (levelName == "HISIM2") {
-            newDefault = pmos ? "HISIM2_PMOS" : "HISIM2_NMOS";
-        } else {
+        if (levelName == "None") {
             newDefault = pmos ? oldDefaultPMOS : oldDefaultNMOS;
+        } else if (!m_currentDef.model.isEmpty()) {
+            newDefault = m_currentDef.model + (pmos ? "_PMOS" : "_NMOS");
+        } else {
+            newDefault = levelName + (pmos ? "_PMOS" : "_NMOS");
         }
 
-        // All level-specific defaults (to detect stale names from other levels)
-        const QStringList otherDefaults = {
-            oldDefaultNMOS, oldDefaultPMOS,
-            pmos ? "BSIM4_PMOS"   : "BSIM4_NMOS",
-            pmos ? "BSIM3_PMOS"   : "BSIM3_NMOS",
-            pmos ? "BSIMSOI_PMOS" : "BSIMSOI_NMOS",
-            pmos ? "HISIM2_PMOS"  : "HISIM2_NMOS",
-        };
+        // If level changed, we are no longer using the "picked" model precisely as it was
+        if (levelName != "None" && !m_pickedModelName.isEmpty()) {
+            m_pickedModelName.clear();
+            m_pickedModelLevel.clear();
+        }
 
-        if (otherDefaults.contains(currentName) && currentName != newDefault) {
+        // Build a list of all possible defaults to detect stale names from other levels
+        QStringList allDefaults;
+        allDefaults << oldDefaultNMOS << oldDefaultPMOS;
+        for (const auto& lvl : knownLevels()) {
+            if (lvl.name != "None") {
+                allDefaults << lvl.name + "_NMOS";
+                allDefaults << lvl.name + "_PMOS";
+            }
+        }
+
+        if (allDefaults.contains(currentName) && currentName != newDefault) {
             m_modelNameEdit->setText(newDefault);
         }
     }
@@ -476,28 +605,57 @@ void MosPropertiesDialog::fillFromModel(const QString& modelName) {
     const SimModel* mdl = ModelLibraryManager::instance().findModel(modelName);
     if (!mdl) return;
 
+    m_pickedModelName = modelName;
+    m_pickedModelLevel = QString::fromStdString(mdl->modelLevel);
     m_modelNameEdit->setText(modelName);
+    if (m_rawParamsEdit) m_rawParamsEdit->clear();
     if (m_typeCombo) {
         if (mdl->type == SimComponentType::MOSFET_PMOS) m_typeCombo->setCurrentText("PMOS");
         else if (mdl->type == SimComponentType::MOSFET_NMOS) m_typeCombo->setCurrentText("NMOS");
     }
 
-    // Set level from model
-    if (!mdl->modelLevel.empty()) {
-        QString lvl = QString::fromStdString(mdl->modelLevel);
+    // Set level to the model's actual level (VDMOS, BSIM4, etc.) so the param
+    // form is built correctly. Block signals to prevent onLevelChanged from
+    // overwriting the model name and clearing m_pickedModelName prematurely.
+    if (!m_pickedModelLevel.isEmpty()) {
         for (int i = 0; i < m_levelCombo->count(); ++i) {
-            if (m_levelCombo->itemText(i).compare(lvl, Qt::CaseInsensitive) == 0) {
+            if (m_levelCombo->itemText(i).compare(m_pickedModelLevel, Qt::CaseInsensitive) == 0) {
+                m_levelCombo->blockSignals(true);
                 m_levelCombo->setCurrentIndex(i);
+                m_levelCombo->blockSignals(false);
                 break;
             }
         }
     }
 
-    // Fill param fields
+    // Must manually build the param form since onLevelChanged was suppressed
+    loadModelDef(m_pickedModelLevel);
+    rebuildParamForm(m_currentDef);
+
+    // Fill param fields after the form is built.
+    // For params that don't have a JSON-defined field, create dynamic ones.
+    const bool formEmpty = m_paramEdits.isEmpty();
+    QGroupBox* fallbackGroup = nullptr;
+    QFormLayout* fallbackForm = nullptr;
+
     for (const auto& [k, v] : mdl->params) {
         QString key = QString::fromStdString(k).toUpper();
         if (m_paramEdits.contains(key)) {
             m_paramEdits[key]->setText(QString::number(v, 'g', 12));
+        } else {
+            // Create a fallback group box lazily
+            if (!fallbackGroup) {
+                fallbackGroup = new QGroupBox("Model Parameters");
+                fallbackForm = new QFormLayout(fallbackGroup);
+                fallbackForm->setLabelAlignment(Qt::AlignRight);
+                m_paramLayout->addWidget(fallbackGroup);
+                m_categoryWidgets.append(fallbackGroup);
+            }
+            auto* edit = new QLineEdit(QString::number(v, 'g', 12));
+            edit->setToolTip(QString("From model: %1").arg(m_pickedModelName));
+            fallbackForm->addRow(key + ":", edit);
+            connect(edit, &QLineEdit::textChanged, this, &MosPropertiesDialog::updateCommandPreview);
+            m_paramEdits[key] = edit;
         }
     }
 
@@ -572,27 +730,29 @@ void MosPropertiesDialog::updateCommandPreview() {
     const QString levelName = m_levelCombo->currentText();
     const bool pmos = isPmosSelected();
     QString spiceType = pmos ? "PMOS" : "NMOS";
-    QString levelInsert;
-    if (levelName == "BSIM4") {
-        levelInsert = "LEVEL=14";
-    } else if (levelName == "BSIM3") {
-        levelInsert = "LEVEL=8";
-    } else if (levelName == "BSIMSOI") {
-        levelInsert = "LEVEL=10";
-    } else if (levelName == "BSIM3SOI") {
-        levelInsert = "LEVEL=55";
-    } else if (levelName == "HISIM2") {
-        levelInsert = "LEVEL=68";
-    } else if (levelName == "HISIM_HV") {
-        levelInsert = "LEVEL=73";
-    } else if (levelName == "MOS2") {
-        levelInsert = "LEVEL=2";
-    } else if (levelName == "MOS3") {
-        levelInsert = "LEVEL=3";
+    
+    int level = 0;
+    if (levelName == "BSIM4") level = 14;
+    else if (levelName == "BSIM3") level = 8;
+    else if (levelName == "BSIMSOI") level = 10;
+    else if (levelName == "BSIM3SOI") level = 55;
+    else if (levelName == "HISIM2") level = 68;
+    else if (levelName == "HISIM_HV") level = 73;
+    else if (levelName == "MOS2") level = 2;
+    else if (levelName == "MOS3") level = 3;
+    else if (levelName == "MOS6") level = 6;
+    else if (levelName == "MOS9") level = 9;
+    else if (levelName == "BSIM1") level = 4;
+    else if (levelName == "BSIM2") level = 5;
+    else if (levelName == "SOI3") level = 60;
+
+    // Use m_currentDef.level if available (from JSON)
+    if (m_currentDef.level > 0 && m_currentDef.level != 1) {
+        level = m_currentDef.level;
     }
 
-    if (!levelInsert.isEmpty()) {
-        params.prepend(levelInsert);
+    if (level > 0) {
+        params.prepend(QString("LEVEL=%1").arg(level));
     }
 
     m_commandPreview->setText(QString(".model %1 %2(%3)").arg(model, spiceType, params.join(" ")));
@@ -642,7 +802,18 @@ QMap<QString, QString> MosPropertiesDialog::paramExpressions() const {
     }
 
     add("mos.type", isPmosSelected() ? "PMOS" : "NMOS");
-    add("mos.level", m_levelCombo->currentText());
+    if (m_levelCombo) {
+        const QString lvl = m_levelCombo->currentText();
+        if (lvl.compare("None", Qt::CaseInsensitive) == 0) {
+            // When level is "None", store the picked model's actual level so
+            // the netlist generator emits the correct SPICE type
+            if (!m_pickedModelLevel.isEmpty()) {
+                add("mos.pickedLevel", m_pickedModelLevel);
+            }
+        } else {
+            add("mos.level", lvl);
+        }
+    }
 
     return pe;
 }
