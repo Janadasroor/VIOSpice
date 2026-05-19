@@ -1781,7 +1781,9 @@ QString spicetypeToString(SimComponentType type) {
 
 static QString modelLevelToSpiceType(const QString& modelLevel) {
     QString up = modelLevel.toUpper();
-    // All advanced models use NMOS/PMOS + LEVEL=N — not a dedicated type name
+    // VDMOS uses its own type name, not NMOS/PMOS + LEVEL=N
+    if (up == "VDMOS" || up == "VDMOSN") return "VDMOS";
+    if (up == "VDMOSP") return "VDMOSP";
     return QString();
 }
 
@@ -1811,6 +1813,7 @@ QString modelToSpiceLine(const SimModel& model) {
     }
     if (spiceType.isEmpty()) return QString();
 
+    const QString ml = QString::fromStdString(model.modelLevel).toUpper();
     QSet<QString> allowed;
     bool isAdvanced = false;
 
@@ -1825,10 +1828,10 @@ QString modelToSpiceLine(const SimModel& model) {
         case SimComponentType::MOSFET_NMOS:
         case SimComponentType::MOSFET_PMOS: {
             // For advanced models (BSIM4, BSIMSOI, etc.), allow all params
-            const QString ml = QString::fromStdString(model.modelLevel).toUpper();
             isAdvanced = (ml == "BSIM4" || ml == "BSIM3" || ml == "BSIMSOI" ||
                          ml == "BSIM3SOI" || ml == "HISIM2" || ml == "HISIM_HV" ||
-                         ml == "BSIM1" || ml == "BSIM2" || ml == "MOS6" || ml == "MOS9");
+                         ml == "BSIM1" || ml == "BSIM2" || ml == "MOS6" || ml == "MOS9" ||
+                         ml == "VDMOS" || ml == "VDMOSN" || ml == "VDMOSP");
             if (!isAdvanced) {
                 allowed = {"VTO", "KP", "LAMBDA", "RD", "RS", "RG", "CGSO", "CGDO", "CGBO", "CBD", "CBS", "PB", "GAMMA", "PHI", "LEVEL"};
             }
@@ -1866,16 +1869,35 @@ QString modelToSpiceLine(const SimModel& model) {
         } else {
             valStr = QString::number(val, 'g', 12);
         }
+
+        // HiSIM safety sanitization
+        if (ml.startsWith("HISIM")) {
+            if (qkey == "VMAX" && valStr.toDouble() < 1e6) {
+                valStr = "2e6";
+            }
+            if (qkey == "XLD" && valStr.toDouble() < 0.0) {
+                valStr = "0";
+            }
+        }
+
         if (!first) line += " ";
         line += QString("%1=%2").arg(qkey, valStr);
         first = false;
     }
-    // Ensure BSIM4 always has positive Toxp
-    if (isAdvanced && !hasToxp) {
-        if (!first) line += " ";
-        line += "TOXP=1e-10";
-        first = false;
+
+    // HiSIM safety: Ensure XLD=0 if missing (required for stability with small L)
+    if (ml.startsWith("HISIM")) {
+        bool hasXld = false;
+        for (const auto& [k, v] : model.params) {
+            if (QString::fromStdString(k).toUpper() == "XLD") { hasXld = true; break; }
+        }
+        if (!hasXld) {
+            if (!first) line += " ";
+            line += "XLD=0";
+            first = false;
+        }
     }
+
     line += ")";
     return line;
 }
@@ -3425,11 +3447,18 @@ SpiceNetlistGenerator::GeneratedNetlist SpiceNetlistGenerator::generate(QGraphic
                                           typeLower == "transistor_pmos" || typeLower == "pmos" || typeLower == "pmos4" ||
                                           comp.reference.startsWith("MP", Qt::CaseInsensitive)) ? "PMOS" : "NMOS";
 
-                const QString mosLevel = pe.value("mos.level").trimmed().toUpper();
+                const bool isPickedLevel = pe.contains("mos.pickedLevel");
+                const QString mosLevel = isPickedLevel
+                    ? pe.value("mos.pickedLevel").trimmed().toUpper()
+                    : pe.value("mos.level").trimmed().toUpper();
                 QString spiceType = nmosPmos;
                 QString levelInsert;
 
-                if (mosLevel == "BSIM4") {
+                if (mosLevel == "VDMOS" || mosLevel == "VDMOSN") {
+                    spiceType = "VDMOS";
+                } else if (mosLevel == "VDMOSP") {
+                    spiceType = "VDMOSP";
+                } else if (mosLevel == "BSIM4") {
                     levelInsert = "LEVEL=14";
                 } else if (mosLevel == "BSIMSOI") {
                     levelInsert = "LEVEL=10";
@@ -3445,6 +3474,14 @@ SpiceNetlistGenerator::GeneratedNetlist SpiceNetlistGenerator::generate(QGraphic
                     levelInsert = "LEVEL=2";
                 } else if (mosLevel == "MOS3") {
                     levelInsert = "LEVEL=3";
+                } else if (mosLevel == "BSIM1") {
+                    levelInsert = "LEVEL=4";
+                } else if (mosLevel == "BSIM2") {
+                    levelInsert = "LEVEL=5";
+                } else if (mosLevel == "MOS6") {
+                    levelInsert = "LEVEL=6";
+                } else if (mosLevel == "MOS9") {
+                    levelInsert = "LEVEL=9";
                 }
 
                 QString line = QString(".model %1 %2(").arg(modelName, spiceType);
@@ -3455,7 +3492,7 @@ SpiceNetlistGenerator::GeneratedNetlist SpiceNetlistGenerator::generate(QGraphic
 
                 // Add all mos.* params (strip prefix), skip type/level
                 for (auto it = pe.begin(); it != pe.end(); ++it) {
-                    const QString& key = it.key();
+                    const QString& key = it.key().toLower();
                     const QString& val = it.value();
                     if (key == "mos.type" || key == "mos.level" || key == "mos.raw") continue;
                     if (val.trimmed().isEmpty()) continue;
@@ -3464,20 +3501,30 @@ SpiceNetlistGenerator::GeneratedNetlist SpiceNetlistGenerator::generate(QGraphic
                         // BSIM4 requires Toxp > 0; sanitize stored 0 to a reasonable default
                         QString cleanKey = key.mid(4);
                         QString cleanVal = val;
-                        if (mosLevel == "BSIM4" && (cleanKey.toUpper() == "TOXP" || cleanKey.toUpper() == "TOXE") && cleanVal == "0") {
+                        if ((mosLevel == "BSIM4" || mosLevel == "BSIMSOI") &&
+                            (cleanKey.toUpper() == "TOXP" || cleanKey.toUpper() == "TOXE") && cleanVal == "0") {
                             cleanVal = "1e-10";
+                        }
+                        // HiSIM_HV safety: VMAX must be > 1e6, and XLD must be 0 for small L
+                        if (mosLevel.startsWith("HISIM", Qt::CaseInsensitive)) {
+                            if (cleanKey.toUpper() == "VMAX" && cleanVal.toDouble() < 1e6) {
+                                cleanVal = "2e6";
+                            }
+                            if (cleanKey.toUpper() == "XLD" && cleanVal.toDouble() < 0) {
+                                cleanVal = "0";
+                            }
                         }
                         params.append(QString("%1=%2").arg(cleanKey, cleanVal));
                     }
                 }
 
-                // Ensure BSIM4 always has positive Toxp (required by ngspice BSIM4.8.3)
-                if (mosLevel == "BSIM4") {
-                    bool hasToxp = false;
+                // HiSIM safety: Ensure XLD exists if not provided (default can be dangerous)
+                if (mosLevel.startsWith("HISIM", Qt::CaseInsensitive)) {
+                    bool hasXld = false;
                     for (const auto& p : params) {
-                        if (p.startsWith("TOXP=", Qt::CaseInsensitive)) { hasToxp = true; break; }
+                        if (p.startsWith("XLD=", Qt::CaseInsensitive)) { hasXld = true; break; }
                     }
-                    if (!hasToxp) params.append("TOXP=1e-10");
+                    if (!hasXld) params.append("XLD=0");
                 }
 
                 line += params.join(" ") + ")";
@@ -4821,6 +4868,12 @@ SpiceNetlistGenerator::GeneratedNetlist SpiceNetlistGenerator::generate(QGraphic
                 const QString vth = pmosModel ? "-30" : "30";
                 netlist += QString(".model %1 %2(LEVEL=73 Vth=%3)\n")
                     .arg(value, pmosModel ? "PMOS" : "NMOS", vth);
+            } else if (mosLevelUpper == "VDMOS" || mosLevelUpper == "VDMOSN") {
+                netlist += QString(".model %1 VDMOS(Vto=%2 Rd=1 Rs=1 Kp=5)\n")
+                    .arg(value, pmosModel ? "-2" : "2");
+            } else if (mosLevelUpper == "VDMOSP") {
+                netlist += QString(".model %1 VDMOSP(Vto=%2 Rd=1 Rs=1 Kp=5)\n")
+                    .arg(value, pmosModel ? "-2" : "2");
             } else {
                 // Default: Level 1-3 style
                 const QString mosType = pmosModel ? "PMOS" : "NMOS";

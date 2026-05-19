@@ -77,7 +77,8 @@ void DiodePropertiesDialog::setupUI() {
     {
         QStringList diodeModels;
         for (const auto& info : ModelLibraryManager::instance().allModels()) {
-            if (info.type.toUpper() == "DIODE") {
+            QString t = info.type.toUpper();
+            if (t == "D" || t == "DIODE") {
                 diodeModels.append(info.name);
             }
         }
