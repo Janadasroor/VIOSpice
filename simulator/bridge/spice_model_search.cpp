@@ -9,7 +9,18 @@ QVector<SpiceModelSearch::ScoredModel> SpiceModelSearch::search(const QString& q
     const QString q = query.trimmed().toLower();
 
     for (const auto& mi : allModels) {
-        if (!typeFilter.isEmpty() && mi.type.compare(typeFilter, Qt::CaseInsensitive) != 0) continue;
+        if (!typeFilter.isEmpty()) {
+            const QString t = mi.type.toUpper();
+            const QString f = typeFilter.toUpper();
+            if (t != f) {
+                // When looking for NMOS/PMOS, also include VDMOS/NMF/PMF
+                if (f == "NMOS" && (t == "VDMOS" || t == "NMF")) {}
+                else if (f == "PMOS" && t == "PMF") {}
+                // SPICE uses .model D1 D(...), index stores "D", but pickers filter for "Diode"
+                else if (f == "DIODE" && t == "D") {}
+                else continue;
+            }
+        }
 
         double score = 0.0;
 

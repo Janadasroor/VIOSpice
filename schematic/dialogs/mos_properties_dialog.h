@@ -61,10 +61,13 @@ private:
     void fillFromModel(const QString& modelName);
     void rebuildParamForm(const MosModelDef& def);
     void loadModelDef(const QString& levelName);
+    void addEssentialDefaults(MosModelDef& def, const QString& levelName, bool pmos);
     bool isPmosSelected() const;
     bool isPmos() const;
 
     QPointer<SchematicItem> m_item;
+    QString m_pickedModelName;
+    QString m_pickedModelLevel;
 
     QLineEdit* m_modelNameEdit = nullptr;
     QComboBox* m_typeCombo = nullptr;

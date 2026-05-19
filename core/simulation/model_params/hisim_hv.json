@@ -1,0 +1,33 @@
+{
+    "version": "1.0",
+    "model": "HISIM_HV",
+    "description": "HiSIM_HV High-Voltage MOSFET model (LEVEL=73)",
+    "level": 73,
+    "spiceType": "NMOS",
+    "spiceLevelParam": "LEVEL=73",
+    "categories": [
+        {
+            "name": "Core",
+            "params": [
+                {"name": "Vth0", "default": "0.4", "unit": "V", "desc": "Threshold voltage"},
+                {"name": "Vmax", "default": "2e6", "unit": "m/s", "desc": "Saturation velocity"},
+                {"name": "Tox", "default": "5e-9", "unit": "m", "desc": "Gate oxide thickness"},
+                {"name": "Xld", "default": "0", "unit": "m", "desc": "Length offset"},
+                {"name": "Xwd", "default": "0", "unit": "m", "desc": "Width offset"}
+            ]
+        },
+        {
+            "name": "Mobility",
+            "params": [
+                {"name": "Mu0", "default": "0.045", "unit": "m^2/V-s", "desc": "Low-field mobility"}
+            ]
+        },
+        {
+            "name": "Geometry",
+            "params": [
+                {"name": "L", "default": "2u", "unit": "m", "desc": "Channel length"},
+                {"name": "W", "default": "10u", "unit": "m", "desc": "Channel width"}
+            ]
+        }
+    ]
+}

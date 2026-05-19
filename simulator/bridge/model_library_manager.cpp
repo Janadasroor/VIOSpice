@@ -258,23 +258,44 @@ void ModelLibraryManager::indexLibraryFile(const QString& path) {
                 }
                 
                 QWriteLocker locker(&m_lock);
-                SpiceModelInfo info;
-                info.name = name;
-                info.type = typeUpper;
-                info.modelLevel = modelLevel;
-                info.libraryPath = path;
-                m_modelIndex.append(info);
+                // Dedup: skip if same (name, path) already indexed
+                bool alreadyExists = false;
+                for (const auto& existing : m_modelIndex) {
+                    if (existing.name.compare(name, Qt::CaseInsensitive) == 0 &&
+                        existing.libraryPath == path) {
+                        alreadyExists = true;
+                        break;
+                    }
+                }
+                if (!alreadyExists) {
+                    SpiceModelInfo info;
+                    info.name = name;
+                    info.type = typeUpper;
+                    info.modelLevel = modelLevel;
+                    info.libraryPath = path;
+                    m_modelIndex.append(info);
+                }
             }
         } else if (line.startsWith(".subckt", Qt::CaseInsensitive)) {
             QStringList parts = line.split(QRegularExpression("\\s+"), Qt::SkipEmptyParts);
             if (parts.size() >= 2) {
                 QString name = parts[1];
                 QWriteLocker locker(&m_lock);
-                SpiceModelInfo info;
-                info.name = name;
-                info.type = "Subcircuit";
-                info.libraryPath = path;
-                m_modelIndex.append(info);
+                bool alreadyExists = false;
+                for (const auto& existing : m_modelIndex) {
+                    if (existing.name.compare(name, Qt::CaseInsensitive) == 0 &&
+                        existing.libraryPath == path) {
+                        alreadyExists = true;
+                        break;
+                    }
+                }
+                if (!alreadyExists) {
+                    SpiceModelInfo info;
+                    info.name = name;
+                    info.type = "Subcircuit";
+                    info.libraryPath = path;
+                    m_modelIndex.append(info);
+                }
             }
         }
     }
@@ -321,6 +342,7 @@ void ModelLibraryManager::loadLibraryFile(const QString& path) {
             m_masterNetlist.addModel(model);
 
             // Update model index with modelLevel from parsed SimModel
+            bool found = false;
             for (auto& info : m_modelIndex) {
                 if (info.name.compare(QString::fromStdString(name), Qt::CaseInsensitive) == 0) {
                     if (!model.modelLevel.empty()) {
@@ -331,7 +353,39 @@ void ModelLibraryManager::loadLibraryFile(const QString& path) {
                         paramList.append(QString::fromStdString(k));
                     }
                     info.params = paramList;
+                    found = true;
                     break;
+                }
+            }
+
+            // If not already in the index (loaded via file path, not directory scan), create entry
+            if (!found) {
+                // Only index MOSFET-related models for the MOS picker/completer
+                bool isMosRelated = false;
+                QString typeForIndex;
+                if (!model.modelLevel.empty()) {
+                    const QString ml = QString::fromStdString(model.modelLevel).toUpper();
+                    typeForIndex = ml;
+                    isMosRelated = (ml == "NMOS" || ml == "PMOS" || ml == "VDMOS" ||
+                                    ml == "NMF" || ml == "PMF" || ml == "BSIM4" ||
+                                    ml == "BSIM3" || ml == "BSIMSOI" || ml == "BSIM3SOI" ||
+                                    ml == "HISIM2" || ml == "HISIM_HV" ||
+                                    ml == "MOS1" || ml == "MOS2" || ml == "MOS3" ||
+                                    ml == "MOS6" || ml == "MOS9" || ml == "BSIM1" ||
+                                    ml == "BSIM2" || ml == "SOI3");
+                } else {
+                    typeForIndex = (model.type == SimComponentType::MOSFET_NMOS) ? "NMOS" :
+                                   (model.type == SimComponentType::MOSFET_PMOS) ? "PMOS" : QString();
+                    isMosRelated = (model.type == SimComponentType::MOSFET_NMOS ||
+                                    model.type == SimComponentType::MOSFET_PMOS);
+                }
+                if (isMosRelated) {
+                    SpiceModelInfo info;
+                    info.name = QString::fromStdString(name);
+                    info.type = typeForIndex;
+                    info.modelLevel = QString::fromStdString(model.modelLevel);
+                    info.libraryPath = path;
+                    m_modelIndex.append(info);
                 }
             }
         }

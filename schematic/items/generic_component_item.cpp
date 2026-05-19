@@ -252,12 +252,13 @@ QString GenericComponentItem::referenceDisplayText() const {
 }
 
 void GenericComponentItem::rebuildPrimitives() {
-    for (auto* item : m_primitiveItems) {
-        if (item) {
-            item->setParentItem(nullptr);
-            delete item;
-        }
-    }
+    // Items are already child items of this component. Just delete them —
+    // Qt's QGraphicsItem destructor handles removing the child from the
+    // parent's children list and the scene's internal structures. Do NOT
+    // reparent to nullptr first, as that would register them as top-level
+    // items in the scene and then delete the item, leaving a dangling
+    // pointer in the scene's topLevelItems list.
+    qDeleteAll(m_primitiveItems);
     m_primitiveItems.clear();
 
     const QList<SymbolPrimitive> primitives = resolvedPrimitives();

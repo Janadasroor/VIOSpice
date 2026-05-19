@@ -89,6 +89,13 @@ AddItemCommand::AddItemCommand(QGraphicsScene* scene, SchematicItem* item, QUndo
 
 AddItemCommand::~AddItemCommand() {
     if (m_ownsItem && m_item) {
+        m_item->setVisible(false);
+        if (m_scene && m_item->scene() == m_scene) {
+            // Flush pending dirty-item updates while the item is still
+            // valid in the scene, then remove it.
+            QApplication::processEvents(QEventLoop::ExcludeUserInputEvents);
+            m_scene->removeItem(m_item);
+        }
         delete m_item;
     }
 }
@@ -96,6 +103,10 @@ AddItemCommand::~AddItemCommand() {
 void AddItemCommand::undo() {
     if (m_item && m_scene) {
         m_item->setVisible(false);
+        // Flush pending dirty-item updates while the item is still
+        // valid in the scene, so the scene's internal index is clean
+        // before we remove it.
+        QApplication::processEvents(QEventLoop::ExcludeUserInputEvents);
         m_scene->removeItem(m_item);
         if (isConnectivitySensitiveSchematicItem(m_item)) {
             SchematicConnectivity::updateVisualConnections(m_scene);
