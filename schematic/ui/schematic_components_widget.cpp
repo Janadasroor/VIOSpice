@@ -377,7 +377,9 @@ void SchematicComponentsWidget::populate() {
         {"VCVS (E)", "Simulation"},
         {"VCCS (G)", "Simulation"},
         {"CCCS (F)", "Simulation"},
-        {"CCVS (H)", "Simulation"}
+        {"CCVS (H)", "Simulation"},
+        // XSPICE Behavioral Blocks
+        {"XspiceBlock", "XSPICE"}
     };
 
     builtIn.reserve(builtInTools.size());

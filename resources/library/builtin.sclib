@@ -104,6 +104,22 @@
                 {"type": "Pin", "x": 75, "y": -50, "number": 15, "name": "15", "orientation": "Left", "length": 15},
                 {"type": "Pin", "x": 75, "y": -70, "number": 16, "name": "16", "orientation": "Left", "length": 15}
             ]
+        },
+        {
+            "name": "Potentiometer",
+            "category": "Passives",
+            "prefix": "RPOT",
+            "defaultValue": "10k",
+            "primitives": [
+                {"type": "Line", "x1": 0, "y1": -60, "x2": 0, "y2": -45},
+                {"type": "Rect", "x": -15, "y": -45, "w": 30, "h": 90, "filled": false},
+                {"type": "Line", "x1": 0, "y1": 45, "x2": 0, "y2": 60},
+                {"type": "Line", "x1": -30, "y1": 0, "x2": -15, "y2": 0},
+                {"type": "Polygon", "points": [{"x": -15, "y": 0}, {"x": -22, "y": -4}, {"x": -22, "y": 4}], "filled": true},
+                {"type": "Pin", "x": 0, "y": -60, "number": 1, "name": "1", "orientation": "Down", "length": 15},
+                {"type": "Pin", "x": -30, "y": 0, "number": 2, "name": "W", "orientation": "Right", "length": 15},
+                {"type": "Pin", "x": 0, "y": 60, "number": 3, "name": "3", "orientation": "Up", "length": 15}
+            ]
         }
     ]
 }
