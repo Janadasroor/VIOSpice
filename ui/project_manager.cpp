@@ -675,7 +675,7 @@ QWidget* ProjectManager::createLauncherArea() {
         title->setObjectName("WelcomeTitle");
         logoRow->addWidget(title);
 
-        QLabel* chip = new QLabel("v0.2.0");
+        QLabel* chip = new QLabel("v0.1.0-beta");
         chip->setObjectName("VersionChip");
         logoRow->addWidget(chip);
         logoRow->addStretch();

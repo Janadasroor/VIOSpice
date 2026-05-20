@@ -1192,6 +1192,7 @@ QList<SchematicItem::PinElectricalType> XspiceBlockItem::pinElectricalTypes() co
 
 QJsonObject XspiceBlockItem::toJson() const {
     QJsonObject json = SchematicItem::toJson();
+    json["type"] = itemTypeName();
     json["modelType"] = m_modelType;
     json["xspiceParams"] = m_xspiceParams;
     json["inputPinCount"] = m_inputPinCount;

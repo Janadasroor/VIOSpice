@@ -12,7 +12,7 @@ Core features:
   - bpy-like API via ``import vspice.v as v`` (or just ``import v`` in console)
 """
 
-__version__ = "0.2.0"
+__version__ = "0.1.0-beta"
 
 # Import all symbols from the nanobind extension
 from vspice._core import *  # noqa: F401,F403

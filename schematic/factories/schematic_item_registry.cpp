@@ -35,6 +35,7 @@
 #include "schematic_spice_directive_item.h"
 #include "tuning_slider_symbol_item.h"
 #include "xspice_block_item.h"
+#include "system_verilog_block_item.h"
 
 using Flux::Model::SymbolDefinition;
 
@@ -673,6 +674,13 @@ void SchematicItemRegistry::registerBuiltInItems() {
         QString modelType = properties.value("modelType").toString("gain");
         auto* item = new XspiceBlockItem(modelType, parent);
         item->setPos(pos);
+        if (!properties.isEmpty()) item->fromJson(properties);
+        return item;
+    });
+
+    // SystemVerilog RTL blocks
+    factory.registerItemType("SystemVerilogBlock", [](QPointF pos, const QJsonObject& properties, QGraphicsItem* parent) -> SchematicItem* {
+        auto* item = new SystemVerilogBlockItem(pos, parent);
         if (!properties.isEmpty()) item->fromJson(properties);
         return item;
     });

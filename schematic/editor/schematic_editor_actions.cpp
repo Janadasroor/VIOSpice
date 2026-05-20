@@ -61,6 +61,8 @@
 #include "../dialogs/tuning_slider_properties_dialog.h"
 #include "../dialogs/potentiometer_properties_dialog.h"
 #include "../dialogs/xspice_block_property_dialog.h"
+#include "../dialogs/system_verilog_block_dialog.h"
+#include "../items/system_verilog_block_item.h"
 #include "../items/xspice_block_item.h"
 #include "../dialogs/design_rule_editor.h"
 #include "../dialogs/voltage_controlled_switch_dialog.h"
@@ -1469,6 +1471,19 @@ void SchematicEditor::onItemDoubleClicked(SchematicItem* item) {
                 QJsonObject newState = item->toJson();
                 newState["modelType"] = dlg.modelType();
                 newState["xspiceParams"] = dlg.xspiceParams();
+                m_undoStack->push(new BulkChangePropertyCommand(m_scene, item, newState));
+            }
+            return;
+        }
+
+        // SystemVerilog Block properties dialog
+        if (item->itemTypeName() == "SystemVerilogBlock") {
+            auto* sv = static_cast<SystemVerilogBlockItem*>(item);
+            SystemVerilogBlockDialog dlg(sv, this);
+            if (dlg.exec() == QDialog::Accepted) {
+                QJsonObject newState = item->toJson();
+                newState["svFilePath"] = dlg.svFilePath();
+                newState["moduleName"] = dlg.moduleName();
                 m_undoStack->push(new BulkChangePropertyCommand(m_scene, item, newState));
             }
             return;
