@@ -112,12 +112,12 @@ void ScriptEditorTab::setupUI(QGraphicsScene* scene, NetManager* netManager) {
     mainLayout->addWidget(m_stack);
 
     // Connect JIT signals
-    connect(&JITContextManager::instance(), &JITContextManager::scriptOutput, [this](const QString& msg) {
+    connect(&JITContextManager::instance(), &JITContextManager::scriptOutput, this, [this](const QString& msg) {
         m_console->insertPlainText(msg + "\n");
         m_console->ensureCursorVisible();
     });
     
-    connect(&JITContextManager::instance(), &JITContextManager::compilationFinished, [this](bool success, QString message) {
+    connect(&JITContextManager::instance(), &JITContextManager::compilationFinished, this, [this](bool success, QString message) {
         QString color = success ? "#4ade80" : "#f87171";
         m_console->append(QString("<span style='color:%1; font-weight:bold;'>[JIT] %2</span>").arg(color, message));
     });

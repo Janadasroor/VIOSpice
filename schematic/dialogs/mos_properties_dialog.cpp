@@ -37,11 +37,15 @@ const QVector<MosPropertiesDialog::LevelInfo>& MosPropertiesDialog::knownLevels(
         {"BSIM3",    "bsim3.json"},
         {"BSIM4",    "bsim4.json"},
         {"BSIMSOI",  "bsimsoi.json"},
-        {"BSIM3SOI", ""},
+        {"BSIM3SOI-FD", ""},
+        {"BSIM3SOI-PD", ""},
+        {"BSIM3SOI-DD", ""},
         {"HISIM2",   "hisim2.json"},
         {"HISIM_HV", "hisim_hv.json"},
         {"VDMOS",    ""},
         {"SOI3",     ""},
+        {"HFET",     ""},
+        {"MESFET",   ""},
     };
     return levels;
 }
