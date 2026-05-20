@@ -366,6 +366,10 @@ set(SCHEMATIC_SOURCES
     schematic/dialogs/adc_bridge_dialog.h
     schematic/dialogs/dac_bridge_dialog.cpp
     schematic/dialogs/dac_bridge_dialog.h
+    schematic/items/analog_function_item.cpp
+    schematic/items/analog_function_item.h
+    schematic/dialogs/analog_function_dialog.cpp
+    schematic/dialogs/analog_function_dialog.h
     schematic/items/no_connect_item.cpp
     schematic/items/no_connect_item.h
     schematic/items/bus_item.cpp

@@ -64,9 +64,11 @@
 #include "../dialogs/system_verilog_block_dialog.h"
 #include "../dialogs/adc_bridge_dialog.h"
 #include "../dialogs/dac_bridge_dialog.h"
+#include "../dialogs/analog_function_dialog.h"
 #include "../items/system_verilog_block_item.h"
 #include "../items/adc_bridge_item.h"
 #include "../items/dac_bridge_item.h"
+#include "../items/analog_function_item.h"
 #include "../items/xspice_block_item.h"
 #include "../dialogs/design_rule_editor.h"
 #include "../dialogs/voltage_controlled_switch_dialog.h"
@@ -1505,6 +1507,14 @@ void SchematicEditor::onItemDoubleClicked(SchematicItem* item) {
         if (item->itemTypeName() == "DacBridge") {
             auto* bridge = static_cast<DacBridgeItem*>(item);
             DacBridgeDialog dlg(bridge, this);
+            dlg.exec();
+            return;
+        }
+
+        // Analog Function properties dialog
+        if (item->itemTypeName() == "AnalogFunction") {
+            auto* af = static_cast<AnalogFunctionItem*>(item);
+            AnalogFunctionDialog dlg(af, this);
             dlg.exec();
             return;
         }
