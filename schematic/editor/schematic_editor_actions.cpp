@@ -62,7 +62,11 @@
 #include "../dialogs/potentiometer_properties_dialog.h"
 #include "../dialogs/xspice_block_property_dialog.h"
 #include "../dialogs/system_verilog_block_dialog.h"
+#include "../dialogs/adc_bridge_dialog.h"
+#include "../dialogs/dac_bridge_dialog.h"
 #include "../items/system_verilog_block_item.h"
+#include "../items/adc_bridge_item.h"
+#include "../items/dac_bridge_item.h"
 #include "../items/xspice_block_item.h"
 #include "../dialogs/design_rule_editor.h"
 #include "../dialogs/voltage_controlled_switch_dialog.h"
@@ -1486,6 +1490,22 @@ void SchematicEditor::onItemDoubleClicked(SchematicItem* item) {
                 newState["moduleName"] = dlg.moduleName();
                 m_undoStack->push(new BulkChangePropertyCommand(m_scene, item, newState));
             }
+            return;
+        }
+
+        // ADC Bridge properties dialog
+        if (item->itemTypeName() == "AdcBridge") {
+            auto* bridge = static_cast<AdcBridgeItem*>(item);
+            AdcBridgeDialog dlg(bridge, this);
+            dlg.exec();
+            return;
+        }
+
+        // DAC Bridge properties dialog
+        if (item->itemTypeName() == "DacBridge") {
+            auto* bridge = static_cast<DacBridgeItem*>(item);
+            DacBridgeDialog dlg(bridge, this);
+            dlg.exec();
             return;
         }
 
