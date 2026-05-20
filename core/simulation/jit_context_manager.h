@@ -53,6 +53,14 @@ public:
     void* getFunctionAddress(const QString& id);
 
     /**
+     * @brief Registers an interpreter (non-JIT) function pointer by ID.
+     * These are used by the trampoline-based SV interpreter pipeline to provide
+     * function pointers for ngspice's viospice_jit code model without going
+     * through the FluxScript compiler.
+     */
+    void registerInterpreterFunc(const QString& id, void* func);
+
+    /**
      * @brief Looks up an arbitrary symbol in the JIT by exact name.
      * Returns nullptr if the symbol is not compiled/linked.
      */
@@ -105,6 +113,11 @@ private:
     std::mutex m_funcMutex;
     const SimResults* m_lastResults = nullptr;
 #endif
+
+    // Non-JIT interpreter function pointers (registered via registerInterpreterFunc)
+    // Stored independently of FluxScript so getFunctionAddress works for both paths.
+    QMap<QString, void*> m_interpreterFunctions;
+    std::mutex m_intMutex;
 };
 
 } // namespace Flux

@@ -354,6 +354,10 @@ set(SCHEMATIC_SOURCES
     schematic/items/flux_measurement_item.h
     schematic/items/xspice_block_item.cpp
     schematic/items/xspice_block_item.h
+    schematic/items/system_verilog_block_item.cpp
+    schematic/items/system_verilog_block_item.h
+    schematic/dialogs/system_verilog_block_dialog.cpp
+    schematic/dialogs/system_verilog_block_dialog.h
     schematic/items/no_connect_item.cpp
     schematic/items/no_connect_item.h
     schematic/items/bus_item.cpp

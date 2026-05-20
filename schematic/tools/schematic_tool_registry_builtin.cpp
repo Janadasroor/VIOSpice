@@ -78,6 +78,7 @@ void SchematicToolRegistryBuiltIn::registerBuiltInTools() {
     registry.registerTool("RAM", []() { return new SchematicComponentTool("RAM"); });
     
     registry.registerTool("XspiceBlock", []() { return new SchematicComponentTool("XspiceBlock"); });
+    registry.registerTool("SystemVerilogBlock", []() { return new SchematicComponentTool("SystemVerilogBlock"); });
 
     // Interactive Components
     registry.registerTool("Switch", []() { return new SchematicComponentTool("Switch"); });
