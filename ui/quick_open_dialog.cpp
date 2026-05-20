@@ -49,8 +49,9 @@ QuickOpenDialog::QuickOpenDialog(QWidget* parent)
     const QString bgColor = theme ? theme->panelBackground().name() : "#1e1e1e";
     const QString borderColor = theme ? theme->panelBorder().name() : "#3f3f46";
     const QString textColor = theme ? theme->textColor().name() : "#f4f4f5";
-    const QString accentColor = theme ? theme->accentColor().name() : "#2563eb";
-    const QString hoverColor = theme ? theme->accentHover().name() : "#1e40af";
+    const QString accentColor = theme ? (isLight ? "#dbeafe" : theme->accentColor().name()) : "#2563eb";
+    const QString hoverColor = theme ? (isLight ? "#f1f5f9" : theme->accentHover().name()) : "#1e40af";
+    const QString selectedTextColor = isLight ? "#1e40af" : "#ffffff";
     const QString inputBg = isLight ? "#ffffff" : "#27272a";
     const QString inputFocusBg = isLight ? "#f8f9fa" : "#2f2f33";
 
@@ -96,12 +97,12 @@ QuickOpenDialog::QuickOpenDialog(QWidget* parent)
         "}"
         "QListWidget::item:selected {"
         "    background: %4;"
-        "    color: #ffffff;"
+        "    color: %6;"
         "}"
         "QListWidget::item:hover {"
         "    background: %5;"
         "}"
-        ).arg(bgColor, textColor, borderColor, accentColor, hoverColor)
+        ).arg(bgColor, textColor, borderColor, accentColor, hoverColor, selectedTextColor)
     );
     m_layout->addWidget(m_fileList);
 
@@ -132,8 +133,9 @@ QuickOpenDialog::QuickOpenDialog(QWidget* parent)
         const QString bgColor = theme ? theme->panelBackground().name() : "#1e1e1e";
         const QString borderColor = theme ? theme->panelBorder().name() : "#3f3f46";
         const QString textColor = theme ? theme->textColor().name() : "#f4f4f5";
-        const QString accentColor = theme ? theme->accentColor().name() : "#2563eb";
-        const QString hoverColor = theme ? theme->accentHover().name() : "#1e40af";
+        const QString accentColor = theme ? (isLight ? "#dbeafe" : theme->accentColor().name()) : "#2563eb";
+        const QString hoverColor = theme ? (isLight ? "#f1f5f9" : theme->accentHover().name()) : "#1e40af";
+        const QString selectedTextColor = isLight ? "#1e40af" : "#ffffff";
         const QString inputBg = isLight ? "#ffffff" : "#27272a";
         const QString inputFocusBg = isLight ? "#f8f9fa" : "#2f2f33";
 
@@ -166,12 +168,12 @@ QuickOpenDialog::QuickOpenDialog(QWidget* parent)
             "}"
             "QListWidget::item:selected {"
             "    background: %4;"
-            "    color: #ffffff;"
+            "    color: %6;"
             "}"
             "QListWidget::item:hover {"
             "    background: %5;"
             "}"
-            ).arg(bgColor, textColor, borderColor, accentColor, hoverColor)
+            ).arg(bgColor, textColor, borderColor, accentColor, hoverColor, selectedTextColor)
         );
 
         if (theme) {

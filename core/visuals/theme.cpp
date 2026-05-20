@@ -192,7 +192,7 @@ QString PCBTheme::widgetStylesheet() const {
     QString inputBg = isDark ? "#18181b" : "#ffffff";
     QString inputText = isDark ? m_textColor.name() : "#1e293b"; // Ensure dark text in light theme
     QString itemHover = isDark ? "#3f3f46" : "#f1f5f9";
-    QString itemSelected = isDark ? "#27272a" : "#eff6ff";
+    QString itemSelected = isDark ? m_accentColor.name() : "#dbeafe";
     QString headerBg = isDark ? "#27272a" : "#f8fafc";
     QString menuBg = isDark ? "#18181b" : "#ffffff";
     QString btnBg = isDark ? "#27272a" : "#ffffff";
@@ -374,7 +374,7 @@ QString PCBTheme::widgetStylesheet() const {
      .arg(indicatorDisabledBg)            // 20
      .arg(indicatorDisabledBorder)        // 21
      .arg(itemSelected)                   // 22
-     .arg(isDark ? "#ffffff" : "#1e293b"); // 23
+     .arg(isDark ? "#ffffff" : "#1e40af"); // 23
 }
 
 QString PCBTheme::toolbarStylesheet() const {
