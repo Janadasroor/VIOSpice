@@ -1784,6 +1784,8 @@ static QString modelLevelToSpiceType(const QString& modelLevel) {
     // VDMOS uses its own type name, not NMOS/PMOS + LEVEL=N
     if (up == "VDMOS" || up == "VDMOSN") return "VDMOS";
     if (up == "VDMOSP") return "VDMOSP";
+    if (up == "HFET") return "NHFET"; // Default to NHFET, dialog logic handles P-channel
+    if (up == "MESFET") return "NMES";
     return QString();
 }
 
@@ -1792,7 +1794,9 @@ static QString modelLevelToLevelParam(const QString& modelLevel) {
     if (up == "BSIM4")   return "LEVEL=14";
     if (up == "BSIM3")   return "LEVEL=8";
     if (up == "BSIMSOI") return "LEVEL=10";  // B4SOI (BSIM4-based SOI)
-    if (up == "BSIM3SOI") return "LEVEL=55"; // B3SOIFD
+    if (up == "BSIM3SOI-FD") return "LEVEL=55";
+    if (up == "BSIM3SOI-PD") return "LEVEL=56";
+    if (up == "BSIM3SOI-DD") return "LEVEL=57";
     if (up == "HISIM2")  return "LEVEL=68";
     if (up == "HISIM_HV") return "LEVEL=73";
     if (up == "BSIM1")   return "LEVEL=4";
@@ -1802,6 +1806,12 @@ static QString modelLevelToLevelParam(const QString& modelLevel) {
     if (up == "MOS3")    return "LEVEL=3";
     if (up == "MOS6")    return "LEVEL=6";
     if (up == "MOS9")    return "LEVEL=9";
+    if (up == "SOI3")    return "LEVEL=60";
+    if (up == "HFET")    return "LEVEL=1";
+    if (up == "MESFET")  return "LEVEL=1";
+    if (up == "VBIC")    return "LEVEL=4";
+    if (up == "HICUM2")  return "LEVEL=8";
+    if (up == "MEXTRAM") return "LEVEL=6";
     return QString();
 }
 
@@ -1811,6 +1821,10 @@ QString modelToSpiceLine(const SimModel& model) {
     if (spiceType.isEmpty()) {
         spiceType = spicetypeToString(model.type);
     }
+    // For HFET/MESFET, adjust type based on polarity
+    if (spiceType == "NHFET" && model.type == SimComponentType::MOSFET_PMOS) spiceType = "PHFET";
+    if (spiceType == "NMES" && model.type == SimComponentType::MOSFET_PMOS) spiceType = "PMES";
+
     if (spiceType.isEmpty()) return QString();
 
     const QString ml = QString::fromStdString(model.modelLevel).toUpper();
@@ -1823,15 +1837,20 @@ QString modelToSpiceLine(const SimModel& model) {
             break;
         case SimComponentType::BJT_NPN:
         case SimComponentType::BJT_PNP:
-            allowed = {"IS", "BF", "BR", "VAF", "VAR", "CJE", "CJC", "TF", "TR", "RB", "RE", "RC"};
+            isAdvanced = (ml == "VBIC" || ml == "HICUM2" || ml == "MEXTRAM" ||
+                         ml == "NBJT" || ml == "NBJT2");
+            if (!isAdvanced) {
+                allowed = {"IS", "BF", "BR", "VAF", "VAR", "CJE", "CJC", "TF", "TR", "RB", "RE", "RC", "LEVEL"};
+            }
             break;
         case SimComponentType::MOSFET_NMOS:
         case SimComponentType::MOSFET_PMOS: {
             // For advanced models (BSIM4, BSIMSOI, etc.), allow all params
             isAdvanced = (ml == "BSIM4" || ml == "BSIM3" || ml == "BSIMSOI" ||
-                         ml == "BSIM3SOI" || ml == "HISIM2" || ml == "HISIM_HV" ||
+                         ml.startsWith("BSIM3SOI") || ml == "HISIM2" || ml == "HISIM_HV" ||
                          ml == "BSIM1" || ml == "BSIM2" || ml == "MOS6" || ml == "MOS9" ||
-                         ml == "VDMOS" || ml == "VDMOSN" || ml == "VDMOSP");
+                         ml == "VDMOS" || ml == "VDMOSN" || ml == "VDMOSP" ||
+                         ml == "SOI3" || ml == "HFET" || ml == "MESFET");
             if (!isAdvanced) {
                 allowed = {"VTO", "KP", "LAMBDA", "RD", "RS", "RG", "CGSO", "CGDO", "CGBO", "CBD", "CBS", "PB", "GAMMA", "PHI", "LEVEL"};
             }

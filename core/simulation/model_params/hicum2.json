@@ -1,0 +1,24 @@
+{
+    "model": "HICUM2",
+    "description": "High Current Model for BJT (LEVEL=8)",
+    "level": 8,
+    "spiceType": "NPN",
+    "spiceLevelParam": "LEVEL=8",
+    "categories": [
+        {
+            "name": "Transport",
+            "params": [
+                {"name": "C10", "default": "1e-14", "unit": "A^2s", "desc": "Transport saturation current constant"},
+                {"name": "QP0", "default": "1e-14", "unit": "As", "desc": "Zero-bias hole charge"},
+                {"name": "ICH", "default": "1e-3", "unit": "A", "desc": "High-current critical current"}
+            ]
+        },
+        {
+            "name": "Resistance",
+            "params": [
+                {"name": "RCI0", "default": "0", "unit": "ohm", "desc": "Internal collector resistance"},
+                {"name": "RB", "default": "0", "unit": "ohm", "desc": "Internal base resistance"}
+            ]
+        }
+    ]
+}

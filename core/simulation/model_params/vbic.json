@@ -1,0 +1,33 @@
+{
+    "model": "VBIC",
+    "description": "Vertical Bipolar Inter-Company Model (LEVEL=4)",
+    "level": 4,
+    "spiceType": "NPN",
+    "spiceLevelParam": "LEVEL=4",
+    "categories": [
+        {
+            "name": "Transport",
+            "params": [
+                {"name": "IS", "default": "1e-14", "unit": "A", "desc": "Transport saturation current"},
+                {"name": "NF", "default": "1.0", "unit": "", "desc": "Forward ideality factor"},
+                {"name": "NR", "default": "1.0", "unit": "", "desc": "Reverse ideality factor"}
+            ]
+        },
+        {
+            "name": "Resistance",
+            "params": [
+                {"name": "RC", "default": "0", "unit": "ohm", "desc": "Intrinsic collector resistance"},
+                {"name": "RB", "default": "0", "unit": "ohm", "desc": "Intrinsic base resistance"},
+                {"name": "RE", "default": "0", "unit": "ohm", "desc": "Intrinsic emitter resistance"}
+            ]
+        },
+        {
+            "name": "Capacitance",
+            "params": [
+                {"name": "CJE", "default": "0", "unit": "F", "desc": "Zero-bias B-E depletion capacitance"},
+                {"name": "CJC", "default": "0", "unit": "F", "desc": "Zero-bias B-C depletion capacitance"},
+                {"name": "CJEP", "default": "0", "unit": "F", "desc": "Zero-bias extrinsic B-E capacitance"}
+            ]
+        }
+    ]
+}

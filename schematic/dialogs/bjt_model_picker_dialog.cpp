@@ -1,5 +1,4 @@
 #include "bjt_model_picker_dialog.h"
-
 #include "../../simulator/bridge/model_library_manager.h"
 #include "../../simulator/bridge/spice_model_search.h"
 #include "theme_manager.h"
@@ -65,6 +64,8 @@ BjtModelPickerDialog::BjtModelPickerDialog(bool pnp, QWidget* parent)
 
 void BjtModelPickerDialog::loadModels() {
     const QString wantedType = m_pnp ? "PNP" : "NPN";
+
+    // Use smart search with empty query to get all models sorted by name
     const auto results = SpiceModelSearch::search("", wantedType);
 
     for (const auto& scored : results) {
@@ -88,14 +89,12 @@ void BjtModelPickerDialog::loadModels() {
 
 void BjtModelPickerDialog::filterModels(const QString& text) {
     const QString wantedType = m_pnp ? "PNP" : "NPN";
+
     const auto results = SpiceModelSearch::search(text, wantedType);
 
     for (int i = 0; i < m_modelList->count(); ++i) {
         m_modelList->item(i)->setHidden(true);
     }
-
-    QSet<QString> matchingNames;
-    for (const auto& scored : results) matchingNames.insert(scored.info.name);
 
     int showIndex = 0;
     for (const auto& scored : results) {
