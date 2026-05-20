@@ -24,6 +24,12 @@ public:
     double wiperPosition() const { return m_wiperPos; }
     void setWiperPosition(double pos);
 
+    bool isLogarithmic() const { return m_log; }
+    void setLogarithmic(bool log) { m_log = log; update(); }
+
+    double logMultiplier() const { return m_logMultiplier; }
+    void setLogMultiplier(double mult) { m_logMultiplier = mult; update(); }
+
     QRectF boundingRect() const override;
     void paint(QPainter *painter, const QStyleOptionGraphicsItem* option, QWidget* widget) override;
 
@@ -36,6 +42,8 @@ public:
 
 private:
     double m_wiperPos = 0.5; // 0.0 to 1.0
+    bool m_log = false;
+    double m_logMultiplier = 1.0;
     bool m_isDraggingWiper = false;
 };
 

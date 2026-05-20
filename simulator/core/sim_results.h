@@ -10,7 +10,7 @@
 #include <complex>
 
 enum class SimAnalysisType {
-    OP, Transient, AC, DC, MonteCarlo, Sensitivity, ParametricSweep, Noise, Distortion, Optimization, FFT, RealTime, SParameter
+    OP, Transient, AC, DC, MonteCarlo, Sensitivity, ParametricSweep, Noise, Distortion, Optimization, FFT, RealTime, SParameter, PSS
 };
 
 struct SParameterPoint {
@@ -127,6 +127,12 @@ struct SimAnalysisConfig {
     std::string rfPort1Source; // e.g. "V1"
     std::string rfPort2Node;   // e.g. "N1"
     double rfZ0 = 50.0;        // Reference impedance (Ohms)
+
+    // PSS settings
+    double pssFundFreq = 1000.0;
+    double pssTimeStep = 1e-6;
+    int pssPoints = 1024;
+    std::string pssOscNode;
 
     // Numerical settings
     double relTol = 1e-3;
