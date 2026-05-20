@@ -380,7 +380,9 @@ void SchematicComponentsWidget::populate() {
         {"CCVS (H)", "Simulation"},
         // XSPICE Behavioral Blocks
         {"XspiceBlock", "XSPICE"},
-        {"SystemVerilogBlock", "XSPICE"}
+        {"SystemVerilogBlock", "XSPICE"},
+        {"AdcBridge", "Mixed-Signal"},
+        {"DacBridge", "Mixed-Signal"}
     };
 
     builtIn.reserve(builtInTools.size());
