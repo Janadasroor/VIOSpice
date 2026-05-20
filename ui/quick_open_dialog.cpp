@@ -229,62 +229,65 @@ bool QuickOpenDialog::eventFilter(QObject* watched, QEvent* event) {
         }
     }
 
-    if (watched == m_searchBox || watched == m_fileList) {
-        if (event->type() == QEvent::KeyPress) {
-            QKeyEvent* keyEvent = static_cast<QKeyEvent*>(event);
+    if (event->type() == QEvent::KeyPress) {
+        QKeyEvent* keyEvent = static_cast<QKeyEvent*>(event);
+        const int key = keyEvent->key();
 
-            switch (keyEvent->key()) {
-                case Qt::Key_Down:
-                    if (m_fileList->currentRow() < m_fileList->count() - 1) {
-                        m_fileList->setCurrentRow(m_fileList->currentRow() + 1);
-                        m_fileList->scrollToItem(m_fileList->currentItem());
-                    }
-                    return true;
+        // Handle Escape at any level
+        if (key == Qt::Key_Escape) {
+            reject();
+            return true;
+        }
 
-                case Qt::Key_Up:
-                    if (m_fileList->currentRow() > 0) {
-                        m_fileList->setCurrentRow(m_fileList->currentRow() - 1);
-                        m_fileList->scrollToItem(m_fileList->currentItem());
-                    }
-                    return true;
-
-                case Qt::Key_Return:
-                case Qt::Key_Enter:
-                    selectAndOpenCurrent();
-                    return true;
-
-                case Qt::Key_Escape:
-                    reject();
-                    return true;
-
-                case Qt::Key_Tab:
-                    // Switch focus between search and list
-                    if (watched == m_searchBox) {
-                        m_fileList->setFocus();
-                    } else {
-                        m_searchBox->setFocus();
-                    }
-                    return true;
+        // Navigation keys for the file list
+        if (key == Qt::Key_Down) {
+            if (m_fileList->currentRow() < m_fileList->count() - 1) {
+                m_fileList->setCurrentRow(m_fileList->currentRow() + 1);
+                m_fileList->scrollToItem(m_fileList->currentItem());
             }
+            return true;
+        }
+
+        if (key == Qt::Key_Up) {
+            if (m_fileList->currentRow() > 0) {
+                m_fileList->setCurrentRow(m_fileList->currentRow() - 1);
+                m_fileList->scrollToItem(m_fileList->currentItem());
+            }
+            return true;
+        }
+
+        if (key == Qt::Key_Return || key == Qt::Key_Enter) {
+            selectAndOpenCurrent();
+            return true;
+        }
+
+        // Tab: switch focus between search and list
+        if (key == Qt::Key_Tab) {
+            if (watched == m_searchBox) {
+                m_fileList->setFocus();
+            } else {
+                m_searchBox->setFocus();
+            }
+            return true;
+        }
+
+        // Character keys received by the file list: forward to search box
+        if (watched == m_fileList && !keyEvent->text().isEmpty() && keyEvent->text().at(0).isPrint()) {
+            m_searchBox->setFocus();
+            m_searchBox->insert(keyEvent->text());
+            return true;
         }
     }
+
     return QDialog::eventFilter(watched, event);
 }
 
 void QuickOpenDialog::keyPressEvent(QKeyEvent* event) {
-    // Handle escape at dialog level
-    if (event->key() == Qt::Key_Escape) {
-        reject();
-        return;
-    }
-    // Pass other keys to search box
-    if (event->key() != Qt::Key_Up && event->key() != Qt::Key_Down &&
-        event->key() != Qt::Key_Return && event->key() != Qt::Key_Enter) {
-        m_searchBox->setFocus();
-        QApplication::sendEvent(m_searchBox, event);
-        return;
-    }
-    QDialog::keyPressEvent(event);
+    // All key handling is done in eventFilter.
+    // This override exists only to prevent QDialog from calling accept()
+    // on Enter/Return when no default button is set, which would close
+    // the dialog unexpectedly.
+    event->ignore();
 }
 
 void QuickOpenDialog::onSearchTextChanged(const QString& text) {

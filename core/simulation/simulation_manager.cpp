@@ -278,12 +278,24 @@ void SimulationManager::initialize() {
 
     if (m_isInitialized) {
         QString cmDir = QCoreApplication::applicationDirPath() + "/cm";
+        qDebug() << "[XSPICE] Loading code models from:" << cmDir;
         QStringList cmSubDirs = {"analog", "digital", "spice2poly", "tlines", "xtradev", "xtraevt"};
         
         for (const QString& sub : cmSubDirs) {
             QString cmPath = QString("%1/%2.cm").arg(cmDir, sub);
             if (QFile::exists(cmPath)) {
-                SpiceBackend::instance().execute(QString("codemodel %1").arg(cmPath));
+                int rc = SpiceBackend::instance().execute(QString("codemodel %1").arg(cmPath));
+                qDebug() << "[XSPICE] Loaded" << sub << "rc=" << rc;
+            } else {
+                qDebug() << "[XSPICE] MISSING:" << cmPath;
+                // Fallback: try relative to app dir /../cm
+                QString fallback = QCoreApplication::applicationDirPath() + "/../cm/" + sub + ".cm";
+                if (QFile::exists(fallback)) {
+                    qDebug() << "[XSPICE] Fallback found:" << fallback;
+                    SpiceBackend::instance().execute(QString("codemodel %1").arg(fallback));
+                } else {
+                    qDebug() << "[XSPICE] Fallback also missing:" << fallback;
+                }
             }
         }
 
