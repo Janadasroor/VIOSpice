@@ -3897,6 +3897,57 @@ SpiceNetlistGenerator::GeneratedNetlist SpiceNetlistGenerator::generate(QGraphic
                 .arg(outLow).arg(outHigh).arg(outUndef).arg(inputLoad).arg(tRise).arg(tFall).arg(modelName);
             continue;
         }
+        else if (typeName == "AnalogFunction") {
+            QString inNet = pins.value("In");
+            QString outNet = pins.value("Out");
+            if (inNet.isEmpty()) inNet = "0";
+            if (outNet.isEmpty()) outNet = "0";
+            inNet.replace(" ", "_");
+            outNet.replace(" ", "_");
+
+            QString funcType = comp.paramExpressions.value("functionType", "gain");
+            QString modelName = QString("%1_%2").arg(funcType, ref);
+
+            // Build .model param list from paramExpressions matching the function type
+            QStringList modelParams;
+            auto addParam = [&](const QString& key, double def) {
+                double v = comp.paramExpressions.value(key, QString::number(def)).toDouble();
+                modelParams << QString("%1=%2").arg(key).arg(v);
+            };
+
+            if (funcType == "gain") {
+                addParam("gain", 1.0);
+                addParam("in_offset", 0.0);
+                addParam("out_offset", 0.0);
+            } else if (funcType == "hyst") {
+                addParam("in_low", 0.0);
+                addParam("in_high", 1.0);
+                addParam("hyst", 0.1);
+                addParam("out_lower_limit", 0.0);
+                addParam("out_upper_limit", 5.0);
+            } else if (funcType == "int") {
+                addParam("gain", 1.0);
+                addParam("in_offset", 0.0);
+                addParam("out_lower_limit", -1e6);
+                addParam("out_upper_limit", 1e6);
+            } else if (funcType == "d_dt") {
+                addParam("gain", 1.0);
+                addParam("out_offset", 0.0);
+            } else if (funcType == "limit") {
+                addParam("gain", 1.0);
+                addParam("in_offset", 0.0);
+                addParam("out_lower_limit", -1.0);
+                addParam("out_upper_limit", 1.0);
+                addParam("limit_range", 0.01);
+            } else if (funcType == "slew") {
+                addParam("rise_slope", 1e-9);
+                addParam("fall_slope", 1e-9);
+            }
+
+            netlist += QString("A_%1 %2 %3 %4\n").arg(ref, inNet, outNet, modelName);
+            netlist += QString(".model %1 %2(%3)\n").arg(modelName, funcType, modelParams.join(" "));
+            continue;
+        }
         else line = ensurePrefix(ref, "X"); // Subcircuit or generic
         // Fallback: if we don't know the type but reference has a known prefix,
         // use the reference as-is to avoid invalid X-lines.
