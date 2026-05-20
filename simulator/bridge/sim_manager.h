@@ -10,6 +10,10 @@
 class QGraphicsScene;
 class NetManager;
 
+// Normalize SmartSignal FluxScript source: replace user-facing pin references
+// (e.g. V("In1"), inputs["In1"], inputs[0]) with FluxScript ABI tokens (inputs[inN]).
+QString normalizeFluxSmartBlockSource(QString source, const QStringList& inputPins);
+
 /**
  * @brief Thread-safe (future) Manager for the simulation module.
  */

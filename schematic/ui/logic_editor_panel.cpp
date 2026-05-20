@@ -29,6 +29,7 @@
 #include <QHeaderView>
 #include <QComboBox>
 #include "jit_context_manager.h"
+#include "../../simulator/bridge/sim_manager.h"
 
 #include <QJsonDocument>
 #include <QJsonArray>
@@ -51,7 +52,7 @@
 LogicEditorPanel::LogicEditorPanel(QGraphicsScene* scene, NetManager* netManager, SchematicAPI* api, QWidget* parent)
     : QMainWindow(parent, Qt::Window), m_scene(scene), m_netManager(netManager), m_api(api) {
 //    qDebug() << "[LogicEditorPanel] Initializing...";
-    setAttribute(Qt::WA_DeleteOnClose);
+    // panel is owned by SchematicEditor; don't self-delete on close
     
     setWindowTitle("viospice Logic IDE");
     resize(1100, 700);
@@ -951,9 +952,11 @@ void LogicEditorPanel::updatePreview() {
         QElapsedTimer timer;
         timer.start();
         
+        // Normalize FluxScript code (inputs[N] / V('pin') → inputs[inN]) before JIT
+        QString normalizedCode = normalizeFluxSmartBlockSource(code, m_targetBlock ? m_targetBlock->inputPins() : QStringList());
         QMap<int, QString> errors;
         QString id = m_targetBlock ? m_targetBlock->reference() : "preview_block";
-        if (Flux::JITContextManager::instance().compileAndLoad(id, code, errors)) {
+        if (Flux::JITContextManager::instance().compileAndLoad(id, normalizedCode, errors)) {
             qint64 elapsed = timer.elapsed();
             m_console->append("<font color='#4ec9b0'>[JIT] Compilation successful in " + QString::number(elapsed) + "ms.</font>");
             m_statusLabel->setText("JIT Ready. Compilation: " + QString::number(elapsed) + "ms");
