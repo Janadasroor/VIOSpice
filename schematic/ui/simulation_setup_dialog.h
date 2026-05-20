@@ -37,6 +37,12 @@ public:
         double rfZ0 = 50.0;
         QString dcSource = "V1";
 
+        // PSS
+        double pssFundFreq = 1000.0;
+        double pssTimeStep = 1e-6;
+        int pssPoints = 1024;
+        QString pssOscNode;
+
         QJsonObject toJson() const;
         static Config fromJson(const QJsonObject& obj);
     };

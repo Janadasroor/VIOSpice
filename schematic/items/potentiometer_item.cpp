@@ -7,6 +7,7 @@
 #include <QJsonObject>
 #include <QGraphicsSceneMouseEvent>
 #include <cmath>
+#include <algorithm>
 
 namespace {
 void triggerInteractiveSimulationUpdateIfNeeded() {
@@ -31,20 +32,34 @@ PotentiometerItem::PotentiometerItem(QPointF pos, QGraphicsItem *parent) : Schem
 void PotentiometerItem::setWiperPosition(double pos) {
     m_wiperPos = std::clamp(pos, 0.0, 1.0);
     
-    // Update simulation parameters if we have a total resistance value
-    double totalR = 10000.0; // Default 10k
-    bool ok = false;
+    // Update simulation parameters
+    QMap<QString, QString> pe = paramExpressions();
+    pe["pot.position"] = QString::number(m_wiperPos);
+    pe["pot.log"] = m_log ? "true" : "false";
+    pe["pot.log_multiplier"] = QString::number(m_logMultiplier);
+    
+    // Legacy support for internal engine (splitting resistors)
+    double totalR = 10000.0;
     double parsed = 0.0;
     if (SimValueParser::parseSpiceNumber(m_value, parsed)) {
         totalR = parsed;
     }
     
-    // Split resistance based on wiper position (with small minimum to avoid singular matrix)
-    double r1 = std::max(0.001, totalR * (1.0 - m_wiperPos));
-    double r2 = std::max(0.001, totalR * m_wiperPos);
+    double r1, r2;
+    if (m_log) {
+        // Simple log approximation for legacy engine
+        double ratio = (std::pow(10, m_wiperPos * m_logMultiplier) - 1.0) / (std::pow(10, m_logMultiplier) - 1.0);
+        r2 = std::max(0.001, totalR * ratio);
+        r1 = std::max(0.001, totalR - r2);
+    } else {
+        r1 = std::max(0.001, totalR * (1.0 - m_wiperPos));
+        r2 = std::max(0.001, totalR * m_wiperPos);
+    }
     
-    setParamExpression("r_upper", QString::number(r1));
-    setParamExpression("r_lower", QString::number(r2));
+    pe["r_upper"] = QString::number(r1);
+    pe["r_lower"] = QString::number(r2);
+    for (auto it = pe.constBegin(); it != pe.constEnd(); ++it)
+        setParamExpression(it.key(), it.value());
 
     Q_EMIT interactiveStateChanged();
     triggerInteractiveSimulationUpdateIfNeeded();
@@ -52,7 +67,6 @@ void PotentiometerItem::setWiperPosition(double pos) {
 }
 
 void PotentiometerItem::onInteractivePress(const QPointF& pos) {
-    // Determine if we clicked near the wiper knob
     QPointF local = mapFromScene(pos);
     if (QRectF(-10, -35, 20, 20).contains(local)) {
         m_isDraggingWiper = true;
@@ -60,7 +74,6 @@ void PotentiometerItem::onInteractivePress(const QPointF& pos) {
 }
 
 void PotentiometerItem::onInteractiveClick(const QPointF& pos) {
-    // If just clicked, snap wiper to that X position
     QPointF local = mapFromScene(pos);
     if (local.x() >= -30 && local.x() <= 30) {
         setWiperPosition((local.x() + 30) / 60.0);
@@ -109,7 +122,9 @@ void PotentiometerItem::paint(QPainter *painter, const QStyleOptionGraphicsItem*
 
     painter->setPen(QPen(Qt::white, 1));
     painter->setFont(QFont("Inter", 6));
-    painter->drawText(QRectF(-40, 25, 80, 10), Qt::AlignCenter, QString::number((int)(m_wiperPos * 100)) + "%");
+    QString label = QString::number((int)(m_wiperPos * 100)) + "%";
+    if (m_log) label += " (Log)";
+    painter->drawText(QRectF(-40, 25, 80, 10), Qt::AlignCenter, label);
 
     drawConnectionPointHighlights(painter);
 }
@@ -135,6 +150,8 @@ QJsonObject PotentiometerItem::toJson() const {
     QJsonObject j = SchematicItem::toJson();
     j["type"] = "Potentiometer";
     j["wiper"] = m_wiperPos;
+    j["log"] = m_log;
+    j["logMultiplier"] = m_logMultiplier;
     return j;
 }
 
@@ -142,11 +159,15 @@ bool PotentiometerItem::fromJson(const QJsonObject& j) {
     if (j["type"].toString() != "Potentiometer") return false;
     SchematicItem::fromJson(j);
     m_wiperPos = j["wiper"].toDouble(0.5);
+    m_log = j["log"].toBool(false);
+    m_logMultiplier = j["logMultiplier"].toDouble(1.0);
     return true;
 }
 
 SchematicItem* PotentiometerItem::clone() const {
     PotentiometerItem* p = new PotentiometerItem(pos());
+    p->setLogarithmic(m_log);
+    p->setLogMultiplier(m_logMultiplier);
     p->setWiperPosition(m_wiperPos);
     return p;
 }

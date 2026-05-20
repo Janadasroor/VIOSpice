@@ -21,6 +21,8 @@
 #include <QCryptographicHash>
 #include <cmath>
 #include <limits>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include "config_manager.h"
 #include "simulation_manager.h"
 #include "../../simulator/core/sim_value_parser.h"
@@ -3805,6 +3807,9 @@ SpiceNetlistGenerator::GeneratedNetlist SpiceNetlistGenerator::generate(QGraphic
             line = ensurePrefix(ref, "V"); // Controlled by FluxScript JIT
             value = "0"; // Initial value
         }
+        else if (typeName == "XspiceBlock") {
+            line = ensurePrefix(ref, "A"); // XSPICE A-device block
+        }
         else if (isXspiceLogicComponent(comp.spiceModel.trimmed().isEmpty() ? comp.value.trimmed() : comp.spiceModel.trimmed(),
                                         comp.typeName,
                                         ref)) {
@@ -3826,6 +3831,116 @@ SpiceNetlistGenerator::GeneratedNetlist SpiceNetlistGenerator::generate(QGraphic
                                                   comp.typeName)
                       : QString();
         const bool isNativeLogicADevice = isADevice && usesNativeLogicADevice(normalizedLogicCodeModel);
+
+        // ── XSPICE Behavioral/Digital Block (intercepted before any ADC/A-device logic) ──
+        if (typeName == "XspiceBlock") {
+            const QString xspiceSpiceType = comp.paramExpressions.value("xspice_spiceType",
+                                               comp.paramExpressions.value("xspice_modelType", "gain"));
+            const QString xspiceParamsRaw = comp.paramExpressions.value("xspice_params", "{}");
+            QJsonObject xspiceParams = QJsonDocument::fromJson(xspiceParamsRaw.toUtf8()).object();
+            const QString modelName = QString("xspice_%1_%2").arg(xspiceSpiceType, ref);
+
+            // Build pin nets sorted by pin index from raw pins map
+            QStringList sortedKeys = pins.keys();
+            std::sort(sortedKeys.begin(), sortedKeys.end(), naturalPinLessThan);
+            QStringList rawNodes;
+            for (const QString& pk : sortedKeys) {
+                QString net = pins.value(pk, "0").replace(" ", "_");
+                if (net.isEmpty()) net = "NC_" + ref;
+                rawNodes.append(net);
+            }
+            if (rawNodes.isEmpty()) rawNodes << "0" << "0";
+
+            // Determine input/output split from model type
+            int inputPinCount = 1;
+            bool isDigitalModel = false;
+            if (xspiceSpiceType == "gain" || xspiceSpiceType == "integrator" || xspiceSpiceType == "int" ||
+                xspiceSpiceType == "differentiator" || xspiceSpiceType == "d_dt" ||
+                xspiceSpiceType == "limiter" || xspiceSpiceType == "limit" ||
+                xspiceSpiceType == "slew" || xspiceSpiceType == "hysteresis" ||
+                xspiceSpiceType == "delay" || xspiceSpiceType == "sine" ||
+                xspiceSpiceType == "square" || xspiceSpiceType == "triangle" ||
+                xspiceSpiceType == "pwl" || xspiceSpiceType == "potentiometer" ||
+                xspiceSpiceType == "oneshot") {
+                inputPinCount = 1;
+            } else if (xspiceSpiceType == "summer" || xspiceSpiceType == "mult" ||
+                       xspiceSpiceType == "divide" || xspiceSpiceType == "sdamp" ||
+                       xspiceSpiceType == "vco" || xspiceSpiceType == "pwm" ||
+                       xspiceSpiceType == "memristor") {
+                inputPinCount = 2;
+            } else if (xspiceSpiceType == "adc_bridge" || xspiceSpiceType == "dac_bridge") {
+                inputPinCount = rawNodes.size() >= 4 ? 2 : 1;
+            } else if (xspiceSpiceType == "d_osc") {
+                inputPinCount = 1;
+                isDigitalModel = true;
+            } else if (xspiceSpiceType.startsWith("d_")) {
+                inputPinCount = qMax(rawNodes.size() - 2, 1);
+                isDigitalModel = true;
+            } else {
+                inputPinCount = qMax(rawNodes.size() - 2, 1);
+            }
+
+            // For digital models, insert ADC bridges on analog-driven input nets
+            QStringList actualNets;
+            if (isDigitalModel) {
+                for (int i = 0; i < rawNodes.size(); ++i) {
+                    QString net = rawNodes[i];
+                    if (i < inputPinCount && net != "0" && !net.startsWith("NC_")) {
+                        if (!digitalDrivenNets.contains(net)) {
+                            const QString bridgedNet = QString("__MM_ADC_%1_%2").arg(sanitizeMixedModeToken(ref), sortedKeys.value(i, QString::number(i)));
+                            netlist += mixedModeAdcBridgeLine(ref, sortedKeys.value(i, QString::number(i)), net, bridgedNet) + "\n";
+                            runtimeWarnings.append(QString("Inserted adc_bridge on %1.%2 so analog net %3 can drive XSPICE digital input.").arg(ref, sortedKeys.value(i, QString::number(i)), net));
+                            net = bridgedNet;
+                        }
+                    }
+                    actualNets.append(net);
+                }
+            } else {
+                actualNets = rawNodes;
+            }
+
+            // Split into input vector and output nets.
+            // Analog models get scalar inputs; digital models get vector [bracket] grouping.
+            if (isDigitalModel) {
+                QStringList inNets;
+                for (int i = 0; i < qMin(inputPinCount, actualNets.size()); ++i)
+                    inNets << actualNets[i];
+                QStringList outNets;
+                for (int i = inputPinCount; i < actualNets.size(); ++i)
+                    outNets << actualNets[i];
+                if (outNets.isEmpty()) outNets << "0";
+                netlist += QString("A%1 [%2] %3 %4\n")
+                               .arg(ref, inNets.join(" "), outNets.join(" "), modelName);
+            } else {
+                // Analog model — all nets are scalar
+                QStringList allNets;
+                for (const QString& n : actualNets)
+                    allNets << (n.isEmpty() ? "0" : n);
+                if (allNets.isEmpty()) allNets << "0" << "0";
+                netlist += QString("A%1 %2 %3\n")
+                               .arg(ref, allNets.join(" "), modelName);
+            }
+
+            // Build .model card from parameters
+            QStringList modelParams;
+            for (auto it = xspiceParams.begin(); it != xspiceParams.end(); ++it) {
+                QJsonValue v = it.value();
+                if (v.isDouble()) {
+                    modelParams << QString("%1=%2").arg(it.key(), QString::number(v.toDouble()));
+                } else if (v.isBool()) {
+                    modelParams << QString("%1=%2").arg(it.key(), v.toBool() ? "1" : "0");
+                } else if (v.isString()) {
+                    QString s = v.toString();
+                    if (!s.isEmpty())
+                        modelParams << QString("%1=\"%2\"").arg(it.key(), s);
+                }
+            }
+
+            netlist += QString(".model %1 %2(%3)\n")
+                           .arg(modelName, xspiceSpiceType, modelParams.join(" "));
+
+            continue;
+        }
 
         // --- SPICE Mapper Logic ---
         value = comp.value;
@@ -4547,6 +4662,33 @@ SpiceNetlistGenerator::GeneratedNetlist SpiceNetlistGenerator::generate(QGraphic
             QString switchRef = ref;
             if (!switchRef.startsWith("S", Qt::CaseInsensitive)) switchRef = "S" + ref;
             netlist += QString("%1 %2 %3 %4 %5 %6\n").arg(switchRef, n1, n2, ctrlp, ctrln, modelName);
+            continue;
+        }
+
+        const bool isPotentiometer = (comp.typeName.compare("Potentiometer", Qt::CaseInsensitive) == 0) ||
+                                     ref.startsWith("RPOT", Qt::CaseInsensitive);
+        if (isPotentiometer && nodes.size() >= 3) {
+            const QString r0 = nodes.at(0);
+            const QString wiper = nodes.at(1);
+            const QString r1 = nodes.at(2);
+
+            QString res = value.trimmed();
+            if (res.isEmpty()) res = "10k";
+
+            QString pos = comp.paramExpressions.value("pot.position").trimmed();
+            if (pos.isEmpty()) pos = "0.5";
+            QString isLog = comp.paramExpressions.value("pot.log").trimmed().toUpper();
+            if (isLog.isEmpty()) isLog = "FALSE";
+            QString logMult = comp.paramExpressions.value("pot.log_multiplier").trimmed();
+            if (logMult.isEmpty()) logMult = "1.0";
+
+            QString modelName = QString("pot_mod_%1").arg(ref);
+            netlist += QString(".model %1 potentiometer(r=%2 position=%3 log=%4 log_multiplier=%5)\n")
+                           .arg(modelName, res, pos, isLog, logMult);
+
+            QString potRef = ref;
+            if (!potRef.startsWith("A", Qt::CaseInsensitive)) potRef = "A_" + ref;
+            netlist += QString("%1 [%2 %3 %4] %5\n").arg(potRef, r0, wiper, r1, modelName);
             continue;
         }
 

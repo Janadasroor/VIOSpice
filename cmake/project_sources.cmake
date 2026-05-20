@@ -167,6 +167,8 @@ set(SCHEMATIC_SOURCES
     schematic/dialogs/passive_properties_dialog.h
     schematic/dialogs/passive_model_properties_dialog.cpp
     schematic/dialogs/passive_model_properties_dialog.h
+    schematic/dialogs/potentiometer_properties_dialog.cpp
+    schematic/dialogs/potentiometer_properties_dialog.h
     schematic/dialogs/passive_model_picker_dialog.cpp
     schematic/dialogs/passive_model_picker_dialog.h
     schematic/dialogs/schematic_text_properties_dialog.cpp
@@ -261,6 +263,8 @@ set(SCHEMATIC_SOURCES
     schematic/dialogs/visual_pin_pad_mapper_dialog.h
     schematic/dialogs/circuit_template_gallery.cpp
     schematic/dialogs/circuit_template_gallery.h
+    schematic/dialogs/xspice_block_property_dialog.cpp
+    schematic/dialogs/xspice_block_property_dialog.h
     schematic/editor/schematic_view.cpp
     schematic/editor/schematic_view.h
     schematic/editor/schematic_commands.cpp
@@ -348,6 +352,8 @@ set(SCHEMATIC_SOURCES
     schematic/items/schematic_text_item.h
     schematic/items/flux_measurement_item.cpp
     schematic/items/flux_measurement_item.h
+    schematic/items/xspice_block_item.cpp
+    schematic/items/xspice_block_item.h
     schematic/items/no_connect_item.cpp
     schematic/items/no_connect_item.h
     schematic/items/bus_item.cpp

@@ -70,7 +70,7 @@ void SimulationSetupDialog::setupUI() {
     m_formLayout = new QFormLayout();
     
     m_typeCombo = new QComboBox();
-    m_typeCombo->addItems({"Transient (Time)", "DC Operating Point", "DC Sweep", "AC Sweep (Frequency)", "RF S-Parameter", "Interactive (Live)"});
+    m_typeCombo->addItems({"Transient (Time)", "DC Operating Point", "DC Sweep", "AC Sweep (Frequency)", "RF S-Parameter", "Interactive (Live)", "Periodic Steady State (PSS)"});
     m_formLayout->addRow("Analysis Type:", m_typeCombo);
 
     m_acSweepType = new QComboBox();
@@ -252,6 +252,25 @@ void SimulationSetupDialog::onAnalysisChanged(int index) {
         m_acSweepType->hide();
         if (auto* lbl = m_formLayout->labelForField(m_acSweepType)) lbl->hide();
         m_param1->setText("50"); m_param2->setText("1m");
+    } else if (index == 6) { // PSS
+        setLabel(m_param1, "Fund Freq:");
+        setLabel(m_param2, "Time Step:");
+        setLabel(m_param3, "Points:");
+        setLabel(m_param4, "Osc Node (Optional):");
+        m_param1->show(); m_param2->show(); m_param3->show(); m_param4->show();
+        if (auto* lbl = m_formLayout->labelForField(m_param1)) lbl->show();
+        if (auto* lbl = m_formLayout->labelForField(m_param2)) lbl->show();
+        if (auto* lbl = m_formLayout->labelForField(m_param3)) lbl->show();
+        if (auto* lbl = m_formLayout->labelForField(m_param4)) lbl->show();
+        hideField(m_param5); hideField(m_param6);
+        if (auto* lbl = m_formLayout->labelForField(m_steadyCheck)) lbl->hide();
+        m_steadyCheck->hide();
+        hideField(m_steadyTolEdit);
+        hideField(m_steadyDelayEdit);
+        m_acSweepType->hide();
+        if (auto* lbl = m_formLayout->labelForField(m_acSweepType)) lbl->hide();
+        m_param1->setText("1k"); m_param2->setText("1u"); m_param3->setText("1024");
+        m_param4->setText("");
     }
     
     updateSyntaxHint();
@@ -299,12 +318,14 @@ void SimulationSetupDialog::updateCommandDisplay() {
             .arg(m_param5->text())
             .arg(m_param4->text())
             .arg(m_param6->text());
-    } else { // Real-time
+    } else if (idx == 5) { // Real-time
         cmd = QString(".tran %1 %2 0")
             .arg(m_param2->text())
             .arg(m_param1->text());
+    } else if (idx == 6) { // PSS
+        cmd = QString(".pss %1 %2 %3").arg(m_param1->text(), m_param2->text(), m_param3->text());
+        if (!m_param4->text().trimmed().isEmpty()) cmd += " " + m_param4->text().trimmed();
     }
-    
     m_commandLine->setText(cmd);
     updateSyntaxHint();
 }
@@ -404,6 +425,8 @@ void SimulationSetupDialog::updateSyntaxHint() {
         m_syntaxLabel->setText(".ac <dec/oct/lin> <points> <fstart> <fstop>");
     } else if (idx == 4) {
         m_syntaxLabel->setText(".net V(<out>) <src> Rin=<z0> Rout=<z0>");
+    } else if (idx == 6) {
+        m_syntaxLabel->setText(".pss <fund_freq> <tstep> <n_points> [osc_node]");
     } else {
         m_syntaxLabel->setText(".tran <rt_step> <update_interval> 0");
     }
@@ -417,6 +440,7 @@ SimulationSetupDialog::Config SimulationSetupDialog::getConfig() const {
     else if (idx == 2) cfg.type = SimAnalysisType::DC;
     else if (idx == 3) cfg.type = SimAnalysisType::AC;
     else if (idx == 4) cfg.type = SimAnalysisType::SParameter;
+    else if (idx == 6) cfg.type = SimAnalysisType::PSS;
     else cfg.type = SimAnalysisType::RealTime;
     
     if (cfg.type == SimAnalysisType::Transient) {
@@ -448,6 +472,12 @@ SimulationSetupDialog::Config SimulationSetupDialog::getConfig() const {
         cfg.rfPort1Source = m_param4->text().trimmed();
         cfg.rfPort2Node = m_param5->text().trimmed();
         if (SimValueParser::parseSpiceNumber(m_param6->text().trimmed(), parsed)) cfg.rfZ0 = parsed;
+    } else if (cfg.type == SimAnalysisType::PSS) {
+        double parsed = 0.0;
+        if (SimValueParser::parseSpiceNumber(m_param1->text().trimmed(), parsed)) cfg.pssFundFreq = parsed;
+        if (SimValueParser::parseSpiceNumber(m_param2->text().trimmed(), parsed)) cfg.pssTimeStep = parsed;
+        if (SimValueParser::parseSpiceNumber(m_param3->text().trimmed(), parsed)) cfg.pssPoints = std::max(1, m_param3->text().trimmed().toInt());
+        cfg.pssOscNode = m_param4->text().trimmed();
     } else if (cfg.type == SimAnalysisType::RealTime) {
         cfg.rtIntervalMs = std::max(10, m_param1->text().trimmed().toInt());
         double parsed = 0.0;
@@ -464,6 +494,7 @@ void SimulationSetupDialog::setConfig(const Config& cfg) {
     else if (cfg.type == SimAnalysisType::DC) m_typeCombo->setCurrentIndex(2);
     else if (cfg.type == SimAnalysisType::AC) m_typeCombo->setCurrentIndex(3);
     else if (cfg.type == SimAnalysisType::SParameter) m_typeCombo->setCurrentIndex(4);
+    else if (cfg.type == SimAnalysisType::PSS) m_typeCombo->setCurrentIndex(6);
     else m_typeCombo->setCurrentIndex(5);
 
     if (cfg.type == SimAnalysisType::Transient) {
@@ -491,6 +522,11 @@ void SimulationSetupDialog::setConfig(const Config& cfg) {
         m_param4->setText(cfg.rfPort1Source);
         m_param5->setText(cfg.rfPort2Node);
         m_param6->setText(QString::number(cfg.rfZ0, 'g', 12));
+    } else if (cfg.type == SimAnalysisType::PSS) {
+        m_param1->setText(QString::number(cfg.pssFundFreq, 'g', 12));
+        m_param2->setText(QString::number(cfg.pssTimeStep, 'g', 12));
+        m_param3->setText(QString::number(cfg.pssPoints));
+        m_param4->setText(cfg.pssOscNode);
     } else if (cfg.type == SimAnalysisType::RealTime) {
         m_param1->setText(QString::number(cfg.rtIntervalMs));
         m_param2->setText(QString::number(cfg.rtStep, 'g', 12));

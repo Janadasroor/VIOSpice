@@ -56,8 +56,12 @@
 #include "../dialogs/switch_properties_dialog.h"
 #include "../dialogs/seven_segment_properties_dialog.h"
 #include "../items/tuning_slider_symbol_item.h"
+#include "../items/potentiometer_item.h"
 #include "../items/seven_segment_display_item.h"
 #include "../dialogs/tuning_slider_properties_dialog.h"
+#include "../dialogs/potentiometer_properties_dialog.h"
+#include "../dialogs/xspice_block_property_dialog.h"
+#include "../items/xspice_block_item.h"
 #include "../dialogs/design_rule_editor.h"
 #include "../dialogs/voltage_controlled_switch_dialog.h"
 #include "../dialogs/csw_properties_dialog.h"
@@ -70,7 +74,9 @@
 #include "../dialogs/bjt_properties_dialog.h"
 #include "../dialogs/jfet_properties_dialog.h"
 #include "../dialogs/mos_properties_dialog.h"
+#include "../dialogs/potentiometer_properties_dialog.h"
 #include "../dialogs/mesfet_properties_dialog.h"
+#include "../items/potentiometer_item.h"
 #include "../dialogs/power_stage_properties_dialog.h"
 #include "../items/flux_measurement_item.h"
 #include "../items/generic_component_item.h"
@@ -1406,6 +1412,33 @@ void SchematicEditor::onItemDoubleClicked(SchematicItem* item) {
             return;
         }
 
+        // Potentiometer properties dialog
+        if (item->itemTypeName().compare("Potentiometer", Qt::CaseInsensitive) == 0 ||
+            item->referencePrefix().compare("RPOT", Qt::CaseInsensitive) == 0) {
+            PotentiometerPropertiesDialog dlg(item, this);
+            if (dlg.exec() == QDialog::Accepted) {
+                QJsonObject newState = item->toJson();
+                newState["value"] = dlg.totalResistance();
+                newState["reference"] = dlg.reference();
+                QJsonObject peObj;
+                const auto newPE = dlg.paramExpressions();
+                for (auto it = newPE.constBegin(); it != newPE.constEnd(); ++it) {
+                    peObj[it.key()] = it.value();
+                }
+                newState["paramExpressions"] = peObj;
+                
+                // If it's the specialized PotentiometerItem, also update the internal wiper state
+                if (auto* p = dynamic_cast<PotentiometerItem*>(item)) {
+                    p->setWiperPosition(dlg.wiperPosition());
+                } else {
+                    newState["wiper"] = dlg.wiperPosition();
+                }
+
+                m_undoStack->push(new BulkChangePropertyCommand(m_scene, item, newState));
+            }
+            return;
+        }
+
         // MESFET properties dialog
         if (item->itemTypeName().compare("mesfet", Qt::CaseInsensitive) == 0 ||
             item->referencePrefix().compare("Z", Qt::CaseInsensitive) == 0) {
@@ -1426,6 +1459,19 @@ void SchematicEditor::onItemDoubleClicked(SchematicItem* item) {
                 dlg.exec();
                 return;
             }
+        }
+
+        // XSPICE Behavioral Block properties dialog
+        if (item->itemTypeName() == "XspiceBlock") {
+            auto* xb = static_cast<XspiceBlockItem*>(item);
+            XspiceBlockPropertyDialog dlg(xb, this);
+            if (dlg.exec() == QDialog::Accepted) {
+                QJsonObject newState = item->toJson();
+                newState["modelType"] = dlg.modelType();
+                newState["xspiceParams"] = dlg.xspiceParams();
+                m_undoStack->push(new BulkChangePropertyCommand(m_scene, item, newState));
+            }
+            return;
         }
 
         GenericSymbolPropertiesDialog dlg(item, m_undoStack, m_scene, this);

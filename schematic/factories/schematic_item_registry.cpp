@@ -34,6 +34,7 @@
 #include "instrument_probe_item.h"
 #include "schematic_spice_directive_item.h"
 #include "tuning_slider_symbol_item.h"
+#include "xspice_block_item.h"
 
 using Flux::Model::SymbolDefinition;
 
@@ -663,6 +664,15 @@ void SchematicItemRegistry::registerBuiltInItems() {
 
     factory.registerItemType("SmartSignalBlock", [](QPointF pos, const QJsonObject& properties, QGraphicsItem* parent) -> SchematicItem* {
         auto* item = new SmartSignalItem(pos, parent);
+        if (!properties.isEmpty()) item->fromJson(properties);
+        return item;
+    });
+
+    // XSPICE behavioral/digital blocks
+    factory.registerItemType("XspiceBlock", [](QPointF pos, const QJsonObject& properties, QGraphicsItem* parent) -> SchematicItem* {
+        QString modelType = properties.value("modelType").toString("gain");
+        auto* item = new XspiceBlockItem(modelType, parent);
+        item->setPos(pos);
         if (!properties.isEmpty()) item->fromJson(properties);
         return item;
     });
