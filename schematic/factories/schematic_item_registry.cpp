@@ -38,6 +38,7 @@
 #include "system_verilog_block_item.h"
 #include "adc_bridge_item.h"
 #include "dac_bridge_item.h"
+#include "analog_function_item.h"
 
 using Flux::Model::SymbolDefinition;
 
@@ -695,6 +696,12 @@ void SchematicItemRegistry::registerBuiltInItems() {
 
     factory.registerItemType("DacBridge", [](QPointF pos, const QJsonObject& properties, QGraphicsItem* parent) -> SchematicItem* {
         auto* item = new DacBridgeItem(pos, parent);
+        if (!properties.isEmpty()) item->fromJson(properties);
+        return item;
+    });
+
+    factory.registerItemType("AnalogFunction", [](QPointF pos, const QJsonObject& properties, QGraphicsItem* parent) -> SchematicItem* {
+        auto* item = new AnalogFunctionItem(pos, parent);
         if (!properties.isEmpty()) item->fromJson(properties);
         return item;
     });

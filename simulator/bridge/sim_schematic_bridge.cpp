@@ -549,7 +549,7 @@ MappingResult mapComponentToSimType(const ECOComponent& comp) {
                 r.type = SimComponentType::SystemVerilog;
                 return r;
             }
-            if (comp.typeName == "AdcBridge" || comp.typeName == "DacBridge") {
+            if (comp.typeName == "AdcBridge" || comp.typeName == "DacBridge" || comp.typeName == "AnalogFunction") {
                 r.supported = true;
                 r.type = SimComponentType::SubcircuitInstance;
                 return r;

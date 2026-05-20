@@ -81,6 +81,7 @@ void SchematicToolRegistryBuiltIn::registerBuiltInTools() {
     registry.registerTool("SystemVerilogBlock", []() { return new SchematicComponentTool("SystemVerilogBlock"); });
     registry.registerTool("AdcBridge", []() { return new SchematicComponentTool("AdcBridge"); });
     registry.registerTool("DacBridge", []() { return new SchematicComponentTool("DacBridge"); });
+    registry.registerTool("AnalogFunction", []() { return new SchematicComponentTool("AnalogFunction"); });
 
     // Interactive Components
     registry.registerTool("Switch", []() { return new SchematicComponentTool("Switch"); });
