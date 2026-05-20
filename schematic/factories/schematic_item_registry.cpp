@@ -36,6 +36,8 @@
 #include "tuning_slider_symbol_item.h"
 #include "xspice_block_item.h"
 #include "system_verilog_block_item.h"
+#include "adc_bridge_item.h"
+#include "dac_bridge_item.h"
 
 using Flux::Model::SymbolDefinition;
 
@@ -681,6 +683,18 @@ void SchematicItemRegistry::registerBuiltInItems() {
     // SystemVerilog RTL blocks
     factory.registerItemType("SystemVerilogBlock", [](QPointF pos, const QJsonObject& properties, QGraphicsItem* parent) -> SchematicItem* {
         auto* item = new SystemVerilogBlockItem(pos, parent);
+        if (!properties.isEmpty()) item->fromJson(properties);
+        return item;
+    });
+
+    factory.registerItemType("AdcBridge", [](QPointF pos, const QJsonObject& properties, QGraphicsItem* parent) -> SchematicItem* {
+        auto* item = new AdcBridgeItem(pos, parent);
+        if (!properties.isEmpty()) item->fromJson(properties);
+        return item;
+    });
+
+    factory.registerItemType("DacBridge", [](QPointF pos, const QJsonObject& properties, QGraphicsItem* parent) -> SchematicItem* {
+        auto* item = new DacBridgeItem(pos, parent);
         if (!properties.isEmpty()) item->fromJson(properties);
         return item;
     });

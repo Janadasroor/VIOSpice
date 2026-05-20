@@ -358,6 +358,14 @@ set(SCHEMATIC_SOURCES
     schematic/items/system_verilog_block_item.h
     schematic/dialogs/system_verilog_block_dialog.cpp
     schematic/dialogs/system_verilog_block_dialog.h
+    schematic/items/adc_bridge_item.cpp
+    schematic/items/adc_bridge_item.h
+    schematic/items/dac_bridge_item.cpp
+    schematic/items/dac_bridge_item.h
+    schematic/dialogs/adc_bridge_dialog.cpp
+    schematic/dialogs/adc_bridge_dialog.h
+    schematic/dialogs/dac_bridge_dialog.cpp
+    schematic/dialogs/dac_bridge_dialog.h
     schematic/items/no_connect_item.cpp
     schematic/items/no_connect_item.h
     schematic/items/bus_item.cpp

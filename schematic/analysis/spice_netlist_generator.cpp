@@ -3861,6 +3861,42 @@ SpiceNetlistGenerator::GeneratedNetlist SpiceNetlistGenerator::generate(QGraphic
 
             continue; // No main netlist line for synthetic SV blocks
         }
+        else if (typeName == "AdcBridge") {
+            QString inNet = pins.value("In");
+            QString outNet = pins.value("Out");
+            if (inNet.isEmpty()) inNet = "0";
+            if (outNet.isEmpty()) outNet = "0";
+            inNet.replace(" ", "_");
+            outNet.replace(" ", "_");
+            QString modelName = QString("adc_%1").arg(ref);
+            double inLow = comp.paramExpressions.value("in_low", "0.1").toDouble();
+            double inHigh = comp.paramExpressions.value("in_high", "0.9").toDouble();
+            double riseD = comp.paramExpressions.value("rise_delay", "1e-9").toDouble();
+            double fallD = comp.paramExpressions.value("fall_delay", "1e-9").toDouble();
+            netlist += QString("A_%1 %2 %3 %4\n").arg(ref, inNet, outNet, modelName);
+            netlist += QString(".model %4 adc_bridge(in_low=%1 in_high=%2 rise_delay=%3 fall_delay=%4)\n")
+                .arg(inLow).arg(inHigh).arg(riseD).arg(fallD).arg(modelName);
+            continue;
+        }
+        else if (typeName == "DacBridge") {
+            QString inNet = pins.value("In");
+            QString outNet = pins.value("Out");
+            if (inNet.isEmpty()) inNet = "0";
+            if (outNet.isEmpty()) outNet = "0";
+            inNet.replace(" ", "_");
+            outNet.replace(" ", "_");
+            QString modelName = QString("dac_%1").arg(ref);
+            double outLow = comp.paramExpressions.value("out_low", "0.0").toDouble();
+            double outHigh = comp.paramExpressions.value("out_high", "5.0").toDouble();
+            double outUndef = comp.paramExpressions.value("out_undef", "2.5").toDouble();
+            double inputLoad = comp.paramExpressions.value("input_load", "1e-12").toDouble();
+            double tRise = comp.paramExpressions.value("t_rise", "1e-9").toDouble();
+            double tFall = comp.paramExpressions.value("t_fall", "1e-9").toDouble();
+            netlist += QString("A_%1 %2 %3 %4\n").arg(ref, inNet, outNet, modelName);
+            netlist += QString(".model %4 dac_bridge(out_low=%1 out_high=%2 out_undef=%3 input_load=%4 t_rise=%5 t_fall=%6)\n")
+                .arg(outLow).arg(outHigh).arg(outUndef).arg(inputLoad).arg(tRise).arg(tFall).arg(modelName);
+            continue;
+        }
         else line = ensurePrefix(ref, "X"); // Subcircuit or generic
         // Fallback: if we don't know the type but reference has a known prefix,
         // use the reference as-is to avoid invalid X-lines.
