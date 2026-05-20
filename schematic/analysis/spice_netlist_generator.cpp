@@ -3658,7 +3658,7 @@ SpiceNetlistGenerator::GeneratedNetlist SpiceNetlistGenerator::generate(QGraphic
         const QString rawLogicToken = comp.spiceModel.trimmed().isEmpty() ? comp.value.trimmed() : comp.spiceModel.trimmed();
         const bool isADevice = isXspiceLogicComponent(rawLogicToken, comp.typeName, ref);
         const QString codeModel = normalizeXspiceModelAlias(rawLogicToken, comp.typeName);
-        if (!isADevice || usesNativeLogicADevice(codeModel)) continue;
+        if (!isADevice || (comp.typeName != "XspiceBlock" && usesNativeLogicADevice(codeModel))) continue;
 
         SymbolDefinition* sym = SymbolLibraryManager::instance().findSymbol(comp.typeName);
         const QMap<QString, QString> pins = componentPins.value(ref);
@@ -3814,6 +3814,52 @@ SpiceNetlistGenerator::GeneratedNetlist SpiceNetlistGenerator::generate(QGraphic
                                         comp.typeName,
                                         ref)) {
             line = ensurePrefix(ref, "A"); // XSPICE A-device
+        }
+        else if (typeName == "SystemVerilogBlock") {
+            // SystemVerilog blocks use native XSPICE A-devices with per-output JIT functions.
+            // Format: A_{ref}_{pin} [in1 in2...] outNet viospice_jit_model_{ref}_{pin}
+            //         .model viospice_jit_model_{ref}_{pin} viospice_jit (jit_id="{ref}_{pin}")
+            QString svPath = comp.value;
+            if (svPath.isEmpty() && comp.extraProperties.contains("systemVerilogFile"))
+                svPath = comp.extraProperties["systemVerilogFile"];
+
+            QStringList inputPins;
+            QStringList outputPins;
+            QFile svFile(svPath);
+            if (svFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
+                QString svText = QString::fromUtf8(svFile.readAll());
+                QRegularExpression portRe(R"((input|output)\s+(logic\s+)?(\w+))",
+                    QRegularExpression::CaseInsensitiveOption);
+                for (auto m = portRe.globalMatch(svText); m.hasNext(); ) {
+                    auto match = m.next();
+                    QString dir = match.captured(1).toLower();
+                    QString pname = match.captured(3);
+                    if (dir == "input") inputPins.append(pname);
+                    else outputPins.append(pname);
+                }
+            }
+
+            // Build input net vector in declaration order
+            QStringList inNets;
+            for (const QString& pin : inputPins) {
+                QString net = pins.value(pin);
+                if (net.isEmpty()) net = "0";
+                net.replace(" ", "_");
+                inNets << net;
+            }
+            QString inVector = inNets.isEmpty() ? "0" : "[" + inNets.join(" ") + "]";
+
+            // Generate A-device + model for each output pin
+            for (const QString& pin : outputPins) {
+                QString netName = pins.value(pin);
+                if (netName.isEmpty()) continue;
+                netName.replace(" ", "_");
+                QString outId = QString("%1_%2").arg(ref, pin.toUpper());
+                netlist += QString("A_%1 %2 %3 viospice_jit_model_%1\n").arg(outId, inVector, netName);
+                netlist += QString(".model viospice_jit_model_%1 viospice_jit (jit_id=\"%1\")\n").arg(outId);
+            }
+
+            continue; // No main netlist line for synthetic SV blocks
         }
         else line = ensurePrefix(ref, "X"); // Subcircuit or generic
         // Fallback: if we don't know the type but reference has a known prefix,

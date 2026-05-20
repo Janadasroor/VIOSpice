@@ -238,6 +238,10 @@ void JITContextManager::reset() {
     m_jit->registerFunction("flux_register_save", (void*)&flux_register_save);
     registerQtBridgeJitSymbols(*m_jit);
 #endif
+    {
+        std::lock_guard<std::mutex> lock(m_intMutex);
+        m_interpreterFunctions.clear();
+    }
 }
 
 void JITContextManager::setPinMapping(const QMap<QString, QString>& mapping) {
@@ -284,13 +288,23 @@ void JITContextManager::logMessage(const QString& msg) {
 }
 
 void* JITContextManager::getFunctionAddress(const QString& id) {
+    // Check interpreter functions first (no FluxScript dependency)
+    {
+        std::lock_guard<std::mutex> lock(m_intMutex);
+        auto it = m_interpreterFunctions.find(id);
+        if (it != m_interpreterFunctions.end()) return it.value();
+    }
 #ifdef HAVE_FLUXSCRIPT
     std::lock_guard<std::mutex> lock(m_funcMutex);
     return m_updateFunctions.value(id);
 #else
-    Q_UNUSED(id);
     return nullptr;
 #endif
+}
+
+void JITContextManager::registerInterpreterFunc(const QString& id, void* func) {
+    std::lock_guard<std::mutex> lock(m_intMutex);
+    m_interpreterFunctions[id] = func;
 }
 
 void* JITContextManager::findSymbol(const QString& name) {

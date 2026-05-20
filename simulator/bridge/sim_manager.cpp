@@ -1656,30 +1656,31 @@ void SimManager::compileFluxScripts(QGraphicsScene* scene) {
                         if (!svErr.isEmpty()) {
                             Q_EMIT logMessage(QString("[SystemVerilog] Port extraction failed for %1: %2").arg(ref, svErr));
                         } else {
-                            QString cppSource = SlangManager::instance().translateToCpp(source, moduleName, &svErr);
-                            if (cppSource.isEmpty()) {
+                            // Build ordered input pin list for setInputPinMapping
+                            QStringList inPins;
+                            for (const auto& p : ports)
+                                if (p.isInput) inPins << p.name;
+
+                            auto compiled = SlangManager::instance().compileToInterpreter(source, moduleName, &svErr);
+                            if (compiled.outputs.empty()) {
                                 Q_EMIT logMessage(QString("[SystemVerilog] Translation failed for %1: %2").arg(ref, svErr));
                             } else {
-                                QMap<int, QString> errors;
-                                if (Flux::JITContextManager::instance().compileAndLoad(ref, cppSource, errors)) {
-                                    svCompiledCount++;
+                                for (auto& co : compiled.outputs) {
+                                    const QString& outPin = co.outputPin;
+                                    QString outId = ref + "_" + outPin.toUpper();
 
-                                    Flux::FluxScriptTarget target;
-                                    QStringList inPins, outPins;
-                                    for (const auto& p : ports) {
-                                        if (p.isInput) inPins << p.name;
-                                        else {
-                                            outPins << p.name;
-                                            if (!SimulationManager::instance().isNativeSmartSignalMode()) {
-                                                target.outputVoltageSources << QString("V%1_%2").arg(ref, p.name.toUpper());
-                                            }
-                                        }
+                                    double (*func)(double, const double*) =
+                                        TrampolineManager::instance().allocate(std::move(co.expr));
+                                    if (func) {
+                                        svCompiledCount++;
+                                        Flux::FluxScriptTarget target;
+                                        target.pinToNetMap = m_pinToNetMap.value(ref);
+                                        targets.insert(outId, target);
+                                        Flux::JITContextManager::instance().registerInterpreterFunc(outId,
+                                            reinterpret_cast<void*>(func));
+                                    } else {
+                                        Q_EMIT logMessage(QString("[SystemVerilog] Trampoline allocation failed for %1/%2").arg(ref, outPin));
                                     }
-                                    Flux::JITContextManager::instance().setInputPinMapping(ref, inPins);
-                                    target.pinToNetMap = m_pinToNetMap.value(ref);
-                                    targets.insert(ref, target);
-                                } else {
-                                    Q_EMIT logMessage(QString("[SystemVerilog] JIT Compilation failed for %1: %2").arg(ref, errors.value(0)));
                                 }
                             }
                         }
@@ -1690,7 +1691,7 @@ void SimManager::compileFluxScripts(QGraphicsScene* scene) {
     }
 
     if (fluxCompiledCount > 0) Q_EMIT logMessage(QString("[FluxScript] Successfully JIT-compiled %1 smart blocks.").arg(fluxCompiledCount));
-    if (svCompiledCount > 0) Q_EMIT logMessage(QString("[SystemVerilog] Successfully JIT-compiled %1 RTL blocks.").arg(svCompiledCount));
+    if (svCompiledCount > 0) Q_EMIT logMessage(QString("[SystemVerilog] Registered %1 interpreter-based RTL output(s).").arg(svCompiledCount));
 
     SimulationManager::instance().setFluxScriptTargets(targets);
 }
