@@ -97,11 +97,11 @@ ScriptPanel::ScriptPanel(QGraphicsScene* scene, NetManager* netManager, QWidget*
     layout->addWidget(m_console);
 
     // Connect to JIT Manager signals
-    connect(&JITContextManager::instance(), &JITContextManager::compilationFinished, [this](bool success, QString message) {
+    connect(&JITContextManager::instance(), &JITContextManager::compilationFinished, this, [this](bool success, QString message) {
         m_console->append(QString("<b style='color:%1'>[JIT] %2</b>").arg(success ? "#4caf50" : "#f44336", message));
     });
 
-    connect(&JITContextManager::instance(), &JITContextManager::scriptOutput, [this](const QString& message) {
+    connect(&JITContextManager::instance(), &JITContextManager::scriptOutput, this, [this](const QString& message) {
         m_console->append(message);
     });
 

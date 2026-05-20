@@ -323,6 +323,13 @@ QString PCBTheme::widgetStylesheet() const {
         "   margin: 1px 4px;"
         "   padding: 6px;"
         "}"
+        "QTreeWidget::item:selected, QListWidget::item:selected {"
+        "   background-color: %22;"
+        "   color: %23;"
+        "}"
+        "QTreeWidget::item:hover, QListWidget::item:hover {"
+        "   background-color: %9;"
+        "}"
         "QHeaderView::section {"
         "   background-color: %14;"
         "   color: %8;"
@@ -365,7 +372,9 @@ QString PCBTheme::widgetStylesheet() const {
      .arg(indicatorBorder)                // 18
      .arg(indicatorHover)                 // 19
      .arg(indicatorDisabledBg)            // 20
-     .arg(indicatorDisabledBorder);       // 21
+     .arg(indicatorDisabledBorder)        // 21
+     .arg(itemSelected)                   // 22
+     .arg(isDark ? "#ffffff" : "#1e293b"); // 23
 }
 
 QString PCBTheme::toolbarStylesheet() const {
