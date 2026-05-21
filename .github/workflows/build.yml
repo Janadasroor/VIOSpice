@@ -27,8 +27,8 @@ jobs:
           sudo apt install -y python3-pip python3-venv
           python3 -m venv /tmp/qt-env
           /tmp/qt-env/bin/pip install aqtinstall
-          /tmp/qt-env/bin/aqt install-qt --outputdir "${{ runner.temp }}/Qt" linux desktop 6.11.0 linux_gcc_64 -m qtcharts qtpdf qtwebsockets qtmultimedia qt5compat qtshadertools qttasktree
-          echo "Qt6_DIR=${{ runner.temp }}/Qt/6.11.0/gcc_64/lib/cmake/Qt6" >> $GITHUB_ENV
+          /tmp/qt-env/bin/aqt install-qt --outputdir "${{ runner.temp }}/Qt" linux desktop 6.10.0 linux_gcc_64 -m qtcharts qtpdf qtwebsockets qtmultimedia qt5compat qtshadertools
+          echo "Qt6_DIR=${{ runner.temp }}/Qt/6.10.0/gcc_64/lib/cmake/Qt6" >> $GITHUB_ENV
 
       - name: Install Qt (macOS)
         if: runner.os == 'macOS'
@@ -36,8 +36,8 @@ jobs:
           brew install python@3.12
           python3 -m venv /tmp/qt-env
           /tmp/qt-env/bin/pip install aqtinstall
-          /tmp/qt-env/bin/aqt install-qt --outputdir "${{ runner.temp }}/Qt" mac desktop 6.11.0 clang_64 -m qtcharts qtpdf qtwebsockets qtmultimedia qt5compat qtshadertools qttasktree
-          echo "Qt6_DIR=${{ runner.temp }}/Qt/6.11.0/macos/lib/cmake/Qt6" >> $GITHUB_ENV
+          /tmp/qt-env/bin/aqt install-qt --outputdir "${{ runner.temp }}/Qt" mac desktop 6.10.0 clang_64 -m qtcharts qtpdf qtwebsockets qtmultimedia qt5compat qtshadertools
+          echo "Qt6_DIR=${{ runner.temp }}/Qt/6.10.0/macos/lib/cmake/Qt6" >> $GITHUB_ENV
 
       - name: Install Qt (Windows)
         if: runner.os == 'Windows'
@@ -45,8 +45,8 @@ jobs:
         run: |
           python3 -m venv /tmp/qt-env
           /tmp/qt-env/Scripts/pip install aqtinstall
-          /tmp/qt-env/Scripts/aqt install-qt --outputdir "${{ runner.temp }}/Qt" windows desktop 6.11.0 win64_msvc2022_64 -m qtcharts qtpdf qtwebsockets qtmultimedia qt5compat qtshadertools qttasktree
-          echo "Qt6_DIR=${{ runner.temp }}/Qt/6.11.0/msvc2022_64/lib/cmake/Qt6" >> $GITHUB_ENV
+          /tmp/qt-env/Scripts/aqt install-qt --outputdir "${{ runner.temp }}/Qt" windows desktop 6.10.0 win64_msvc2022_64 -m qtcharts qtpdf qtwebsockets qtmultimedia qt5compat qtshadertools
+          echo "Qt6_DIR=${{ runner.temp }}/Qt/6.10.0/msvc2022_64/lib/cmake/Qt6" >> $GITHUB_ENV
 
       - name: Install system deps (Linux)
         if: runner.os == 'Linux'
@@ -54,6 +54,7 @@ jobs:
           sudo apt install -y \
             build-essential cmake \
             libcurl4-openssl-dev \
+            libgl1-mesa-dev \
             python3 python3-dev
 
       - name: Install system deps (macOS)
