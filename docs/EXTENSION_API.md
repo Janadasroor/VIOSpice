@@ -102,6 +102,9 @@ table.colCount               # read-only
 | Function | Description |
 |---|---|
 | `viora_flux_print(msg)` | Print to stdout `[STDOUT]` |
+| `flux_print_num(val)` | Print numeric value to stdout |
+| `flux_to_str(val)` | Convert number to string handle |
+| `flux_concat(s1, s2)` | Concatenate two string handles |
 
 ### Schematic Component Properties
 

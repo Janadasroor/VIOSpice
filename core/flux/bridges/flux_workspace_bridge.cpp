@@ -217,6 +217,35 @@ extern "C" {
         Flux::JITContextManager::instance().logMessage(QString::fromUtf8(msg));
     }
 
+    void flux_print_num(double val) {
+        QString s = QString::number(val);
+        printf("[STDOUT] %s\n", s.toUtf8().constData());
+        fflush(stdout);
+        Flux::JITContextManager::instance().logMessage(s);
+    }
+
+    double flux_to_str(double val) {
+        QString s = QString::number(val);
+        const char* result = Flux::Core::pool_workspace_string(s);
+        uint64_t raw = reinterpret_cast<uintptr_t>(result);
+        double d;
+        std::memcpy(&d, &raw, sizeof(d));
+        return d;
+    }
+
+    double flux_concat(double s1_dbl, double s2_dbl) {
+        const char* s1 = dbl_to_str(s1_dbl);
+        const char* s2 = dbl_to_str(s2_dbl);
+        if (!s1) return s2_dbl;
+        if (!s2) return s1_dbl;
+        QString res = QString::fromUtf8(s1) + QString::fromUtf8(s2);
+        const char* result = Flux::Core::pool_workspace_string(res);
+        uint64_t raw = reinterpret_cast<uintptr_t>(result);
+        double d;
+        std::memcpy(&d, &raw, sizeof(d));
+        return d;
+    }
+
     // --- Plotting ---
 
     void flux_plot_point(double series_dbl, double x, double y) {
