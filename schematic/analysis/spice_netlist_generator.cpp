@@ -3948,6 +3948,45 @@ SpiceNetlistGenerator::GeneratedNetlist SpiceNetlistGenerator::generate(QGraphic
             netlist += QString(".model %1 %2(%3)\n").arg(modelName, funcType, modelParams.join(" "));
             continue;
         }
+        else if (typeName == "MagneticCore") {
+            QString plusNet = pins.value("PLUS", "0").replace(" ", "_");
+            QString minusNet = pins.value("MINUS", "0").replace(" ", "_");
+            QString modelName = QString("core_%1").arg(ref);
+            QStringList params;
+            auto addP = [&](const QString& key, const QString& val) {
+                params << QString("%1=%2").arg(key, val);
+            };
+            addP("area", QString::number(comp.paramExpressions.value("area", "1e-4").toDouble(), 'g', 12));
+            addP("length", QString::number(comp.paramExpressions.value("length", "1e-2").toDouble(), 'g', 12));
+            int mode = comp.paramExpressions.value("mode", "1").toInt();
+            addP("mode", QString::number(mode));
+            if (mode == 1) {
+                addP("H_array", "[" + comp.paramExpressions.value("H_array", "-200 -100 100 200") + "]");
+                addP("B_array", "[" + comp.paramExpressions.value("B_array", "-1.26 -0.63 0.63 1.26") + "]");
+                addP("input_domain", QString::number(comp.paramExpressions.value("input_domain", "0.01").toDouble(), 'g', 12));
+                addP("fraction", comp.paramExpressions.value("fraction", "TRUE"));
+            } else {
+                addP("in_low", QString::number(comp.paramExpressions.value("in_low", "-1.0").toDouble(), 'g', 12));
+                addP("in_high", QString::number(comp.paramExpressions.value("in_high", "1.0").toDouble(), 'g', 12));
+                addP("hyst", QString::number(comp.paramExpressions.value("hyst", "0.1").toDouble(), 'g', 12));
+                addP("out_lower_limit", QString::number(comp.paramExpressions.value("out_lower_limit", "-1.0").toDouble(), 'g', 12));
+                addP("out_upper_limit", QString::number(comp.paramExpressions.value("out_upper_limit", "1.0").toDouble(), 'g', 12));
+            }
+            netlist += QString("A_%1 %2 %3 %4\n").arg(ref, plusNet, minusNet, modelName);
+            netlist += QString(".model %1 core(%2)\n").arg(modelName, params.join(" "));
+            continue;
+        }
+        else if (typeName == "Lcouple") {
+            QString lPlus = pins.value("L+", "0").replace(" ", "_");
+            QString lMinus = pins.value("L-", "0").replace(" ", "_");
+            QString mmfPlus = pins.value("MMF+", "0").replace(" ", "_");
+            QString mmfMinus = pins.value("MMF-", "0").replace(" ", "_");
+            QString modelName = QString("lcouple_%1").arg(ref);
+            double turns = comp.paramExpressions.value("num_turns", "100").toDouble();
+            netlist += QString("A_%1 (%2 %3) (%4 %5) %6\n").arg(ref, lPlus, lMinus, mmfPlus, mmfMinus, modelName);
+            netlist += QString(".model %1 lcouple(num_turns=%2)\n").arg(modelName, QString::number(turns, 'g', 12));
+            continue;
+        }
         else line = ensurePrefix(ref, "X"); // Subcircuit or generic
         // Fallback: if we don't know the type but reference has a known prefix,
         // use the reference as-is to avoid invalid X-lines.

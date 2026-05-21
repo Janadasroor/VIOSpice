@@ -1,36 +1,83 @@
 name: Release VioraEDA
+
 on:
   push:
     tags: ["v*"]
   workflow_dispatch:
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build:
-    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            qt_host: linux
+            qt_arch: gcc_64
+            qt_dir_suffix: gcc_64
+            archive_ext: tar.gz
+            archive_type: tar.gz
+          - os: macos-14
+            qt_host: mac
+            qt_arch: clang_64
+            qt_dir_suffix: macos
+            archive_ext: tar.gz
+            archive_type: tar.gz
+          - os: windows-2022
+            qt_host: windows
+            qt_arch: win64_msvc2022_64
+            qt_dir_suffix: msvc2022_64
+            archive_ext: zip
+            archive_type: zip
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install system deps
+      - name: Install Qt
+        run: |
+          python3 -m venv /tmp/qt-env
+          /tmp/qt-env/bin/pip install aqtinstall
+          /tmp/qt-env/bin/aqt install-qt \
+            --outputdir ${{ runner.temp }}/Qt \
+            ${{ matrix.qt_host }} desktop 6.11.0 ${{ matrix.qt_arch }} \
+            -m qtcharts qtsvg qtpdf qtwebsockets qtdeclarative qtmultimedia
+        shell: bash
+        env:
+          QMAKE_CACHE: ${{ runner.temp }}/Qt
+
+      - name: Set Qt6_DIR (Linux / macOS)
+        if: runner.os != 'Windows'
+        run: echo "Qt6_DIR=${{ runner.temp }}/Qt/6.11.0/${{ matrix.qt_dir_suffix }}/lib/cmake/Qt6" >> $GITHUB_ENV
+
+      - name: Set Qt6_DIR (Windows)
+        if: runner.os == 'Windows'
+        run: echo "Qt6_DIR=${{ runner.temp }}/Qt/6.11.0/${{ matrix.qt_dir_suffix }}/lib/cmake/Qt6" | Out-File -Append $env:GITHUB_ENV
+
+      - name: Install system deps (Linux)
+        if: runner.os == 'Linux'
         run: |
           sudo apt update
           sudo apt install -y \
             build-essential cmake \
-            qt6-base-dev qt6-charts-dev qt6-svg-dev qt6-tools-dev \
-            libgl1-mesa-dev \
-            llvm-21-dev libclang-21-dev \
             libcurl4-openssl-dev \
-            python3 python3-pip \
-            libfuse2
+            python3 python3-dev
 
-      - name: Install linuxdeploy
+      - name: Install system deps (macOS)
+        if: runner.os == 'macOS'
         run: |
-          wget -q https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
-          chmod +x linuxdeploy-x86_64.AppImage
-          wget -q https://github.com/linuxdeploy/linuxdeploy-plugin-qt/releases/download/continuous/linuxdeploy-plugin-qt-x86_64.AppImage
-          chmod +x linuxdeploy-plugin-qt-x86_64.AppImage
+          brew install cmake curl python@3.12
 
-      - name: Configure (prebuilt deps)
-        run: cmake -B build -DCMAKE_BUILD_TYPE=Release -DVIOSPICE_DEV_MODE=OFF
+      - name: Install system deps (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          choco install cmake curl python3
+
+      - name: Configure
+        run: cmake -B build -DCMAKE_BUILD_TYPE=Release
 
       - name: Build
         run: cmake --build build -j$(nproc)
@@ -38,19 +85,56 @@ jobs:
       - name: Run tests
         run: ctest --test-dir build --output-on-failure || true
 
-      - name: Package AppImage
+      - name: Package (Linux)
+        if: runner.os == 'Linux'
         run: |
-          mkdir -p AppDir/usr/bin
-          cp build/viora AppDir/usr/bin/
-          cp -r build/cm AppDir/usr/
-          cd AppDir
-          ln -s usr/bin/viora AppRun
+          mkdir -p staging/bin staging/cm staging/lib
+          cp build/VioraEDA staging/bin/
+          cp build/viora staging/bin/ 2>/dev/null || true
+          cp build/libLLVM.so.21.1 staging/lib/ 2>/dev/null || true
+          cp -r build/cm/* staging/cm/
+          cp -r build/fluxscript-prebuilt/lib/* staging/lib/ 2>/dev/null || true
+          # Bundle engine libs
+          if [ -d "build/viomatrixc-prebuilt/lib" ]; then
+            cp build/viomatrixc-prebuilt/lib/*.so* staging/lib/ 2>/dev/null || true
+          fi
+          # Bundle FluxScript lib
+          if [ -d "build/fluxscript-prebuilt/lib" ]; then
+            cp build/fluxscript-prebuilt/lib/*.so* staging/lib/ 2>/dev/null || true
+          fi
+          tar czf VioraEDA-${{ github.ref_name }}-linux-x86_64.tar.gz -C staging .
+
+      - name: Package (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          mkdir -p staging/bin staging/cm staging/lib
+          cp build/VioraEDA.app/Contents/MacOS/VioraEDA staging/bin/ 2>/dev/null || \
+          cp build/VioraEDA staging/bin/ 2>/dev/null || true
+          cp build/viora staging/bin/ 2>/dev/null || true
+          cp -r build/cm/* staging/cm/
+          cp build/viomatrixc-prebuilt/lib/*.dylib staging/lib/ 2>/dev/null || true
+          cp build/fluxscript-prebuilt/lib/*.dylib staging/lib/ 2>/dev/null || true
+          tar czf VioraEDA-${{ github.ref_name }}-macos-arm64.tar.gz -C staging .
+
+      - name: Package (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          mkdir staging\bin staging\cm staging\lib
+          copy build\VioraEDA.exe staging\bin\
+          copy build\viora.exe staging\bin\ 2>NUL || echo "no viora.exe"
+          copy build\viomatrixc-prebuilt\lib\*.dll staging\lib\ 2>NUL || echo "no vmc dlls"
+          copy build\fluxscript-prebuilt\lib\*.dll staging\lib\ 2>NUL || echo "no fs dlls"
+          xcopy /E build\cm staging\cm\
+          # Bundle Qt DLLs
+          windeployqt --dir staging\bin staging\bin\VioraEDA.exe
+          cd staging
+          7z a ..\VioraEDA-${{ github.ref_name }}-windows-x86_64.zip .
           cd ..
-          ./linuxdeploy-x86_64.AppImage --appdir AppDir \
-            --plugin qt \
-            --output appimage
 
       - name: Upload release asset
         uses: softprops/action-gh-release@v2
         with:
-          files: VioraEDA-*.AppImage
+          files: |
+            VioraEDA-*-linux-x86_64.tar.gz
+            VioraEDA-*-macos-arm64.tar.gz
+            VioraEDA-*-windows-x86_64.zip

@@ -616,32 +616,6 @@ static QVector<XspiceModelDef> buildModelDB() {
         db.append(d);
     }
 
-    // magnetic core
-    {
-        XspiceModelDef d;
-        d.name = "Magnetic Core"; d.category = "Extended Devices"; d.spiceType = "core";
-        d.description = "Non-linear magnetic core with hysteresis (J-A model)";
-        d.inputPinCount = 2; d.outputPinCount = 0;
-        d.pins = {{"PLUS", XspicePinDef::Conductance}, {"MINUS", XspicePinDef::Conductance}};
-        addParam(d, "area", 1e-4, "Cross-sectional area (m^2)");
-        addParam(d, "length", 1e-2, "Magnetic path length (m)");
-        addParam(d, "n_turns", 100.0, "Number of turns", XspiceParamDef::SpinboxInt, 1, 1e6);
-        addParam(d, "mu_r", 1000.0, "Relative permeability");
-        db.append(d);
-    }
-
-    // lcouple
-    {
-        XspiceModelDef d;
-        d.name = "Inductive Coupling"; d.category = "Extended Devices"; d.spiceType = "lcouple";
-        d.description = "Mutual inductive coupling (XSPICE model)";
-        d.inputPinCount = 4; d.outputPinCount = 0;
-        d.pins = {{"PRI+", XspicePinDef::Conductance}, {"PRI-", XspicePinDef::Conductance},
-                  {"SEC+", XspicePinDef::Conductance}, {"SEC-", XspicePinDef::Conductance}};
-        addParam(d, "coupling", 0.9, "Coupling coefficient (0-1)", XspiceParamDef::SpinboxDouble, 0, 1);
-        db.append(d);
-    }
-
     // zener
     {
         XspiceModelDef d;

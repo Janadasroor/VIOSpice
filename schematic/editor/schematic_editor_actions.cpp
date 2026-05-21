@@ -65,10 +65,14 @@
 #include "../dialogs/adc_bridge_dialog.h"
 #include "../dialogs/dac_bridge_dialog.h"
 #include "../dialogs/analog_function_dialog.h"
-#include "../items/system_verilog_block_item.h"
+#include "../dialogs/core_dialog.h"
+#include "../dialogs/lcouple_dialog.h"
 #include "../items/adc_bridge_item.h"
 #include "../items/dac_bridge_item.h"
 #include "../items/analog_function_item.h"
+#include "../items/core_item.h"
+#include "../items/lcouple_item.h"
+#include "../items/system_verilog_block_item.h"
 #include "../items/xspice_block_item.h"
 #include "../dialogs/design_rule_editor.h"
 #include "../dialogs/voltage_controlled_switch_dialog.h"
@@ -1515,6 +1519,22 @@ void SchematicEditor::onItemDoubleClicked(SchematicItem* item) {
         if (item->itemTypeName() == "AnalogFunction") {
             auto* af = static_cast<AnalogFunctionItem*>(item);
             AnalogFunctionDialog dlg(af, this);
+            dlg.exec();
+            return;
+        }
+
+        // Magnetic Core properties dialog
+        if (item->itemTypeName() == "MagneticCore") {
+            auto* core = static_cast<CoreItem*>(item);
+            CoreDialog dlg(core, this);
+            dlg.exec();
+            return;
+        }
+
+        // Inductive Coupling properties dialog
+        if (item->itemTypeName() == "Lcouple") {
+            auto* lc = static_cast<LcoupleItem*>(item);
+            LcoupleDialog dlg(lc, this);
             dlg.exec();
             return;
         }
