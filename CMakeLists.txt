@@ -63,7 +63,7 @@ include(FetchContent)
 # Developer mode flag — OFF by default so new users download prebuilt binaries
 option(VIOSPICE_DEV_MODE "Enable local development mode (use local repos / build from source)" OFF)
 
-set(VIOMATRIXC_DOWNLOAD_BASE "https://github.com/Janadasroor/VioMATRIXC/releases/download/v0.1.0/viomatrixc"
+set(VIOMATRIXC_DOWNLOAD_BASE "https://github.com/Janadasroor/VioMATRIXC/releases/download/v0.1.0"
     CACHE STRING "URL prefix for prebuilt VioMATRIXC archive")
 
 if(WIN32)
@@ -76,7 +76,7 @@ else()
     set(VIOMATRIXC_ARCHIVE "viomatrixc-linux-x86_64.tar.gz")
     set(VIOMATRIXC_LIB_NAME "libngspice.so")
 endif()
-set(VIOMATRIXC_DOWNLOAD_URL "${VIOMATRIXC_DOWNLOAD_BASE}-${VIOMATRIXC_ARCHIVE}")
+set(VIOMATRIXC_DOWNLOAD_URL "${VIOMATRIXC_DOWNLOAD_BASE}/${VIOMATRIXC_ARCHIVE}")
 
 if(VIOSPICE_DEV_MODE)
     # --- Build VioMATRIXC from source (local repo or FetchContent) ---
@@ -247,7 +247,7 @@ endif()
 
 # --- FluxScript Support ---
 option(VIOSPICE_DOWNLOAD_FLUXSCRIPT "Download prebuilt FluxScript" OFF)
-set(FLUXSCRIPT_DOWNLOAD_BASE "https://github.com/Janadasroor/fluxscript/releases/download/v0.1.0/fluxscript"
+set(FLUXSCRIPT_DOWNLOAD_BASE "https://github.com/Janadasroor/fluxscript/releases/download/v0.1.0"
     CACHE STRING "URL prefix for prebuilt FluxScript archive")
 
 if(WIN32)
@@ -260,7 +260,7 @@ else()
     set(FLUXSCRIPT_ARCHIVE "fluxscript-linux-x86_64.tar.gz")
     set(FLUXSCRIPT_LIB_NAME "libFluxScript.so")
 endif()
-set(FLUXSCRIPT_DOWNLOAD_URL "${FLUXSCRIPT_DOWNLOAD_BASE}-${FLUXSCRIPT_ARCHIVE}")
+set(FLUXSCRIPT_DOWNLOAD_URL "${FLUXSCRIPT_DOWNLOAD_BASE}/${FLUXSCRIPT_ARCHIVE}")
 
 set(FLUX_VIO_MATRIXC_LIB_DIR "${VIOSPICE_PREFERRED_ENGINE_DIR}" CACHE STRING "Path to VioMATRIXC libngspice directory" FORCE)
 
