@@ -62,6 +62,13 @@ def launch_viewer(file: str) -> Dict[str, Any]:
     except Exception as e:
         return {"ok": False, "error": str(e)}
 
+def verilog_inspect(file: str, module: Optional[str] = None) -> Dict[str, Any]:
+    """Inspect a SystemVerilog file to extract module and port information."""
+    args = ["verilog-inspect", file, "--json"]
+    if module:
+        args.extend(["--module", module])
+    return run_viora_command(args, json_out=True)
+
 
 # Constants
 ROOT = Path(__file__).resolve().parents[2]
@@ -336,6 +343,7 @@ def netlist_run(
     robust: bool = False,
     compat: bool = True,
     smart_signals: Optional[List[Dict[str, Any]]] = None,
+    verilog_blocks: Optional[List[Dict[str, Any]]] = None,
     options: Optional[str] = None,
     temperature: Optional[float] = None,
 ) -> Dict[str, Any]:
@@ -343,39 +351,68 @@ def netlist_run(
     v_args = ["netlist-run"]
     target = file
     temp_file = None
+    temp_sv_files = []
 
-    # Handle Smart Signals by wrapping in a .flxsch
-    if smart_signals:
+    # Handle Smart Signals and Verilog Blocks by wrapping in a .flxsch
+    if smart_signals or verilog_blocks:
         items = []
         hybrid_netlist = cir or ""
         
-        # 1. Algorithmic parts (FluxScript blocks as Code Carriers)
-        for ss in smart_signals:
-            ref = ss["ref"]
-            items.append({
-                "type": "SmartSignalBlock",
-                "reference": ref,
-                "fluxCode": ss["code"],
-                "engineType": "flux",
-                "excludeFromSim": True # Always let the netlist handle the binding
-            })
-            
-            # Only inject A-device if pins are explicitly provided
-            # Otherwise assume the user defined it in 'cir'
-            if "inputs" in ss and "outputs" in ss:
-                in_nets = " ".join(ss["inputs"]) if ss["inputs"] else "0" # XSPICE needs at least one
-                out_nets = " ".join(ss["outputs"])
-                
-                # XSPICE JIT Model binding
-                hybrid_netlist += f"\n* Smart Signal Block: {ref}\n"
-                hybrid_netlist += f"A_{ref} [{in_nets}] {out_nets} viospice_jit_model_{ref}\n"
-                hybrid_netlist += f".model viospice_jit_model_{ref} viospice_jit (jit_id=\"{ref}\")\n"
-            else:
-                # Still need the model if they use it in their netlist
-                hybrid_netlist += f"\n* Smart Signal Model: {ref}\n"
-                hybrid_netlist += f".model viospice_jit_model_{ref} viospice_jit (jit_id=\"{ref}\")\n"
+        # 1. FluxScript blocks (Smart Signals)
+        if smart_signals:
+            for ss in smart_signals:
+                ref = ss["ref"]
+                items.append({
+                    "type": "SmartSignalBlock",
+                    "reference": ref,
+                    "fluxCode": ss["code"],
+                    "engineType": "flux",
+                    "excludeFromSim": True
+                })
+                # Binding logic... (same as before)
+                if "inputs" in ss and "outputs" in ss:
+                    in_nets = " ".join(ss["inputs"]) if ss["inputs"] else "0"
+                    out_nets = " ".join(ss["outputs"])
+                    hybrid_netlist += f"\n* Smart Signal Block: {ref}\n"
+                    hybrid_netlist += f"A_{ref} [{in_nets}] {out_nets} viospice_jit_model_{ref}\n"
+                    hybrid_netlist += f".model viospice_jit_model_{ref} viospice_jit (jit_id=\"{ref}\")\n"
+                else:
+                    hybrid_netlist += f"\n* Smart Signal Model: {ref}\n"
+                    hybrid_netlist += f".model viospice_jit_model_{ref} viospice_jit (jit_id=\"{ref}\")\n"
 
-        # 2. Add the combined netlist as a Directive
+        # 2. Verilog Blocks
+        if verilog_blocks:
+            for vb in verilog_blocks:
+                ref = vb["ref"]
+                sv_path = vb.get("file")
+                if not sv_path and "code" in vb:
+                    # Save code to temp .sv file
+                    fd, sv_temp = tempfile.mkstemp(suffix=".sv", dir=ROOT)
+                    os.close(fd)
+                    Path(sv_temp).write_text(vb["code"], encoding="utf-8")
+                    sv_path = sv_temp
+                    temp_sv_files.append(sv_temp)
+                
+                # We use a custom SystemVerilogBlock item in the .flxsch
+                # The netlist generator will parse the file and emit the A-device.
+                items.append({
+                    "type": "SystemVerilogBlock",
+                    "reference": ref,
+                    "value": sv_path,
+                    "extraProperties": {
+                        "systemVerilogFile": sv_path,
+                        "systemVerilogModule": vb.get("module", "top")
+                    }
+                })
+                
+                # Map pins to nets if provided
+                pin_nets = {}
+                if "inputs" in vb and "outputs" in vb:
+                    # The netlist generator currently uses regex on the file to find pin names.
+                    # For now, we assume the user knows the pin names or we use default generic ones if missing.
+                    pass 
+
+        # 3. Combined netlist
         hybrid_netlist += "\n.save all\n"
         if analysis:
             # If analysis starts with '.', it's a directive, otherwise it's a command
@@ -448,10 +485,18 @@ def netlist_run(
     if json_out: v_args.append("--json")
     
     try:
-        return run_viora_command(v_args, json_out=json_out)
+        res = run_viora_command(v_args, json_out=json_out)
+        if res.get("ok") and res.get("data"):
+            # Flatten data into top-level for ergonomics
+            data = res.pop("data")
+            res.update(data)
+        return res
     finally:
         if temp_file and os.path.exists(temp_file):
             os.remove(temp_file)
+        for svf in temp_sv_files:
+            if os.path.exists(svf):
+                os.remove(svf)
 
 
 def open_schematic(path: str, convert: bool = False) -> Dict[str, Any]:

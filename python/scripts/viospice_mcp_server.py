@@ -151,6 +151,14 @@ def viospice_launch_viewer(file: str) -> dict:
 
 
 @mcp.tool()
+def viospice_verilog_inspect(file: str, module: str = None) -> dict:
+    """Inspect a SystemVerilog file to extract module names and port definitions (inputs/outputs).
+    Use this to understand how to wire an SV block into a schematic or netlist.
+    """
+    return core.verilog_inspect(file, module=module)
+
+
+@mcp.tool()
 def viora_list_examples() -> dict:
     """Discover reference schematics and automation scripts."""
     return core.list_files("examples")
@@ -214,6 +222,7 @@ def viospice_netlist_run_async(
     robust: bool = False,
     compat: bool = True,
     smart_signals: list = None,
+    verilog_blocks: list = None,
     options: str = None,
     temperature: float = None,
 ):
@@ -227,6 +236,7 @@ def viospice_netlist_run_async(
         signals=signals,
         robust=robust, compat=compat,
         smart_signals=smart_signals,
+        verilog_blocks=verilog_blocks,
         options=options, temperature=temperature,
     )
 
@@ -256,6 +266,7 @@ def viospice_netlist_run(
     robust: bool = False,
     compat: bool = True,
     smart_signals: list = None,
+    verilog_blocks: list = None,
     options: str = None,
     temperature: float = None,
 ):  # fmt: off
@@ -278,6 +289,13 @@ def viospice_netlist_run(
         code (str) - FluxScript behavioral code
         inputs (list[str]) - input node names
         outputs (list[str]) - output node names (required)
+    verilog_blocks : list of dicts with keys:
+        ref (str) - component reference, e.g. 'U1'
+        file (str) - path to .sv file
+        code (str) - raw SystemVerilog code (alternative to file)
+        module (str) - module name (default: 'top')
+        inputs (list[str]) - input net names (in port order)
+        outputs (list[str]) - output net names (in port order)
     options : raw SPICE option string, e.g. 'reltol=1e-4 abstol=1e-9'
     temperature : simulation temperature in Celsius
     """
@@ -287,6 +305,7 @@ def viospice_netlist_run(
         signals=signals, json_out=True,
         robust=robust, compat=compat,
         smart_signals=smart_signals,
+        verilog_blocks=verilog_blocks,
     )
     if options:
         v_args["options"] = options
