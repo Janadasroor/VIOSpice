@@ -2273,6 +2273,13 @@ bool runNetlistRun(const QString& filePath, const QCommandLineParser& parser) {
     // --- Initialize Engine First ---
     sim.initialize();
     
+    QObject::connect(&SimManager::instance(), &SimManager::logMessage, &sim, [&](const QString& msg) {
+        if (!g_quiet) std::cout << "[Simulator] " << msg.toStdString() << std::endl;
+    });
+    QObject::connect(&SimManager::instance(), &SimManager::errorOccurred, &sim, [&](const QString& msg) {
+        std::cerr << "[Simulator Error] " << msg.toStdString() << std::endl;
+    });
+    
     if (suffix == "flxsch") {
         QString pageSize;
         TitleBlockData dummyTB;
