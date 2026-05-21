@@ -81,6 +81,7 @@
 #include "simulator/core/raw_data_parser.h"
 #include <QMainWindow>
 #include "../ui/waveform_viewer.h"
+#include "simulator/bridge/slang_manager.h"
 
 // FluxScript Integration
 #include "flux_command.h"
@@ -3420,6 +3421,61 @@ bool runRawExport(const QString& filePath, const QCommandLineParser& parser) {
     return true;
 }
 
+bool runVerilogInspect(const QString& filePath, const QCommandLineParser& parser) {
+    QFile file(filePath);
+    if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        std::cerr << "Error: Cannot open Verilog file: " << filePath.toStdString() << std::endl;
+        return false;
+    }
+    QString source = QString::fromUtf8(file.readAll());
+    file.close();
+
+    QString error;
+    // We try to extract ports for all modules? Or just the one with moduleName?
+    // SlangManager::extractPorts takes a moduleName. If empty, it might fail or we need a way to list them.
+    // For now, let's assume 'top' or allow user to specify via --module
+    QString moduleName = parser.value("module");
+    if (moduleName.isEmpty()) {
+        // Simple heuristic: find first 'module NAME'
+        static const QRegularExpression modRe(R"(\bmodule\s+(\w+))");
+        auto match = modRe.match(source);
+        if (match.hasMatch()) moduleName = match.captured(1);
+    }
+
+    auto ports = SlangManager::instance().extractPorts(source, moduleName, &error);
+    if (!error.isEmpty() && ports.isEmpty()) {
+        std::cerr << "Slang Error: " << error.toStdString() << std::endl;
+        return false;
+    }
+
+    if (parser.isSet("json")) {
+        QJsonObject root;
+        root["file"] = filePath;
+        root["module"] = moduleName;
+        QJsonArray portArray;
+        for (const auto& p : ports) {
+            QJsonObject po;
+            po["name"] = p.name;
+            po["width"] = p.width;
+            po["direction"] = p.isInput ? "input" : "output";
+            portArray.append(po);
+        }
+        root["ports"] = portArray;
+        if (!error.isEmpty()) root["warnings"] = error;
+        printJsonValue(root);
+    } else {
+        std::cout << "File: " << filePath.toStdString() << "\n";
+        std::cout << "Module: " << moduleName.toStdString() << "\n";
+        std::cout << "Ports:\n";
+        for (const auto& p : ports) {
+            std::cout << "  " << (p.isInput ? "input " : "output") << " [" << p.width << "] " << p.name.toStdString() << "\n";
+        }
+        if (!error.isEmpty()) std::cout << "\nWarnings/Errors:\n" << error.toStdString() << "\n";
+    }
+
+    return true;
+}
+
 void printSchema(const QString& command) {
     QJsonObject root;
     root["command"] = command;
@@ -3937,6 +3993,8 @@ int main(int argc, char *argv[]) {
     QCommandLineOption summaryOption("summary", "Show concise summary (raw-info)");
 
     QCommandLineOption signalRegexOption("signal-regex", "Filter signals by regex (raw-export)", "pattern");
+    QCommandLineOption moduleOption("module", "Module name to inspect (verilog-inspect)", "modname");
+    parser.addOption(moduleOption);
     QCommandLineOption outOption(QStringList() << "out" << "output", "Write output to file (schematic-netlist)", "outfile");
     QCommandLineOption reportTitleOption("report-title", "Report title", "rtitle", "VioSpice Design Review");
     QCommandLineOption reportAuthorOption("report-author", "Report author", "rauthor", "VioSpice");
@@ -4002,7 +4060,7 @@ int main(int argc, char *argv[]) {
     parser.addOption(schematicPngOption);
 
     // Positional arguments
-    parser.addPositionalArgument("command", "Command to run: drc, erc, simulate, netlist-run, netlist-validate, raw-info, raw-export, view, render, schematic-render, symbol-render, symbol-query, symbol-validate, symbol-list, symbol-export, symbol-import, library-index, schematic-query, schematic-netlist, schematic-bom, schematic-validate, schematic-diff, schematic-transform, schematic-probe, netlist-compare, generate-report, share, audit, autofix, process, python, plugins-smoke, plugin-pack, plugin-inspect");
+    parser.addPositionalArgument("command", "Command to run: drc, erc, simulate, netlist-run, netlist-validate, raw-info, raw-export, view, verilog-inspect, render, schematic-render, symbol-render, symbol-query, symbol-validate, symbol-list, symbol-export, symbol-import, library-index, schematic-query, schematic-netlist, schematic-bom, schematic-validate, schematic-diff, schematic-transform, schematic-probe, netlist-compare, generate-report, share, audit, autofix, process, python, plugins-smoke, plugin-pack, plugin-inspect");
     parser.addPositionalArgument("file", "File to process (.pcb or .sch), except for plugins-smoke");
     parser.addPositionalArgument("script", "JSON script file for 'process' command", "");
 
@@ -4431,6 +4489,8 @@ int main(int argc, char *argv[]) {
             return app.exec();
         }
         return 1;
+    } else if (command == "verilog-inspect") {
+        return runVerilogInspect(filePath, parser) ? 0 : 1;
     } else if (command == "schematic-netlist") {
         return runSchematicNetlist(filePath, parser) ? 0 : 1;
     } else if (command == "audit") {
