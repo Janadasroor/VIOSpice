@@ -383,7 +383,9 @@ void SchematicComponentsWidget::populate() {
         {"SystemVerilogBlock", "XSPICE"},
         {"AdcBridge", "Mixed-Signal"},
         {"DacBridge", "Mixed-Signal"},
-        {"AnalogFunction", "Analog Functions"}
+        {"AnalogFunction", "Analog Functions"},
+        {"MagneticCore", "Magnetics"},
+        {"Lcouple", "Magnetics"}
     };
 
     builtIn.reserve(builtInTools.size());

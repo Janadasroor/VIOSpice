@@ -119,3 +119,22 @@ function(vioraeda_configure_cli_target target)
         target_precompile_headers(${target} PRIVATE "$<$<COMPILE_LANGUAGE:CXX>:${VIORAEDA_PCH_HEADER}>")
     endif()
 endfunction()
+
+# Setup platform-aware RPATH for an executable target.
+# Windows: no RPATH (DLLs resolved via PATH/same directory).
+# macOS: uses @loader_path.
+# Linux: uses $ORIGIN.
+function(vioraeda_setup_rpath target)
+    if(WIN32)
+        return()
+    endif()
+    if(APPLE)
+        set(_origin "@loader_path")
+    else()
+        set(_origin "\$ORIGIN")
+    endif()
+    set_target_properties(${target} PROPERTIES
+        BUILD_RPATH "${CMAKE_BINARY_DIR};${VIOSPICE_PREFERRED_ENGINE_DIR};${FLUXSCRIPT_LIB_DIR}"
+        INSTALL_RPATH "${_origin};${VIOSPICE_PREFERRED_ENGINE_DIR};${FLUXSCRIPT_LIB_DIR}"
+    )
+endfunction()

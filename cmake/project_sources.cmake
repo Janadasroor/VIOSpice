@@ -370,6 +370,14 @@ set(SCHEMATIC_SOURCES
     schematic/items/analog_function_item.h
     schematic/dialogs/analog_function_dialog.cpp
     schematic/dialogs/analog_function_dialog.h
+    schematic/items/core_item.cpp
+    schematic/items/core_item.h
+    schematic/dialogs/core_dialog.cpp
+    schematic/dialogs/core_dialog.h
+    schematic/items/lcouple_item.cpp
+    schematic/items/lcouple_item.h
+    schematic/dialogs/lcouple_dialog.cpp
+    schematic/dialogs/lcouple_dialog.h
     schematic/items/no_connect_item.cpp
     schematic/items/no_connect_item.h
     schematic/items/bus_item.cpp

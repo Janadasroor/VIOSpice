@@ -152,6 +152,8 @@ bool SystemVerilogBlockItem::fromJson(const QJsonObject& json) {
         SchematicItem::setValue(m_svFilePath);
         setParamExpression("systemVerilogFile", m_svFilePath);
         setParamExpression("systemVerilogModule", m_moduleName);
+        setProperty("systemVerilogFile", m_svFilePath);
+        setProperty("systemVerilogModule", m_moduleName);
     }
 
     updateSize();
@@ -169,6 +171,8 @@ SchematicItem* SystemVerilogBlockItem::clone() const {
         item->SchematicItem::setValue(m_svFilePath);
         item->setParamExpression("systemVerilogFile", m_svFilePath);
         item->setParamExpression("systemVerilogModule", m_moduleName);
+        item->setProperty("systemVerilogFile", m_svFilePath);
+        item->setProperty("systemVerilogModule", m_moduleName);
     }
     item->updateSize();
     return item;
