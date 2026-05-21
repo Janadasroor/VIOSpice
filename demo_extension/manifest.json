@@ -1,0 +1,14 @@
+{
+  "id": "viospice-demo-ext",
+  "name": "Demo Extension",
+  "version": "1.0.0",
+  "author": "Gemini CLI",
+  "description": "A demo extension to test the FluxScript extension system.",
+  "main": "main.flux",
+  "hooks": {
+    "onActivate": "init_ext"
+  },
+  "menu": [
+    {"path": "Demo/Show Info", "action": "show_info"}
+  ]
+}

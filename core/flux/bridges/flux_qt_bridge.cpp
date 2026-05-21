@@ -30,6 +30,22 @@ static const char* dbl_to_str(double d) {
     return reinterpret_cast<const char*>(static_cast<uintptr_t>(raw));
 }
 
+// Forward declarations for workspace bridge functions
+extern "C" void viora_flux_print(double);
+extern "C" void flux_print_num(double);
+extern "C" double flux_get_var(double);
+extern "C" void flux_set_var(double, double);
+extern "C" void flux_set_prop(double, double, double);
+extern "C" void flux_set_prop_str(double, double, double);
+extern "C" int flux_sim_get_vector_size(double);
+extern "C" double flux_sim_get_vector_val(double, int);
+extern "C" double flux_sim_get_vector_x(double, int);
+extern "C" void flux_run_sim(double, double, double);
+extern "C" double flux_get_project_name();
+extern "C" void flux_plot_point(double, double, double);
+extern "C" double flux_to_str(double);
+extern "C" double flux_concat(double, double);
+
 FluxQtBridge& FluxQtBridge::instance() {
     static FluxQtBridge inst;
     return inst;
@@ -282,6 +298,7 @@ void register_flux_qt_jit_symbols() {
     jit.registerFunction("flux_qt_table_row_count", (void*)&flux_qt_table_row_count);
     jit.registerFunction("flux_qt_table_col_count", (void*)&flux_qt_table_col_count);
     jit.registerFunction("viora_flux_print", (void*)&viora_flux_print);
+    jit.registerFunction("flux_print_num", (void*)&flux_print_num);
     jit.registerFunction("flux_get_var", (void*)&flux_get_var);
     jit.registerFunction("flux_set_var", (void*)&flux_set_var);
     jit.registerFunction("flux_set_prop", (void*)&flux_set_prop);
@@ -294,6 +311,8 @@ void register_flux_qt_jit_symbols() {
     jit.registerFunction("flux_run_sim", (void*)&flux_run_sim);
     jit.registerFunction("flux_get_project_name", (void*)&flux_get_project_name);
     jit.registerFunction("flux_plot_point", (void*)&flux_plot_point);
+    jit.registerFunction("flux_to_str", (void*)&flux_to_str);
+    jit.registerFunction("flux_concat", (void*)&flux_concat);
 
     // SPICE runtime functions must be registered for extensions that use simulation API
     jit.registerFunction("flux_set_parameter", (void*)&flux_set_parameter);
