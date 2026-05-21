@@ -17,7 +17,7 @@ jobs:
         include:
           - os: ubuntu-24.04
             qt_host: linux
-            qt_arch: gcc_64
+            qt_arch: linux_gcc_64
             qt_dir_suffix: gcc_64
             archive_ext: tar.gz
             archive_type: tar.gz
@@ -44,10 +44,8 @@ jobs:
           /tmp/qt-env/bin/aqt install-qt \
             --outputdir ${{ runner.temp }}/Qt \
             ${{ matrix.qt_host }} desktop 6.11.0 ${{ matrix.qt_arch }} \
-            -m qtcharts qtsvg qtpdf qtwebsockets qtdeclarative qtmultimedia
+            -m qtcharts qtsvg qtpdf qtwebsockets qtmultimedia qt5compat
         shell: bash
-        env:
-          QMAKE_CACHE: ${{ runner.temp }}/Qt
 
       - name: Set Qt6_DIR (Linux / macOS)
         if: runner.os != 'Windows'
