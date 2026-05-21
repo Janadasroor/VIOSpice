@@ -83,6 +83,12 @@ def viora_flux_run(
 
 
 @mcp.tool()
+def viora_flux_eval(expression: str) -> dict:
+    """Evaluate a single FluxScript expression and return the result."""
+    return core.flux_run(code=expression)
+
+
+@mcp.tool()
 def viora_flux_help() -> dict:
     """Get FluxScript syntax and API documentation."""
     help_path = core.ROOT / "docs" / "EXTENSION_API.md"
@@ -136,6 +142,59 @@ def viospice_raw_info(file: str) -> dict:
 def viospice_raw_export(file: str, out: str, format: str = "json") -> dict:
     """Export binary simulation waveforms to JSON, CSV, or Parquet."""
     return core.raw_export(file, out, fmt=format)
+
+
+@mcp.tool()
+def viospice_launch_viewer(file: str) -> dict:
+    """Launch the standalone visual waveform viewer (oscilloscope) for a .raw simulation file."""
+    return core.launch_viewer(file)
+
+
+@mcp.tool()
+def viora_list_examples() -> dict:
+    """Discover reference schematics and automation scripts."""
+    return core.list_files("examples")
+
+
+@mcp.tool()
+def viora_get_api_docs(topic: str = "all") -> dict:
+    """Get detailed documentation for VioSpice APIs (FluxScript, Extension, or MCP)."""
+    docs_path = Path("docs")
+    files = {
+        "flux": "FLUXSCRIPT.md",
+        "extension": "EXTENSION_API.md",
+        "mcp": "README_MCP.md"
+    }
+    
+    if topic in files:
+        target = docs_path / files[topic]
+        if target.exists():
+            return {"ok": True, "topic": topic, "content": target.read_text()}
+    
+    # Return index if topic not found or "all"
+    return {
+        "ok": True, 
+        "available_topics": list(files.keys()),
+        "message": "Specify a topic to get full docs."
+    }
+
+
+@mcp.tool()
+def viospice_smart_signal_help() -> dict:
+    """Get documentation and templates for creating behavioral XSPICE JIT models (Smart Signals).
+    These models run FluxScript code directly inside the SPICE simulation loop at high speed.
+    """
+    return {
+        "ok": True,
+        "description": "Smart Signals allow embedding JIT-compiled behavioral logic into SPICE.",
+        "template": "def update(t, inputs) {\n    # t: current simulation time (float)\n    # inputs: list of input node voltages\n    # Example: Simple Comparator with hysteresis\n    v_in = inputs[0]\n    v_ref = inputs[1]\n    return v_in > v_ref ? 5.0 : 0.0;\n}",
+        "usage_example": {
+            "ref": "SB1",
+            "code": "def update(t, inputs) { return sin(2*pi*1000*t); }",
+            "inputs": ["IN1"],
+            "outputs": ["OUT"]
+        }
+    }
 
 
 @mcp.tool()

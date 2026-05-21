@@ -31,7 +31,8 @@ def update_resistor() {
     
     # Update the schematic property
     flux_set_prop("R1", "value", val)
-    viora_flux_print("Updated R1 to " + val + " ohms")
+    msg = flux_concat("Updated R1 to ", flux_concat(flux_to_str(val), " ohms"))
+    viora_flux_print(msg)
 }
 
 def run_dashboard_sim() {
@@ -46,7 +47,8 @@ def run_dashboard_sim() {
         last_v = flux_sim_get_vector_val("v(out)", size - 1)
         lcd = flux_get_var("V_LCD")
         lcd.display = last_v
-        viora_flux_print("Simulation finished. Final voltage: " + last_v + "V")
+        msg = flux_concat("Simulation finished. Final voltage: ", flux_concat(flux_to_str(last_v), "V"))
+        viora_flux_print(msg)
     } else {
         viora_flux_print("No simulation results found for v(out)")
     }

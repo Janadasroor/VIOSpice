@@ -79,6 +79,8 @@
 #include "simulator/core/sim_value_parser.h"
 #include "simulator/bridge/model_library_manager.h"
 #include "simulator/core/raw_data_parser.h"
+#include <QMainWindow>
+#include "../ui/waveform_viewer.h"
 
 // FluxScript Integration
 #include "flux_command.h"
@@ -3249,6 +3251,44 @@ bool runRawInfo(const QString& filePath, const QCommandLineParser& parser) {
     return true;
 }
 
+bool runViewRaw(const QString& filePath, const QCommandLineParser& parser) {
+    RawData data;
+    if (!RawDataParser::loadRawAscii(filePath.toStdString(), &data)) {
+        std::cerr << "Error: Failed to load raw file: " << filePath.toStdString() << std::endl;
+        return false;
+    }
+
+    // We don't want to use 'offscreen' for the viewer!
+    // This is already handled in main() before QApplication init.
+
+    QMainWindow* window = new QMainWindow();
+    window->setWindowTitle(QString("VioSpice Waveform Viewer - %1").arg(QFileInfo(filePath).fileName()));
+    window->resize(1000, 600);
+
+    WaveformViewer* viewer = new WaveformViewer(window);
+    window->setCentralWidget(viewer);
+
+    QVector<double> time(data.x.begin(), data.x.end());
+
+    viewer->beginBatchUpdate();
+    for (size_t i = 1; i < data.varNames.size(); ++i) {
+        if (i - 1 < data.y.size()) {
+            QVector<double> values(data.y[i - 1].begin(), data.y[i - 1].end());
+            QString name = QString::fromStdString(data.varNames[i]);
+            viewer->addSignal(name, time, values);
+            viewer->setSignalChecked(name, true);
+        }
+    }
+    viewer->endBatchUpdate();
+    viewer->zoomFit();
+
+    window->show();
+    
+    // Since we are in a CLI that usually doesn't have an event loop running,
+    // we use qApp->exec(). However, main() might already be prepared for this.
+    return true; // We will call app.exec() in main()
+}
+
 bool runRawExport(const QString& filePath, const QCommandLineParser& parser) {
     RawData data;
     QString error;
@@ -3836,8 +3876,18 @@ static void printCommandHelp(const QString& command) {
 
 int main(int argc, char *argv[]) {
     // Some GUI classes like QGraphicsScene and QColor require QApplication
-    // We run with offscreen platform to keep it CLI-friendly
-    qputenv("QT_QPA_PLATFORM", "offscreen");
+    // We run with offscreen platform to keep it CLI-friendly, unless we want to 'view'
+    bool isView = false;
+    for (int i = 1; i < argc; ++i) {
+        if (std::string(argv[i]) == "view") {
+            isView = true;
+            break;
+        }
+    }
+    if (!isView) {
+        qputenv("QT_QPA_PLATFORM", "offscreen");
+    }
+
     QApplication app(argc, argv);
     QApplication::setApplicationName("viora");
     QCoreApplication::setApplicationVersion("1.0");
@@ -3952,7 +4002,7 @@ int main(int argc, char *argv[]) {
     parser.addOption(schematicPngOption);
 
     // Positional arguments
-    parser.addPositionalArgument("command", "Command to run: drc, erc, simulate, netlist-run, netlist-validate, raw-info, raw-export, render, schematic-render, symbol-render, symbol-query, symbol-validate, symbol-list, symbol-export, symbol-import, library-index, schematic-query, schematic-netlist, schematic-bom, schematic-validate, schematic-diff, schematic-transform, schematic-probe, netlist-compare, generate-report, share, audit, autofix, process, python, plugins-smoke, plugin-pack, plugin-inspect");
+    parser.addPositionalArgument("command", "Command to run: drc, erc, simulate, netlist-run, netlist-validate, raw-info, raw-export, view, render, schematic-render, symbol-render, symbol-query, symbol-validate, symbol-list, symbol-export, symbol-import, library-index, schematic-query, schematic-netlist, schematic-bom, schematic-validate, schematic-diff, schematic-transform, schematic-probe, netlist-compare, generate-report, share, audit, autofix, process, python, plugins-smoke, plugin-pack, plugin-inspect");
     parser.addPositionalArgument("file", "File to process (.pcb or .sch), except for plugins-smoke");
     parser.addPositionalArgument("script", "JSON script file for 'process' command", "");
 
@@ -4376,6 +4426,11 @@ int main(int argc, char *argv[]) {
         return runRawInfo(filePath, parser) ? 0 : 1;
     } else if (command == "raw-export") {
         return runRawExport(filePath, parser) ? 0 : 1;
+    } else if (command == "view") {
+        if (runViewRaw(filePath, parser)) {
+            return app.exec();
+        }
+        return 1;
     } else if (command == "schematic-netlist") {
         return runSchematicNetlist(filePath, parser) ? 0 : 1;
     } else if (command == "audit") {

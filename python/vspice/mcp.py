@@ -46,6 +46,22 @@ def symbol_render(file: str, out: str, transparent: bool = False, scale: float =
     if scale: args.extend(["--scale", str(scale)])
     return run_viora_command(args, timeout=timeout)
 
+def launch_viewer(file: str) -> Dict[str, Any]:
+    """Launch the standalone Waveform Viewer for a .raw file (non-blocking)."""
+    exe = get_viora_executable()
+    try:
+        # Start as a detached process
+        subprocess.Popen(
+            [exe, "view", file],
+            cwd=ROOT,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            start_new_session=True # Detach from parent
+        )
+        return {"ok": True, "message": f"Launched Waveform Viewer for {file}"}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
 
 # Constants
 ROOT = Path(__file__).resolve().parents[2]
@@ -99,7 +115,22 @@ def run_viora_command(args: List[str], timeout: int = 120, json_out: bool = Fals
                     "data": data,
                 }
             
-            last_err = f"Process exited with code {proc.returncode}. Stderr: {err}"
+            # Failure - include context
+            error_msg = f"Command failed (code {proc.returncode})"
+            if err:
+                error_msg += f": {err}"
+            elif out and not json_out:
+                error_msg += f": {out}"
+                
+            return {
+                "ok": False,
+                "error": error_msg,
+                "stdout": out,
+                "stderr": err,
+                "code": proc.returncode,
+                "data": data,
+                "args": args
+            }
             
         except subprocess.TimeoutExpired:
             last_err = f"Command timed out after {timeout}s"
@@ -107,7 +138,7 @@ def run_viora_command(args: List[str], timeout: int = 120, json_out: bool = Fals
             last_err = str(e)
             
         if attempt < retries:
-            time.sleep(0.5 * (attempt + 1)) # Exponential-ish backoff
+            time.sleep(0.5 * (attempt + 1))
             
     return {"ok": False, "error": last_err, "args": args}
 
@@ -332,7 +363,7 @@ def netlist_run(
             # Only inject A-device if pins are explicitly provided
             # Otherwise assume the user defined it in 'cir'
             if "inputs" in ss and "outputs" in ss:
-                in_nets = " ".join(ss["inputs"])
+                in_nets = " ".join(ss["inputs"]) if ss["inputs"] else "0" # XSPICE needs at least one
                 out_nets = " ".join(ss["outputs"])
                 
                 # XSPICE JIT Model binding
