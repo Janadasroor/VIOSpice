@@ -41,7 +41,7 @@ jobs:
         run: |
           python3 -m venv /tmp/qt-env
           /tmp/qt-env/bin/pip install aqtinstall
-          /tmp/qt-env/bin/aqt install-qt --outputdir "${{ runner.temp }}/Qt" ${{ matrix.qt_host }} desktop 6.11.0 ${{ matrix.qt_arch }} -m qtcharts qtpdf qtwebsockets qtmultimedia qt5compat
+          /tmp/qt-env/bin/aqt install-qt --outputdir "${{ runner.temp }}/Qt" ${{ matrix.qt_host }} desktop 6.11.0 ${{ matrix.qt_arch }} -m qtcharts qtpdf qtwebsockets qtmultimedia qt5compat qtshadertools qttasktree
         shell: bash
 
       - name: Set Qt6_DIR (Linux / macOS)
