@@ -82,6 +82,8 @@ void SchematicToolRegistryBuiltIn::registerBuiltInTools() {
     registry.registerTool("AdcBridge", []() { return new SchematicComponentTool("AdcBridge"); });
     registry.registerTool("DacBridge", []() { return new SchematicComponentTool("DacBridge"); });
     registry.registerTool("AnalogFunction", []() { return new SchematicComponentTool("AnalogFunction"); });
+    registry.registerTool("MagneticCore", []() { return new SchematicComponentTool("MagneticCore"); });
+    registry.registerTool("Lcouple", []() { return new SchematicComponentTool("Lcouple"); });
 
     // Interactive Components
     registry.registerTool("Switch", []() { return new SchematicComponentTool("Switch"); });

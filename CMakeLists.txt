@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.16)
+cmake_minimum_required(VERSION 3.18)
 
 project(viospice VERSION 0.1 LANGUAGES CXX)
 set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE) 
@@ -13,6 +13,17 @@ set(CMAKE_AUTORCC ON)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+# Linker group flags for circular static library dependencies.
+# Only GNU ld (Linux) supports --start-group/--end-group.
+# Apple ld64 and MSVC resolve circular deps differently.
+if(NOT WIN32 AND NOT APPLE)
+    set(VIOSPICE_LINKER_GROUP_BEGIN "-Wl,--start-group")
+    set(VIOSPICE_LINKER_GROUP_END "-Wl,--end-group")
+else()
+    set(VIOSPICE_LINKER_GROUP_BEGIN "")
+    set(VIOSPICE_LINKER_GROUP_END "")
+endif()
 
 # --- External Dependencies ---
 include(FetchContent)
@@ -396,7 +407,7 @@ if(BUILD_FLUX_RUNNER)
     qt_add_executable(flux_runner tools/flux_runner.cpp)
     target_include_directories(flux_runner PRIVATE ${CMAKE_SOURCE_DIR})
     target_link_libraries(flux_runner PRIVATE "${VIOSPICE_PREFERRED_ENGINE_LIB}"
-        -Wl,--start-group
+        ${VIOSPICE_LINKER_GROUP_BEGIN}
         VioSchematicUI
         VioSchematicCore
         VioSymbols
@@ -407,14 +418,9 @@ if(BUILD_FLUX_RUNNER)
         VioUI
         VioFootprints
         VioraPCBCore
-        -Wl,--end-group
+        ${VIOSPICE_LINKER_GROUP_END}
     )
-    set_target_properties(flux_runner PROPERTIES
-        BUILD_RPATH "\$ORIGIN;${VIOSPICE_PREFERRED_ENGINE_DIR};${FLUXSCRIPT_LIB_DIR}"
-        INSTALL_RPATH "\$ORIGIN;${VIOSPICE_PREFERRED_ENGINE_DIR};${FLUXSCRIPT_LIB_DIR}"
-        BUILD_WITH_INSTALL_RPATH TRUE
-        BUILD_RPATH_USE_ORIGIN TRUE
-    )
+    vioraeda_setup_rpath(flux_runner)
     if(VIOSPICE_DEV_MODE AND FLUX_LLVM_LIB)
         add_custom_command(TARGET flux_runner POST_BUILD
             COMMAND ${CMAKE_COMMAND} -E copy_if_different
@@ -441,7 +447,7 @@ if(BUILD_VIOSPICE_CLI)
     # Qt target graph also brings in VioHeadless and CMake rejects that cycle
     # during generation.
     target_link_libraries(viora PRIVATE "${VIOSPICE_PREFERRED_ENGINE_LIB}"
-        -Wl,--start-group
+        ${VIOSPICE_LINKER_GROUP_BEGIN}
         VioSchematicUI
         VioSchematicCore
         VioSymbols
@@ -452,7 +458,7 @@ if(BUILD_VIOSPICE_CLI)
         VioUI
         VioFootprints
         VioraPCBCore
-        -Wl,--end-group
+        ${VIOSPICE_LINKER_GROUP_END}
     )
 
     if(VIOSPICE_ENGINE_FOUND)
@@ -461,11 +467,7 @@ if(BUILD_VIOSPICE_CLI)
         # Keep the preferred VioMATRIXC engine dir first in RPATH. If the
         # system libngspice resolves first, native code models load without the
         # VioSpice bridge symbols and SmartSignal A-devices fail at deck load.
-        set_target_properties(viora PROPERTIES
-            BUILD_RPATH "\$ORIGIN;${VIOSPICE_PREFERRED_ENGINE_DIR};${FLUXSCRIPT_LIB_DIR}"
-            BUILD_RPATH_USE_ORIGIN TRUE
-            INSTALL_RPATH "\$ORIGIN;${VIOSPICE_PREFERRED_ENGINE_DIR};${FLUXSCRIPT_LIB_DIR}"
-        )
+        vioraeda_setup_rpath(viora)
         if(VIOSPICE_DEV_MODE AND FLUX_LLVM_LIB)
             add_custom_command(TARGET viora POST_BUILD
                 COMMAND ${CMAKE_COMMAND} -E copy_if_different
@@ -479,11 +481,13 @@ if(BUILD_VIOSPICE_CLI)
     vioraeda_configure_app_target(viora)
     
     # Automatically link viora CLI globally in user's local bin after every build
-    add_custom_command(TARGET viora POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E make_directory "$ENV{HOME}/.local/bin"
-        COMMAND ${CMAKE_COMMAND} -E create_symlink "$<TARGET_FILE:viora>" "$ENV{HOME}/.local/bin/viora"
-        COMMENT "Linking viora CLI to ~/.local/bin/viora"
-    )
+    if(NOT WIN32)
+        add_custom_command(TARGET viora POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E make_directory "$ENV{HOME}/.local/bin"
+            COMMAND ${CMAKE_COMMAND} -E create_symlink "$<TARGET_FILE:viora>" "$ENV{HOME}/.local/bin/viora"
+            COMMENT "Linking viora CLI to ~/.local/bin/viora"
+        )
+    endif()
 endif()
 
 option(BUILD_VIOSPICE_APP "Build the desktop application" ON)
@@ -500,7 +504,7 @@ if(BUILD_VIOSPICE_APP)
     # archive resolution breaks this repo because the schematic/simulator/core/UI
     # layers have intentional cross-module references.
     target_link_libraries(VioraEDA PRIVATE "${VIOSPICE_PREFERRED_ENGINE_LIB}"
-        -Wl,--start-group
+        ${VIOSPICE_LINKER_GROUP_BEGIN}
         VioUI
         VioSchematic
         VioSimulator
@@ -510,7 +514,7 @@ if(BUILD_VIOSPICE_APP)
         FluxScriptManager
         VioFootprints
         VioraPCBCore
-        -Wl,--end-group
+        ${VIOSPICE_LINKER_GROUP_END}
     )
 
 
@@ -542,13 +546,8 @@ if(BUILD_VIOSPICE_APP)
         qt_finalize_executable(VioraEDA)
     endif()
 
-    # RPATH must be set after qt_finalize_executable to avoid being overridden.
-    # BUILD_RPATH uses absolute paths (not $ORIGIN) because Make interprets
-    # $ORIGIN as a shell variable and silently drops it.
-    set_target_properties(VioraEDA PROPERTIES
-        BUILD_RPATH "${CMAKE_BINARY_DIR};${VIOSPICE_PREFERRED_ENGINE_DIR};${FLUXSCRIPT_LIB_DIR}"
-        INSTALL_RPATH "\$ORIGIN;${VIOSPICE_PREFERRED_ENGINE_DIR};${FLUXSCRIPT_LIB_DIR}"
-    )
+    # RPATH must be set after qt_finalize_executable to avoid being overridden
+    vioraeda_setup_rpath(VioraEDA)
 endif()
 
 # Semantic merge tool (for Git integration)

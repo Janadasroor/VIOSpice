@@ -39,6 +39,8 @@
 #include "adc_bridge_item.h"
 #include "dac_bridge_item.h"
 #include "analog_function_item.h"
+#include "core_item.h"
+#include "lcouple_item.h"
 
 using Flux::Model::SymbolDefinition;
 
@@ -702,6 +704,18 @@ void SchematicItemRegistry::registerBuiltInItems() {
 
     factory.registerItemType("AnalogFunction", [](QPointF pos, const QJsonObject& properties, QGraphicsItem* parent) -> SchematicItem* {
         auto* item = new AnalogFunctionItem(pos, parent);
+        if (!properties.isEmpty()) item->fromJson(properties);
+        return item;
+    });
+
+    factory.registerItemType("MagneticCore", [](QPointF pos, const QJsonObject& properties, QGraphicsItem* parent) -> SchematicItem* {
+        auto* item = new CoreItem(pos, parent);
+        if (!properties.isEmpty()) item->fromJson(properties);
+        return item;
+    });
+
+    factory.registerItemType("Lcouple", [](QPointF pos, const QJsonObject& properties, QGraphicsItem* parent) -> SchematicItem* {
+        auto* item = new LcoupleItem(pos, parent);
         if (!properties.isEmpty()) item->fromJson(properties);
         return item;
     });

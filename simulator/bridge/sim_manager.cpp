@@ -1589,6 +1589,8 @@ void SimManager::compileFluxScripts(QGraphicsScene* scene) {
         if (auto* si = dynamic_cast<SchematicItem*>(item)) {
             QString ref = si->reference().trimmed().toUpper();
             if (ref.isEmpty()) continue;
+            
+            Q_EMIT logMessage(QString("[SimManager] Checking item %1 (Type: %2)").arg(ref, si->itemTypeName()));
 
             if (si->itemType() == SchematicItem::SmartSignalType) {
                 if (auto* smart = dynamic_cast<SmartSignalItem*>(si)) {
@@ -1630,6 +1632,8 @@ void SimManager::compileFluxScripts(QGraphicsScene* scene) {
                 if (svPath.isEmpty() && si->value().endsWith(".sv", Qt::CaseInsensitive)) {
                     svPath = si->value();
                 }
+
+                Q_EMIT logMessage(QString("[SimManager] Candidate SV block %1: path=%2").arg(ref, svPath));
 
                 if (!svPath.isEmpty()) {
                     QFile f(svPath);

@@ -393,24 +393,43 @@ def netlist_run(
                     sv_path = sv_temp
                     temp_sv_files.append(sv_temp)
                 
-                # We use a custom SystemVerilogBlock item in the .flxsch
-                # The netlist generator will parse the file and emit the A-device.
+                module_name = vb.get("module", "top")
+                
+                # 2a. Register as Code Carrier for the JIT compiler
                 items.append({
                     "type": "SystemVerilogBlock",
                     "reference": ref,
                     "value": sv_path,
-                    "extraProperties": {
-                        "systemVerilogFile": sv_path,
-                        "systemVerilogModule": vb.get("module", "top")
-                    }
+                    "svFilePath": sv_path,
+                    "moduleName": module_name,
+                    "systemVerilogModule": module_name,
+                    "excludeFromSim": True
                 })
                 
-                # Map pins to nets if provided
-                pin_nets = {}
-                if "inputs" in vb and "outputs" in vb:
-                    # The netlist generator currently uses regex on the file to find pin names.
-                    # For now, we assume the user knows the pin names or we use default generic ones if missing.
-                    pass 
+                # 2b. Manually bind to netlist via A-devices
+                inspect_res = verilog_inspect(sv_path, module=module_name)
+                if inspect_res.get("ok") and "ports" in inspect_res:
+                    ports = inspect_res["ports"]
+                    in_ports = [p["name"] for p in ports if p["direction"] == "input"]
+                    out_ports = [p["name"] for p in ports if p["direction"] == "output"]
+                    
+                    user_inputs = vb.get("inputs", [])
+                    user_outputs = vb.get("outputs", [])
+                    
+                    # Map positional inputs to nets
+                    in_nets = []
+                    for i in range(len(in_ports)):
+                        net = user_inputs[i] if i < len(user_inputs) else "0"
+                        in_nets.append(net)
+                    in_vector = "[" + " ".join(in_nets) + "]" if in_nets else "0"
+                    
+                    # Generate one A-device per output pin
+                    hybrid_netlist += f"\n* Verilog Block: {ref} ({module_name})\n"
+                    for i, out_pin in enumerate(out_ports):
+                        out_net = user_outputs[i] if i < len(user_outputs) else "0"
+                        jit_id = f"{ref}_{out_pin.toUpper()}"
+                        hybrid_netlist += f"A_{jit_id} {in_vector} {out_net} viospice_jit_model_{jit_id}\n"
+                        hybrid_netlist += f".model viospice_jit_model_{jit_id} viospice_jit (jit_id=\"{jit_id}\")\n"
 
         # 3. Combined netlist
         hybrid_netlist += "\n.save all\n"
