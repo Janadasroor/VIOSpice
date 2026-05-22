@@ -349,6 +349,22 @@ else()
         message(WARNING "LLVM not found — FluxScript targets may not compile")
     endif()
 
+    # Also link against the bundled LLVM runtime library so that targets
+    # referencing LLVM symbols (e.g. VioCore JIT code) can resolve them.
+    set(_fs_llvm "${_fs_dir}/lib/libLLVM.so.21.1")
+    if(EXISTS "${_fs_llvm}")
+        add_library(FluxScript::LLVM SHARED IMPORTED GLOBAL)
+        set_target_properties(FluxScript::LLVM PROPERTIES
+            IMPORTED_LOCATION "${_fs_llvm}"
+        )
+        target_link_libraries(FluxScript INTERFACE FluxScript::LLVM)
+        message(STATUS "Bundled LLVM library: ${_fs_llvm}")
+    elseif(LLVM_FOUND)
+        target_link_libraries(FluxScript INTERFACE LLVM::LLVM)
+        message(STATUS "Using system LLVM library via cmake target")
+    endif()
+    unset(_fs_llvm)
+
     set(FLUXSCRIPT_LIB_DIR "${_fs_dir}/lib")
 
     set(fluxscript_SOURCE_DIR "${_fs_dir}")
