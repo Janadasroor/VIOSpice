@@ -88,9 +88,9 @@ void ERCDiagnosticsPanel::updateLibraryInfo() {
     // Try to find the path to ngSpice_Init or ngSpice_Circ
 #ifndef _WIN32
     if (dladdr((void*)ngSpice_Init, &info) && info.dli_fname) {
-        return QString::fromLatin1(info.dli_fname);
+        libPath = QString::fromLatin1(info.dli_fname);
     } else if (dladdr((void*)ngSpice_Command, &info) && info.dli_fname) {
-        return QString::fromLatin1(info.dli_fname);
+        libPath = QString::fromLatin1(info.dli_fname);
     }
 #endif
 
