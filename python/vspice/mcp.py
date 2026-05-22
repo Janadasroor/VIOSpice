@@ -107,10 +107,19 @@ def run_viora_command(args: List[str], timeout: int = 120, json_out: bool = Fals
             data = None
             
             if json_out and out:
-                try:
-                    data = json.loads(out)
-                except json.JSONDecodeError:
-                    pass
+                # Robustly find the JSON part in the output (might be preceded by logs)
+                json_start = out.find('{')
+                json_end = out.rfind('}')
+                if json_start >= 0 and json_end > json_start:
+                    try:
+                        data = json.loads(out[json_start : json_end + 1])
+                    except json.JSONDecodeError:
+                        pass
+                else:
+                    try:
+                        data = json.loads(out)
+                    except json.JSONDecodeError:
+                        pass
             
             # Success
             if proc.returncode == 0:
@@ -367,6 +376,8 @@ def netlist_run(
                     "reference": ref,
                     "fluxCode": ss["code"],
                     "engineType": "flux",
+                    "inputs": ss.get("inputs", []),
+                    "outputs": ss.get("outputs", []),
                     "excludeFromSim": True
                 })
                 # Binding logic... (same as before)
@@ -408,8 +419,11 @@ def netlist_run(
                 
                 # 2b. Manually bind to netlist via A-devices
                 inspect_res = verilog_inspect(sv_path, module=module_name)
-                if inspect_res.get("ok") and "ports" in inspect_res:
-                    ports = inspect_res["ports"]
+                ports = []
+                if inspect_res.get("ok") and "data" in inspect_res:
+                    ports = inspect_res["data"].get("ports", [])
+                
+                if ports:
                     in_ports = [p["name"] for p in ports if p["direction"] == "input"]
                     out_ports = [p["name"] for p in ports if p["direction"] == "output"]
                     
@@ -427,7 +441,7 @@ def netlist_run(
                     hybrid_netlist += f"\n* Verilog Block: {ref} ({module_name})\n"
                     for i, out_pin in enumerate(out_ports):
                         out_net = user_outputs[i] if i < len(user_outputs) else "0"
-                        jit_id = f"{ref}_{out_pin.toUpper()}"
+                        jit_id = f"{ref}_{out_pin.upper()}"
                         hybrid_netlist += f"A_{jit_id} {in_vector} {out_net} viospice_jit_model_{jit_id}\n"
                         hybrid_netlist += f".model viospice_jit_model_{jit_id} viospice_jit (jit_id=\"{jit_id}\")\n"
 
@@ -509,6 +523,10 @@ def netlist_run(
             # Flatten data into top-level for ergonomics
             data = res.pop("data")
             res.update(data)
+            
+            # Alias rawPath to raw_path for Pythonic consistency
+            if "rawPath" in res:
+                res["raw_path"] = res["rawPath"]
         return res
     finally:
         if temp_file and os.path.exists(temp_file):
