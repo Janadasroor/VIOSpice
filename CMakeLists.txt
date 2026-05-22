@@ -294,7 +294,7 @@ if(VIOSPICE_DEV_MODE OR VIOSPICE_BUILD_FLUXSCRIPT)
         FetchContent_Declare(
             FluxScript
             GIT_REPOSITORY https://github.com/Janadasroor/fluxscript.git
-            GIT_TAG        2717da0   # LLVM 21 compat + JIT fixes + eager compile cache
+            GIT_TAG        e33f0e32 # LLVM 21 compat + JIT fixes + eager compile cache
         )
         FetchContent_MakeAvailable(FluxScript)
         set(FLUXSCRIPT_LIB_DIR "${fluxscript_BINARY_DIR}")
