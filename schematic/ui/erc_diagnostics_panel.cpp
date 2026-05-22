@@ -81,7 +81,9 @@ void ERCDiagnosticsPanel::updateLibraryInfo() {
     if (!m_libraryInfoLabel) return;
 
     // Check which ngspice library is loaded
+#ifndef _WIN32
     Dl_info info;
+#endif
     QString libPath;
     bool isVioMatrix = false;
     
