@@ -14,7 +14,8 @@ std::string trim(std::string_view sv) {
     auto end = sv.end();
     --end;
     while (end != start && std::isspace(static_cast<unsigned char>(*end))) --end;
-    return std::string(start, static_cast<size_t>(end + 1 - start));
+    auto len = static_cast<size_t>(end - start) + 1;
+    return std::string(&*start, len);
 }
 
 std::string toLower(std::string_view sv) {

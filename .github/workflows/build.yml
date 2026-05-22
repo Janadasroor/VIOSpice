@@ -15,7 +15,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-24.04, macos-14, windows-2022]
+        os: [ubuntu-24.04, macos-15, windows-2022]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -80,11 +80,9 @@ jobs:
       - name: Configure (macOS)
         if: runner.os == 'macOS'
         run: |
-          sudo xcode-select -s /Applications/Xcode_16.app/Contents/Developer 2>/dev/null || true
-          curl -fsSL -o /tmp/llvm.tar.xz https://github.com/llvm/llvm-project/releases/download/llvmorg-21.1.0/clang+llvm-21.1.0-arm64-apple-darwin.tar.xz
-          mkdir -p /tmp/llvm
-          tar -xf /tmp/llvm.tar.xz -C /tmp/llvm --strip-components=1
-          cmake -B build -DCMAKE_BUILD_TYPE=Release -DLLVM_DIR=/tmp/llvm/lib/cmake/llvm
+          brew install llvm
+          cmake -B build -DCMAKE_BUILD_TYPE=Release \
+            -DLLVM_DIR="$(brew --prefix llvm)/lib/cmake/llvm"
 
       - name: Configure (Windows)
         if: runner.os == 'Windows'
