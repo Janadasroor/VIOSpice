@@ -180,7 +180,7 @@ jobs:
         shell: msys2 {0}
         run: |
           export PATH="/mingw64/bin:$PATH"
-          mkdir -p staging/bin staging/cm staging/lib
+          mkdir -p staging/bin staging/cm
           cp build/VioraEDA.exe staging/bin/
           cp build/viora.exe staging/bin/ 2>/dev/null || echo "no viora.exe"
           cp build/flux_runner.exe staging/bin/ 2>/dev/null || echo "no flux_runner.exe"
@@ -192,8 +192,8 @@ jobs:
               [ -f "$f" ] && cp "$f" staging/cm/ || echo "no cm files found"
             done
           fi
-          # VioMATRIXC / ngspice engine DLL (in lib/ for release archive)
-          cp build/viomatrixc-prebuilt/bin/*.dll staging/lib/ 2>/dev/null || echo "no vmc dlls"
+          # VioMATRIXC / ngspice engine DLL — put next to exe (Windows has no RPATH)
+          cp build/viomatrixc-prebuilt/bin/*.dll staging/bin/ 2>/dev/null || echo "no vmc dlls"
           # LLVM DLLs (needed by flux_runner runtime)
           cp /mingw64/bin/LLVM-C*.dll staging/bin/ 2>/dev/null || echo "no LLVM-C*.dll"
           cp /mingw64/bin/libLLVM*.dll staging/bin/ 2>/dev/null || echo "no libLLVM*.dll"
