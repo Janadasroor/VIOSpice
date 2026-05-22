@@ -309,7 +309,7 @@ else()
         message(FATAL_ERROR "Failed to download FluxScript from ${FLUXSCRIPT_DOWNLOAD_URL}")
     endif()
 
-    find_package(CURL REQUIRED)
+    find_package(CURL QUIET)
     find_package(Eigen3 QUIET)
 
     # Eigen is needed by prebuilt FluxScript headers — bundle if not found
@@ -333,7 +333,11 @@ else()
         IMPORTED_LOCATION "${_fs_dir}/lib/${FLUXSCRIPT_LIB_NAME}"
         INTERFACE_INCLUDE_DIRECTORIES "${_fs_dir}/include"
     )
-    target_link_libraries(FluxScript INTERFACE CURL::libcurl)
+    if(CURL_FOUND)
+        target_link_libraries(FluxScript INTERFACE CURL::libcurl)
+    else()
+        message(STATUS "CURL not found — FluxScript HTTP support will be disabled")
+    endif()
 
     set(FLUXSCRIPT_LIB_DIR "${_fs_dir}/lib")
 
