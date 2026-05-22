@@ -19,7 +19,7 @@ jobs:
             qt_host: linux
             qt_arch: linux_gcc_64
             qt_dir_suffix: gcc_64
-          - os: macos-14
+          - os: macos-15
             qt_host: mac
             qt_arch: clang_64
             qt_dir_suffix: macos
@@ -79,11 +79,9 @@ jobs:
       - name: Configure (macOS)
         if: runner.os == 'macOS'
         run: |
-          sudo xcode-select -s /Applications/Xcode_16.app/Contents/Developer 2>/dev/null || true
-          curl -fsSL -o /tmp/llvm.tar.xz https://github.com/llvm/llvm-project/releases/download/llvmorg-21.1.0/clang+llvm-21.1.0-arm64-apple-darwin.tar.xz
-          mkdir -p /tmp/llvm
-          tar -xf /tmp/llvm.tar.xz -C /tmp/llvm --strip-components=1
-          cmake -B build -DCMAKE_BUILD_TYPE=Release -DLLVM_DIR=/tmp/llvm/lib/cmake/llvm
+          brew install llvm
+          cmake -B build -DCMAKE_BUILD_TYPE=Release \
+            -DLLVM_DIR="$(brew --prefix llvm)/lib/cmake/llvm"
 
       - name: Configure (Windows)
         if: runner.os == 'Windows'
