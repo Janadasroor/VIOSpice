@@ -11,6 +11,7 @@ add_library(VioCore STATIC ${LOCAL_CORE_SOURCES} ${VIO_CORE_MOC_SOURCES})
 set_target_properties(VioCore PROPERTIES AUTOMOC ON)
 vioraeda_configure_module_target(VioCore)
 target_link_libraries(VioCore PUBLIC FluxScript)
+target_include_directories(VioCore PUBLIC ${VIOSPICE_ENGINE_INCLUDE_DIRS})
 
 if(Python3_FOUND)
     target_include_directories(VioCore PRIVATE ${Python3_INCLUDE_DIRS})
