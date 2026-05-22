@@ -339,6 +339,18 @@ else()
         message(STATUS "CURL not found — FluxScript HTTP support will be disabled")
     endif()
 
+    # Prebuilt FluxScript headers reference LLVM headers. Find and expose them.
+    find_path(LLVM_INCLUDE_DIR "llvm/Config/llvm-config.h"
+        PATHS /usr/lib/llvm-*/include /usr/local/opt/llvm/include
+        NO_DEFAULT_PATH
+    )
+    if(LLVM_INCLUDE_DIR)
+        target_include_directories(FluxScript INTERFACE "${LLVM_INCLUDE_DIR}")
+        message(STATUS "LLVM headers found: ${LLVM_INCLUDE_DIR}")
+    else()
+        message(WARNING "LLVM headers not found — FluxScript targets may not compile")
+    endif()
+
     set(FLUXSCRIPT_LIB_DIR "${_fs_dir}/lib")
 
     set(fluxscript_SOURCE_DIR "${_fs_dir}")
