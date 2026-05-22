@@ -68,8 +68,7 @@ set(VIOMATRIXC_DOWNLOAD_BASE "https://github.com/Janadasroor/VioMATRIXC/releases
 
 if(WIN32)
     set(VIOMATRIXC_ARCHIVE "viomatrixc-windows-x86_64.zip")
-    set(VIOMATRIXC_LIB_NAME "libngspice-0.dll")
-    set(VIOMATRIXC_LIB_DIR "bin")
+    set(VIOMATRIXC_LIB_NAME "libngspice.dll")
 elseif(APPLE)
     set(VIOMATRIXC_ARCHIVE "viomatrixc-macos-arm64.tar.gz")
     set(VIOMATRIXC_LIB_NAME "libngspice.dylib")
