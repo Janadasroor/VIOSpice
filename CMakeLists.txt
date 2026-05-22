@@ -68,7 +68,8 @@ set(VIOMATRIXC_DOWNLOAD_BASE "https://github.com/Janadasroor/VioMATRIXC/releases
 
 if(WIN32)
     set(VIOMATRIXC_ARCHIVE "viomatrixc-windows-x86_64.zip")
-    set(VIOMATRIXC_LIB_NAME "libngspice.dll")
+    set(VIOMATRIXC_LIB_NAME "libngspice-0.dll")
+    set(VIOMATRIXC_LIB_DIR "bin")
 elseif(APPLE)
     set(VIOMATRIXC_ARCHIVE "viomatrixc-macos-arm64.tar.gz")
     set(VIOMATRIXC_LIB_NAME "libngspice.dylib")
@@ -158,8 +159,11 @@ else()
     endif()
 
     set(VIOSPICE_ENGINE_INCLUDE_DIRS "${_vm_dir}/include")
-    set(VIOSPICE_PREFERRED_ENGINE_DIR "${_vm_dir}/lib")
-    set(VIOSPICE_PREFERRED_ENGINE_LIB "${_vm_dir}/lib/${VIOMATRIXC_LIB_NAME}")
+    if(NOT VIOMATRIXC_LIB_DIR)
+        set(VIOMATRIXC_LIB_DIR "lib")
+    endif()
+    set(VIOSPICE_PREFERRED_ENGINE_DIR "${_vm_dir}/${VIOMATRIXC_LIB_DIR}")
+    set(VIOSPICE_PREFERRED_ENGINE_LIB "${_vm_dir}/${VIOMATRIXC_LIB_DIR}/${VIOMATRIXC_LIB_NAME}")
 
     # Copy .cm code models
     file(MAKE_DIRECTORY "${CMAKE_BINARY_DIR}/cm")
