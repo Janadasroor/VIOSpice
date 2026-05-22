@@ -6,7 +6,6 @@
 #include <QRegularExpression>
 #include <QBuffer>
 #include <QByteArray>
-#include <zlib.h>
 
 QByteArray SchematicUrlEncoder::serializeToCompact(const QString& schematicPath) {
     QFile file(schematicPath);
