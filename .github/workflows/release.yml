@@ -65,7 +65,7 @@ jobs:
       - name: Install system deps (macOS)
         if: runner.os == 'macOS'
         run: |
-          brew install cmake curl llvm python@3.12
+          brew install cmake curl python@3.12
 
       - name: Install system deps (Windows)
         if: runner.os == 'Windows'
@@ -77,9 +77,12 @@ jobs:
         run: |
           CMAKE_FLAGS="-B build -DCMAKE_BUILD_TYPE=Release"
           if [ "${{ runner.os }}" = "macOS" ]; then
-            LLVM_PREFIX="$(brew --prefix llvm)"
-            CMAKE_FLAGS="$CMAKE_FLAGS -DLLVM_DIR=$LLVM_PREFIX/lib/cmake/llvm"
-            CMAKE_FLAGS="$CMAKE_FLAGS -DCMAKE_C_COMPILER=$LLVM_PREFIX/bin/clang -DCMAKE_CXX_COMPILER=$LLVM_PREFIX/bin/clang++"
+            # Use Xcode 16 for C++23 slang support, then download LLVM for prebuilt FluxScript headers
+            sudo xcode-select -s /Applications/Xcode_16.app/Contents/Developer 2>/dev/null || true
+            curl -fsSL -o /tmp/llvm.tar.xz https://github.com/llvm/llvm-project/releases/download/llvmorg-21.1.0/clang+llvm-21.1.0-arm64-apple-darwin.tar.xz
+            mkdir -p /tmp/llvm
+            tar -xf /tmp/llvm.tar.xz -C /tmp/llvm --strip-components=1
+            CMAKE_FLAGS="$CMAKE_FLAGS -DLLVM_DIR=/tmp/llvm/lib/cmake/llvm"
           elif [ "${{ runner.os }}" = "Windows" ]; then
             curl -fsSL -o /tmp/llvm.tar.xz https://github.com/llvm/llvm-project/releases/download/llvmorg-21.1.0/clang+llvm-21.1.0-x86_64-pc-windows-msvc.tar.xz
             mkdir -p /tmp/llvm
