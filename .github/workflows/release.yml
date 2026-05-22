@@ -56,6 +56,10 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           sudo apt update
+          sudo apt install -y software-properties-common
+          wget -qO - https://apt.llvm.org/llvm-snapshot.gpg.key | sudo apt-key add -
+          sudo add-apt-repository "deb https://apt.llvm.org/noble/ llvm-toolchain-noble-21 main"
+          sudo apt update
           sudo apt install -y \
             build-essential cmake \
             libcurl4-openssl-dev \
