@@ -265,6 +265,7 @@ endif()
 
 # --- FluxScript Support ---
 option(VIOSPICE_DOWNLOAD_FLUXSCRIPT "Download prebuilt FluxScript" OFF)
+option(VIOSPICE_BUILD_FLUXSCRIPT "Build FluxScript from source" OFF)
 set(FLUXSCRIPT_DOWNLOAD_BASE "https://github.com/Janadasroor/fluxscript/releases/download/v0.1.0"
     CACHE STRING "URL prefix for prebuilt FluxScript archive")
 
@@ -282,7 +283,7 @@ set(FLUXSCRIPT_DOWNLOAD_URL "${FLUXSCRIPT_DOWNLOAD_BASE}/${FLUXSCRIPT_ARCHIVE}")
 
 set(FLUX_VIO_MATRIXC_LIB_DIR "${VIOSPICE_PREFERRED_ENGINE_DIR}" CACHE STRING "Path to VioMATRIXC libngspice directory" FORCE)
 
-if(VIOSPICE_DEV_MODE)
+if(VIOSPICE_DEV_MODE OR VIOSPICE_BUILD_FLUXSCRIPT)
     # --- Build FluxScript from source (local repo or FetchContent) ---
     if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/../fluxscript/CMakeLists.txt")
         message(STATUS "FluxScript: using local ../fluxscript")
