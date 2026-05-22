@@ -5,6 +5,9 @@ on:
     tags: ["v*"]
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -140,15 +143,16 @@ jobs:
           cp build/VioraEDA staging/bin/
           cp build/viora staging/bin/ 2>/dev/null || true
           cp build/libLLVM.so.21.1 staging/lib/ 2>/dev/null || true
-          cp -r build/cm/* staging/cm/
-          cp -r build/fluxscript-prebuilt/lib/* staging/lib/ 2>/dev/null || true
+          cp -r build/cm/. staging/cm/ 2>/dev/null || true
+          # FluxScript lib — source build or prebuilt
+          if [ -d "build/_deps/fluxscript-build" ]; then
+            cp build/_deps/fluxscript-build/libFluxScript.so* staging/lib/ 2>/dev/null || true
+          elif [ -d "build/fluxscript-prebuilt/lib" ]; then
+            cp build/fluxscript-prebuilt/lib/*.so* staging/lib/ 2>/dev/null || true
+          fi
           # Bundle engine libs
           if [ -d "build/viomatrixc-prebuilt/lib" ]; then
             cp build/viomatrixc-prebuilt/lib/*.so* staging/lib/ 2>/dev/null || true
-          fi
-          # Bundle FluxScript lib
-          if [ -d "build/fluxscript-prebuilt/lib" ]; then
-            cp build/fluxscript-prebuilt/lib/*.so* staging/lib/ 2>/dev/null || true
           fi
           tar czf VioraEDA-${{ github.ref_name }}-linux-x86_64.tar.gz -C staging .
 
@@ -159,9 +163,13 @@ jobs:
           cp build/VioraEDA.app/Contents/MacOS/VioraEDA staging/bin/ 2>/dev/null || \
           cp build/VioraEDA staging/bin/ 2>/dev/null || true
           cp build/viora staging/bin/ 2>/dev/null || true
-          cp -r build/cm/* staging/cm/
+          cp -r build/cm/. staging/cm/ 2>/dev/null || true
+          if [ -d "build/_deps/fluxscript-build" ]; then
+            cp build/_deps/fluxscript-build/libFluxScript*.dylib staging/lib/ 2>/dev/null || true
+          elif [ -d "build/fluxscript-prebuilt/lib" ]; then
+            cp build/fluxscript-prebuilt/lib/*.dylib staging/lib/ 2>/dev/null || true
+          fi
           cp build/viomatrixc-prebuilt/lib/*.dylib staging/lib/ 2>/dev/null || true
-          cp build/fluxscript-prebuilt/lib/*.dylib staging/lib/ 2>/dev/null || true
           tar czf VioraEDA-${{ github.ref_name }}-macos-arm64.tar.gz -C staging .
 
       - name: Package (Windows)
@@ -172,9 +180,14 @@ jobs:
           mkdir -p staging/bin staging/cm staging/lib
           cp build/VioraEDA.exe staging/bin/
           cp build/viora.exe staging/bin/ 2>/dev/null || echo "no viora.exe"
-          cp build/fluxscript-prebuilt/lib/*.dll staging/lib/ 2>/dev/null || echo "no fs dlls"
+          # FluxScript DLL — source build or prebuilt
+          if [ -d "build/_deps/fluxscript-build" ]; then
+            cp build/_deps/fluxscript-build/*.dll staging/lib/ 2>/dev/null || echo "no fs dlls"
+          elif [ -d "build/fluxscript-prebuilt/lib" ]; then
+            cp build/fluxscript-prebuilt/lib/*.dll staging/lib/ 2>/dev/null || echo "no fs dlls"
+          fi
           cp build/viomatrixc-prebuilt/bin/*.dll staging/lib/ 2>/dev/null || echo "no vmc dlls"
-          cp -r build/cm/* staging/cm/
+          cp -r build/cm/. staging/cm/ 2>/dev/null || true
           # Bundle Qt DLLs
           windeployqt --dir staging/bin staging/bin/VioraEDA.exe
           cd staging
