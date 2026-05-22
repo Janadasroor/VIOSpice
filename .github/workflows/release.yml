@@ -73,6 +73,7 @@ jobs:
           choco install cmake curl python3
 
       - name: Configure
+        shell: bash
         run: |
           CMAKE_FLAGS="-B build -DCMAKE_BUILD_TYPE=Release"
           if [ "${{ runner.os }}" = "macOS" ]; then
