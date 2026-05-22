@@ -1,5 +1,11 @@
 cmake_minimum_required(VERSION 3.18)
 
+# CMP0111: don't require IMPORTED_IMPLIB for IMPORTED SHARED targets on Windows
+# (MinGW can link .dll directly; MSVC uses the .lib specified per-target)
+if(POLICY CMP0111)
+    cmake_policy(SET CMP0111 OLD)
+endif()
+
 project(viospice VERSION 0.1 LANGUAGES CXX)
 set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE) 
 set(CMAKE_BUILD_WITH_INSTALL_RPATH TRUE) 
@@ -353,11 +359,18 @@ else()
         IMPORTED_LOCATION "${_fs_dir}/lib/${FLUXSCRIPT_LIB_NAME}"
         INTERFACE_INCLUDE_DIRECTORIES "${_fs_dir}/include;${EIGEN3_INCLUDE_DIR}"
     )
-    if(MSVC)
-        string(REPLACE ".dll" ".lib" _fs_implib_name "${FLUXSCRIPT_LIB_NAME}")
-        set_target_properties(FluxScript PROPERTIES
-            IMPORTED_IMPLIB "${_fs_dir}/lib/${_fs_implib_name}"
-        )
+    if(WIN32)
+        if(MINGW)
+            # MinGW: use the DLL itself as import library (ld can link against .dll)
+            set_target_properties(FluxScript PROPERTIES
+                IMPORTED_IMPLIB "${_fs_dir}/lib/${FLUXSCRIPT_LIB_NAME}"
+            )
+        else()
+            string(REPLACE ".dll" ".lib" _fs_implib_name "${FLUXSCRIPT_LIB_NAME}")
+            set_target_properties(FluxScript PROPERTIES
+                IMPORTED_IMPLIB "${_fs_dir}/lib/${_fs_implib_name}"
+            )
+        endif()
     endif()
     if(CURL_FOUND)
         target_link_libraries(FluxScript INTERFACE CURL::libcurl)
