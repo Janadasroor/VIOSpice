@@ -62,13 +62,14 @@ jobs:
             mingw-w64-x86_64-python
             mingw-w64-x86_64-python-pip
             mingw-w64-x86_64-pkg-config
-            mingw-w64-x86_64-qt6
-            mingw-w64-x86_64-qt6-qtcharts
-            mingw-w64-x86_64-qt6-qtpdf
-            mingw-w64-x86_64-qt6-qtwebsockets
-            mingw-w64-x86_64-qt6-qtmultimedia
-            mingw-w64-x86_64-qt6-qt5compat
-            mingw-w64-x86_64-qt6-qtshadertools
+            mingw-w64-x86_64-qt6-base
+            mingw-w64-x86_64-qt6-charts
+            mingw-w64-x86_64-qt6-websockets
+            mingw-w64-x86_64-qt6-multimedia
+            mingw-w64-x86_64-qt6-5compat
+            mingw-w64-x86_64-qt6-shadertools
+            mingw-w64-x86_64-qt6-svg
+            mingw-w64-x86_64-qt6-declarative
             mingw-w64-x86_64-llvm
             zip
 
