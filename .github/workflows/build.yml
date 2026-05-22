@@ -59,6 +59,7 @@ jobs:
             build-essential cmake \
             libcurl4-openssl-dev \
             libgl1-mesa-dev \
+            libpulse-dev \
             llvm-21-dev \
             python3 python3-dev
 
