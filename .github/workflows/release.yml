@@ -21,18 +21,6 @@ jobs:
             qt_dir_suffix: gcc_64
             archive_ext: tar.gz
             archive_type: tar.gz
-          - os: macos-14
-            qt_host: mac
-            qt_arch: clang_64
-            qt_dir_suffix: macos
-            archive_ext: tar.gz
-            archive_type: tar.gz
-          - os: windows-2022
-            qt_host: windows
-            qt_arch: win64_msvc2022_64
-            qt_dir_suffix: msvc2022_64
-            archive_ext: zip
-            archive_type: zip
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
