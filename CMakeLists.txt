@@ -305,6 +305,13 @@ else()
         file(ARCHIVE_EXTRACT INPUT "${_fs_archive}"
              DESTINATION "${_fs_dir}")
         file(REMOVE "${_fs_archive}")
+        # Remove bundled libxml2 to avoid ICU version mismatch with the system
+        file(GLOB_RECURSE _fs_libxml "${_fs_dir}/lib/libxml2.so*")
+        if(_fs_libxml)
+            file(REMOVE ${_fs_libxml})
+            message(STATUS "Removed bundled libxml2 (ICU version mismatch): ${_fs_libxml}")
+        endif()
+        unset(_fs_libxml)
     else()
         message(FATAL_ERROR "Failed to download FluxScript from ${FLUXSCRIPT_DOWNLOAD_URL}")
     endif()
