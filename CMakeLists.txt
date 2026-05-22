@@ -181,7 +181,7 @@ else()
 
     # Copy .cm code models
     file(MAKE_DIRECTORY "${CMAKE_BINARY_DIR}/cm")
-    file(GLOB _cm_files "${_vm_dir}/cm/*.cm")
+    file(GLOB _cm_files "${_vm_dir}/${VIOMATRIXC_LIB_DIR}/ngspice/*.cm")
     foreach(_cm ${_cm_files})
         file(COPY "${_cm}" DESTINATION "${CMAKE_BINARY_DIR}/cm")
     endforeach()
