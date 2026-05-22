@@ -17,12 +17,12 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 # Linker group flags for circular static library dependencies.
 # Only GNU ld (Linux) supports --start-group/--end-group.
 # Apple ld64 and MSVC resolve circular deps differently.
-if(NOT WIN32 AND NOT APPLE)
-    set(VIOSPICE_LINKER_GROUP_BEGIN "-Wl,--start-group")
-    set(VIOSPICE_LINKER_GROUP_END "-Wl,--end-group")
-else()
+if(MSVC OR APPLE)
     set(VIOSPICE_LINKER_GROUP_BEGIN "")
     set(VIOSPICE_LINKER_GROUP_END "")
+else()
+    set(VIOSPICE_LINKER_GROUP_BEGIN "-Wl,--start-group")
+    set(VIOSPICE_LINKER_GROUP_END "-Wl,--end-group")
 endif()
 
 # --- External Dependencies ---
@@ -68,7 +68,12 @@ set(VIOMATRIXC_DOWNLOAD_BASE "https://github.com/Janadasroor/VioMATRIXC/releases
 
 if(WIN32)
     set(VIOMATRIXC_ARCHIVE "viomatrixc-windows-x86_64.zip")
-    set(VIOMATRIXC_LIB_NAME "libngspice.dll")
+    if(MINGW)
+        set(VIOMATRIXC_LIB_DIR "bin")
+        set(VIOMATRIXC_LIB_NAME "libngspice-0.dll")
+    else()
+        set(VIOMATRIXC_LIB_NAME "libngspice.dll")
+    endif()
 elseif(APPLE)
     set(VIOMATRIXC_ARCHIVE "viomatrixc-macos-arm64.tar.gz")
     set(VIOMATRIXC_LIB_NAME "libngspice.dylib")
@@ -99,7 +104,11 @@ if(VIOSPICE_DEV_MODE)
     if(APPLE)
         set(NGSPICE_LIB_NAME "libngspice.dylib")
     elseif(WIN32)
-        set(NGSPICE_LIB_NAME "libngspice.dll")
+        if(MINGW)
+            set(NGSPICE_LIB_NAME "libngspice-0.dll")
+        else()
+            set(NGSPICE_LIB_NAME "libngspice.dll")
+        endif()
     else()
         set(NGSPICE_LIB_NAME "libngspice.so")
     endif()
@@ -344,7 +353,7 @@ else()
         IMPORTED_LOCATION "${_fs_dir}/lib/${FLUXSCRIPT_LIB_NAME}"
         INTERFACE_INCLUDE_DIRECTORIES "${_fs_dir}/include;${EIGEN3_INCLUDE_DIR}"
     )
-    if(WIN32)
+    if(MSVC)
         string(REPLACE ".dll" ".lib" _fs_implib_name "${FLUXSCRIPT_LIB_NAME}")
         set_target_properties(FluxScript PROPERTIES
             IMPORTED_IMPLIB "${_fs_dir}/lib/${_fs_implib_name}"
