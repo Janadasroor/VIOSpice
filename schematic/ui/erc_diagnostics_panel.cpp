@@ -8,7 +8,9 @@
 #include <QClipboard>
 #include <QLibrary>
 #include <QFileInfo>
+#ifndef _WIN32
 #include <dlfcn.h>
+#endif
 
 // Forward declarations for ngspice functions (to find library path via dladdr)
 extern "C" {
@@ -84,11 +86,13 @@ void ERCDiagnosticsPanel::updateLibraryInfo() {
     bool isVioMatrix = false;
     
     // Try to find the path to ngSpice_Init or ngSpice_Circ
+#ifndef _WIN32
     if (dladdr((void*)ngSpice_Init, &info) && info.dli_fname) {
-        libPath = QString::fromLocal8Bit(info.dli_fname);
+        return QString::fromLatin1(info.dli_fname);
     } else if (dladdr((void*)ngSpice_Command, &info) && info.dli_fname) {
-        libPath = QString::fromLocal8Bit(info.dli_fname);
+        return QString::fromLatin1(info.dli_fname);
     }
+#endif
 
     // Determine if it's VioMATRIXC
     isVioMatrix = libPath.contains("VioMATRIXC", Qt::CaseInsensitive) || 

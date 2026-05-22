@@ -341,6 +341,12 @@ else()
         IMPORTED_LOCATION "${_fs_dir}/lib/${FLUXSCRIPT_LIB_NAME}"
         INTERFACE_INCLUDE_DIRECTORIES "${_fs_dir}/include;${EIGEN3_INCLUDE_DIR}"
     )
+    if(WIN32)
+        string(REPLACE ".dll" ".lib" _fs_implib_name "${FLUXSCRIPT_LIB_NAME}")
+        set_target_properties(FluxScript PROPERTIES
+            IMPORTED_IMPLIB "${_fs_dir}/lib/${_fs_implib_name}"
+        )
+    endif()
     if(CURL_FOUND)
         target_link_libraries(FluxScript INTERFACE CURL::libcurl)
     else()
