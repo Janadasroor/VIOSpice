@@ -1,6 +1,7 @@
 #ifndef SIM_MATH_H
 #define SIM_MATH_H
 
+#define _USE_MATH_DEFINES
 #include <vector>
 #include <complex>
 #include <cmath>
