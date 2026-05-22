@@ -340,15 +340,12 @@ else()
     endif()
 
     # Prebuilt FluxScript headers reference LLVM headers. Find and expose them.
-    find_path(LLVM_INCLUDE_DIR "llvm/Config/llvm-config.h"
-        PATHS /usr/lib/llvm-*/include /usr/local/opt/llvm/include
-        NO_DEFAULT_PATH
-    )
-    if(LLVM_INCLUDE_DIR)
-        target_include_directories(FluxScript INTERFACE "${LLVM_INCLUDE_DIR}")
-        message(STATUS "LLVM headers found: ${LLVM_INCLUDE_DIR}")
+    find_package(LLVM QUIET)
+    if(LLVM_FOUND)
+        target_include_directories(FluxScript INTERFACE ${LLVM_INCLUDE_DIRS})
+        message(STATUS "LLVM headers found via cmake config: ${LLVM_INCLUDE_DIRS}")
     else()
-        message(WARNING "LLVM headers not found — FluxScript targets may not compile")
+        message(WARNING "LLVM not found — FluxScript targets may not compile")
     endif()
 
     set(FLUXSCRIPT_LIB_DIR "${_fs_dir}/lib")
