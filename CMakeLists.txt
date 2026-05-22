@@ -323,6 +323,7 @@ else()
             GIT_SHALLOW    TRUE
         )
         FetchContent_MakeAvailable(Eigen3)
+        set(EIGEN3_INCLUDE_DIR "${eigen3_SOURCE_DIR}")
     endif()
 
     include_directories(${EIGEN3_INCLUDE_DIR})
@@ -331,7 +332,7 @@ else()
     add_library(FluxScript SHARED IMPORTED GLOBAL)
     set_target_properties(FluxScript PROPERTIES
         IMPORTED_LOCATION "${_fs_dir}/lib/${FLUXSCRIPT_LIB_NAME}"
-        INTERFACE_INCLUDE_DIRECTORIES "${_fs_dir}/include"
+        INTERFACE_INCLUDE_DIRECTORIES "${_fs_dir}/include;${EIGEN3_INCLUDE_DIR}"
     )
     if(CURL_FOUND)
         target_link_libraries(FluxScript INTERFACE CURL::libcurl)
