@@ -1,10 +1,14 @@
 #ifndef SIM_MATH_H
 #define SIM_MATH_H
 
-#define _USE_MATH_DEFINES
+#include <numbers>
 #include <vector>
 #include <complex>
 #include <cmath>
+
+#ifndef M_PI
+#define M_PI 3.14159265358979323846
+#endif
 
 /**
  * @brief Professional DSP and Numerical helpers for simulation.
