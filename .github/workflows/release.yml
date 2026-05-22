@@ -188,6 +188,19 @@ jobs:
           fi
           cp build/viomatrixc-prebuilt/bin/*.dll staging/lib/ 2>/dev/null || echo "no vmc dlls"
           cp -r build/cm/. staging/cm/ 2>/dev/null || true
+          # Bundle MinGW runtime DLLs
+          cp /mingw64/bin/libgcc_s_seh-1.dll staging/bin/ 2>/dev/null || echo "no libgcc"
+          cp /mingw64/bin/libstdc++-6.dll staging/bin/ 2>/dev/null || echo "no libstdc++"
+          cp /mingw64/bin/libwinpthread-1.dll staging/bin/ 2>/dev/null || echo "no libwinpthread"
+          # Bundle Python DLL (embedded/python3xx.dll)
+          PYTHON_DLL_DIR=$(python3 -c "import sys; from pathlib import Path; print(Path(sys.base_prefix) / 'bin')" 2>/dev/null) || true
+          if [ -n "$PYTHON_DLL_DIR" ] && [ -d "$PYTHON_DLL_DIR" ]; then
+            cp "$PYTHON_DLL_DIR/python3.dll" staging/bin/ 2>/dev/null || echo "no python3.dll"
+            cp "$PYTHON_DLL_DIR/python3*.dll" staging/bin/ 2>/dev/null || echo "no python3*.dll"
+          else
+            # Fallback: copy from MSYS2 Python
+            cp /mingw64/bin/python3*.dll staging/bin/ 2>/dev/null || echo "no msys2 python dll"
+          fi
           # Bundle Qt DLLs
           windeployqt --dir staging/bin staging/bin/VioraEDA.exe
           cd staging
