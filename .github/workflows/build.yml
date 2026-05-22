@@ -78,10 +78,12 @@ jobs:
         run: |
           CMAKE_FLAGS="-B build -DCMAKE_BUILD_TYPE=Release"
           if [ "${{ runner.os }}" = "macOS" ]; then
-            CMAKE_FLAGS="$CMAKE_FLAGS -DLLVM_DIR=$(brew --prefix llvm)/lib/cmake/llvm"
+            LLVM_PREFIX="$(brew --prefix llvm)"
+            CMAKE_FLAGS="$CMAKE_FLAGS -DLLVM_DIR=$LLVM_PREFIX/lib/cmake/llvm"
+            CMAKE_FLAGS="$CMAKE_FLAGS -DCMAKE_C_COMPILER=$LLVM_PREFIX/bin/clang -DCMAKE_CXX_COMPILER=$LLVM_PREFIX/bin/clang++"
           elif [ "${{ runner.os }}" = "Windows" ]; then
             # Download LLVM on Windows for prebuilt FluxScript headers
-            curl -fsSL -o /tmp/llvm.tar.xz https://github.com/llvm/llvm-project/releases/download/llvmorg-21.1.0/LLVM-21.1.0-win64.tar.xz
+            curl -fsSL -o /tmp/llvm.tar.xz https://github.com/llvm/llvm-project/releases/download/llvmorg-21.1.0/clang+llvm-21.1.0-x86_64-pc-windows-msvc.tar.xz
             mkdir -p /tmp/llvm
             tar -xf /tmp/llvm.tar.xz -C /tmp/llvm --strip-components=1
             CMAKE_FLAGS="$CMAKE_FLAGS -DLLVM_DIR=/tmp/llvm/lib/cmake/llvm"
