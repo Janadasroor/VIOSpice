@@ -5,10 +5,6 @@
 #include <dlfcn.h>
 #endif
 
-#ifdef HAVE_NGSPICE
-extern "C" bool ngSpice_IsPaused(void);
-#endif
-
 namespace Flux {
 
 SpiceBackend::SpiceBackend() : m_initialized(false) {}
@@ -62,11 +58,11 @@ int SpiceBackend::loadCircuit(char** deck) {
 }
 
 bool SpiceBackend::isPaused() const {
-#ifdef HAVE_NGSPICE
-    return ngSpice_IsPaused();
-#else
-    return false;
-#endif
+    // ngSpice_IsPaused is a custom symbol only present in VioMATRIXC patched ngspice.
+    // Use dynamic lookup to gracefully handle prebuilt binaries that lack it.
+    void* sym = const_cast<SpiceBackend*>(this)->resolveSymbol("ngSpice_IsPaused");
+    if (!sym) return false;
+    return reinterpret_cast<bool(*)()>(sym)();
 }
 
 void* SpiceBackend::resolveSymbol(const char* symbolName) {
