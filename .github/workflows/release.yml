@@ -60,6 +60,7 @@ jobs:
             build-essential cmake \
             libcurl4-openssl-dev \
             libgl1-mesa-dev \
+            llvm-21-dev \
             python3 python3-dev
 
       - name: Install system deps (macOS)
@@ -76,7 +77,7 @@ jobs:
         run: cmake -B build -DCMAKE_BUILD_TYPE=Release
 
       - name: Build
-        run: cmake --build build -j$(nproc)
+        run: cmake --build build --parallel
 
       - name: Run tests
         run: ctest --test-dir build --output-on-failure || true
