@@ -285,6 +285,17 @@ set(FLUX_VIO_MATRIXC_LIB_DIR "${VIOSPICE_PREFERRED_ENGINE_DIR}" CACHE STRING "Pa
 
 if(VIOSPICE_DEV_MODE OR VIOSPICE_BUILD_FLUXSCRIPT)
     # --- Build FluxScript from source (local repo or FetchContent) ---
+
+    # When using prebuilt VioMATRIXC (non-DEV_MODE), FluxScript won't find
+    # ngspice headers from its default path computation. Point it correctly.
+    if(NOT VIOSPICE_DEV_MODE)
+        if(VIOSPICE_ENGINE_INCLUDE_DIRS)
+            set(NGSPICE_INCLUDE_DIR "${VIOSPICE_ENGINE_INCLUDE_DIRS}" CACHE PATH "VioMATRIXC ngspice include dir" FORCE)
+        endif()
+        if(VIOSPICE_PREFERRED_ENGINE_LIB)
+            set(NGSPICE_LIBRARY "${VIOSPICE_PREFERRED_ENGINE_LIB}" CACHE FILEPATH "VioMATRIXC ngspice library" FORCE)
+        endif()
+    endif()
     if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/../fluxscript/CMakeLists.txt")
         message(STATUS "FluxScript: using local ../fluxscript")
         add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../fluxscript FluxScript)
