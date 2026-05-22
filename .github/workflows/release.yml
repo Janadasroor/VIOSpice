@@ -19,8 +19,14 @@ jobs:
             qt_host: linux
             qt_arch: linux_gcc_64
             qt_dir_suffix: gcc_64
-            archive_ext: tar.gz
-            archive_type: tar.gz
+          - os: macos-14
+            qt_host: mac
+            qt_arch: clang_64
+            qt_dir_suffix: macos
+          - os: windows-2022
+            qt_host: windows
+            qt_arch: win64_msvc2022_64
+            qt_dir_suffix: msvc2022_64
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -59,7 +65,7 @@ jobs:
       - name: Install system deps (macOS)
         if: runner.os == 'macOS'
         run: |
-          brew install cmake curl python@3.12
+          brew install cmake curl llvm python@3.12
 
       - name: Install system deps (Windows)
         if: runner.os == 'Windows'
@@ -67,10 +73,20 @@ jobs:
           choco install cmake curl python3
 
       - name: Configure
-        run: cmake -B build -DCMAKE_BUILD_TYPE=Release
+        run: |
+          CMAKE_FLAGS="-B build -DCMAKE_BUILD_TYPE=Release"
+          if [ "${{ runner.os }}" = "macOS" ]; then
+            CMAKE_FLAGS="$CMAKE_FLAGS -DLLVM_DIR=$(brew --prefix llvm)/lib/cmake/llvm"
+          elif [ "${{ runner.os }}" = "Windows" ]; then
+            curl -fsSL -o /tmp/llvm.tar.xz https://github.com/llvm/llvm-project/releases/download/llvmorg-21.1.0/LLVM-21.1.0-win64.tar.xz
+            mkdir -p /tmp/llvm
+            tar -xf /tmp/llvm.tar.xz -C /tmp/llvm --strip-components=1
+            CMAKE_FLAGS="$CMAKE_FLAGS -DLLVM_DIR=/tmp/llvm/lib/cmake/llvm"
+          fi
+          cmake $CMAKE_FLAGS
 
       - name: Build
-        run: cmake --build build --parallel 2
+        run: cmake --build build --parallel 2 2
 
       - name: Run tests
         run: ctest --test-dir build --output-on-failure || true

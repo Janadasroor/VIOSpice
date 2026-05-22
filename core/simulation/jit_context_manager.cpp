@@ -59,8 +59,8 @@ JITContextManager::JITContextManager() {
     m_jit->registerFunction("erc_get_pin_net", (void*)&flux_erc_get_pin_net);
     m_jit->registerFunction("erc_report", (void*)&flux_erc_report);
     m_jit->registerFunction("erc_set_block_pins", (void*)&flux_erc_set_block_pins);
-    m_jit->registerFunction("print", (void*)&viora_flux_print);
-    m_jit->registerFunction("printf", (void*)&viora_flux_print);
+    // m_jit->registerFunction("print", (void*)&viora_flux_print);
+    // m_jit->registerFunction("printf", (void*)&viora_flux_print);
     m_jit->registerFunction("flux_sim_get_vector_size", (void*)&flux_sim_get_vector_size);
     m_jit->registerFunction("flux_sim_get_vector_val", (void*)&flux_sim_get_vector_val);
     m_jit->registerFunction("flux_sim_get_vector_x", (void*)&flux_sim_get_vector_x);
@@ -216,8 +216,8 @@ void JITContextManager::reset() {
     m_jit->registerFunction("erc_get_pin_net", (void*)&flux_erc_get_pin_net);
     m_jit->registerFunction("erc_report", (void*)&flux_erc_report);
     m_jit->registerFunction("erc_set_block_pins", (void*)&flux_erc_set_block_pins);
-    m_jit->registerFunction("print", (void*)&viora_flux_print);
-    m_jit->registerFunction("printf", (void*)&viora_flux_print);
+    // m_jit->registerFunction("print", (void*)&viora_flux_print);
+    // m_jit->registerFunction("printf", (void*)&viora_flux_print);
     m_jit->registerFunction("flux_sim_get_vector_size", (void*)&flux_sim_get_vector_size);
     m_jit->registerFunction("flux_sim_get_vector_val", (void*)&flux_sim_get_vector_val);
     m_jit->registerFunction("flux_sim_get_vector_x", (void*)&flux_sim_get_vector_x);
