@@ -306,12 +306,12 @@ else()
              DESTINATION "${_fs_dir}")
         file(REMOVE "${_fs_archive}")
         # Remove bundled libxml2 to avoid ICU version mismatch with the system
-        file(GLOB_RECURSE _fs_libxml "${_fs_dir}/lib/libxml2.so*")
-        if(_fs_libxml)
-            file(REMOVE ${_fs_libxml})
-            message(STATUS "Removed bundled libxml2 (ICU version mismatch): ${_fs_libxml}")
+        file(GLOB_RECURSE _fs_libxml2 "${_fs_dir}/lib/libxml2.*")
+        if(_fs_libxml2)
+            file(REMOVE ${_fs_libxml2})
+            message(STATUS "Removed bundled libxml2 (ICU version mismatch): ${_fs_libxml2}")
         endif()
-        unset(_fs_libxml)
+        unset(_fs_libxml2)
     else()
         message(FATAL_ERROR "Failed to download FluxScript from ${FLUXSCRIPT_DOWNLOAD_URL}")
     endif()
@@ -356,19 +356,27 @@ else()
         message(WARNING "LLVM not found — FluxScript targets may not compile")
     endif()
 
-    # Also link against the bundled LLVM runtime library so that targets
-    # referencing LLVM symbols (e.g. VioCore JIT code) can resolve them.
-    set(_fs_llvm "${_fs_dir}/lib/libLLVM.so.21.1")
-    if(EXISTS "${_fs_llvm}")
+    # Link against the bundled (or system) LLVM runtime library so that
+    # targets referencing LLVM symbols (e.g. VioCore JIT code) resolve them.
+    file(GLOB _fs_llvm "${_fs_dir}/lib/libLLVM*")
+    if(_fs_llvm)
+        list(GET _fs_llvm 0 _fs_llvm_path)
         add_library(FluxScript::LLVM SHARED IMPORTED GLOBAL)
         set_target_properties(FluxScript::LLVM PROPERTIES
-            IMPORTED_LOCATION "${_fs_llvm}"
+            IMPORTED_LOCATION "${_fs_llvm_path}"
         )
         target_link_libraries(FluxScript INTERFACE FluxScript::LLVM)
-        message(STATUS "Bundled LLVM library: ${_fs_llvm}")
+        message(STATUS "Bundled LLVM library: ${_fs_llvm_path}")
     elseif(LLVM_FOUND)
-        target_link_libraries(FluxScript INTERFACE LLVM::LLVM)
-        message(STATUS "Using system LLVM library via cmake target")
+        find_library(LLVM_LIB LLVM HINTS ${LLVM_LIBRARY_DIRS} ${LLVM_DIR})
+        if(LLVM_LIB)
+            add_library(FluxScript::LLVM SHARED IMPORTED GLOBAL)
+            set_target_properties(FluxScript::LLVM PROPERTIES
+                IMPORTED_LOCATION "${LLVM_LIB}"
+            )
+            target_link_libraries(FluxScript INTERFACE FluxScript::LLVM)
+            message(STATUS "System LLVM library: ${LLVM_LIB}")
+        endif()
     endif()
     unset(_fs_llvm)
 
