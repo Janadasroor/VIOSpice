@@ -142,13 +142,14 @@ jobs:
           mkdir -p staging/bin staging/cm staging/lib
           cp build/VioraEDA staging/bin/
           cp build/viora staging/bin/ 2>/dev/null || true
+          cp build/flux_runner staging/bin/ 2>/dev/null || echo "no flux_runner"
           cp build/libLLVM.so.21.1 staging/lib/ 2>/dev/null || true
+          # Code models (.cm)
           cp -r build/cm/. staging/cm/ 2>/dev/null || true
-          # FluxScript lib — source build or prebuilt
-          if [ -d "build/_deps/fluxscript-build" ]; then
-            cp build/_deps/fluxscript-build/libFluxScript.so* staging/lib/ 2>/dev/null || true
-          elif [ -d "build/fluxscript-prebuilt/lib" ]; then
-            cp build/fluxscript-prebuilt/lib/*.so* staging/lib/ 2>/dev/null || true
+          if [ -z "$(ls -A staging/cm 2>/dev/null)" ]; then
+            for f in build/viomatrixc-prebuilt/lib/ngspice/*.cm; do
+              [ -f "$f" ] && cp "$f" staging/cm/
+            done
           fi
           # Bundle engine libs
           if [ -d "build/viomatrixc-prebuilt/lib" ]; then
@@ -163,11 +164,13 @@ jobs:
           cp build/VioraEDA.app/Contents/MacOS/VioraEDA staging/bin/ 2>/dev/null || \
           cp build/VioraEDA staging/bin/ 2>/dev/null || true
           cp build/viora staging/bin/ 2>/dev/null || true
+          cp build/flux_runner staging/bin/ 2>/dev/null || echo "no flux_runner"
+          # Code models (.cm)
           cp -r build/cm/. staging/cm/ 2>/dev/null || true
-          if [ -d "build/_deps/fluxscript-build" ]; then
-            cp build/_deps/fluxscript-build/libFluxScript*.dylib staging/lib/ 2>/dev/null || true
-          elif [ -d "build/fluxscript-prebuilt/lib" ]; then
-            cp build/fluxscript-prebuilt/lib/*.dylib staging/lib/ 2>/dev/null || true
+          if [ -z "$(ls -A staging/cm 2>/dev/null)" ]; then
+            for f in build/viomatrixc-prebuilt/lib/ngspice/*.cm; do
+              [ -f "$f" ] && cp "$f" staging/cm/
+            done
           fi
           cp build/viomatrixc-prebuilt/lib/*.dylib staging/lib/ 2>/dev/null || true
           tar czf VioraEDA-${{ github.ref_name }}-macos-arm64.tar.gz -C staging .
@@ -180,27 +183,27 @@ jobs:
           mkdir -p staging/bin staging/cm staging/lib
           cp build/VioraEDA.exe staging/bin/
           cp build/viora.exe staging/bin/ 2>/dev/null || echo "no viora.exe"
-          # FluxScript DLL — source build or prebuilt
-          if [ -d "build/_deps/fluxscript-build" ]; then
-            cp build/_deps/fluxscript-build/*.dll staging/lib/ 2>/dev/null || echo "no fs dlls"
-          elif [ -d "build/fluxscript-prebuilt/lib" ]; then
-            cp build/fluxscript-prebuilt/lib/*.dll staging/lib/ 2>/dev/null || echo "no fs dlls"
-          fi
-          cp build/viomatrixc-prebuilt/bin/*.dll staging/lib/ 2>/dev/null || echo "no vmc dlls"
+          cp build/flux_runner.exe staging/bin/ 2>/dev/null || echo "no flux_runner.exe"
+          # Code models (.cm) — from build/cm/ (CMake copies them) or direct from prebuilt
           cp -r build/cm/. staging/cm/ 2>/dev/null || true
-          # Bundle MinGW runtime DLLs
+          if [ -z "$(ls -A staging/cm 2>/dev/null)" ]; then
+            # Fallback: prebuilt VioMATRIXC stores .cm in lib/ngspice/
+            for f in build/viomatrixc-prebuilt/lib/ngspice/*.cm; do
+              [ -f "$f" ] && cp "$f" staging/cm/ || echo "no cm files found"
+            done
+          fi
+          # VioMATRIXC / ngspice engine DLL (in lib/ for release archive)
+          cp build/viomatrixc-prebuilt/bin/*.dll staging/lib/ 2>/dev/null || echo "no vmc dlls"
+          # LLVM DLLs (needed by flux_runner runtime)
+          cp /mingw64/bin/LLVM-C*.dll staging/bin/ 2>/dev/null || echo "no LLVM-C*.dll"
+          cp /mingw64/bin/libLLVM*.dll staging/bin/ 2>/dev/null || echo "no libLLVM*.dll"
+          cp /mingw64/bin/LLVM*.dll staging/bin/ 2>/dev/null || echo "no LLVM*.dll"
+          # MinGW runtime DLLs
           cp /mingw64/bin/libgcc_s_seh-1.dll staging/bin/ 2>/dev/null || echo "no libgcc"
           cp /mingw64/bin/libstdc++-6.dll staging/bin/ 2>/dev/null || echo "no libstdc++"
           cp /mingw64/bin/libwinpthread-1.dll staging/bin/ 2>/dev/null || echo "no libwinpthread"
-          # Bundle Python DLL (embedded/python3xx.dll)
-          PYTHON_DLL_DIR=$(python3 -c "import sys; from pathlib import Path; print(Path(sys.base_prefix) / 'bin')" 2>/dev/null) || true
-          if [ -n "$PYTHON_DLL_DIR" ] && [ -d "$PYTHON_DLL_DIR" ]; then
-            cp "$PYTHON_DLL_DIR/python3.dll" staging/bin/ 2>/dev/null || echo "no python3.dll"
-            cp "$PYTHON_DLL_DIR/python3*.dll" staging/bin/ 2>/dev/null || echo "no python3*.dll"
-          else
-            # Fallback: copy from MSYS2 Python
-            cp /mingw64/bin/python3*.dll staging/bin/ 2>/dev/null || echo "no msys2 python dll"
-          fi
+          # Python DLL (embedded/python3xx.dll) — use MSYS2 Python DLLs
+          cp /mingw64/bin/python3*.dll staging/bin/ 2>/dev/null || echo "no msys2 python dll"
           # Bundle Qt DLLs
           windeployqt --dir staging/bin staging/bin/VioraEDA.exe
           cd staging
