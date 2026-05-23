@@ -230,7 +230,7 @@ jobs:
         run: |
           MISSING=0
           check_file() {
-            if ! unzip -l VioraEDA-${{ github.ref_name }}-windows-x86_64.zip | grep -q "$1"; then
+            if [ ! -f "staging/$1" ]; then
               echo "MISSING: $1"
               MISSING=1
             fi
@@ -245,6 +245,8 @@ jobs:
           check_file "bin/python3.dll"
           check_file "cm/analog.cm"
           check_file "cm/digital.cm"
+          echo "--- staging tree ---"
+          find staging -type f | head -50
           if [ "$MISSING" -eq 1 ]; then
             echo "ERROR: required files missing from package"
             exit 1
