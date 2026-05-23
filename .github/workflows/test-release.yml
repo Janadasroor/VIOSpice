@@ -129,7 +129,7 @@ jobs:
           "$VIOEXE" 2>&1 | head -5 || true
           echo "=== Running DC simulation via viora ==="
           CIR=$(cygpath -m "/tmp/testdir/test.cir")
-          "$VIOEXE" netlist-run "$CIR" --analysis op --timeout 30s 2>&1; RC=$?
+          RC=0; "$VIOEXE" netlist-run "$CIR" --analysis op --timeout 30s 2>&1 || RC=$?
           echo "viora exit code: $RC"
           RAWFILE="/tmp/testdir/test.raw"
           if [ -f "$RAWFILE" ]; then
