@@ -44,6 +44,8 @@ jobs:
           update: true
           install: >-
             mingw-w64-x86_64-binutils
+            mingw-w64-x86_64-unzip
+            mingw-w64-x86_64-coreutils
             zip
 
       - name: Extract
