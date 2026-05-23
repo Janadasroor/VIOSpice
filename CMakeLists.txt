@@ -209,6 +209,9 @@ set(VIOSPICE_ENGINE_FOUND TRUE)
 set(VIOSPICE_ENGINE_LIBRARIES "${VIOSPICE_PREFERRED_ENGINE_LIB}")
 
 # --- Python Embedding Support (App) ---
+if(MINGW)
+    set(Python3_USE_STATIC_LIBS TRUE)
+endif()
 find_package(Python3 3.10 COMPONENTS Interpreter Development QUIET)
 if(Python3_FOUND)
     set(VIOSPICE_ENABLE_PYTHON ON)
