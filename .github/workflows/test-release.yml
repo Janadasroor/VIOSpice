@@ -61,10 +61,14 @@ jobs:
           set -e
           shopt -s nocasematch
           FAIL=0
-          # Check a file or all files in bin/ recursively for missing DLL deps
+          CHECKED=""
           check_deps() {
             local f="$1"
             local indent="$2"
+            # Avoid infinite loop (circular deps)
+            local base=$(basename "$f")
+            case " $CHECKED " in *" $base "*) return 0;; esac
+            CHECKED="$CHECKED $base"
             deps=$(objdump -p "$f" 2>/dev/null | grep "DLL Name" | awk '{print $3}')
             for dll in $deps; do
               case "$dll" in
@@ -72,8 +76,7 @@ jobs:
                   continue ;;
                 python3*.dll|libpython3*.dll)
                   if [ -f "/tmp/testdir/bin/$dll" ]; then
-                    echo "${indent}OK $dll"
-                    # Recurse into bundled DLLs to catch transitive missing deps
+                    [ "$indent" = "" ] && echo "${indent}OK $dll"
                     check_deps "/tmp/testdir/bin/$dll" "  $indent"
                   else
                     echo "${indent}NOTE $dll not bundled"
@@ -81,7 +84,7 @@ jobs:
                   continue ;;
                 zlib1.dll|libzstd.dll)
                   if [ -f "/tmp/testdir/bin/$dll" ]; then
-                    echo "${indent}OK $dll"
+                    [ "$indent" = "" ] && echo "${indent}OK $dll"
                     check_deps "/tmp/testdir/bin/$dll" "  $indent"
                   else
                     echo "${indent}NOTE $dll not bundled"
@@ -89,8 +92,7 @@ jobs:
                   continue ;;
               esac
               if [ -f "/tmp/testdir/bin/$dll" ]; then
-                echo "${indent}OK $dll"
-                # Recurse into bundled DLLs to check transitive deps
+                [ "$indent" = "" ] && echo "${indent}OK $dll"
                 check_deps "/tmp/testdir/bin/$dll" "  $indent"
               else
                 echo "${indent}MISSING $dll"
@@ -100,6 +102,7 @@ jobs:
           }
           for exe in VioraEDA.exe viora.exe flux_runner.exe; do
             echo "=== Checking deps for $exe ==="
+            CHECKED=""
             check_deps "/tmp/testdir/bin/$exe" ""
           done
           echo "Missing DLLs: $FAIL"
