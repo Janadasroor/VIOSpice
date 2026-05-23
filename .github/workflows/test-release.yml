@@ -111,7 +111,8 @@ jobs:
             echo "  done $exe exit=$?"
           done
           echo "=== Launching viora.exe (CLI) ==="
-          "/tmp/testdir/bin/viora.exe" --help 2>&1 && echo "  OK viora" || echo "  WARN viora --help failed"
+          "/tmp/testdir/bin/viora.exe" --help 2>&1 | head -5 || true
+          "/tmp/testdir/bin/viora.exe" netlist-run --help 2>&1 | head -5 || true
 
       - name: Test 3 — Simulation test (CLI)
         shell: msys2 {0}
@@ -125,11 +126,14 @@ jobs:
           .end
           EOF
           echo "=== Running DC simulation via viora ==="
-          "/tmp/testdir/bin/viora.exe" -b /tmp/testdir/test.cir -r /tmp/testdir/out.raw 2>&1 || true
-          if [ -f "/tmp/testdir/out.raw" ]; then
-            echo "  OK Simulation produced output file"
+          "/tmp/testdir/bin/viora.exe" netlist-run /tmp/testdir/test.cir --analysis op --timeout 30s 2>&1 || true
+          # raw file is auto-generated as input basename + .raw
+          RAWFILE="/tmp/testdir/test.raw"
+          if [ -f "$RAWFILE" ]; then
+            echo "  OK Simulation produced output file ($RAWFILE)"
+            ls -la "$RAWFILE"
           else
-            echo "  WARN No output file — ngspice engine may not load"
+            echo "  WARN No .raw file — ngspice engine may not load"
           fi
 
       - name: Print summary
