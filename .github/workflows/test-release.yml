@@ -72,7 +72,7 @@ jobs:
             deps=$(objdump -p "$f" 2>/dev/null | grep "DLL Name" | awk '{print $3}')
             for dll in $deps; do
               case "$dll" in
-                kernel32.dll|user32.dll|gdi32.dll|advapi32.dll|shell32.dll|ole32.dll|oleaut32.dll|comdlg32.dll|imm32.dll|winmm.dll|ws2_32.dll|msvcrt.dll|version.dll|shlwapi.dll|comctl32.dll|uxtheme.dll|winspool.drv|msimg32.dll|usp10.dll|dnsapi.dll|iphlpapi.dll|opengl32.dll|glu32.dll|setupapi.dll|cfgmgr32.dll|ntmarta.dll|wldap32.dll|crypt32.dll|wtsapi32.dll|secur32.dll|wintrust.dll|oleacc.dll|riched20.dll|lz32.dll|mpr.dll|netapi32.dll|powrprof.dll|propsys.dll|dwmapi.dll|bcrypt.dll|ntdll.dll|sechost.dll|api-ms-win-*|d3d*.dll|DWrite.dll|dxgi.dll|AUTHZ.dll|AVRT.dll|USERENV.dll|WINHTTP.dll)
+                kernel32.dll|user32.dll|gdi32.dll|advapi32.dll|shell32.dll|ole32.dll|oleaut32.dll|comdlg32.dll|imm32.dll|winmm.dll|ws2_32.dll|msvcrt.dll|version.dll|shlwapi.dll|comctl32.dll|uxtheme.dll|winspool.drv|msimg32.dll|usp10.dll|dnsapi.dll|iphlpapi.dll|opengl32.dll|glu32.dll|setupapi.dll|cfgmgr32.dll|ntmarta.dll|wldap32.dll|crypt32.dll|wtsapi32.dll|secur32.dll|wintrust.dll|oleacc.dll|riched20.dll|lz32.dll|mpr.dll|netapi32.dll|powrprof.dll|propsys.dll|dwmapi.dll|bcrypt.dll|ntdll.dll|sechost.dll|api-ms-win-*|d3d*.dll|DWrite.dll|dxgi.dll|AUTHZ.dll|AVRT.dll|USERENV.dll|WINHTTP.dll|RPCRT4.dll)
                   continue ;;
                 python3*.dll|libpython3*.dll)
                   if [ -f "/tmp/testdir/bin/$dll" ]; then
