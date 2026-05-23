@@ -44,15 +44,13 @@ jobs:
           update: true
           install: >-
             mingw-w64-x86_64-binutils
-            mingw-w64-x86_64-unzip
-            mingw-w64-x86_64-coreutils
             zip
 
       - name: Extract
         shell: msys2 {0}
         run: |
           mkdir -p /tmp/testdir
-          unzip -o /tmp/release.zip -d /tmp/testdir
+          bsdtar -xf /tmp/release.zip -C /tmp/testdir
           echo "--- contents ---"
           find /tmp/testdir -type f | head -50
 
@@ -95,8 +93,12 @@ jobs:
           set -e
           for exe in VioraEDA.exe flux_runner.exe; do
             echo "=== Launching $exe ==="
-            timeout 10 "/tmp/testdir/bin/$exe" --help 2>&1 && echo "  OK $exe" || \
-              echo "  ~ $exe exited $? (may be expected for GUI app)"
+            # run in background and kill after 5s (GUI app may hang)
+            "/tmp/testdir/bin/$exe" --help &
+            PID=$!
+            (sleep 5; kill $PID 2>/dev/null) &
+            wait $PID 2>/dev/null
+            echo "  done $exe exit=$?"
           done
           echo "=== Launching viora.exe (CLI) ==="
           "/tmp/testdir/bin/viora.exe" --help 2>&1 && echo "  OK viora"
