@@ -68,13 +68,11 @@ jobs:
               case "$dll" in
                 kernel32.dll|user32.dll|gdi32.dll|advapi32.dll|shell32.dll|ole32.dll|oleaut32.dll|comdlg32.dll|imm32.dll|winmm.dll|ws2_32.dll|msvcrt.dll|version.dll|shlwapi.dll|comctl32.dll|uxtheme.dll|winspool.drv|msimg32.dll|usp10.dll|dnsapi.dll|iphlpapi.dll|opengl32.dll|glu32.dll|ddraw.dll|dciman32.dll|setupapi.dll|cfgmgr32.dll|devrtl.dll|ntmarta.dll|wldap32.dll|crypt32.dll|wtsapi32.dll|secur32.dll|wintrust.dll|oleacc.dll|riched20.dll|winsta.dll|lz32.dll|mpr.dll|netapi32.dll|powrprof.dll|propsys.dll|dwmapi.dll|bcrypt.dll|ntdll.dll|sechost.dll)
                   continue ;;
-                python3*.dll)
+                python3*.dll|libpython3*.dll)
                   if [ -f "/tmp/testdir/bin/$dll" ]; then
                     echo "  OK $dll"
                   else
-                    # python314.dll is the full Python runtime (not the stable ABI shim)
-                    # It may be missing from older releases; fixed in release.yml for next release.
-                    echo "  NOTE $dll not bundled — may need full Python runtime DLL from setup-python"
+                    echo "  NOTE $dll not bundled — should be copied from MSYS2 MinGW in packaging"
                   fi
                   continue ;;
                 zlib1.dll|libzstd.dll)
