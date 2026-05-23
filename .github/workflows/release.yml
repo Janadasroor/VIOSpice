@@ -125,7 +125,11 @@ jobs:
       - name: Configure (Windows)
         if: runner.os == 'Windows'
         shell: msys2 {0}
-        run: cmake -B build -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF -DVIOSPICE_BUILD_FLUXSCRIPT=ON -G "MSYS Makefiles"
+        run: |
+          PYPATH=$(cygpath -w /mingw64/bin/python.exe)
+          cmake -B build -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF -DVIOSPICE_BUILD_FLUXSCRIPT=ON \
+            -DPython3_EXECUTABLE="$PYPATH" -DPython_EXECUTABLE="$PYPATH" \
+            -G "MSYS Makefiles"
 
       - name: Build (Linux)
         if: runner.os == 'Linux'

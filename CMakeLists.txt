@@ -211,8 +211,6 @@ set(VIOSPICE_ENGINE_LIBRARIES "${VIOSPICE_PREFERRED_ENGINE_LIB}")
 # --- Python Embedding Support (App) ---
 if(MINGW)
     set(Python3_USE_STATIC_LIBS TRUE)
-    set(Python3_EXECUTABLE "/mingw64/bin/python.exe" CACHE FILEPATH "MinGW Python interpreter")
-    set(Python_EXECUTABLE "/mingw64/bin/python.exe" CACHE FILEPATH "MinGW Python interpreter")
 endif()
 find_package(Python3 3.10 COMPONENTS Interpreter Development QUIET)
 if(Python3_FOUND)
