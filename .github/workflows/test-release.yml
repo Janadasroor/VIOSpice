@@ -55,42 +55,52 @@ jobs:
           echo "--- contents ---"
           find /tmp/testdir -type f | head -50
 
-      - name: Test 1 — DLL dependency check
+      - name: Test 1 — DLL dependency check (recursive)
         shell: msys2 {0}
         run: |
           set -e
           shopt -s nocasematch
           FAIL=0
-          for exe in VioraEDA.exe viora.exe flux_runner.exe; do
-            echo "=== Checking deps for $exe ==="
-            deps=$(objdump -p "/tmp/testdir/bin/$exe" 2>/dev/null | grep "DLL Name" | awk '{print $3}')
+          # Check a file or all files in bin/ recursively for missing DLL deps
+          check_deps() {
+            local f="$1"
+            local indent="$2"
+            deps=$(objdump -p "$f" 2>/dev/null | grep "DLL Name" | awk '{print $3}')
             for dll in $deps; do
               case "$dll" in
                 kernel32.dll|user32.dll|gdi32.dll|advapi32.dll|shell32.dll|ole32.dll|oleaut32.dll|comdlg32.dll|imm32.dll|winmm.dll|ws2_32.dll|msvcrt.dll|version.dll|shlwapi.dll|comctl32.dll|uxtheme.dll|winspool.drv|msimg32.dll|usp10.dll|dnsapi.dll|iphlpapi.dll|opengl32.dll|glu32.dll|ddraw.dll|dciman32.dll|setupapi.dll|cfgmgr32.dll|devrtl.dll|ntmarta.dll|wldap32.dll|crypt32.dll|wtsapi32.dll|secur32.dll|wintrust.dll|oleacc.dll|riched20.dll|winsta.dll|lz32.dll|mpr.dll|netapi32.dll|powrprof.dll|propsys.dll|dwmapi.dll|bcrypt.dll|ntdll.dll|sechost.dll)
                   continue ;;
                 python3*.dll|libpython3*.dll)
                   if [ -f "/tmp/testdir/bin/$dll" ]; then
-                    echo "  OK $dll"
+                    echo "${indent}OK $dll"
+                    # Recurse into bundled DLLs to catch transitive missing deps
+                    check_deps "/tmp/testdir/bin/$dll" "  $indent"
                   else
-                    echo "  NOTE $dll not bundled — should be copied from MSYS2 MinGW in packaging"
+                    echo "${indent}NOTE $dll not bundled"
                   fi
                   continue ;;
                 zlib1.dll|libzstd.dll)
                   if [ -f "/tmp/testdir/bin/$dll" ]; then
-                    echo "  OK $dll"
+                    echo "${indent}OK $dll"
+                    check_deps "/tmp/testdir/bin/$dll" "  $indent"
                   else
-                    # Qt6 indirect dependency not bundled in v0.1.0-beta; fixed in release.yml
-                    echo "  NOTE $dll not bundled — should be copied from MinGW in packaging"
+                    echo "${indent}NOTE $dll not bundled"
                   fi
                   continue ;;
               esac
               if [ -f "/tmp/testdir/bin/$dll" ]; then
-                echo "  OK $dll"
+                echo "${indent}OK $dll"
+                # Recurse into bundled DLLs to check transitive deps
+                check_deps "/tmp/testdir/bin/$dll" "  $indent"
               else
-                echo "  MISSING $dll"
+                echo "${indent}MISSING $dll"
                 FAIL=$((FAIL+1))
               fi
             done
+          }
+          for exe in VioraEDA.exe viora.exe flux_runner.exe; do
+            echo "=== Checking deps for $exe ==="
+            check_deps "/tmp/testdir/bin/$exe" ""
           done
           echo "Missing DLLs: $FAIL"
           if [ "$FAIL" -gt 0 ]; then exit 1; fi
@@ -105,8 +115,9 @@ jobs:
             "/tmp/testdir/bin/$exe" --help &
             PID=$!
             (sleep 5; kill $PID 2>/dev/null) &
-            wait $PID 2>/dev/null || true
-            echo "  done $exe exit=$?"
+            wait $PID 2>/dev/null
+            RC=$?
+            echo "  done $exe exit=$RC"
           done
 
       - name: Test 3 — Simulation test (CLI)
