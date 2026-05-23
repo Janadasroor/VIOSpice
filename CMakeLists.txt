@@ -10,6 +10,15 @@ project(viospice VERSION 0.1 LANGUAGES CXX)
 set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE) 
 set(CMAKE_BUILD_WITH_INSTALL_RPATH TRUE) 
 
+# Size optimizations for Release builds: strip dead code and debug symbols
+include(CheckCXXCompilerFlag)
+check_cxx_compiler_flag(-ffunction-sections HAS_FUNCTION_SECTIONS)
+if(HAS_FUNCTION_SECTIONS)
+    add_compile_options($<$<CONFIG:Release>:-ffunction-sections -fdata-sections>)
+    add_link_options($<$<CONFIG:Release>:-Wl,--gc-sections>)
+    add_link_options($<$<CONFIG:Release>:-Wl,-s>)
+endif()
+
 enable_testing()
 include(CTest)
 
