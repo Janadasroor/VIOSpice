@@ -35,7 +35,7 @@ jobs:
           gh release download "$TAG" \
             --repo "${{ github.repository }}" \
             -p "*-windows-*" \
-            -O /tmp/release.zip \
+            -O "${{ runner.temp }}/release.zip" \
             --clobber
 
       - uses: msys2/setup-msys2@v2
@@ -49,8 +49,9 @@ jobs:
       - name: Extract
         shell: msys2 {0}
         run: |
+          ZIP=$(cygpath "${{ runner.temp }}")/release.zip
           mkdir -p /tmp/testdir
-          bsdtar -xf /tmp/release.zip -C /tmp/testdir
+          bsdtar -xf "$ZIP" -C /tmp/testdir
           echo "--- contents ---"
           find /tmp/testdir -type f | head -50
 
