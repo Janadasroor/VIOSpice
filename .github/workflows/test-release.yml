@@ -110,9 +110,6 @@ jobs:
             wait $PID 2>/dev/null || true
             echo "  done $exe exit=$?"
           done
-          echo "=== Launching viora.exe (CLI) ==="
-          "/tmp/testdir/bin/viora.exe" --help 2>&1 | head -5 || true
-          "/tmp/testdir/bin/viora.exe" netlist-run --help 2>&1 | head -5 || true
 
       - name: Test 3 — Simulation test (CLI)
         shell: msys2 {0}
@@ -124,12 +121,15 @@ jobs:
           .op
           .end
           EOF
+          echo "=== Quick sanity: viora version ==="
+          "/tmp/testdir/bin/viora.exe" --version 2>&1
+          echo "=== viora help (first 10 lines) ==="
+          "/tmp/testdir/bin/viora.exe" 2>&1 | head -10
           echo "=== Running DC simulation via viora ==="
           set +e
           "/tmp/testdir/bin/viora.exe" netlist-run /tmp/testdir/test.cir --analysis op --timeout 30s 2>&1; RC=$?
           set -e
           echo "viora exit code: $RC"
-          # raw file is auto-generated as input basename + .raw
           RAWFILE="/tmp/testdir/test.raw"
           if [ -f "$RAWFILE" ]; then
             echo "  OK Simulation produced output file ($RAWFILE)"
