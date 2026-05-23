@@ -105,6 +105,12 @@ jobs:
             CHECKED=""
             check_deps "/tmp/testdir/bin/$exe" ""
           done
+          # Also check Qt plugins in subdirectories
+          while IFS= read -r plugin; do
+            echo "=== Checking deps for $(basename $plugin) ==="
+            CHECKED=""
+            check_deps "$plugin" ""
+          done < <(find /tmp/testdir/bin -type f -name '*.dll' ! -path '/tmp/testdir/bin/*.dll' 2>/dev/null)
           echo "Missing DLLs: $FAIL"
           if [ "$FAIL" -gt 0 ]; then exit 1; fi
           echo "All DLL deps satisfied"
