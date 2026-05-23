@@ -85,7 +85,7 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           sudo apt update
-          sudo apt install -y software-properties-common
+          sudo apt install -y software-properties-common ccache
           wget -qO - https://apt.llvm.org/llvm-snapshot.gpg.key | sudo apt-key add -
           sudo add-apt-repository "deb https://apt.llvm.org/noble/ llvm-toolchain-noble-21 main"
           sudo apt update
@@ -100,18 +100,25 @@ jobs:
       - name: Install system deps (macOS)
         if: runner.os == 'macOS'
         run: |
-          brew install cmake curl python@3.12
+          brew install cmake curl python@3.12 ccache
+
+      - name: Setup ccache
+        if: runner.os != 'Windows'
+        uses: hendrikmuhs/ccache-action@v1.2
+        with:
+          key: ${{ runner.os }}-${{ runner.arch }}
 
       - name: Configure (Linux)
         if: runner.os == 'Linux'
-        run: cmake -B build -DCMAKE_BUILD_TYPE=Release
+        run: cmake -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
 
       - name: Configure (macOS)
         if: runner.os == 'macOS'
         run: |
           brew install llvm
           cmake -B build -DCMAKE_BUILD_TYPE=Release \
-            -DLLVM_DIR="$(brew --prefix llvm)/lib/cmake/llvm"
+            -DLLVM_DIR="$(brew --prefix llvm)/lib/cmake/llvm" \
+            -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
 
       - name: Configure (Windows)
         if: runner.os == 'Windows'
@@ -120,12 +127,12 @@ jobs:
 
       - name: Build (Linux / macOS)
         if: runner.os != 'Windows'
-        run: cmake --build build --parallel 2
+        run: cmake --build build --parallel $(nproc)
 
       - name: Build (Windows)
         if: runner.os == 'Windows'
         shell: msys2 {0}
-        run: cmake --build build --parallel 2
+        run: cmake --build build --parallel $(nproc)
 
       - name: Run tests (Linux / macOS)
         if: runner.os != 'Windows'
@@ -202,11 +209,12 @@ jobs:
           cp /mingw64/bin/libgcc_s_seh-1.dll staging/bin/ 2>/dev/null || echo "no libgcc"
           cp /mingw64/bin/libstdc++-6.dll staging/bin/ 2>/dev/null || echo "no libstdc++"
           cp /mingw64/bin/libwinpthread-1.dll staging/bin/ 2>/dev/null || echo "no libwinpthread"
-          # Python DLL (embedded/python3xx.dll) — try hosted Python first, then MSYS2
+          # Python DLL (embedded) — stable ABI shim + full runtime from hosted Python
           PY_HOST=$(ls -d /c/hostedtoolcache/windows/Python/3.*/x64 2>/dev/null | head -1)
           if [ -n "$PY_HOST" ] && [ -d "$PY_HOST" ]; then
-            cp "$PY_HOST/python3.dll" staging/bin/ 2>/dev/null && echo "copied python3.dll from hosted Python" || true
-            cp "$PY_HOST/python3*.dll" staging/bin/ 2>/dev/null || true
+            cp "$PY_HOST/python3.dll" staging/bin/ 2>/dev/null && echo "copied python3.dll" || true
+            cp "$PY_HOST/python3*.dll" staging/bin/ 2>/dev/null && echo "copied python DLLs" || true
+            # Also bundle the stable ABI shim + full python3*.dll (e.g. python314.dll)
           elif [ -d "/mingw64/bin" ]; then
             cp /mingw64/bin/python3*.dll staging/bin/ 2>/dev/null || echo "no msys2 python dll"
           fi
@@ -215,6 +223,33 @@ jobs:
           cd staging
           zip -r ../VioraEDA-${{ github.ref_name }}-windows-x86_64.zip .
           cd ..
+
+      - name: Verify package contents (Windows)
+        if: runner.os == 'Windows'
+        shell: msys2 {0}
+        run: |
+          MISSING=0
+          check_file() {
+            if ! unzip -l VioraEDA-${{ github.ref_name }}-windows-x86_64.zip | grep -q "$1"; then
+              echo "MISSING: $1"
+              MISSING=1
+            fi
+          }
+          check_file "bin/VioraEDA.exe"
+          check_file "bin/viora.exe"
+          check_file "bin/flux_runner.exe"
+          check_file "bin/libngspice-0.dll"
+          check_file "bin/libgcc_s_seh-1.dll"
+          check_file "bin/libstdc++-6.dll"
+          check_file "bin/libwinpthread-1.dll"
+          check_file "bin/python3.dll"
+          check_file "cm/analog.cm"
+          check_file "cm/digital.cm"
+          if [ "$MISSING" -eq 1 ]; then
+            echo "ERROR: required files missing from package"
+            exit 1
+          fi
+          echo "All required files present"
 
       - name: Upload release asset
         uses: softprops/action-gh-release@v2
