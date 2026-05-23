@@ -118,10 +118,10 @@ jobs:
       - name: Test 2 — Launch test
         shell: msys2 {0}
         run: |
-          for exe in VioraEDA.exe flux_runner.exe; do
+          set +e
+          for exe in viora.exe VioraEDA.exe flux_runner.exe; do
             echo "=== Launching $exe ==="
-            # run in background and kill after 5s (GUI app may hang without display)
-            "/tmp/testdir/bin/$exe" --help &
+            "/tmp/testdir/bin/$exe" --help 2>&1 &
             PID=$!
             (sleep 5; kill $PID 2>/dev/null) &
             wait $PID 2>/dev/null
