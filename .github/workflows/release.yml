@@ -211,14 +211,8 @@ jobs:
           cp /mingw64/bin/libwinpthread-1.dll staging/bin/ 2>/dev/null || echo "no libwinpthread"
           cp /mingw64/bin/zlib1.dll staging/bin/ 2>/dev/null || echo "no zlib1"
           cp /mingw64/bin/libzstd.dll staging/bin/ 2>/dev/null || echo "no libzstd"
-          # Python DLL (embedded) — stable ABI shim + full runtime from hosted Python
-          PY_HOST=$(ls -d /c/hostedtoolcache/windows/Python/3.*/x64 2>/dev/null | head -1)
-          if [ -n "$PY_HOST" ] && [ -d "$PY_HOST" ]; then
-            cp "$PY_HOST/python3.dll" staging/bin/ 2>/dev/null && echo "copied python3.dll" || true
-            cp "$PY_HOST"/python3*.dll staging/bin/ 2>/dev/null && echo "copied python DLLs" || true
-          elif [ -d "/mingw64/bin" ]; then
-            cp /mingw64/bin/python3*.dll staging/bin/ 2>/dev/null || echo "no msys2 python dll"
-          fi
+          # Python DLL — copy from MSYS2 MinGW (same version the exes were compiled against)
+          cp /mingw64/bin/python3*.dll staging/bin/ 2>/dev/null && echo "copied python DLLs from MSYS2" || echo "no msys2 python dll"
           # Bundle Qt DLLs
           windeployqt --dir staging/bin staging/bin/VioraEDA.exe
           cd staging
