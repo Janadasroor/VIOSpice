@@ -105,12 +105,12 @@ jobs:
         run: |
           set -e
           cat > /tmp/testdir/test.cir << 'EOF'
-* Test netlist
-V1 1 0 DC 5
-R1 1 0 1k
-.op
-.end
-EOF
+          * Test netlist
+          V1 1 0 DC 5
+          R1 1 0 1k
+          .op
+          .end
+          EOF
           echo "=== Running DC simulation via viora ==="
           "/tmp/testdir/bin/viora.exe" -b /tmp/testdir/test.cir -r /tmp/testdir/out.raw 2>&1 || true
           if [ -f "/tmp/testdir/out.raw" ]; then
