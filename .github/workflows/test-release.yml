@@ -13,19 +13,8 @@ on:
 jobs:
   test-windows:
     runs-on: windows-2022
-    defaults:
-      run:
-        shell: msys2 {0}
     steps:
       - uses: actions/checkout@v4
-
-      - uses: msys2/setup-msys2@v2
-        with:
-          msystem: MINGW64
-          update: true
-          install: >-
-            mingw-w64-x86_64-binutils
-            zip
 
       - name: Determine tag
         id: tag
@@ -49,7 +38,16 @@ jobs:
             -O /tmp/release.zip \
             --clobber
 
+      - uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          update: true
+          install: >-
+            mingw-w64-x86_64-binutils
+            zip
+
       - name: Extract
+        shell: msys2 {0}
         run: |
           mkdir -p /tmp/testdir
           unzip -o /tmp/release.zip -d /tmp/testdir
@@ -57,54 +55,52 @@ jobs:
           find /tmp/testdir -type f | head -50
 
       - name: Test 1 — DLL dependency check
+        shell: msys2 {0}
         run: |
           set -e
-          PASS=0
           FAIL=0
           for exe in VioraEDA.exe viora.exe flux_runner.exe; do
             echo "=== Checking deps for $exe ==="
             deps=$(objdump -p "/tmp/testdir/bin/$exe" 2>/dev/null | grep "DLL Name" | awk '{print $3}')
             for dll in $deps; do
-              # Known system DLLs that ship with Windows
               case "$dll" in
                 KERNEL32.dll|USER32.dll|GDI32.dll|ADVAPI32.dll|SHELL32.dll|OLE32.dll|OLEAUT32.dll|COMDLG32.dll|IMM32.dll|WINMM.dll|WS2_32.dll|MSVCRT.dll|VERSION.dll|SHLWAPI.dll|COMCTL32.dll|UxTheme.dll|WINSPOOL.DRV|MSIMG32.dll|USP10.dll|DNSAPI.dll|IPHLPAPI.DLL|OPENGL32.dll|GLU32.dll|DDRAW.dll|DCIMAN32.dll|SETUPAPI.dll|CFGMGR32.dll|DEVRTL.dll|NTMARTA.dll|WLDAP32.dll|CRYPT32.dll|WTSAPI32.dll|Secur32.dll|WINTRUST.dll|OLEACC.dll|RICHED20.dll|WINSTA.dll|LZ32.dll|MPR.dll|NETAPI32.dll|POWRPROF.dll|PROPSYS.dll|DWMAPI.dll|bcrypt.dll)
                   continue ;;
                 python3*.dll)
-                  # Python DLL should be bundled
                   if [ -f "/tmp/testdir/bin/$dll" ]; then
-                    echo "  ✓ $dll"
+                    echo "  OK $dll"
                   else
-                    echo "  ✗ $dll NOT FOUND in package"
+                    echo "  MISSING $dll"
                     FAIL=$((FAIL+1))
                   fi
                   continue ;;
               esac
-              if [ -f "/tmp/testdir/bin/$dll" ] || [ -f "/tmp/testdir/bin/$dll" ]; then
-                echo "  ✓ $dll"
+              if [ -f "/tmp/testdir/bin/$dll" ]; then
+                echo "  OK $dll"
               else
-                echo "  ✗ $dll NOT FOUND in package"
+                echo "  MISSING $dll"
                 FAIL=$((FAIL+1))
               fi
             done
           done
-          echo "---"
           echo "Missing DLLs: $FAIL"
           if [ "$FAIL" -gt 0 ]; then exit 1; fi
           echo "All DLL deps satisfied"
 
       - name: Test 2 — Launch test
+        shell: msys2 {0}
         run: |
           set -e
           for exe in VioraEDA.exe flux_runner.exe; do
             echo "=== Launching $exe ==="
-            # Try --help or --version; GUI apps may return non-zero
-            timeout 10 "/tmp/testdir/bin/$exe" --help 2>&1 && echo "  ✓ $exe --help OK" || \
-              echo "  ~ $exe --help exited $? (may be expected for GUI app)"
+            timeout 10 "/tmp/testdir/bin/$exe" --help 2>&1 && echo "  OK $exe" || \
+              echo "  ~ $exe exited $? (may be expected for GUI app)"
           done
           echo "=== Launching viora.exe (CLI) ==="
-          "/tmp/testdir/bin/viora.exe" --help 2>&1 && echo "  ✓ viora --help OK"
+          "/tmp/testdir/bin/viora.exe" --help 2>&1 && echo "  OK viora"
 
       - name: Test 3 — Simulation test (CLI)
+        shell: msys2 {0}
         run: |
           set -e
           cat > /tmp/testdir/test.cir << 'EOF'
@@ -117,13 +113,13 @@ jobs:
           echo "=== Running DC simulation via viora ==="
           "/tmp/testdir/bin/viora.exe" -b /tmp/testdir/test.cir -r /tmp/testdir/out.raw 2>&1 || true
           if [ -f "/tmp/testdir/out.raw" ]; then
-            echo "  ✓ Simulation produced output file"
+            echo "  OK Simulation produced output file"
           else
-            echo "  ✗ No output file — ngspice engine may not load"
-            # Don't fail here — may need PATH setup
+            echo "  WARN No output file — ngspice engine may not load"
           fi
 
       - name: Print summary
+        shell: msys2 {0}
         run: |
           echo "=== Package summary ==="
           du -sh /tmp/testdir
