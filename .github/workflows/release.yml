@@ -233,13 +233,12 @@ jobs:
           fi
           # Bundle Qt DLLs
           windeployqt --dir staging/bin staging/bin/VioraEDA.exe
-          # Auto-discover and bundle missing MinGW DLLs from transitive dependencies
+          # Auto-discover and bundle missing MinGW DLLs from transitive dependencies (recursive, subdirs too)
           shopt -s nocasematch
           COPIED=1
           while [ "$COPIED" -gt 0 ]; do
             COPIED=0
-            for f in staging/bin/*.exe staging/bin/*.dll; do
-              [ -f "$f" ] || continue
+            while IFS= read -r f; do
               for dll in $(objdump -p "$f" 2>/dev/null | grep "DLL Name" | awk '{print $3}'); do
                 [ -f "staging/bin/$dll" ] && continue
                 case "$dll" in
@@ -250,7 +249,7 @@ jobs:
                   cp "/mingw64/bin/$dll" staging/bin/ && echo "  copied $dll (transitive dep)" && COPIED=$((COPIED+1))
                 fi
               done
-            done
+            done < <(find staging/bin -type f \( -name '*.exe' -o -name '*.dll' \) 2>/dev/null)
           done
           cd staging
           zip -r ../VioraEDA-${{ github.ref_name }}-windows-x86_64.zip .
