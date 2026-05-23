@@ -122,15 +122,15 @@ jobs:
           .end
           EOF
           echo "=== Quick sanity: viora version ==="
-          VIOEXE=$(cygpath -w "/tmp/testdir/bin/viora.exe")
+          VIOEXE=$(cygpath -m "/tmp/testdir/bin/viora.exe")
           echo "Windows path: $VIOEXE"
-          cmd //c "$VIOEXE --version" 2>&1
+          "$VIOEXE" --version 2>&1
           echo "=== viora help (first 10 lines) ==="
-          cmd //c "$VIOEXE" 2>&1 | head -10
+          "$VIOEXE" 2>&1 | head -10
           echo "=== Running DC simulation via viora ==="
           set +e
-          CIR=$(cygpath -w "/tmp/testdir/test.cir")
-          cmd //c "$VIOEXE netlist-run $CIR --analysis op --timeout 30s" 2>&1; RC=$?
+          CIR=$(cygpath -m "/tmp/testdir/test.cir")
+          "$VIOEXE" netlist-run "$CIR" --analysis op --timeout 30s 2>&1; RC=$?
           set -e
           echo "viora exit code: $RC"
           RAWFILE="/tmp/testdir/test.raw"
