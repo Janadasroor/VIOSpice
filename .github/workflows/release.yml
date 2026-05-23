@@ -209,12 +209,13 @@ jobs:
           cp /mingw64/bin/libgcc_s_seh-1.dll staging/bin/ 2>/dev/null || echo "no libgcc"
           cp /mingw64/bin/libstdc++-6.dll staging/bin/ 2>/dev/null || echo "no libstdc++"
           cp /mingw64/bin/libwinpthread-1.dll staging/bin/ 2>/dev/null || echo "no libwinpthread"
+          cp /mingw64/bin/zlib1.dll staging/bin/ 2>/dev/null || echo "no zlib1"
+          cp /mingw64/bin/libzstd.dll staging/bin/ 2>/dev/null || echo "no libzstd"
           # Python DLL (embedded) — stable ABI shim + full runtime from hosted Python
           PY_HOST=$(ls -d /c/hostedtoolcache/windows/Python/3.*/x64 2>/dev/null | head -1)
           if [ -n "$PY_HOST" ] && [ -d "$PY_HOST" ]; then
             cp "$PY_HOST/python3.dll" staging/bin/ 2>/dev/null && echo "copied python3.dll" || true
-            cp "$PY_HOST/python3*.dll" staging/bin/ 2>/dev/null && echo "copied python DLLs" || true
-            # Also bundle the stable ABI shim + full python3*.dll (e.g. python314.dll)
+            cp "$PY_HOST"/python3*.dll staging/bin/ 2>/dev/null && echo "copied python DLLs" || true
           elif [ -d "/mingw64/bin" ]; then
             cp /mingw64/bin/python3*.dll staging/bin/ 2>/dev/null || echo "no msys2 python dll"
           fi
