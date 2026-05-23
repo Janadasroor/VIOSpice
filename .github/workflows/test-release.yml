@@ -17,6 +17,8 @@ jobs:
       run:
         shell: msys2 {0}
     steps:
+      - uses: actions/checkout@v4
+
       - uses: msys2/setup-msys2@v2
         with:
           msystem: MINGW64
@@ -42,6 +44,7 @@ jobs:
         run: |
           TAG="${{ steps.tag.outputs.tag }}"
           gh release download "$TAG" \
+            --repo "${{ github.repository }}" \
             -p "*-windows-*" \
             -O /tmp/release.zip \
             --clobber
