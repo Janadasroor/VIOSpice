@@ -221,12 +221,15 @@ jobs:
           cp /mingw64/bin/libwinpthread-1.dll staging/bin/ 2>/dev/null || echo "no libwinpthread"
           cp /mingw64/bin/zlib1.dll staging/bin/ 2>/dev/null || echo "no zlib1"
           cp /mingw64/bin/libzstd.dll staging/bin/ 2>/dev/null || echo "no libzstd"
-          # Python DLL — full runtime from MSYS2 MinGW (same version exes compiled against), stable ABI shim from toolcache
+          # Python DLL — full runtime from MSYS2 MinGW (same version exes compiled against), stable ABI shim from MSYS2 MinGW
           cp /mingw64/bin/python3*.dll staging/bin/ 2>/dev/null || true
           cp /mingw64/bin/libpython3*.dll staging/bin/ 2>/dev/null || echo "no MinGW libpython DLL"
-          PY_HOST=$(ls -d /c/hostedtoolcache/windows/Python/3.*/x64 2>/dev/null | head -1)
-          if [ -n "$PY_HOST" ] && [ -d "$PY_HOST" ] && [ ! -f "staging/bin/python3.dll" ]; then
-            cp "$PY_HOST/python3.dll" staging/bin/ 2>/dev/null && echo "copied python3.dll from toolcache" || true
+          # Only copy python3.dll from toolcache if MinGW didn't provide one (it's MSVC — may mismatch ngspice)
+          if [ ! -f "staging/bin/python3.dll" ]; then
+            PY_HOST=$(ls -d /c/hostedtoolcache/windows/Python/3.*/x64 2>/dev/null | head -1)
+            if [ -n "$PY_HOST" ] && [ -d "$PY_HOST" ]; then
+              cp "$PY_HOST/python3.dll" staging/bin/ 2>/dev/null && echo "copied python3.dll from toolcache (fallback)" || true
+            fi
           fi
           # Bundle Qt DLLs
           windeployqt --dir staging/bin staging/bin/VioraEDA.exe
