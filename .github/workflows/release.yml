@@ -100,10 +100,10 @@ jobs:
       - name: Install system deps (macOS)
         if: runner.os == 'macOS'
         run: |
-          brew install cmake curl python@3.12 ccache
+          brew install cmake curl python@3.12
 
-      - name: Setup ccache
-        if: runner.os != 'Windows'
+      - name: Setup ccache (Linux)
+        if: runner.os == 'Linux'
         uses: hendrikmuhs/ccache-action@v1.2
         with:
           key: ${{ runner.os }}-${{ runner.arch }}
@@ -112,22 +112,28 @@ jobs:
         if: runner.os == 'Linux'
         run: cmake -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
 
+      - name: Install LLVM (macOS)
+        if: runner.os == 'macOS'
+        run: brew install llvm
+
       - name: Configure (macOS)
         if: runner.os == 'macOS'
         run: |
-          brew install llvm
           cmake -B build -DCMAKE_BUILD_TYPE=Release \
-            -DLLVM_DIR="$(brew --prefix llvm)/lib/cmake/llvm" \
-            -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
+            -DLLVM_DIR="$(brew --prefix llvm)/lib/cmake/llvm"
 
       - name: Configure (Windows)
         if: runner.os == 'Windows'
         shell: msys2 {0}
         run: cmake -B build -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF -DVIOSPICE_BUILD_FLUXSCRIPT=ON -G "MSYS Makefiles"
 
-      - name: Build (Linux / macOS)
-        if: runner.os != 'Windows'
+      - name: Build (Linux)
+        if: runner.os == 'Linux'
         run: cmake --build build --parallel $(nproc)
+
+      - name: Build (macOS)
+        if: runner.os == 'macOS'
+        run: cmake --build build --parallel 2
 
       - name: Build (Windows)
         if: runner.os == 'Windows'
