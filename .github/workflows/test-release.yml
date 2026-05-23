@@ -117,7 +117,6 @@ jobs:
       - name: Test 3 — Simulation test (CLI)
         shell: msys2 {0}
         run: |
-          set -e
           cat > /tmp/testdir/test.cir << 'EOF'
           * Test netlist
           V1 1 0 DC 5
@@ -126,7 +125,9 @@ jobs:
           .end
           EOF
           echo "=== Running DC simulation via viora ==="
+          set +e
           "/tmp/testdir/bin/viora.exe" netlist-run /tmp/testdir/test.cir --analysis op --timeout 30s 2>&1; RC=$?
+          set -e
           echo "viora exit code: $RC"
           # raw file is auto-generated as input basename + .raw
           RAWFILE="/tmp/testdir/test.raw"
@@ -135,7 +136,6 @@ jobs:
             ls -la "$RAWFILE"
           else
             echo "  WARN No .raw file — ngspice engine may not load"
-            # search for any .raw files
             find /tmp/testdir -name "*.raw" 2>/dev/null
           fi
 
