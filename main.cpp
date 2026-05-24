@@ -42,9 +42,31 @@ extern "C" {
 }
 
 #include <QStandardPaths>
+#include <iostream>
 
 int main(int argc, char *argv[])
 {
+    // Early exit for --help and --version to avoid QApplication + ngspice/Python init
+    for (int i = 1; i < argc; ++i) {
+        std::string a = argv[i];
+        if (a == "--help" || a == "-h") {
+            std::cout << "VioraEDA - Electronic Design Automation Suite" << std::endl;
+            std::cout << "Usage: VioraEDA [options] [file]" << std::endl;
+            std::cout << "Options:" << std::endl;
+            std::cout << "  --help, -h     Show this help" << std::endl;
+            std::cout << "  --version, -V  Show version" << std::endl;
+            std::cout << std::endl;
+            std::cout << "If a .flxsch or .pcb file is specified, it is opened on startup." << std::endl;
+            std::cout.flush();
+            std::_Exit(0);
+        }
+        if (a == "--version" || a == "-V") {
+            std::cout << "VioraEDA 1.0" << std::endl;
+            std::cout.flush();
+            std::_Exit(0);
+        }
+    }
+
     // Enable ASan-friendly exit behavior
     qputenv("ASAN_OPTIONS", "detect_leaks=1");
 

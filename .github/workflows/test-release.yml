@@ -119,7 +119,7 @@ jobs:
         shell: msys2 {0}
         run: |
           set +e
-          for exe in viora.exe VioraEDA.exe flux_runner.exe; do
+          for exe in viora.exe flux_runner.exe; do
             echo "=== Launching $exe ==="
             "/tmp/testdir/bin/$exe" --help 2>&1 &
             PID=$!
@@ -128,6 +128,10 @@ jobs:
             RC=$?
             echo "  done $exe exit=$RC"
           done
+          echo "=== Launching VioraEDA.exe ==="
+          "/tmp/testdir/bin/VioraEDA.exe" --help 2>&1
+          RC=$?
+          echo "  done VioraEDA.exe exit=$RC"
 
       - name: Test 3 — CLI sanity
         shell: msys2 {0}
