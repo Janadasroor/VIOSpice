@@ -138,6 +138,21 @@ jobs:
           echo "=== viora --help (3s timeout, first 20 lines) ==="
           timeout 3 "/tmp/testdir/bin/viora.exe" --help 2>&1 | head -20 || echo "(timeout or non-zero)"
 
+      - name: Test 4 — Simulation run
+        shell: msys2 {0}
+        run: |
+          set +e
+          echo "=== Writing test netlist ==="
+          cat > /tmp/testdir/test.cir << 'EOF'
+          * Test netlist
+          V1 1 0 DC 5
+          R1 1 0 1k
+          .op
+          .end
+          EOF
+          echo "=== Running viora netlist-run (10s timeout) ==="
+          timeout 10 "/tmp/testdir/bin/viora.exe" netlist-run /tmp/testdir/test.cir --analysis op 2>&1 || echo "(timeout or non-zero)"
+
       - name: Print summary
         shell: msys2 {0}
         run: |
