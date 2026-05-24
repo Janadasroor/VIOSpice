@@ -146,7 +146,7 @@ jobs:
           QT_DEBUG_PLUGINS=1 "/tmp/testdir/bin/viora.exe" help 2>&1
           echo "help exit code: $?"
 
-      - name: Test 5 — Simulation run
+      - name: Test 5 — Simulation run with diagnostics
         shell: msys2 {0}
         run: |
           set +e
@@ -158,8 +158,20 @@ jobs:
           .op
           .end
           EOF
-          echo "=== Running viora netlist-run ==="
-          "/tmp/testdir/bin/viora.exe" netlist-run /tmp/testdir/test.cir --analysis op 2>&1
+
+          echo "=== ntldd -R on viora.exe ==="
+          ntldd -R "/tmp/testdir/bin/viora.exe" 2>&1 | sort -u
+
+          echo "=== Which DLL is libngspice-0? ==="
+          objdump -p "/tmp/testdir/bin/libngspice-0.dll" 2>/dev/null | grep "DLL Name"
+
+          echo "=== Running with MSYS2_ARG_CONV_EXCL to avoid path translation ==="
+          MSYS2_ARG_CONV_EXCL="*" "/tmp/testdir/bin/viora.exe" netlist-run /tmp/testdir/test.cir --analysis op 2>&1
+
+          echo "=== Running with cygpath-converted Windows path ==="
+          WINPATH=$(cygpath -w /tmp/testdir/test.cir)
+          echo "Windows path: $WINPATH"
+          "/tmp/testdir/bin/viora.exe" netlist-run "$WINPATH" --analysis op 2>&1
           echo "netlist-run exit code: $?"
 
       - name: Print summary
