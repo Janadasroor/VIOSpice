@@ -3075,6 +3075,7 @@ bool runNetlistRun(const QString& filePath, const QCommandLineParser& parser) {
         return false;
     }
     if (g_quiet && !parser.isSet("json") && !exportRequested) _Exit(okResult ? 0 : 1);
+    SimulationManager::instance().shutdown();
     return okResult;
 }
 
