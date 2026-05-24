@@ -3074,9 +3074,11 @@ bool runNetlistRun(const QString& filePath, const QCommandLineParser& parser) {
         if (g_quiet && !parser.isSet("json") && !exportRequested) _Exit(1);
         return false;
     }
-    if (g_quiet && !parser.isSet("json") && !exportRequested) _Exit(okResult ? 0 : 1);
-    SimulationManager::instance().shutdown();
-    return okResult;
+    if (g_quiet && !parser.isSet("json") && !exportRequested) { std::_Exit(okResult ? 0 : 1); }
+    std::cout.flush();
+    std::cerr.flush();
+    std::_Exit(okResult ? 0 : 1);
+    return okResult; // unreachable
 }
 
 bool runNetlistValidate(const QString& filePath, const QCommandLineParser& parser) {
