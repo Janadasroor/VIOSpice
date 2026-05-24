@@ -534,6 +534,7 @@ if(BUILD_FLUX_RUNNER)
         ${VIOSPICE_LINKER_GROUP_END}
     )
     vioraeda_setup_rpath(flux_runner)
+    qt_finalize_executable(flux_runner)
     if(VIOSPICE_DEV_MODE AND FLUX_LLVM_LIB)
         add_custom_command(TARGET flux_runner POST_BUILD
             COMMAND ${CMAKE_COMMAND} -E copy_if_different
@@ -592,6 +593,7 @@ if(BUILD_VIOSPICE_CLI)
     endif()
 
     vioraeda_configure_app_target(viora)
+    qt_finalize_executable(viora)
     
     # Automatically link viora CLI globally in user's local bin after every build
     if(NOT WIN32)
