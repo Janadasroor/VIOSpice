@@ -150,8 +150,9 @@ jobs:
           .op
           .end
           EOF
-          echo "=== Running viora netlist-run (10s timeout) ==="
-          timeout 10 "/tmp/testdir/bin/viora.exe" netlist-run /tmp/testdir/test.cir --analysis op 2>&1 || echo "(timeout or non-zero)"
+          echo "=== Running viora netlist-run ==="
+          "/tmp/testdir/bin/viora.exe" netlist-run /tmp/testdir/test.cir --analysis op 2>&1
+          echo "netlist-run exit code: $?"
 
       - name: Print summary
         shell: msys2 {0}
