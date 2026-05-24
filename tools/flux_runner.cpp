@@ -18,6 +18,18 @@
 #include <flux/jit_engine.h>
 
 int main(int argc, char* argv[]) {
+    for (int i = 1; i < argc; ++i) {
+        std::string a(argv[i]);
+        if (a == "--help" || a == "-h") {
+            std::cout << "Usage: flux_runner <file.flux> [entryFunction]\n";
+            return 0;
+        }
+        if (a == "--version") {
+            std::cout << "flux_runner 1.0\n";
+            return 0;
+        }
+    }
+
     if (argc < 2) {
         std::cerr << "Usage: flux_runner <file.flux> [entryFunction]\n";
         return 1;
