@@ -78,6 +78,7 @@ public:
     void showDetailedLog();
     bool isRealTimeMode() const;
     void setSchematicName(const QString& name);
+    void plotResultsFromRaw(const QString& path);
 
     struct TabOscilloscopeState {
         SimResults lastResults;
@@ -169,7 +170,6 @@ private:
     QWidget* createMeasurementsWidget();
     QString generateSpiceNetlist();
     void plotResults(const QString& rawData); 
-    void plotResultsFromRaw(const QString& path);
     void plotBuiltinResults(const SimResults& results);
     void updateVirtualMeters(const SimResults& results);
     QString buildGeneratorExpression() const;
