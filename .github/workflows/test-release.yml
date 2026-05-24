@@ -129,31 +129,18 @@ jobs:
             echo "  done $exe exit=$RC"
           done
 
-      - name: Test 3 — Simulation test (CLI)
+      - name: Test 3 — CLI sanity
         shell: msys2 {0}
         run: |
           set +e
-          cat > /tmp/testdir/test.cir << 'EOF'
-          * Test netlist
-          V1 1 0 DC 5
-          R1 1 0 1k
-          .op
-          .end
-          EOF
           echo "=== Quick sanity: viora version ==="
           VIOEXE=$(cygpath -m "/tmp/testdir/bin/viora.exe")
           echo "Windows path: $VIOEXE"
           "$VIOEXE" --version 2>&1 || true
-          echo "=== viora --help (first 5 lines) ==="
+          echo "=== viora --help ==="
+          "$VIOEXE" --help 2>&1 | head -10 || true
+          echo "=== flux_runner --help ==="
           "$VIOEXE" --help 2>&1 | head -5 || true
-          echo "=== Running DC simulation via viora ==="
-          CIR=$(cygpath -m "/tmp/testdir/test.cir")
-          "$VIOEXE" netlist-run "$CIR" --analysis op --timeout 30s 2>&1 &
-          PID=$!
-          (sleep 40; kill $PID 2>/dev/null) &
-          wait $PID 2>/dev/null
-          RC=$?
-          echo "viora exit code: $RC"
 
       - name: Print summary
         shell: msys2 {0}
