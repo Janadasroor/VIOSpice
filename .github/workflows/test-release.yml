@@ -133,14 +133,10 @@ jobs:
         shell: msys2 {0}
         run: |
           set +e
-          echo "=== Quick sanity: viora version ==="
-          VIOEXE=$(cygpath -m "/tmp/testdir/bin/viora.exe")
-          echo "Windows path: $VIOEXE"
-          "$VIOEXE" --version 2>&1 || true
-          echo "=== viora --help ==="
-          "$VIOEXE" --help 2>&1 | head -10 || true
-          echo "=== flux_runner --help ==="
-          "$VIOEXE" --help 2>&1 | head -5 || true
+          echo "=== viora --version (3s timeout) ==="
+          timeout 3 "/tmp/testdir/bin/viora.exe" --version 2>&1 || echo "(timeout or non-zero)"
+          echo "=== viora --help (3s timeout, first 20 lines) ==="
+          timeout 3 "/tmp/testdir/bin/viora.exe" --help 2>&1 | head -20 || echo "(timeout or non-zero)"
 
       - name: Print summary
         shell: msys2 {0}
