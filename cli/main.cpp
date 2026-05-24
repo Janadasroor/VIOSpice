@@ -3989,9 +3989,21 @@ int main(int argc, char *argv[]) {
             break;
         }
     }
+#ifdef Q_OS_LINUX
+    // Linux: use offscreen platform so CLI works without a display
     if (!isView) {
         qputenv("QT_QPA_PLATFORM", "offscreen");
     }
+#elif defined(Q_OS_WIN)
+    // Windows: keep default platform (qwindows.dll); offscreen plugin is often missing
+    if (!isView) {
+        qputenv("QT_QPA_PLATFORM", "windows");
+    }
+#else
+    if (!isView) {
+        qputenv("QT_QPA_PLATFORM", "offscreen");
+    }
+#endif
 
     QApplication app(argc, argv);
     QApplication::setApplicationName("viora");
