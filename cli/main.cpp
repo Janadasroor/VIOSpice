@@ -81,6 +81,7 @@
 #include "simulator/core/raw_data_parser.h"
 #include <QMainWindow>
 #include "../ui/waveform_viewer.h"
+#include "../schematic/ui/simulation_panel.h"
 #include "simulator/bridge/slang_manager.h"
 
 // FluxScript Integration
@@ -3297,6 +3298,28 @@ bool runViewRaw(const QString& filePath, const QCommandLineParser& parser) {
     return true; // We will call app.exec() in main()
 }
 
+bool runViewOsc(const QString& filePath, const QCommandLineParser& parser) {
+    RawData data;
+    if (!RawDataParser::loadRawAscii(filePath.toStdString(), &data)) {
+        std::cerr << "Error: Failed to load raw file: " << filePath.toStdString() << std::endl;
+        return false;
+    }
+
+    QMainWindow* window = new QMainWindow();
+    window->setWindowTitle(QString("VioSpice Analog Oscilloscope - %1").arg(QFileInfo(filePath).fileName()));
+    window->resize(1200, 800);
+
+    // SimulationPanel(scene, netManager, projectDir)
+    SimulationPanel* panel = new SimulationPanel(nullptr, nullptr, "");
+    window->setCentralWidget(panel);
+
+    panel->plotResultsFromRaw(filePath);
+    window->show();
+    
+    // We will call app.exec() in main()
+    return true;
+}
+
 bool runRawExport(const QString& filePath, const QCommandLineParser& parser) {
     RawData data;
     QString error;
@@ -3833,6 +3856,7 @@ static void printGeneralHelp() {
     std::cout << "  schematic-netlist <file.flxsch> [--analysis tran|ac|op] [--step <s>] [--stop <s>]\n";
     std::cout << "  netlist-run <file.cir|file.flxsch> [--analysis tran|ac|op] [--export-raw csv|json]\n";
     std::cout << "  netlist-to-schematic <file.cir> [--out <file.flxsch>]\n";
+    std::cout << "  view <file.raw> [--type plot|osc]\n";
     std::cout << "  raw-info <file.raw> [--summary --json]\n";
     std::cout << "  raw-export <file.raw> [--format csv|json|parquet] [--out <file>]\n";
     std::cout << "  symbol-render <file.viosym> <out.png>\n";
@@ -3893,6 +3917,11 @@ static void printCommandHelp(const QString& command) {
         std::cout << "  --max-points <n>  --base-signal <name>  --range t0:t1\n";
         return;
     }
+    if (command == "view") {
+        std::cout << "view <file.raw>\n";
+        std::cout << "  --type plot|osc        Viewer type: standard plot or hardware-realistic oscilloscope (default: plot)\n";
+        return;
+    }
     if (command == "raw-info") {
         std::cout << "raw-info <file.raw>\n";
         std::cout << "  --summary  --json\n";
@@ -3938,6 +3967,19 @@ static void printCommandHelp(const QString& command) {
 }
 
 int main(int argc, char *argv[]) {
+    // Handle --help and --version before QApplication (avoids slow offscreen init)
+    for (int i = 1; i < argc; ++i) {
+        std::string a(argv[i]);
+        if (a == "--help" || a == "-h") {
+            printGeneralHelp();
+            return 0;
+        }
+        if (a == "--version") {
+            std::cout << "viora 1.0" << std::endl;
+            return 0;
+        }
+    }
+
     // Some GUI classes like QGraphicsScene and QColor require QApplication
     // We run with offscreen platform to keep it CLI-friendly, unless we want to 'view'
     bool isView = false;
@@ -3998,6 +4040,7 @@ int main(int argc, char *argv[]) {
     QCommandLineOption measureFormatOption("measure-format", "Measure output format (text|json)", "mformat", "text");
     QCommandLineOption assertOption("assert", "Fail if assertion is false (repeatable). Examples: \"V(OUT) > 4.5\", \"V(OUT)_min > 4.5\"", "aexpr");
     QCommandLineOption summaryOption("summary", "Show concise summary (raw-info)");
+    QCommandLineOption viewTypeOption("type", "Viewer type (plot, osc)", "viewtype", "plot");
 
     QCommandLineOption signalRegexOption("signal-regex", "Filter signals by regex (raw-export)", "pattern");
     QCommandLineOption moduleOption("module", "Module name to inspect (verilog-inspect)", "modname");
@@ -4055,6 +4098,7 @@ int main(int argc, char *argv[]) {
     parser.addOption(measureFormatOption);
     parser.addOption(assertOption);
     parser.addOption(summaryOption);
+    parser.addOption(viewTypeOption);
     parser.addOption(signalRegexOption);
     parser.addOption(outOption);
     parser.addOption(reportTitleOption);
@@ -4492,8 +4536,15 @@ int main(int argc, char *argv[]) {
     } else if (command == "raw-export") {
         return runRawExport(filePath, parser) ? 0 : 1;
     } else if (command == "view") {
-        if (runViewRaw(filePath, parser)) {
-            return app.exec();
+        QString viewType = parser.value("type").toLower();
+        if (viewType == "osc" || viewType == "oscilloscope") {
+            if (runViewOsc(filePath, parser)) {
+                return app.exec();
+            }
+        } else {
+            if (runViewRaw(filePath, parser)) {
+                return app.exec();
+            }
         }
         return 1;
     } else if (command == "verilog-inspect") {
