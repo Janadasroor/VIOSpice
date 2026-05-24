@@ -144,8 +144,8 @@ jobs:
           VIOEXE=$(cygpath -m "/tmp/testdir/bin/viora.exe")
           echo "Windows path: $VIOEXE"
           "$VIOEXE" --version 2>&1 || true
-          echo "=== viora help (first 5 lines) ==="
-          "$VIOEXE" 2>&1 | head -5 || true
+          echo "=== viora --help (first 5 lines) ==="
+          "$VIOEXE" --help 2>&1 | head -5 || true
           echo "=== Running DC simulation via viora ==="
           CIR=$(cygpath -m "/tmp/testdir/test.cir")
           "$VIOEXE" netlist-run "$CIR" --analysis op --timeout 30s 2>&1 &
