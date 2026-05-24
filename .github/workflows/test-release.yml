@@ -146,7 +146,7 @@ jobs:
           QT_DEBUG_PLUGINS=1 "/tmp/testdir/bin/viora.exe" help 2>&1
           echo "help exit code: $?"
 
-      - name: Test 5 — Simulation run with diagnostics
+      - name: Test 5 — Simulation run
         shell: msys2 {0}
         run: |
           set +e
@@ -158,31 +158,12 @@ jobs:
           .op
           .end
           EOF
-
-          echo "=== Which DLL deps does libngspice-0 have? ==="
-          objdump -p "/tmp/testdir/bin/libngspice-0.dll" 2>/dev/null | grep "DLL Name"
-
-          echo "=== Run with Windows path ==="
+          echo "=== Running viora netlist-run ==="
           WINPATH=$(cygpath -w /tmp/testdir/test.cir)
-          echo "Windows path: $WINPATH"
-
-          echo "=== Run with wrapper to capture real exit code via bash ==="
-          "/tmp/testdir/bin/viora.exe" netlist-run "$WINPATH" --analysis op
+          "/tmp/testdir/bin/viora.exe" netlist-run "$WINPATH" --analysis op 2>&1
           RC=$?
-          echo "bash exit code: $RC"
-
-          echo ""
-          echo "=== Run via powershell to get raw exit code ==="
-          EXE=$(cygpath -w "/tmp/testdir/bin/viora.exe")
-          echo "EXE=$EXE"
-          powershell.exe -Command "
-            try {
-              \$p = Start-Process -FilePath '$EXE' -ArgumentList 'netlist-run', '$WINPATH', '--analysis', 'op' -NoNewWindow -Wait -PassThru
-              Write-Output 'PS_EXIT:' \$p.ExitCode
-            } catch {
-              Write-Output 'PS_ERROR:' \$_.Exception.Message
-            }
-          "
+          echo "netlist-run exit code: $RC"
+          if [ "$RC" -ne 0 ]; then echo "FAIL: expected exit 0, got $RC"; exit 1; fi
 
       - name: Print summary
         shell: msys2 {0}
