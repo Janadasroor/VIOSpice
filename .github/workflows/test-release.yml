@@ -138,7 +138,15 @@ jobs:
           echo "=== viora --help (3s timeout, first 20 lines) ==="
           timeout 3 "/tmp/testdir/bin/viora.exe" --help 2>&1 | head -20 || echo "(timeout or non-zero)"
 
-      - name: Test 4 — Simulation run
+      - name: Test 4 — QApplication path
+        shell: msys2 {0}
+        run: |
+          set +e
+          echo "=== viora help (exercises QApplication) ==="
+          QT_DEBUG_PLUGINS=1 "/tmp/testdir/bin/viora.exe" help 2>&1
+          echo "help exit code: $?"
+
+      - name: Test 5 — Simulation run
         shell: msys2 {0}
         run: |
           set +e
