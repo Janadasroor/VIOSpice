@@ -248,7 +248,7 @@ SchematicView::SchematicView(QWidget *parent)
     : QGraphicsView(parent),
     m_isPanning(false),
     m_zoomFactor(1.0),
-    m_gridSize(15.0), // Increased from 10.0 to match larger symbols
+    m_gridSize(10.0),
     m_gridStyle(Lines),
     m_snapToGrid(true),
     m_snapToPin(true),
