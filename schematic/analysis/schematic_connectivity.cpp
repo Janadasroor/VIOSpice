@@ -55,11 +55,9 @@ void SchematicConnectivity::updateVisualConnections(QGraphicsScene* scene) {
     for (SchematicItem* item : conductiveItems) {
         const QList<QPointF> pts = item->connectionPoints();
         if (pts.size() < 2) continue;
-        // Only count true endpoints (first and last points), not intermediate vertices
-        const QString kStart = NetlistEngine::pointKey(pts.first());
-        const QString kEnd = NetlistEngine::pointKey(pts.last());
-        connectionCounts[kStart]++;
-        connectionCounts[kEnd]++;
+        for (const QPointF& p : pts) {
+            connectionCounts[NetlistEngine::pointKey(p)]++;
+        }
     }
 
     auto addJunction = [](SchematicItem* item, const QPointF& p) {
@@ -75,9 +73,10 @@ void SchematicConnectivity::updateVisualConnections(QGraphicsScene* scene) {
         const QList<QPointF> wPts = item->connectionPoints();
         if (wPts.size() < 2) continue;
         
-        // Rule 1: 3+ way connections at endpoints
-        if (connectionCounts[NetlistEngine::pointKey(wPts.first())] >= 3) addJunction(item, wPts.first());
-        if (connectionCounts[NetlistEngine::pointKey(wPts.last())] >= 3) addJunction(item, wPts.last());
+        // Rule 1: 3+ way connections at any vertex
+        for (const QPointF& wp : wPts) {
+            if (connectionCounts[NetlistEngine::pointKey(wp)] >= 3) addJunction(item, wp);
+        }
 
         // Rule 2: T-Junctions (Endpoint of 'other' on segment of 'item')
         for (int i = 0; i < wPts.size() - 1; ++i) {
@@ -88,8 +87,7 @@ void SchematicConnectivity::updateVisualConnections(QGraphicsScene* scene) {
                 const QList<QPointF> otherPts = other->connectionPoints();
                 if (otherPts.size() < 2) continue;
                 
-                QPointF ends[2] = {otherPts.first(), otherPts.last()};
-                for (const QPointF& end : ends) {
+                for (const QPointF& end : otherPts) {
                     QPointF p1 = wPts[i];
                     QPointF p2 = wPts[i+1];
                     QPointF vec = p2 - p1;
