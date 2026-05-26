@@ -1807,7 +1807,7 @@ void SymbolLibraryManager::createDefaultBuiltInLibrary() {
         const bool singleInputGate = (type == "NOT" || type == "BUF");
         const bool bubbleOutput = (type == "NAND" || type == "NOR" || type == "XNOR" || type == "NOT");
         QList<SymbolPrimitive> pins;
-        pins << makeDigitalPin(QPointF(-60, singleInputGate ? 0.0 : -15.0), 1, "A", "Right", "input");
+        pins << makeDigitalPin(QPointF(-60, singleInputGate ? 0.0 : 0.0), 1, "A", "Right", "input");
         if (!singleInputGate) {
             pins << makeDigitalPin(QPointF(-60, 15.0), 2, "B", "Right", "input");
         }
@@ -1971,7 +1971,7 @@ void SymbolLibraryManager::createDefaultBuiltInLibrary() {
         {"TRISTATE", "Tri-State Buffer", "Gate_TRISTATE"},
         "TRISTATE",
         {
-            makeDigitalPin(QPointF(-60, -15.0), 1, "A", "Right", "input"),
+            makeDigitalPin(QPointF(-60, 0.0), 1, "A", "Right", "input"),
             makeDigitalPin(QPointF(-60, 15.0), 2, "EN", "Right", "input"),
             makeDigitalPin(QPointF(60, 0.0), 3, "Y", "Left", "output"),
         },
