@@ -674,9 +674,28 @@ QList<QPointF> SchematicWireTool::buildSmartRoute(const QPointF& start, const QP
     if (m_router) {
         QList<QPointF> smartPath = m_router->routeOrthogonal(start, target, {}, 10.0, m_hFirst);
         if (smartPath.size() >= 2) {
-            // Ensure endpoints are exact (router may snap to grid internally)
+            // Ensure endpoints are exact (router may snap to grid internally).
+            // If an endpoint is off-grid (common with 10-unit grid and 15-unit pin spacing),
+            // the segment from actual pin to nearest grid point can be diagonal.
+            // Insert an intermediate point to keep it orthogonal.
+            const QPointF origFirst = smartPath.first();
+            const QPointF origLast  = smartPath.last();
             smartPath.first() = start;
-            smartPath.last() = target;
+            smartPath.last()  = target;
+
+            if (smartPath.size() >= 2) {
+                const QPointF& afterStart = smartPath[1];
+                if (start.x() != afterStart.x() && start.y() != afterStart.y()) {
+                    smartPath.insert(1, QPointF(afterStart.x(), start.y()));
+                }
+            }
+            if (smartPath.size() >= 2) {
+                const int last = smartPath.size() - 1;
+                const QPointF& beforeEnd = smartPath[last - 1];
+                if (target.x() != beforeEnd.x() && target.y() != beforeEnd.y()) {
+                    smartPath.insert(last, QPointF(beforeEnd.x(), target.y()));
+                }
+            }
             return smartPath;
         }
     }
