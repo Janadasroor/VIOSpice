@@ -12,7 +12,7 @@ using Flux::Model::SymbolPrimitive;
 using namespace Flux::Item;
 
 namespace {
-constexpr qreal kSchematicGridSize = 15.0;
+constexpr qreal kSchematicGridSize = 10.0;
 
 QString unitSuffixForDisplay(int unit) {
     if (unit <= 0) return "A";
