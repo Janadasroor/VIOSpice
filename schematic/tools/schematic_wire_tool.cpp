@@ -283,7 +283,8 @@ void SchematicWireTool::finishWire() {
         if (m_currentWire->scene()) {
             view()->scene()->removeItem(m_currentWire);
         }
-        m_currentWire->setVisible(false);
+        delete m_currentWire;
+        m_currentWire = nullptr;
         if (m_committedPoints.size() < 2) {
             m_isDrawing = false;
             m_committedPoints.clear();
@@ -350,8 +351,12 @@ void SchematicWireTool::finishWire() {
 }
 
 void SchematicWireTool::cancelWire() {
-    if (m_currentWire && view() && m_currentWire->scene()) {
-        view()->scene()->removeItem(m_currentWire);
+    if (m_currentWire) {
+        if (m_currentWire->scene()) {
+            view()->scene()->removeItem(m_currentWire);
+        }
+        delete m_currentWire;
+        m_currentWire = nullptr;
     }
     m_isDrawing = false;
     m_committedPoints.clear();
@@ -499,8 +504,12 @@ QList<WireItem*> SchematicWireTool::handleComponentIntersections(WireItem* wire)
 // ─────────────────────────────────────────────────────────────────────────────
 
 void SchematicWireTool::reset() {
-    if (m_currentWire && view() && m_currentWire->scene()) {
-        view()->scene()->removeItem(m_currentWire);
+    if (m_currentWire) {
+        if (m_currentWire->scene()) {
+            view()->scene()->removeItem(m_currentWire);
+        }
+        delete m_currentWire;
+        m_currentWire = nullptr;
     }
     m_isDrawing = false;
     m_committedPoints.clear();
