@@ -6,7 +6,7 @@ LogicAnalyzerItem::LogicAnalyzerItem(QPointF pos, QGraphicsItem *parent)
     : SchematicItem(parent), m_channelCount(8) {
     setExcludeFromPcb(true); // Instruments are excluded from PCB by default
     setPos(pos);
-    setFlags(QGraphicsItem::ItemIsSelectable | QGraphicsItem::ItemIsMovable);
+    setFlags(QGraphicsItem::ItemIsSelectable | QGraphicsItem::ItemIsMovable | QGraphicsItem::ItemSendsGeometryChanges);
     setReference("LA1");
     setValue("8-Channel");
 }

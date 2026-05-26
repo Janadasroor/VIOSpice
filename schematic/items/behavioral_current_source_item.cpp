@@ -5,7 +5,7 @@
 BehavioralCurrentSourceItem::BehavioralCurrentSourceItem(QPointF pos, QGraphicsItem* parent)
     : SchematicItem(parent) {
     setPos(pos);
-    setFlags(QGraphicsItem::ItemIsSelectable | QGraphicsItem::ItemIsMovable);
+    setFlags(QGraphicsItem::ItemIsSelectable | QGraphicsItem::ItemIsMovable | QGraphicsItem::ItemSendsGeometryChanges);
     setReference("B1");
     setValue("I=0");
     setParamExpression("bi.arrow_direction", "up");
