@@ -6,7 +6,7 @@
 BlinkingLEDItem::BlinkingLEDItem(QPointF pos, QGraphicsItem* parent)
     : SchematicItem(parent) {
     setPos(pos);
-    setFlags(QGraphicsItem::ItemIsSelectable | QGraphicsItem::ItemIsMovable);
+    setFlags(QGraphicsItem::ItemIsSelectable | QGraphicsItem::ItemIsMovable | QGraphicsItem::ItemSendsGeometryChanges);
     setReference("D?");
     setValue("1Hz");
     m_voltage = 0.0;

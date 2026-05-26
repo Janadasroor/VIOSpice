@@ -12,6 +12,7 @@ class SchematicItem : public QObject, public QGraphicsItem {
     Q_OBJECT
     Q_INTERFACES(QGraphicsItem)
 public:
+    static constexpr qreal kSchematicGridSize = 10.0;
     enum class TransformAction {
         RotateCW,
         RotateCCW,

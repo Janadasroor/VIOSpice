@@ -18,7 +18,7 @@ void updateSwitchRealTime(const QString& switchRef, bool open, double vt, double
 SwitchItem::SwitchItem(QPointF pos, QGraphicsItem *parent) : SchematicItem(parent) {
     setExcludeFromPcb(true); // Switches are excluded from PCB by default
     setPos(pos);
-    setFlags(QGraphicsItem::ItemIsSelectable | QGraphicsItem::ItemIsMovable);
+    setFlags(QGraphicsItem::ItemIsSelectable | QGraphicsItem::ItemIsMovable | QGraphicsItem::ItemSendsGeometryChanges);
     m_isOpen = true;
     m_useModel = false;
     m_modelName = "MySwitchName";

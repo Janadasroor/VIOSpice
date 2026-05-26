@@ -16,7 +16,7 @@ void updatePushButtonRealTime(const QString& ref, bool pressed) {
 
 PushButtonItem::PushButtonItem(QPointF pos, QGraphicsItem *parent) : SchematicItem(parent) {
     setPos(pos);
-    setFlags(QGraphicsItem::ItemIsSelectable | QGraphicsItem::ItemIsMovable);
+    setFlags(QGraphicsItem::ItemIsSelectable | QGraphicsItem::ItemIsMovable | QGraphicsItem::ItemSendsGeometryChanges);
     m_isPressed = false;
     setReference("SW1");
     setValue("1e12"); // Open resistance
