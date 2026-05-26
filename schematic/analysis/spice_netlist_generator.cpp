@@ -5664,7 +5664,7 @@ QStringList SpiceNetlistGenerator::buildXspiceNodeTokensForPins(const QMap<QStri
 }
 
 QString SpiceNetlistGenerator::formatValue(double value) {
-    if (value <= 0) return "0";
+    if (value == 0) return "0";
     if (value < 1e-9) return QString::number(value * 1e12) + "p";
     if (value < 1e-6) return QString::number(value * 1e9) + "n";
     if (value < 1e-3) return QString::number(value * 1e06) + "u";
