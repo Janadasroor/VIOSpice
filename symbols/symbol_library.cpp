@@ -284,15 +284,15 @@ SymbolDefinition buildDefaultMosfetSymbol(const QString& name, bool nChannel) {
     mos.addPrimitive(SymbolPrimitive::createLine(QPointF(-10, -15), QPointF(-10, 15))); // Gate
     mos.addPrimitive(SymbolPrimitive::createLine(QPointF(0, -12), QPointF(0, -5))); // Drain segment
     mos.addPrimitive(SymbolPrimitive::createLine(QPointF(0, 12), QPointF(0, 5))); // Source segment
-    mos.addPrimitive(SymbolPrimitive::createLine(QPointF(0, 0), QPointF(10, 0))); // Bulk
-    mos.addPrimitive(SymbolPrimitive::createLine(QPointF(0, -12), QPointF(10, -12)));
-    mos.addPrimitive(SymbolPrimitive::createLine(QPointF(0, 12), QPointF(10, 12)));
+    mos.addPrimitive(SymbolPrimitive::createLine(QPointF(0, 0), QPointF(15, 0))); // Bulk
+    mos.addPrimitive(SymbolPrimitive::createLine(QPointF(0, -12), QPointF(15, -12)));
+    mos.addPrimitive(SymbolPrimitive::createLine(QPointF(0, 12), QPointF(15, 12)));
 
     if (nChannel) {
-        QList<QPointF> arrow = {QPointF(8, 0), QPointF(3.2, -2.4), QPointF(3.2, 2.4)};
+        QList<QPointF> arrow = {QPointF(13, 0), QPointF(8.2, -2.4), QPointF(8.2, 2.4)};
         mos.addPrimitive(SymbolPrimitive::createPolygon(arrow, true));
     } else {
-        QList<QPointF> arrow = {QPointF(2, 0), QPointF(6.8, -2.4), QPointF(6.8, 2.4)};
+        QList<QPointF> arrow = {QPointF(7, 0), QPointF(11.8, -2.4), QPointF(11.8, 2.4)};
         mos.addPrimitive(SymbolPrimitive::createPolygon(arrow, true));
     }
 
@@ -303,14 +303,14 @@ SymbolDefinition buildDefaultMosfetSymbol(const QString& name, bool nChannel) {
     gPin.data["hideName"] = true;
     mos.addPrimitive(gPin);
 
-    SymbolPrimitive dPin = SymbolPrimitive::createPin(QPointF(10, -30), 2, "D");
+    SymbolPrimitive dPin = SymbolPrimitive::createPin(QPointF(15, -30), 2, "D");
     dPin.data["length"] = 18.0;
     dPin.data["orientation"] = "Down";
     dPin.data["hideNum"] = true;
     dPin.data["hideName"] = true;
     mos.addPrimitive(dPin);
 
-    SymbolPrimitive sPin = SymbolPrimitive::createPin(QPointF(10, 30), 3, "S");
+    SymbolPrimitive sPin = SymbolPrimitive::createPin(QPointF(15, 30), 3, "S");
     sPin.data["length"] = 18.0;
     sPin.data["orientation"] = "Up";
     sPin.data["hideNum"] = true;
@@ -873,11 +873,11 @@ void SymbolLibraryManager::loadUserLibraries(const QString& userLibPath, bool as
         sym.addPrimitive(SymbolPrimitive::createLine(QPointF(6, -18), QPointF(6, -6)));
         sym.addPrimitive(SymbolPrimitive::createLine(QPointF(6, 6), QPointF(6, 18)));
         sym.addPrimitive(SymbolPrimitive::createLine(QPointF(6, -6), QPointF(6, 6)));
-        sym.addPrimitive(SymbolPrimitive::createLine(QPointF(6, -18), QPointF(18, -18)));
-        sym.addPrimitive(SymbolPrimitive::createLine(QPointF(6, 18), QPointF(18, 18)));
-        sym.addPrimitive(SymbolPrimitive::createLine(QPointF(6, 0), QPointF(18, 0)));
+        sym.addPrimitive(SymbolPrimitive::createLine(QPointF(6, -18), QPointF(15, -18)));
+        sym.addPrimitive(SymbolPrimitive::createLine(QPointF(6, 18), QPointF(15, 18)));
+        sym.addPrimitive(SymbolPrimitive::createLine(QPointF(6, 0), QPointF(15, 0)));
 
-        QList<QPointF> arrow = {QPointF(14, 0), QPointF(9.5, -2.2), QPointF(9.5, 2.2)};
+        QList<QPointF> arrow = {QPointF(11, 0), QPointF(6.5, -2.2), QPointF(6.5, 2.2)};
         sym.addPrimitive(SymbolPrimitive::createPolygon(arrow, true));
 
         SymbolPrimitive gPin = SymbolPrimitive::createPin(QPointF(-30, 0), 1, "G");
@@ -885,17 +885,17 @@ void SymbolLibraryManager::loadUserLibraries(const QString& userLibPath, bool as
         gPin.data["orientation"] = "Right";
         sym.addPrimitive(gPin);
 
-        SymbolPrimitive dPin = SymbolPrimitive::createPin(QPointF(18, -30), 2, "D");
+        SymbolPrimitive dPin = SymbolPrimitive::createPin(QPointF(15, -30), 2, "D");
         dPin.data["length"] = 12.0;
         dPin.data["orientation"] = "Down";
         sym.addPrimitive(dPin);
 
-        SymbolPrimitive sPin = SymbolPrimitive::createPin(QPointF(18, 30), 3, "S");
+        SymbolPrimitive sPin = SymbolPrimitive::createPin(QPointF(15, 30), 3, "S");
         sPin.data["length"] = 12.0;
         sPin.data["orientation"] = "Up";
         sym.addPrimitive(sPin);
 
-        SymbolPrimitive bPin = SymbolPrimitive::createPin(QPointF(36, 0), 4, "B");
+        SymbolPrimitive bPin = SymbolPrimitive::createPin(QPointF(30, 0), 4, "B");
         bPin.data["length"] = 18.0;
         bPin.data["orientation"] = "Left";
         sym.addPrimitive(bPin);
@@ -948,11 +948,11 @@ void SymbolLibraryManager::loadUserLibraries(const QString& userLibPath, bool as
         sym.addPrimitive(SymbolPrimitive::createLine(QPointF(6, -18), QPointF(6, -6)));
         sym.addPrimitive(SymbolPrimitive::createLine(QPointF(6, 6), QPointF(6, 18)));
         sym.addPrimitive(SymbolPrimitive::createLine(QPointF(6, -6), QPointF(6, 6)));
-        sym.addPrimitive(SymbolPrimitive::createLine(QPointF(6, -18), QPointF(18, -18)));
-        sym.addPrimitive(SymbolPrimitive::createLine(QPointF(6, 18), QPointF(18, 18)));
-        sym.addPrimitive(SymbolPrimitive::createLine(QPointF(6, 0), QPointF(18, 0)));
+        sym.addPrimitive(SymbolPrimitive::createLine(QPointF(6, -18), QPointF(15, -18)));
+        sym.addPrimitive(SymbolPrimitive::createLine(QPointF(6, 18), QPointF(15, 18)));
+        sym.addPrimitive(SymbolPrimitive::createLine(QPointF(6, 0), QPointF(15, 0)));
 
-        QList<QPointF> arrow = {QPointF(10.5, 0), QPointF(15.0, -2.2), QPointF(15.0, 2.2)};
+        QList<QPointF> arrow = {QPointF(8.75, 0), QPointF(12.5, -2.2), QPointF(12.5, 2.2)};
         sym.addPrimitive(SymbolPrimitive::createPolygon(arrow, true));
 
         SymbolPrimitive gPin = SymbolPrimitive::createPin(QPointF(-30, 0), 1, "G");
@@ -960,17 +960,17 @@ void SymbolLibraryManager::loadUserLibraries(const QString& userLibPath, bool as
         gPin.data["orientation"] = "Right";
         sym.addPrimitive(gPin);
 
-        SymbolPrimitive dPin = SymbolPrimitive::createPin(QPointF(18, -30), 2, "D");
+        SymbolPrimitive dPin = SymbolPrimitive::createPin(QPointF(15, -30), 2, "D");
         dPin.data["length"] = 12.0;
         dPin.data["orientation"] = "Down";
         sym.addPrimitive(dPin);
 
-        SymbolPrimitive sPin = SymbolPrimitive::createPin(QPointF(18, 30), 3, "S");
+        SymbolPrimitive sPin = SymbolPrimitive::createPin(QPointF(15, 30), 3, "S");
         sPin.data["length"] = 12.0;
         sPin.data["orientation"] = "Up";
         sym.addPrimitive(sPin);
 
-        SymbolPrimitive bPin = SymbolPrimitive::createPin(QPointF(36, 0), 4, "B");
+        SymbolPrimitive bPin = SymbolPrimitive::createPin(QPointF(30, 0), 4, "B");
         bPin.data["length"] = 18.0;
         bPin.data["orientation"] = "Left";
         sym.addPrimitive(bPin);
@@ -1022,28 +1022,28 @@ void SymbolLibraryManager::loadUserLibraries(const QString& userLibPath, bool as
         sym.addPrimitive(SymbolPrimitive::createCircle(QPointF(0, 0), 18.0, false));
         sym.addPrimitive(SymbolPrimitive::createLine(QPointF(-5, -6), QPointF(-5, 6)));
         sym.addPrimitive(SymbolPrimitive::createLine(QPointF(-5, 0), QPointF(-22, 0)));
-        sym.addPrimitive(SymbolPrimitive::createLine(QPointF(-5, -4), QPointF(10, -16)));
-        sym.addPrimitive(SymbolPrimitive::createLine(QPointF(-5, 4), QPointF(10, 16)));
+        sym.addPrimitive(SymbolPrimitive::createLine(QPointF(-5, -4), QPointF(15, -24)));
+        sym.addPrimitive(SymbolPrimitive::createLine(QPointF(-5, 4), QPointF(15, 24)));
 
-        QList<QPointF> arrow = {QPointF(7.5, 12.5), QPointF(12.5, 11.0), QPointF(9.5, 16.0)};
+        QList<QPointF> arrow = {QPointF(12.5, 20.5), QPointF(17.5, 19.0), QPointF(14.5, 24.0)};
         sym.addPrimitive(SymbolPrimitive::createPolygon(arrow, true));
 
-        SymbolPrimitive cPin = SymbolPrimitive::createPin(QPointF(14, -28), 1, "C");
+        SymbolPrimitive cPin = SymbolPrimitive::createPin(QPointF(15, -30), 1, "C");
         cPin.data["length"] = 12.0;
         cPin.data["orientation"] = "Down";
         sym.addPrimitive(cPin);
 
-        SymbolPrimitive bPin = SymbolPrimitive::createPin(QPointF(-34, 0), 2, "B");
+        SymbolPrimitive bPin = SymbolPrimitive::createPin(QPointF(-30, 0), 2, "B");
         bPin.data["length"] = 12.0;
         bPin.data["orientation"] = "Right";
         sym.addPrimitive(bPin);
 
-        SymbolPrimitive ePin = SymbolPrimitive::createPin(QPointF(14, 28), 3, "E");
+        SymbolPrimitive ePin = SymbolPrimitive::createPin(QPointF(15, 30), 3, "E");
         ePin.data["length"] = 12.0;
         ePin.data["orientation"] = "Up";
         sym.addPrimitive(ePin);
 
-        SymbolPrimitive sPin = SymbolPrimitive::createPin(QPointF(34, 0), 4, "S");
+        SymbolPrimitive sPin = SymbolPrimitive::createPin(QPointF(30, 0), 4, "S");
         sPin.data["length"] = 12.0;
         sPin.data["orientation"] = "Left";
         sym.addPrimitive(sPin);
@@ -1095,28 +1095,28 @@ void SymbolLibraryManager::loadUserLibraries(const QString& userLibPath, bool as
         sym.addPrimitive(SymbolPrimitive::createCircle(QPointF(0, 0), 18.0, false));
         sym.addPrimitive(SymbolPrimitive::createLine(QPointF(-5, -6), QPointF(-5, 6)));
         sym.addPrimitive(SymbolPrimitive::createLine(QPointF(-5, 0), QPointF(-22, 0)));
-        sym.addPrimitive(SymbolPrimitive::createLine(QPointF(-5, -4), QPointF(10, -16)));
-        sym.addPrimitive(SymbolPrimitive::createLine(QPointF(-5, 4), QPointF(10, 16)));
+        sym.addPrimitive(SymbolPrimitive::createLine(QPointF(-5, -4), QPointF(15, -24)));
+        sym.addPrimitive(SymbolPrimitive::createLine(QPointF(-5, 4), QPointF(15, 24)));
 
-        QList<QPointF> arrow = {QPointF(11.5, 18.0), QPointF(8.5, 13.0), QPointF(13.5, 14.5)};
+        QList<QPointF> arrow = {QPointF(16.5, 26.0), QPointF(13.5, 21.0), QPointF(18.5, 22.5)};
         sym.addPrimitive(SymbolPrimitive::createPolygon(arrow, true));
 
-        SymbolPrimitive cPin = SymbolPrimitive::createPin(QPointF(14, -28), 1, "C");
+        SymbolPrimitive cPin = SymbolPrimitive::createPin(QPointF(15, -30), 1, "C");
         cPin.data["length"] = 12.0;
         cPin.data["orientation"] = "Down";
         sym.addPrimitive(cPin);
 
-        SymbolPrimitive bPin = SymbolPrimitive::createPin(QPointF(-34, 0), 2, "B");
+        SymbolPrimitive bPin = SymbolPrimitive::createPin(QPointF(-30, 0), 2, "B");
         bPin.data["length"] = 12.0;
         bPin.data["orientation"] = "Right";
         sym.addPrimitive(bPin);
 
-        SymbolPrimitive ePin = SymbolPrimitive::createPin(QPointF(14, 28), 3, "E");
+        SymbolPrimitive ePin = SymbolPrimitive::createPin(QPointF(15, 30), 3, "E");
         ePin.data["length"] = 12.0;
         ePin.data["orientation"] = "Up";
         sym.addPrimitive(ePin);
 
-        SymbolPrimitive sPin = SymbolPrimitive::createPin(QPointF(34, 0), 4, "S");
+        SymbolPrimitive sPin = SymbolPrimitive::createPin(QPointF(30, 0), 4, "S");
         sPin.data["length"] = 12.0;
         sPin.data["orientation"] = "Left";
         sym.addPrimitive(sPin);
@@ -1452,11 +1452,11 @@ void SymbolLibraryManager::createDefaultBuiltInLibrary() {
     capacitor.setDescription("Standard capacitor symbol");
     capacitor.addPrimitive(SymbolPrimitive::createLine(QPointF(-5, -15), QPointF(-5, 15)));
     capacitor.addPrimitive(SymbolPrimitive::createLine(QPointF(5, -15), QPointF(5, 15)));
-    capacitor.addPrimitive(SymbolPrimitive::createPin(QPointF(-40, 0), 1, "1"));
-    capacitor.addPrimitive(SymbolPrimitive::createPin(QPointF(40, 0), 2, "2"));
+    capacitor.addPrimitive(SymbolPrimitive::createPin(QPointF(-45, 0), 1, "1"));
+    capacitor.addPrimitive(SymbolPrimitive::createPin(QPointF(45, 0), 2, "2"));
     capacitor.primitives().last().data["orientation"] = "Left";
-    capacitor.primitives().last().data["length"] = 35.0;
-    capacitor.primitives()[capacitor.primitives().size()-2].data["length"] = 35.0;
+    capacitor.primitives().last().data["length"] = 40.0;
+    capacitor.primitives()[capacitor.primitives().size()-2].data["length"] = 40.0;
     addSym(capacitor);
     
     // Inductor
@@ -1464,19 +1464,19 @@ void SymbolLibraryManager::createDefaultBuiltInLibrary() {
     inductor.setCategory("Passives");
     inductor.setReferencePrefix("L");
     inductor.setDescription("Standard inductor symbol");
-    inductor.addPrimitive(SymbolPrimitive::createLine(QPointF(-40, 0), QPointF(-30, 0)));
+    inductor.addPrimitive(SymbolPrimitive::createLine(QPointF(-45, 0), QPointF(-30, 0)));
     inductor.addPrimitive(SymbolPrimitive::createArc(QRectF(-30, -7.5, 15, 15), 0, 180));
     inductor.addPrimitive(SymbolPrimitive::createArc(QRectF(-15, -7.5, 15, 15), 0, 180));
     inductor.addPrimitive(SymbolPrimitive::createArc(QRectF(0, -7.5, 15, 15), 0, 180));
     inductor.addPrimitive(SymbolPrimitive::createArc(QRectF(15, -7.5, 15, 15), 0, 180));
-    inductor.addPrimitive(SymbolPrimitive::createLine(QPointF(30, 0), QPointF(40, 0)));
-    inductor.addPrimitive(SymbolPrimitive::createPin(QPointF(-40, 0), 1, "1"));
-    inductor.addPrimitive(SymbolPrimitive::createPin(QPointF(40, 0), 2, "2"));
+    inductor.addPrimitive(SymbolPrimitive::createLine(QPointF(30, 0), QPointF(45, 0)));
+    inductor.addPrimitive(SymbolPrimitive::createPin(QPointF(-45, 0), 1, "1"));
+    inductor.addPrimitive(SymbolPrimitive::createPin(QPointF(45, 0), 2, "2"));
     inductor.addPrimitive(SymbolPrimitive::createCircle(QPointF(-33, -10), 2.0, false));
     inductor.primitives()[inductor.primitives().size()-2].data["orientation"] = "Right";
     inductor.primitives().last().data["orientation"] = "Left";
-    inductor.primitives()[inductor.primitives().size()-2].data["length"] = 10.0;
-    inductor.primitives().last().data["length"] = 10.0;
+    inductor.primitives()[inductor.primitives().size()-2].data["length"] = 15.0;
+    inductor.primitives().last().data["length"] = 15.0;
     addSym(inductor);
     
     // Diode
@@ -1487,11 +1487,11 @@ void SymbolLibraryManager::createDefaultBuiltInLibrary() {
     QList<QPointF> triangle = {QPointF(-10, -12), QPointF(-10, 12), QPointF(10, 0)};
     diode.addPrimitive(SymbolPrimitive::createPolygon(triangle, true));
     diode.addPrimitive(SymbolPrimitive::createLine(QPointF(10, -12), QPointF(10, 12)));
-    diode.addPrimitive(SymbolPrimitive::createPin(QPointF(-40, 0), 1, "A"));
-    diode.addPrimitive(SymbolPrimitive::createPin(QPointF(40, 0), 2, "K"));
+    diode.addPrimitive(SymbolPrimitive::createPin(QPointF(-45, 0), 1, "A"));
+    diode.addPrimitive(SymbolPrimitive::createPin(QPointF(45, 0), 2, "K"));
     diode.primitives().last().data["orientation"] = "Left";
-    diode.primitives().last().data["length"] = 30.0;
-    diode.primitives()[diode.primitives().size()-2].data["length"] = 30.0;
+    diode.primitives().last().data["length"] = 35.0;
+    diode.primitives()[diode.primitives().size()-2].data["length"] = 35.0;
     addSym(diode);
     
     // NPN
@@ -1501,20 +1501,20 @@ void SymbolLibraryManager::createDefaultBuiltInLibrary() {
     npn.setDescription("NPN bipolar junction transistor");
     npn.addPrimitive(SymbolPrimitive::createCircle(QPointF(0, 0), 20, false));
     npn.addPrimitive(SymbolPrimitive::createLine(QPointF(-10, -12), QPointF(-10, 12)));
-    npn.addPrimitive(SymbolPrimitive::createLine(QPointF(-10, -8), QPointF(8, -18)));
-    npn.addPrimitive(SymbolPrimitive::createLine(QPointF(-10, 8), QPointF(8, 18)));
+    npn.addPrimitive(SymbolPrimitive::createLine(QPointF(-10, -8), QPointF(15, -18)));
+    npn.addPrimitive(SymbolPrimitive::createLine(QPointF(-10, 8), QPointF(15, 18)));
     // Add emitter arrow for NPN (pointing outwards from base).
-    QList<QPointF> npnArrow = {QPointF(8, 18), QPointF(1.4, 17.5), QPointF(4.1, 12.6)};
+    QList<QPointF> npnArrow = {QPointF(15, 18), QPointF(8.4, 17.5), QPointF(11.1, 12.6)};
     npn.addPrimitive(SymbolPrimitive::createPolygon(npnArrow, true));
     SymbolPrimitive bPin = SymbolPrimitive::createPin(QPointF(-30, 0), 1, "B");
     bPin.data["length"] = 20.0;
     bPin.data["orientation"] = "Right";
     npn.addPrimitive(bPin);
-    SymbolPrimitive cPin = SymbolPrimitive::createPin(QPointF(8, -30), 2, "C");
+    SymbolPrimitive cPin = SymbolPrimitive::createPin(QPointF(15, -30), 2, "C");
     cPin.data["length"] = 12.0;
     cPin.data["orientation"] = "Down";
     npn.addPrimitive(cPin);
-    SymbolPrimitive ePin = SymbolPrimitive::createPin(QPointF(8, 30), 3, "E");
+    SymbolPrimitive ePin = SymbolPrimitive::createPin(QPointF(15, 30), 3, "E");
     ePin.data["length"] = 12.0;
     ePin.data["orientation"] = "Up";
     npn.addPrimitive(ePin);
@@ -1534,16 +1534,16 @@ void SymbolLibraryManager::createDefaultBuiltInLibrary() {
     ic.setCategory("Integrated Circuits");
     ic.setReferencePrefix("U");
     ic.setDescription("Generic 8-pin IC");
-    ic.addPrimitive(SymbolPrimitive::createRect(QRectF(-30, -40, 60, 80), false));
+    ic.addPrimitive(SymbolPrimitive::createRect(QRectF(-30, -35, 60, 70), false));
     for (int i = 0; i < 4; ++i) {
-        qreal y = -30 + i * 20;
+        qreal y = -30 + i * 15;
         SymbolPrimitive pin = SymbolPrimitive::createPin(QPointF(-45, y), i + 1, QString::number(i + 1));
         pin.data["length"] = 15.0;
         pin.data["orientation"] = "Right";
         ic.addPrimitive(pin);
     }
     for (int i = 0; i < 4; ++i) {
-        qreal y = 30 - i * 20;
+        qreal y = 30 - i * 15;
         SymbolPrimitive pin = SymbolPrimitive::createPin(QPointF(45, y), 5 + i, QString::number(5 + i));
         pin.data["length"] = 15.0;
         pin.data["orientation"] = "Left";
@@ -1557,8 +1557,8 @@ void SymbolLibraryManager::createDefaultBuiltInLibrary() {
     capPolar.addPrimitive(SymbolPrimitive::createArc(QRectF(2, -15, 6, 30), 90, 180));
     capPolar.addPrimitive(SymbolPrimitive::createLine(QPointF(-15, -10), QPointF(-8, -10))); // Plus sign
     capPolar.addPrimitive(SymbolPrimitive::createLine(QPointF(-11.5, -13.5), QPointF(-11.5, -6.5)));
-    capPolar.addPrimitive(SymbolPrimitive::createPin(QPointF(-40, 0), 1, "1"));
-    capPolar.addPrimitive(SymbolPrimitive::createPin(QPointF(40, 0), 2, "2"));
+    capPolar.addPrimitive(SymbolPrimitive::createPin(QPointF(-45, 0), 1, "1"));
+    capPolar.addPrimitive(SymbolPrimitive::createPin(QPointF(45, 0), 2, "2"));
     addSym(capPolar);
 
     // === PNP ===
@@ -1567,14 +1567,14 @@ void SymbolLibraryManager::createDefaultBuiltInLibrary() {
     pnp.setReferencePrefix("Q");
     pnp.addPrimitive(SymbolPrimitive::createCircle(QPointF(0, 0), 20, false));
     pnp.addPrimitive(SymbolPrimitive::createLine(QPointF(-10, -12), QPointF(-10, 12)));
-    pnp.addPrimitive(SymbolPrimitive::createLine(QPointF(-10, -8), QPointF(8, -18)));
-    pnp.addPrimitive(SymbolPrimitive::createLine(QPointF(-10, 8), QPointF(8, 18)));
+    pnp.addPrimitive(SymbolPrimitive::createLine(QPointF(-10, -8), QPointF(15, -18)));
+    pnp.addPrimitive(SymbolPrimitive::createLine(QPointF(-10, 8), QPointF(15, 18)));
     // Add arrow for PNP (pointing towards base)
-    QList<QPointF> arrow = {QPointF(2.8, 15.1), QPointF(4.0, 19.0), QPointF(6.7, 14.1)};
+    QList<QPointF> arrow = {QPointF(9.8, 15.1), QPointF(11.0, 19.0), QPointF(13.7, 14.1)};
     pnp.addPrimitive(SymbolPrimitive::createPolygon(arrow, true));
     pnp.addPrimitive(SymbolPrimitive::createPin(QPointF(-30, 0), 1, "B"));
-    pnp.addPrimitive(SymbolPrimitive::createPin(QPointF(8, -30), 2, "C"));
-    pnp.addPrimitive(SymbolPrimitive::createPin(QPointF(8, 30), 3, "E"));
+    pnp.addPrimitive(SymbolPrimitive::createPin(QPointF(15, -30), 2, "C"));
+    pnp.addPrimitive(SymbolPrimitive::createPin(QPointF(15, 30), 3, "E"));
 
     // SPICE mapping: 1:C, 2:B, 3:E
     QMap<int, QString> pnpMapping;
@@ -1654,10 +1654,18 @@ void SymbolLibraryManager::createDefaultBuiltInLibrary() {
     trans.addPrimitive(SymbolPrimitive::createArc(QRectF(10, -5, 10, 10), 270, 180));
     trans.addPrimitive(SymbolPrimitive::createArc(QRectF(10, 5, 10, 10), 270, 180));
     // Pins
-    trans.addPrimitive(SymbolPrimitive::createPin(QPointF(-35, -10), 1, "P1"));
-    trans.addPrimitive(SymbolPrimitive::createPin(QPointF(-35, 10), 2, "P2"));
-    trans.addPrimitive(SymbolPrimitive::createPin(QPointF(35, -10), 3, "S1"));
-    trans.addPrimitive(SymbolPrimitive::createPin(QPointF(35, 10), 4, "S2"));
+    trans.addPrimitive(SymbolPrimitive::createPin(QPointF(-45, -15), 1, "P1"));
+    trans.addPrimitive(SymbolPrimitive::createPin(QPointF(-45, 15), 2, "P2"));
+    trans.addPrimitive(SymbolPrimitive::createPin(QPointF(45, -15), 3, "S1"));
+    trans.addPrimitive(SymbolPrimitive::createPin(QPointF(45, 15), 4, "S2"));
+    auto setPinProps = [&](int idx, const QString& orient, qreal len) {
+        trans.primitives()[idx].data["orientation"] = orient;
+        trans.primitives()[idx].data["length"] = len;
+    };
+    setPinProps(trans.primitives().size()-4, "Right", 25.0);
+    setPinProps(trans.primitives().size()-3, "Right", 25.0);
+    setPinProps(trans.primitives().size()-2, "Left", 25.0);
+    setPinProps(trans.primitives().size()-1, "Left", 25.0);
     addSym(trans);
 
     // === RAM ===
