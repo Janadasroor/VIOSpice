@@ -408,11 +408,11 @@ void SchematicEditor::buildHierarchyTree(QTreeWidgetItem* parentItem,
     // Track visited paths to prevent infinite loops (cycles in hierarchy)
     static thread_local QSet<QString> visitedPaths;
     if (visitedPaths.contains(filePath)) return;
-    visitedPaths.insert(filePath);
 
     // Read the schematic file to find child Sheet items
     QFile f(filePath);
     if (!f.open(QIODevice::ReadOnly)) return;
+    visitedPaths.insert(filePath);
     QJsonDocument doc = QJsonDocument::fromJson(f.readAll());
     f.close();
 
@@ -833,13 +833,9 @@ void SchematicEditor::onSelectionChanged() {
                 // 3. For each component, trace ALL its nets (fulfill "all the nets of this component")
                 QMap<SchematicItem*, QSet<int>> finalHighlightMap = primaryNet;
                 for (SchematicItem* comp : componentsOnNet) {
-                    // Trace every pin of this component
-                    QList<QPointF> pins = comp->connectionPoints();
-                    for (int i = 0; i < pins.size(); ++i) {
-                        QMap<SchematicItem*, QSet<int>> secondaryNet = m_netManager->traceNetWithPins(comp);
-                        for (auto it = secondaryNet.begin(); it != secondaryNet.end(); ++it) {
-                            finalHighlightMap[it.key()].unite(it.value());
-                        }
+                    QMap<SchematicItem*, QSet<int>> secondaryNet = m_netManager->traceNetWithPins(comp);
+                    for (auto it = secondaryNet.begin(); it != secondaryNet.end(); ++it) {
+                        finalHighlightMap[it.key()].unite(it.value());
                     }
                 }
 
