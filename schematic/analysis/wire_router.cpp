@@ -25,6 +25,8 @@ QList<QPointF> WireRouter::routeOrthogonal(const QPointF& start, const QPointF& 
     FLUX_DIAG_SCOPE("WireRouter::routeOrthogonal");
     m_gridSize = gridSize;
     m_obstacles = obstacles;
+    m_routeStart = start;
+    m_routeEnd = end;
 
     if (m_scene && obstacles.isEmpty()) {
         updateObstaclesFromScene();
@@ -201,9 +203,13 @@ bool WireRouter::isValidPosition(const QPointF& point) {
 
 bool WireRouter::isObstacleAt(const QPointF& point) {
     for (const Obstacle& obstacle : m_obstacles) {
-        if (obstacle.isBlocking && obstacle.bounds.contains(point)) {
-            return true;
-        }
+        if (!obstacle.isBlocking) continue;
+        // Skip obstacles that contain the route start or end — those are the
+        // components whose pins we are connecting, and their bodies naturally
+        // enclose the pin positions.
+        if (obstacle.bounds.contains(m_routeStart)) continue;
+        if (obstacle.bounds.contains(m_routeEnd)) continue;
+        if (obstacle.bounds.contains(point)) return true;
     }
     return false;
 }
@@ -288,19 +294,17 @@ QList<QPointF> WireRouter::createSimpleOrthogonalPath(const QPointF& start, cons
     QList<QPointF> path;
     path.append(start);
 
-    // Simple orthogonal path: horizontal then vertical, or vertical then horizontal
     QPointF intermediate;
-
     if (hFirst) {
-        // Go horizontal first, then vertical
         intermediate = QPointF(end.x(), start.y());
     } else {
-        // Go vertical first, then horizontal
         intermediate = QPointF(start.x(), end.y());
     }
 
-    // Check if intermediate point is valid
-    if (isValidPosition(intermediate)) {
+    // Always include the corner to keep the path orthogonal.
+    // isPathObstacleFree will skip obstacles that contain the path
+    // endpoints, so a corner inside the start/end component is fine.
+    if (intermediate != start && intermediate != end) {
         path.append(intermediate);
     }
 
@@ -310,25 +314,37 @@ QList<QPointF> WireRouter::createSimpleOrthogonalPath(const QPointF& start, cons
 
 bool WireRouter::isPathObstacleFree(const QList<QPointF>& path) {
     if (path.size() < 2) return true;
-    for (int i = 0; i < path.size() - 1; ++i) {
+    const int lastIdx = path.size() - 1;
+    for (int i = 0; i < lastIdx; ++i) {
         QLineF segment(path[i], path[i + 1]);
         for (const Obstacle& obstacle : m_obstacles) {
-            if (obstacle.isBlocking) {
-                QRectF rect = obstacle.bounds;
-                QLineF edges[4] = {
-                    QLineF(rect.topLeft(), rect.topRight()),
-                    QLineF(rect.topRight(), rect.bottomRight()),
-                    QLineF(rect.bottomRight(), rect.bottomLeft()),
-                    QLineF(rect.bottomLeft(), rect.topLeft())
-                };
-                for (const QLineF& edge : edges) {
-                    QPointF intersection;
-                    if (segment.intersects(edge, &intersection) == QLineF::BoundedIntersection) {
-                        return false;
-                    }
-                }
-                // Also check if path points are strictly inside an obstacle
-                if (rect.contains(path[i]) || rect.contains(path[i + 1])) {
+            if (!obstacle.isBlocking) continue;
+
+            const QRectF& rect = obstacle.bounds;
+
+            // The wire starts/ends at a component pin which sits inside that
+            // component's body obstacle (especially with margin).  The first
+            // and last segments naturally go through the endpoint's own
+            // component — skip the obstacle for the endpoint it contains.
+            const bool firstSegContainsStart = (i == 0 && rect.contains(path[0]));
+            const bool lastSegContainsEnd    = (i == lastIdx - 1 && rect.contains(path[lastIdx]));
+            if (firstSegContainsStart || lastSegContainsEnd) continue;
+
+            // For middle points, being inside any obstacle is a real collision.
+            if (i > 0 && i < lastIdx) {
+                if (rect.contains(path[i])) return false;
+                if (rect.contains(path[i + 1])) return false;
+            }
+
+            QLineF edges[4] = {
+                QLineF(rect.topLeft(), rect.topRight()),
+                QLineF(rect.topRight(), rect.bottomRight()),
+                QLineF(rect.bottomRight(), rect.bottomLeft()),
+                QLineF(rect.bottomLeft(), rect.topLeft())
+            };
+            for (const QLineF& edge : edges) {
+                QPointF intersection;
+                if (segment.intersects(edge, &intersection) == QLineF::BoundedIntersection) {
                     return false;
                 }
             }

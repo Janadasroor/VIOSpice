@@ -70,6 +70,8 @@ private:
     qreal m_obstacleMargin;
     QRectF m_searchBounds;
     bool m_hasSearchBounds;
+    QPointF m_routeStart;  // Current route endpoints — obstacles containing
+    QPointF m_routeEnd;    // these are skipped (wire starts at a pin on the component)
 
     // A* algorithm helpers
     QList<QPointF> reconstructPath(Node* endNode);
