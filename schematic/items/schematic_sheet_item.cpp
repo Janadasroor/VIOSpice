@@ -196,16 +196,23 @@ void SchematicSheetItem::updatePorts(const QString& basePath) {
     update();
 }
 
+static constexpr qreal PIN_TAIL = 10;
+
 QList<QPointF> SchematicSheetItem::connectionPoints() const {
     QList<QPointF> points;
     for (auto* pin : m_pins) {
-        points << pin->pos();
+        QPointF pos = pin->pos();
+        bool isLeft = pos.x() < m_size.width() / 2;
+        if (isLeft)
+            points << QPointF(pos.x() - PIN_TAIL, pos.y());
+        else
+            points << QPointF(pos.x() + PIN_TAIL, pos.y());
     }
     return points;
 }
 
 QRectF SchematicSheetItem::boundingRect() const {
-    return QRectF(0, 0, m_size.width(), m_size.height());
+    return QRectF(-PIN_TAIL, 0, m_size.width() + PIN_TAIL * 2, m_size.height());
 }
 
 void SchematicSheetItem::paint(QPainter* painter, const QStyleOptionGraphicsItem* option, QWidget* widget) {
@@ -213,7 +220,7 @@ void SchematicSheetItem::paint(QPainter* painter, const QStyleOptionGraphicsItem
     Q_UNUSED(widget)
 
     painter->setRenderHint(QPainter::Antialiasing);
-    QRectF rect = boundingRect();
+    QRectF rect(0, 0, m_size.width(), m_size.height());
     
     // Draw Main Body (Solid slate background like OrCAD blocks in dark mode)
     painter->setPen(QPen(Qt::cyan, 1.5));
@@ -230,6 +237,19 @@ void SchematicSheetItem::paint(QPainter* painter, const QStyleOptionGraphicsItem
         painter->setBrush(Qt::NoBrush);
         painter->drawRect(rect.adjusted(-3, -3, 3, 3));
     }
+
+    // Draw pin tails (wire stubs from block edge to connection point)
+    painter->setPen(QPen(Qt::cyan, 1.2));
+    for (auto* pin : m_pins) {
+        QPointF pos = pin->pos();
+        bool isLeft = pos.x() < m_size.width() / 2;
+        if (isLeft)
+            painter->drawLine(pos, QPointF(pos.x() - PIN_TAIL, pos.y()));
+        else
+            painter->drawLine(pos, QPointF(pos.x() + PIN_TAIL, pos.y()));
+    }
+
+    drawConnectionPointHighlights(painter);
 }
 
 QJsonObject SchematicSheetItem::toJson() const {
