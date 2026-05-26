@@ -678,8 +678,6 @@ QList<QPointF> SchematicWireTool::buildSmartRoute(const QPointF& start, const QP
             // If an endpoint is off-grid (common with 10-unit grid and 15-unit pin spacing),
             // the segment from actual pin to nearest grid point can be diagonal.
             // Insert an intermediate point to keep it orthogonal.
-            const QPointF origFirst = smartPath.first();
-            const QPointF origLast  = smartPath.last();
             smartPath.first() = start;
             smartPath.last()  = target;
 
