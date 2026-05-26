@@ -900,30 +900,36 @@ void SchematicEditor::onItemDoubleClicked(SchematicItem* item) {
 
     if (smartEnabled && item->itemType() == SchematicItem::SheetType) {
         if (auto* sheet = dynamic_cast<SchematicSheetItem*>(item)) {
-            SheetPropertiesDialog dlg(sheet, m_undoStack, m_scene, this);
+            SheetPropertiesDialog dlg(sheet, m_undoStack, m_scene, m_projectDir, this);
+
+            QString openOnAccept;
+            connect(&dlg, &SheetPropertiesDialog::openSheetRequested, this, [&](const QString& filePath) {
+                openOnAccept = filePath;
+            });
+
             if (dlg.exec() == QDialog::Accepted) {
-                // After editing properties, offer to enter the sheet
-                QMessageBox::StandardButton reply = QMessageBox::question(this, "Enter Sheet",
-                    "Do you want to enter this sheet now?", QMessageBox::Yes | QMessageBox::No);
-                
-                if (reply == QMessageBox::Yes) {
-                    QString filePath = sheet->fileName();
+                QString filePath = openOnAccept;
+                if (filePath.isEmpty()) {
+                    // Normal OK — offer to enter the sheet
+                    QMessageBox::StandardButton reply = QMessageBox::question(this, "Enter Sheet",
+                        "Do you want to enter this sheet now?", QMessageBox::Yes | QMessageBox::No);
+                    if (reply != QMessageBox::Yes) return;
+                    filePath = sheet->fileName();
                     if (QFileInfo(filePath).isRelative() && !m_projectDir.isEmpty()) {
                         filePath = m_projectDir + "/" + filePath;
                     }
-                    
-                    if (!QFile::exists(filePath)) {
-                        // Create if missing
-                        QFile f(filePath);
-                        if (f.open(QIODevice::WriteOnly)) { f.write("{}"); f.close(); }
-                    }
+                }
 
-                    onSaveSchematic();
-                    QString oldFile = m_currentFilePath;
-                    if (openFile(filePath)) {
-                        if (!oldFile.isEmpty()) m_navigationStack.append(oldFile);
-                        updateBreadcrumbs();
-                    }
+                if (!QFile::exists(filePath)) {
+                    QFile f(filePath);
+                    if (f.open(QIODevice::WriteOnly)) { f.write("{}"); f.close(); }
+                }
+
+                onSaveSchematic();
+                QString oldFile = m_currentFilePath;
+                if (openFile(filePath)) {
+                    if (!oldFile.isEmpty()) m_navigationStack.append(oldFile);
+                    updateBreadcrumbs();
                 }
             }
             return;
@@ -1794,6 +1800,12 @@ void SchematicEditor::onPropertyChanged(const QString& name, const QVariant& val
             oldValue = si->description();
             if (oldValue != value) changed = true;
             if (changed) m_undoStack->push(new ChangePropertyCommand(m_scene, si, "description", oldValue, value, m_projectDir));
+        } else if (name == "File Path" || name == "fileName") {
+            if (auto* sheet = dynamic_cast<SchematicSheetItem*>(si)) {
+                oldValue = sheet->fileName();
+                if (oldValue != value) changed = true;
+                if (changed) m_undoStack->push(new ChangePropertyCommand(m_scene, si, "fileName", oldValue, value, m_projectDir));
+            }
         } else if (name == "Net Class") {
             if (auto* netLabel = dynamic_cast<NetLabelItem*>(si)) {
                 oldValue = netLabel->netClassName().isEmpty() ? QString("Default") : netLabel->netClassName();
@@ -2372,11 +2384,10 @@ void SchematicEditor::onOpenERCRulesConfig() {
 }
 
 void SchematicEditor::onOpenDesignRuleEditor() {
-    // Open the new DesignRuleEditor for creating/editing custom rules
     DesignRule* rule = DesignRuleEditor::createRule(RuleCategory::Custom, this);
     if (rule) {
+        m_customRulesSet->addRule(rule);
         statusBar()->showMessage(QString("Created rule: %1").arg(rule->name()), 3000);
-        // TODO: Add rule to project rule set
     }
 }
 

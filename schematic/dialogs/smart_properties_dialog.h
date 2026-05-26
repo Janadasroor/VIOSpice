@@ -11,6 +11,7 @@
 #include <QLabel>
 #include <QPlainTextEdit>
 #include <QPushButton>
+#include <QDialogButtonBox>
 #include <QMap>
 #include <functional>
 #include <QUndoStack>
@@ -78,6 +79,7 @@ protected:
     QMap<QString, QWidget*> m_widgets;
     QMap<QString, QLabel*> m_errorLabels;
     QList<PropertyTab> m_tabs;
+    QDialogButtonBox* m_buttonBox;
 };
 
 #endif // SMART_PROPERTIES_DIALOG_H

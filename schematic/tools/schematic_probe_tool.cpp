@@ -2,6 +2,7 @@
 #include "schematic_view.h"
 #include "../editor/schematic_editor.h"
 #include "net_manager.h"
+#include "../items/schematic_sheet_item.h"
 #include <QGraphicsScene>
 #include <QGraphicsItem>
 #include <QGraphicsEllipseItem>
@@ -306,7 +307,27 @@ void SchematicProbeTool::mousePressEvent(QMouseEvent* event) {
     if (!netMgr) return;
 
     QString netName = netMgr->findNetAtPoint(scenePos);
-    
+
+    // Hierarchical sheet pin probing: if the netManager returned a local name
+    // (e.g. "Net1"), check whether that net connects to a sheet pin and remap it
+    // to the flattened SPICE name (e.g. "NEWSHEET_OUT").
+    if (!netName.isEmpty()) {
+        const auto allItems = view()->scene()->items();
+        for (QGraphicsItem* it : allItems) {
+            auto* sheet = dynamic_cast<SchematicSheetItem*>(it);
+            if (!sheet) continue;
+            for (auto* pin : sheet->getPins()) {
+                QPointF pinScene = sheet->mapToScene(pin->pos());
+                QString pinNet = netMgr->findNetAtPoint(pinScene).trimmed();
+                if (pinNet.compare(netName, Qt::CaseInsensitive) == 0) {
+                    netName = sheet->sheetName().toUpper() + "_" + pin->name().toUpper();
+                    break;
+                }
+            }
+            if (netName.contains('_')) break;
+        }
+    }
+
     if (event->button() == Qt::LeftButton) {
         if (!netName.isEmpty()) {
             if (m_kind == ProbeKind::Voltage) {

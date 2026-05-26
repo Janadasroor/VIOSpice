@@ -3713,6 +3713,17 @@ SpiceNetlistGenerator::GeneratedNetlist SpiceNetlistGenerator::generate(QGraphic
         }
 
         QString ref = comp.reference;
+        // Extract the original base reference (without hierarchy prefix) for SPICE
+        // device-type heuristics. The prefixed ref (e.g. "SheetChild/V1") must not
+        // be used for type detection because the first character can come from the
+        // sheet name (e.g. 'S' from "SheetChild_V1") rather than the device prefix.
+        QString baseRef = ref;
+        {
+            int lastSlash = ref.lastIndexOf('/');
+            if (lastSlash >= 0) baseRef = ref.mid(lastSlash + 1);
+        }
+        QMap<QString, QString> pins = componentPins.value(ref);
+        ref.replace("/", "_");
         const QString refKey = ref.trimmed().toUpper();
         
         const int type = comp.type;
@@ -3722,7 +3733,6 @@ SpiceNetlistGenerator::GeneratedNetlist SpiceNetlistGenerator::generate(QGraphic
         // Power symbols often share the same '#' reference but represent different nets.
         // We handle them separately before the general duplicate check.
         if (type == SchematicItem::PowerType) {
-            const QMap<QString, QString> pins = componentPins.value(ref);
             QString netName = pickPowerNetName(pins, value);
             if (!netName.isEmpty() && netName.toUpper() != "GND" && netName != "0") {
                 const QString v = inferPowerVoltage(netName, value);
@@ -3731,6 +3741,12 @@ SpiceNetlistGenerator::GeneratedNetlist SpiceNetlistGenerator::generate(QGraphic
                     runtimeWarnings.append(QString("Manual directive source already drives schematic power rail %1; skipped auto-generated rail source.").arg(netName));
                 }
             }
+            continue;
+        }
+
+        // Skip hierarchical port items — they are connection labels, not SPICE devices.
+        // Their connectivity is already resolved through the net name mapping.
+        if (type == SchematicItem::HierarchicalPortType) {
             continue;
         }
 
@@ -3743,8 +3759,6 @@ SpiceNetlistGenerator::GeneratedNetlist SpiceNetlistGenerator::generate(QGraphic
             continue;
         }
         emittedRefs.insert(refKey);
-
-        QMap<QString, QString> pins = componentPins.value(ref);
         
 
         QString line;
@@ -3990,11 +4004,13 @@ SpiceNetlistGenerator::GeneratedNetlist SpiceNetlistGenerator::generate(QGraphic
         else line = ensurePrefix(ref, "X"); // Subcircuit or generic
         // Fallback: if we don't know the type but reference has a known prefix,
         // use the reference as-is to avoid invalid X-lines.
-        if (line.startsWith("X") && !ref.isEmpty()) {
-            const QChar p = ref.at(0).toUpper();
+        // Use the original (unprefixed) baseRef for prefix detection so that
+        // V1 in a child sheet is still identified by its 'V' prefix.
+        if (line.startsWith("X") && !baseRef.isEmpty()) {
+            const QChar p = baseRef.at(0).toUpper();
             const QString known = "RCLVIDQMBEGFHJZ";
             if (known.contains(p)) {
-                line = ref;
+                line = ensurePrefix(ref, QString(p));
             }
         }
         const bool isADevice = line.startsWith("A", Qt::CaseInsensitive);
@@ -4866,12 +4882,12 @@ SpiceNetlistGenerator::GeneratedNetlist SpiceNetlistGenerator::generate(QGraphic
 
         const bool isSmartSignal = (type == SchematicItem::SmartSignalType) ||
                                    comp.typeName.compare("SmartSignalBlock", Qt::CaseInsensitive) == 0;
-        const bool isCSW = (comp.typeName.compare("csw", Qt::CaseInsensitive) == 0) || ref.startsWith("W", Qt::CaseInsensitive);
+        const bool isCSW = (comp.typeName.compare("csw", Qt::CaseInsensitive) == 0) || baseRef.startsWith("W", Qt::CaseInsensitive);
         const bool isSwitch = !isSmartSignal &&
                               ((comp.typeName.compare("Switch", Qt::CaseInsensitive) == 0) ||
                                (comp.typeName.compare("sw", Qt::CaseInsensitive) == 0) ||
-                               ref.startsWith("SW", Qt::CaseInsensitive) ||
-                               ref.startsWith("S", Qt::CaseInsensitive) ||
+                               baseRef.startsWith("SW", Qt::CaseInsensitive) ||
+                               baseRef.startsWith("S", Qt::CaseInsensitive) ||
                                isCSW);
         if (isSwitch) {
             // If the symbol provides control pins, treat it as a voltage-controlled switch.

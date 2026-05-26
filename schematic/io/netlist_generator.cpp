@@ -20,6 +20,7 @@
 #include <algorithm>
 #include <QDir>
 #include <QSet>
+#include <QLineF>
 
 using Flux::Model::SymbolPrimitive;
 
@@ -306,7 +307,11 @@ QList<NetlistNet> NetlistGenerator::buildConnectivity(QGraphicsScene* scene, con
                     auto* sheet = static_cast<SchematicSheetItem*>(conn.item);
                     for (auto* pin : sheet->getPins()) {
                         // Check if connection point is at this pin
-                        if (conn.item->mapToScene(pin->pos()) == conn.connectionPoint) {
+                        // Use proximity check instead of exact == to avoid floating-point
+                        // precision issues from grid snapping and mapToScene transformations.
+                        QPointF pinScenePos = conn.item->mapToScene(pin->pos());
+                        QLineF dist(pinScenePos, conn.connectionPoint);
+                        if (dist.length() < 5.0) {
                             dsu.unite(gNetId, "PORT:" + prefix + sheet->sheetName() + "/" + pin->name());
                         }
                     }
