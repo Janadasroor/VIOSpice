@@ -385,7 +385,9 @@ void SchematicComponentsWidget::populate() {
         {"DacBridge", "Mixed-Signal"},
         {"AnalogFunction", "Analog Functions"},
         {"MagneticCore", "Magnetics"},
-        {"Lcouple", "Magnetics"}
+        {"Lcouple", "Magnetics"},
+        {"Sheet", "Hierarchy"},
+        {"Hierarchical Port", "Hierarchy"}
     };
 
     builtIn.reserve(builtInTools.size());
