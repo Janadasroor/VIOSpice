@@ -239,14 +239,18 @@ void SchematicSheetItem::paint(QPainter* painter, const QStyleOptionGraphicsItem
     }
 
     // Draw pin tails (wire stubs from block edge to connection point)
-    painter->setPen(QPen(Qt::cyan, 1.2));
+    painter->setPen(QPen(QColor(0, 200, 150), 2.0));
     for (auto* pin : m_pins) {
         QPointF pos = pin->pos();
         bool isLeft = pos.x() < m_size.width() / 2;
-        if (isLeft)
-            painter->drawLine(pos, QPointF(pos.x() - PIN_TAIL, pos.y()));
-        else
-            painter->drawLine(pos, QPointF(pos.x() + PIN_TAIL, pos.y()));
+        QPointF tailEnd = isLeft
+            ? QPointF(pos.x() - PIN_TAIL, pos.y())
+            : QPointF(pos.x() + PIN_TAIL, pos.y());
+        painter->drawLine(pos, tailEnd);
+        // Always draw the connection dot at the tail tip
+        painter->setBrush(QBrush(QColor(0, 200, 150)));
+        painter->drawEllipse(tailEnd, 2.5, 2.5);
+        painter->setBrush(Qt::NoBrush);
     }
 
     drawConnectionPointHighlights(painter);
