@@ -1172,7 +1172,7 @@ SimNetlist SimSchematicBridge::buildNetlist(QGraphicsScene* scene, NetManager* n
             for (const auto& net : nets) {
                 for (const auto& pin : net.pins) {
                     if (pin.componentRef == comp.reference) {
-                        int nodeIdx = isGroundNet(net.name) ? 0 : netlist.findNode(net.name.toStdString());
+            int nodeIdx = isGroundNet(net.name) ? 0 : qMax(0, netlist.findNode(net.name.toStdString()));
                         if (pin.pinName == "1") nA = nodeIdx;
                         else if (pin.pinName == "2") nW = nodeIdx;
                         else if (pin.pinName == "3") nB = nodeIdx;
