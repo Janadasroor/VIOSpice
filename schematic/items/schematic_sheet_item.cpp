@@ -3,6 +3,11 @@
 #include <QJsonDocument>
 #include <QJsonArray>
 #include <QFileInfo>
+#include <cmath>
+
+namespace {
+constexpr qreal kSheetGridSize = 10.0; // Schematic grid step for pin snapping
+}
 
 SheetPinItem::SheetPinItem(const QString& name, HierarchicalPortItem::PortType type, QGraphicsItem* parent)
     : QGraphicsItem(parent), m_name(name), m_portType(type) {
@@ -186,7 +191,7 @@ void SchematicSheetItem::updatePorts(const QString& basePath) {
     if (!leftPins.isEmpty()) {
         qreal spacing = m_size.height() / (leftPins.size() + 1);
         for (int i = 0; i < leftPins.size(); ++i) {
-            qreal y = std::round((i + 1) * spacing / 15.0) * 15.0;
+            qreal y = std::round((i + 1) * spacing / kSheetGridSize) * kSheetGridSize;
             leftPins[i]->setPos(0, y);
         }
     }
@@ -194,7 +199,7 @@ void SchematicSheetItem::updatePorts(const QString& basePath) {
     if (!rightPins.isEmpty()) {
         qreal spacing = m_size.height() / (rightPins.size() + 1);
         for (int i = 0; i < rightPins.size(); ++i) {
-            qreal y = std::round((i + 1) * spacing / 15.0) * 15.0;
+            qreal y = std::round((i + 1) * spacing / kSheetGridSize) * kSheetGridSize;
             rightPins[i]->setPos(m_size.width(), y);
         }
     }

@@ -36,22 +36,28 @@ void SchematicWireUtils::splitWiresByComponent(
         }
     }
 
-    // Helper to check if a point is "inside" (covered by) the component body
+    // Helper to check if a point is "inside" (covered by) the component body.
+    // The original pin-pin line check only detects points near lines between
+    // two pins, which fails for symbols with all pins on one edge (digital).
+    // Fall back to the component's scene bounding rect shrunk by 15 units
+    // (the standard padding added by GenericComponentItem::boundingRect).
+    const QRectF bodyRect = component->sceneBoundingRect().adjusted(15, 15, -15, -15);
     auto isInsideBody = [&](QPointF p) -> bool {
-         for (int i = 0; i < pins.size(); ++i) {
-             for (int j = i + 1; j < pins.size(); ++j) {
-                 QLineF pinLine(pins[i], pins[j]);
-                 qreal len = pinLine.length();
-                 if (len < 1e-4) continue;
-                 
-                 qreal t = QVector2D::dotProduct(QVector2D(p - pins[i]), QVector2D(pins[j] - pins[i])) / (len * len);
-                 if (t > 0.01 && t < 0.99) { // Strictly inside body
-                     qreal dist = QLineF(p, pinLine.pointAt(t)).length();
-                     if (dist < 2.0) return true;
-                 }
-             }
-         }
-         return false;
+        if (bodyRect.contains(p)) return true;
+        for (int i = 0; i < pins.size(); ++i) {
+            for (int j = i + 1; j < pins.size(); ++j) {
+                QLineF pinLine(pins[i], pins[j]);
+                qreal len = pinLine.length();
+                if (len < 1e-4) continue;
+                
+                qreal t = QVector2D::dotProduct(QVector2D(p - pins[i]), QVector2D(pins[j] - pins[i])) / (len * len);
+                if (t > 0.01 && t < 0.99) {
+                    qreal dist = QLineF(p, pinLine.pointAt(t)).length();
+                    if (dist < 2.0) return true;
+                }
+            }
+        }
+        return false;
     };
 
     for (WireItem* wire : wiresToCut) {
