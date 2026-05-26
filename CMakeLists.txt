@@ -337,17 +337,6 @@ if(VIOSPICE_DEV_MODE OR VIOSPICE_BUILD_FLUXSCRIPT)
     endif()
     add_compile_definitions(HAVE_FLUXSCRIPT FLUXSCRIPT_EXAMPLES_DIR="${fluxscript_SOURCE_DIR}/examples")
     message(STATUS "FluxScript (dev build): ${fluxscript_SOURCE_DIR}")
-
-    # Locate LLVM shared library for bundling
-    find_library(FLUX_LLVM_LIB LLVM LLVM-21 LLVM.so.21.1
-        PATHS /usr/lib/llvm-21/lib /usr/lib/x86_64-linux-gnu
-        NO_DEFAULT_PATH
-    )
-    if(FLUX_LLVM_LIB)
-        message(STATUS "FluxScript LLVM lib: ${FLUX_LLVM_LIB}")
-    else()
-        message(WARNING "LLVM lib not found — FluxScript runtime will require system LLVM")
-    endif()
 else()
     # --- Download prebuilt FluxScript ---
     message(STATUS "Downloading prebuilt FluxScript...")
@@ -535,14 +524,6 @@ if(BUILD_FLUX_RUNNER)
     )
     vioraeda_setup_rpath(flux_runner)
     qt_finalize_executable(flux_runner)
-    if(VIOSPICE_DEV_MODE AND FLUX_LLVM_LIB)
-        add_custom_command(TARGET flux_runner POST_BUILD
-            COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                "${FLUX_LLVM_LIB}"
-                "$<TARGET_FILE_DIR:flux_runner>/libLLVM.so.21.1"
-            COMMENT "Copying libLLVM.so.21.1 next to flux_runner"
-        )
-    endif()
 endif()
 
 if(BUILD_VIOSPICE_CLI)
@@ -582,14 +563,6 @@ if(BUILD_VIOSPICE_CLI)
         # system libngspice resolves first, native code models load without the
         # VioSpice bridge symbols and SmartSignal A-devices fail at deck load.
         vioraeda_setup_rpath(viora)
-        if(VIOSPICE_DEV_MODE AND FLUX_LLVM_LIB)
-            add_custom_command(TARGET viora POST_BUILD
-                COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                    "${FLUX_LLVM_LIB}"
-                    "$<TARGET_FILE_DIR:viora>/libLLVM.so.21.1"
-                COMMENT "Copying libLLVM.so.21.1 next to viora"
-            )
-        endif()
     endif()
 
     vioraeda_configure_app_target(viora)
@@ -631,16 +604,6 @@ if(BUILD_VIOSPICE_APP)
         VioraPCBCore
         ${VIOSPICE_LINKER_GROUP_END}
     )
-
-
-    if(VIOSPICE_DEV_MODE AND FLUX_LLVM_LIB)
-        add_custom_command(TARGET VioraEDA POST_BUILD
-            COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                "${FLUX_LLVM_LIB}"
-                "$<TARGET_FILE_DIR:VioraEDA>/libLLVM.so.21.1"
-            COMMENT "Copying libLLVM.so.21.1 next to VioraEDA"
-        )
-    endif()
 
     # Link embedded Python runtime (Phase 4)
     if(Python3_FOUND)
