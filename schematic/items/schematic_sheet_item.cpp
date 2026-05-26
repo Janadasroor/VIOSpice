@@ -185,12 +185,18 @@ void SchematicSheetItem::updatePorts(const QString& basePath) {
     // Place left pins
     if (!leftPins.isEmpty()) {
         qreal spacing = m_size.height() / (leftPins.size() + 1);
-        for (int i = 0; i < leftPins.size(); ++i) leftPins[i]->setPos(0, (i + 1) * spacing);
+        for (int i = 0; i < leftPins.size(); ++i) {
+            qreal y = std::round((i + 1) * spacing / 15.0) * 15.0;
+            leftPins[i]->setPos(0, y);
+        }
     }
     // Place right pins
     if (!rightPins.isEmpty()) {
         qreal spacing = m_size.height() / (rightPins.size() + 1);
-        for (int i = 0; i < rightPins.size(); ++i) rightPins[i]->setPos(m_size.width(), (i + 1) * spacing);
+        for (int i = 0; i < rightPins.size(); ++i) {
+            qreal y = std::round((i + 1) * spacing / 15.0) * 15.0;
+            rightPins[i]->setPos(m_size.width(), y);
+        }
     }
     
     update();
