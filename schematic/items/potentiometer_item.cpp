@@ -23,7 +23,7 @@ void triggerInteractiveSimulationUpdateIfNeeded() {
 
 PotentiometerItem::PotentiometerItem(QPointF pos, QGraphicsItem *parent) : SchematicItem(parent) {
     setPos(pos);
-    setFlags(QGraphicsItem::ItemIsSelectable | QGraphicsItem::ItemIsMovable);
+    setFlags(QGraphicsItem::ItemIsSelectable | QGraphicsItem::ItemIsMovable | QGraphicsItem::ItemSendsGeometryChanges);
     setReference("RV1");
     setValue("10k");
     m_wiperPos = 0.5;

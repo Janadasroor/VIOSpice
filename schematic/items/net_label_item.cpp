@@ -6,7 +6,7 @@
 NetLabelItem::NetLabelItem(QPointF pos, const QString& label, QGraphicsItem* parent, LabelScope scope)
     : SchematicItem(parent), m_scope(scope) {
     setPos(pos);
-    setFlags(QGraphicsItem::ItemIsSelectable | QGraphicsItem::ItemIsMovable);
+    setFlags(QGraphicsItem::ItemIsSelectable | QGraphicsItem::ItemIsMovable | QGraphicsItem::ItemSendsGeometryChanges);
     setAcceptHoverEvents(true);
     
     m_font = QFont("Inter", 8, QFont::Medium);

@@ -7,7 +7,7 @@ InstrumentProbeItem::InstrumentProbeItem(Kind kind, QPointF pos, QGraphicsItem* 
     , m_kind(kind) {
     setExcludeFromPcb(true); // Instruments are excluded from PCB by default
     setPos(pos);
-    setFlags(QGraphicsItem::ItemIsSelectable | QGraphicsItem::ItemIsMovable);
+    setFlags(QGraphicsItem::ItemIsSelectable | QGraphicsItem::ItemIsMovable | QGraphicsItem::ItemSendsGeometryChanges);
     setReference(referencePrefix() + "1");
     setValue(displayName());
 }
