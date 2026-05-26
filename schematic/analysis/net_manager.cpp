@@ -451,9 +451,15 @@ QMap<SchematicItem*, QSet<int>> NetManager::traceNetWithPins(SchematicItem* star
     // 2. Collate all members of those nets
     for (const QString& netName : targetNets) {
         for (const auto& conn : m_nets.value(netName)) {
-            // My updateNets stores pin index as 1-based string
-            int pinIdx = conn.pinName.toInt() - 1;
-            result[conn.item].insert(qMax(0, pinIdx));
+            int pinIdx = 0;
+            int numPins = conn.item->connectionPoints().size();
+            for (int i = 0; i < numPins; ++i) {
+                if (conn.item->pinName(i) == conn.pinName) {
+                    pinIdx = i;
+                    break;
+                }
+            }
+            result[conn.item].insert(pinIdx);
         }
         for (WireItem* wire : m_netWires.value(netName)) {
             result[wire].insert(0);

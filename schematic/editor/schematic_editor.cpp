@@ -940,9 +940,6 @@ void SchematicEditor::closeTab(int index) {
             }
         }
 
-        if (auto* scene = view->scene()) {
-            if (m_simulationPanel) m_simulationPanel->removeTabState(scene);
-        }
         m_workspaceTabs->removeTab(index);
         
         if (m_scene == scene) {
