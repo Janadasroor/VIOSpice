@@ -8,8 +8,11 @@ class SheetPropertiesDialog : public SmartPropertiesDialog {
     Q_OBJECT
 
 public:
-    SheetPropertiesDialog(SchematicSheetItem* sheet, QUndoStack* undoStack, QGraphicsScene* scene, QWidget* parent = nullptr);
-    
+    SheetPropertiesDialog(SchematicSheetItem* sheet, QUndoStack* undoStack, QGraphicsScene* scene, const QString& projectDir, QWidget* parent = nullptr);
+
+signals:
+    void openSheetRequested(const QString& filePath);
+
 protected:
     void onApply() override;
     void applyPreview() override;
@@ -17,10 +20,13 @@ protected:
 private Q_SLOTS:
     void onSyncPorts();
     void onBrowseFile();
+    void onOpenSheet();
 
 private:
     SchematicSheetItem* m_sheet;
     QString m_projectDir;
+    QString m_initialName;
+    QString m_initialFile;
 };
 
 #endif // SHEET_PROPERTIES_DIALOG_H

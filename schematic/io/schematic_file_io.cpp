@@ -26,6 +26,7 @@
 #include <QJsonArray>
 #include <QDateTime>
 #include <QFileInfo>
+#include <QLineF>
 #include <QDebug>
 
 QString SchematicFileIO::s_lastError;
@@ -492,7 +493,9 @@ QString SchematicFileIO::convertToFluxScript(QGraphicsScene* scene, NetManager* 
                         // Compare local points (connectionPoint is usually local to item in newer impl, 
                         // but let's check NetManager's storage)
                         // Note: NetManager store's point is usually the scenePos.
-                        if (conn.item->mapToScene(points[i]) == conn.connectionPoint) {
+                        QPointF scenePt = conn.item->mapToScene(points[i]);
+                        QLineF dist(scenePt, conn.connectionPoint);
+                        if (dist.length() < 5.0) {
                             pinIndex = i + 1;
                             break;
                         }
