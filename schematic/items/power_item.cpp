@@ -20,7 +20,7 @@ QString PowerItem::itemTypeName() const {
 PowerItem::PowerItem(QPointF pos, PowerType type, QGraphicsItem *parent)
     : SchematicItem(parent), m_type(type) {
     setPos(pos);
-    setFlags(QGraphicsItem::ItemIsSelectable | QGraphicsItem::ItemIsMovable);
+    setFlags(QGraphicsItem::ItemIsSelectable | QGraphicsItem::ItemIsMovable | QGraphicsItem::ItemSendsGeometryChanges);
     setAcceptHoverEvents(true);
     setExcludeFromPcb(true);
     setFootprint(QString());

@@ -12,7 +12,6 @@ using Flux::Model::SymbolPrimitive;
 using namespace Flux::Item;
 
 namespace {
-constexpr qreal kSchematicGridSize = 10.0;
 
 QString unitSuffixForDisplay(int unit) {
     if (unit <= 0) return "A";
@@ -216,7 +215,7 @@ bool GenericComponentItem::fromJson(const QJsonObject& json) {
     
     QPointF restoredPos(json["x"].toDouble(), json["y"].toDouble());
     if (usesDigitalEventPins(resolvedPrimitives())) {
-        restoredPos = snapPointToGrid(restoredPos, kSchematicGridSize);
+        restoredPos = snapPointToGrid(restoredPos, SchematicItem::kSchematicGridSize);
     }
     setPos(restoredPos);
     setRotation(json["rotation"].toDouble());
@@ -357,20 +356,14 @@ void GenericComponentItem::paint(QPainter *painter, const QStyleOptionGraphicsIt
 
 QVariant GenericComponentItem::itemChange(GraphicsItemChange change, const QVariant& value) {
     if (change == QGraphicsItem::ItemPositionChange && !parentItem()) {
-        const QList<SymbolPrimitive> primitives = resolvedPrimitives();
-        if (usesDigitalEventPins(primitives)) {
-            return snapPointToGrid(value.toPointF(), kSchematicGridSize);
-        }
+        return snapPointToGrid(value.toPointF(), SchematicItem::kSchematicGridSize);
     }
 
     const QVariant result = SchematicItem::itemChange(change, value);
     if (change == QGraphicsItem::ItemSceneHasChanged && scene() && !parentItem()) {
-        const QList<SymbolPrimitive> primitives = resolvedPrimitives();
-        if (usesDigitalEventPins(primitives)) {
-            const QPointF snappedPos = snapPointToGrid(pos(), kSchematicGridSize);
-            if (snappedPos != pos()) {
-                setPos(snappedPos);
-            }
+        const QPointF snappedPos = snapPointToGrid(pos(), SchematicItem::kSchematicGridSize);
+        if (snappedPos != pos()) {
+            setPos(snappedPos);
         }
     }
     if (change == QGraphicsItem::ItemRotationHasChanged ||

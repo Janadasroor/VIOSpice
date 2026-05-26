@@ -9,7 +9,7 @@ VoltageControlledSwitchItem::VoltageControlledSwitchItem(QPointF pos, QGraphicsI
       m_vt("0.5"),
       m_vh("0.1") {
     setPos(pos);
-    setFlags(QGraphicsItem::ItemIsSelectable | QGraphicsItem::ItemIsMovable);
+    setFlags(QGraphicsItem::ItemIsSelectable | QGraphicsItem::ItemIsMovable | QGraphicsItem::ItemSendsGeometryChanges);
     setReference("S1");
     syncParamExpressions();
 }

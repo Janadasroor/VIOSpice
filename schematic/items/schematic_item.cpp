@@ -1,6 +1,7 @@
 #include "schematic_item.h"
 #include "schematic_text_item.h"
 #include <QPainter>
+#include <cmath>
 
 SchematicItem::SchematicItem(QGraphicsItem *parent)
     : QObject()
@@ -106,6 +107,14 @@ QVariant SchematicItem::itemChange(GraphicsItemChange change, const QVariant& va
         updateLabelRotation();
     } else if (!m_isSubItem && change == QGraphicsItem::ItemPositionHasChanged) {
         updateLabelRotation();
+    }
+    if (!m_isSubItem && change == QGraphicsItem::ItemPositionChange) {
+        QPointF pos = value.toPointF();
+        if (kSchematicGridSize > 0.0) {
+            pos.setX(std::round(pos.x() / kSchematicGridSize) * kSchematicGridSize);
+            pos.setY(std::round(pos.y() / kSchematicGridSize) * kSchematicGridSize);
+        }
+        return pos;
     }
     return QGraphicsItem::itemChange(change, value);
 }

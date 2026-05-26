@@ -8,7 +8,7 @@ HierarchicalPortItem::HierarchicalPortItem(QPointF pos, const QString& label, Po
     , m_portType(type) {
     setValue(label);
     setPos(pos);
-    setFlags(ItemIsSelectable | ItemIsMovable);
+    setFlags(ItemIsSelectable | ItemIsMovable | ItemSendsGeometryChanges);
     m_font = QFont("Inter", 8);
     setZValue(10);
 }

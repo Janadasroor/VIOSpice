@@ -4,7 +4,7 @@
 
 LEDItem::LEDItem(QPointF pos, QGraphicsItem *parent) : SchematicItem(parent) {
     setPos(pos);
-    setFlags(QGraphicsItem::ItemIsSelectable | QGraphicsItem::ItemIsMovable);
+    setFlags(QGraphicsItem::ItemIsSelectable | QGraphicsItem::ItemIsMovable | QGraphicsItem::ItemSendsGeometryChanges);
     setReference("D1");
     setValue("RED");
     m_voltage = 0.0;

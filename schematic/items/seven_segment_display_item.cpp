@@ -371,7 +371,7 @@ SevenSegmentDisplayItem::SevenSegmentDisplayItem(Variant variant, QPointF pos, c
     , m_typeName(typeName.trimmed().isEmpty() ? typeNameForVariant(variant) : typeName.trimmed())
     , m_variant(typeName.trimmed().isEmpty() ? variant : variantFromTypeName(typeName)) {
     setPos(pos);
-    setFlags(QGraphicsItem::ItemIsSelectable | QGraphicsItem::ItemIsMovable);
+    setFlags(QGraphicsItem::ItemIsSelectable | QGraphicsItem::ItemIsMovable | QGraphicsItem::ItemSendsGeometryChanges);
     setReference("DS1");
     ensureDriveSize();
     setValue("CC");
