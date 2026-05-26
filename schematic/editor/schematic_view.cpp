@@ -148,6 +148,18 @@ QString findNearbyProbeNet(SchematicView* view, NetManager* netManager, const QP
                 }
             }
 
+            if (type == SchematicItem::SheetType) {
+                if (auto* sheet = dynamic_cast<SchematicSheetItem*>(candidate)) {
+                    for (auto* pin : sheet->getPins()) {
+                        QPointF pinScene = sheet->mapToScene(pin->pos());
+                        if (QLineF(scenePos, pinScene).length() < 16.0) {
+                            return sheet->sheetName().toUpper() + "_" + pin->name().toUpper();
+                        }
+                    }
+                }
+                continue;
+            }
+
             if (type != SchematicItem::WireType &&
                 type != SchematicItem::LabelType &&
                 type != SchematicItem::NetLabelType) {
@@ -168,6 +180,25 @@ QString findNearbyProbeNet(SchematicView* view, NetManager* netManager, const QP
     };
 
     QString net = netManager->findNetAtPoint(scenePos).trimmed();
+
+    // Hierarchical sheet pin detection: after finding the local net name
+    // (e.g. "Net1") from the netManager, check if that net is connected to
+    // a sheet pin.  If so, use the flattened SPICE name (e.g. "NEWSHEET_OUT")
+    // so the probe matches the simulation vector.
+    if (!net.isEmpty()) {
+        const auto allItems = view->scene()->items();
+        for (QGraphicsItem* it : allItems) {
+            auto* sheet = dynamic_cast<SchematicSheetItem*>(it);
+            if (!sheet) continue;
+            for (auto* pin : sheet->getPins()) {
+                QPointF pinScene = sheet->mapToScene(pin->pos());
+                QString pinNet = netManager->findNetAtPoint(pinScene).trimmed();
+                if (pinNet.compare(net, Qt::CaseInsensitive) == 0) {
+                    return sheet->sheetName().toUpper() + "_" + pin->name().toUpper();
+                }
+            }
+        }
+    }
     if (!net.isEmpty()) return net;
 
     const QRect exactRect(viewPos.x() - 3, viewPos.y() - 3, 7, 7);

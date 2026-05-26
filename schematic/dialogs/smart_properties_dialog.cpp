@@ -21,15 +21,15 @@ SmartPropertiesDialog::SmartPropertiesDialog(const QList<SchematicItem*>& items,
     QVBoxLayout* mainLayout = new QVBoxLayout(this);
     mainLayout->addWidget(m_tabWidget);
     
-    QDialogButtonBox* buttonBox = new QDialogButtonBox(
+    m_buttonBox = new QDialogButtonBox(
         QDialogButtonBox::Ok | QDialogButtonBox::Cancel | QDialogButtonBox::Apply,
         this);
     
-    mainLayout->addWidget(buttonBox);
+    mainLayout->addWidget(m_buttonBox);
     
-    connect(buttonBox, &QDialogButtonBox::accepted, this, &QDialog::accept);
-    connect(buttonBox, &QDialogButtonBox::rejected, this, &QDialog::reject);
-    connect(buttonBox->button(QDialogButtonBox::Apply), &QPushButton::clicked, this, &SmartPropertiesDialog::onApply);
+    connect(m_buttonBox, &QDialogButtonBox::accepted, this, &QDialog::accept);
+    connect(m_buttonBox, &QDialogButtonBox::rejected, this, &QDialog::reject);
+    connect(m_buttonBox->button(QDialogButtonBox::Apply), &QPushButton::clicked, this, &SmartPropertiesDialog::onApply);
 }
 
 void SmartPropertiesDialog::addTab(const PropertyTab& tab) {
