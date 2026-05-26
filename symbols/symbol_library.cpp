@@ -1778,8 +1778,8 @@ void SymbolLibraryManager::createDefaultBuiltInLibrary() {
         const qreal bodyLeft = -45.0;
         const qreal bodyWidth = 90.0;
         block.addPrimitive(SymbolPrimitive::createRect(QRectF(bodyLeft, -halfHeight, bodyWidth, bodyHeight), false));
-        block.addPrimitive(SymbolPrimitive::createLine(QPointF(bodyLeft, -halfHeight + 30.0), QPointF(bodyLeft + bodyWidth, -halfHeight + 30.0)));
-        addDigitalBlockText(block, spiceModel, QPointF(0, -halfHeight + 15.0), 8);
+        block.addPrimitive(SymbolPrimitive::createLine(QPointF(bodyLeft, -halfHeight + 15.0), QPointF(bodyLeft + bodyWidth, -halfHeight + 15.0)));
+        addDigitalBlockText(block, spiceModel, QPointF(0, -halfHeight + 7.5), 8);
         addDigitalBlockText(block, label, QPointF(0, 6.0), 10);
 
         int outputIndex = 0;
@@ -1848,12 +1848,12 @@ void SymbolLibraryManager::createDefaultBuiltInLibrary() {
         {"D Flip-Flop", "D Flip Flop", "DFF", "Gate_DFF"},
         "DFF",
         {
-            makeDigitalPin(QPointF(-60, -45.0), 1, "D", "Right", "input"),
-            makeDigitalPin(QPointF(-60, -15.0), 2, "CLK", "Right", "input"),
-            makeDigitalPin(QPointF(-60, 15.0), 3, "SET", "Right", "input"),
+            makeDigitalPin(QPointF(-60, 0.0), 1, "D", "Right", "input"),
+            makeDigitalPin(QPointF(-60, 15.0), 2, "CLK", "Right", "input"),
+            makeDigitalPin(QPointF(-60, 30.0), 3, "SET", "Right", "input"),
             makeDigitalPin(QPointF(-60, 45.0), 4, "RESET", "Right", "input"),
-            makeDigitalPin(QPointF(60, 0.0), 5, "Q", "Left", "output"),
-            makeDigitalPin(QPointF(60, 30.0), 6, "QN", "Left", "output"),
+            makeDigitalPin(QPointF(60, -30.0), 5, "Q", "Left", "output"),
+            makeDigitalPin(QPointF(60, -15.0), 6, "QN", "Left", "output"),
         },
         120.0);
 
@@ -1864,13 +1864,13 @@ void SymbolLibraryManager::createDefaultBuiltInLibrary() {
         {"JK Flip-Flop", "JK Flip Flop", "JKFF", "Gate_JKFF"},
         "JKFF",
         {
-            makeDigitalPin(QPointF(-60, -60.0), 1, "J", "Right", "input"),
-            makeDigitalPin(QPointF(-60, -30.0), 2, "K", "Right", "input"),
-            makeDigitalPin(QPointF(-60, 0.0), 3, "CLK", "Right", "input"),
-            makeDigitalPin(QPointF(-60, 30.0), 4, "SET", "Right", "input"),
+            makeDigitalPin(QPointF(-60, 0.0), 1, "J", "Right", "input"),
+            makeDigitalPin(QPointF(-60, 15.0), 2, "K", "Right", "input"),
+            makeDigitalPin(QPointF(-60, 30.0), 3, "CLK", "Right", "input"),
+            makeDigitalPin(QPointF(-60, 45.0), 4, "SET", "Right", "input"),
             makeDigitalPin(QPointF(-60, 60.0), 5, "RESET", "Right", "input"),
             makeDigitalPin(QPointF(60, -45.0), 6, "Q", "Left", "output"),
-            makeDigitalPin(QPointF(60, 45.0), 7, "QN", "Left", "output"),
+            makeDigitalPin(QPointF(60, -30.0), 7, "QN", "Left", "output"),
         },
         150.0);
 
@@ -1881,12 +1881,12 @@ void SymbolLibraryManager::createDefaultBuiltInLibrary() {
         {"T Flip-Flop", "T Flip Flop", "TFF", "Toggle Flip-Flop", "Gate_TFF"},
         "TFF",
         {
-            makeDigitalPin(QPointF(-60, -45.0), 1, "T", "Right", "input"),
-            makeDigitalPin(QPointF(-60, -15.0), 2, "CLK", "Right", "input"),
-            makeDigitalPin(QPointF(-60, 15.0), 3, "SET", "Right", "input"),
+            makeDigitalPin(QPointF(-60, 0.0), 1, "T", "Right", "input"),
+            makeDigitalPin(QPointF(-60, 15.0), 2, "CLK", "Right", "input"),
+            makeDigitalPin(QPointF(-60, 30.0), 3, "SET", "Right", "input"),
             makeDigitalPin(QPointF(-60, 45.0), 4, "RESET", "Right", "input"),
-            makeDigitalPin(QPointF(60, 0.0), 5, "Q", "Left", "output"),
-            makeDigitalPin(QPointF(60, 30.0), 6, "QN", "Left", "output"),
+            makeDigitalPin(QPointF(60, -30.0), 5, "Q", "Left", "output"),
+            makeDigitalPin(QPointF(60, -15.0), 6, "QN", "Left", "output"),
         },
         120.0);
 
@@ -1897,13 +1897,13 @@ void SymbolLibraryManager::createDefaultBuiltInLibrary() {
         {"SR Flip-Flop", "SR Flip Flop", "Set-Reset Flip-Flop", "SRFF", "Gate_SRFF"},
         "SRFF",
         {
-            makeDigitalPin(QPointF(-60, -60.0), 1, "S", "Right", "input"),
-            makeDigitalPin(QPointF(-60, -30.0), 2, "R", "Right", "input"),
-            makeDigitalPin(QPointF(-60, 0.0), 3, "CLK", "Right", "input"),
-            makeDigitalPin(QPointF(-60, 30.0), 4, "SET", "Right", "input"),
+            makeDigitalPin(QPointF(-60, 0.0), 1, "S", "Right", "input"),
+            makeDigitalPin(QPointF(-60, 15.0), 2, "R", "Right", "input"),
+            makeDigitalPin(QPointF(-60, 30.0), 3, "CLK", "Right", "input"),
+            makeDigitalPin(QPointF(-60, 45.0), 4, "SET", "Right", "input"),
             makeDigitalPin(QPointF(-60, 60.0), 5, "RESET", "Right", "input"),
             makeDigitalPin(QPointF(60, -45.0), 6, "Q", "Left", "output"),
-            makeDigitalPin(QPointF(60, 45.0), 7, "QN", "Left", "output"),
+            makeDigitalPin(QPointF(60, -30.0), 7, "QN", "Left", "output"),
         },
         150.0);
 
@@ -1914,12 +1914,12 @@ void SymbolLibraryManager::createDefaultBuiltInLibrary() {
         {"D Latch", "DLATCH", "Gate_DLATCH"},
         "DLATCH",
         {
-            makeDigitalPin(QPointF(-60, -45.0), 1, "D", "Right", "input"),
-            makeDigitalPin(QPointF(-60, -15.0), 2, "EN", "Right", "input"),
-            makeDigitalPin(QPointF(-60, 15.0), 3, "SET", "Right", "input"),
+            makeDigitalPin(QPointF(-60, 0.0), 1, "D", "Right", "input"),
+            makeDigitalPin(QPointF(-60, 15.0), 2, "EN", "Right", "input"),
+            makeDigitalPin(QPointF(-60, 30.0), 3, "SET", "Right", "input"),
             makeDigitalPin(QPointF(-60, 45.0), 4, "RESET", "Right", "input"),
-            makeDigitalPin(QPointF(60, 0.0), 5, "Q", "Left", "output"),
-            makeDigitalPin(QPointF(60, 30.0), 6, "QN", "Left", "output"),
+            makeDigitalPin(QPointF(60, -30.0), 5, "Q", "Left", "output"),
+            makeDigitalPin(QPointF(60, -15.0), 6, "QN", "Left", "output"),
         },
         120.0);
 
@@ -1930,13 +1930,13 @@ void SymbolLibraryManager::createDefaultBuiltInLibrary() {
         {"SR Latch", "Set-Reset Latch", "SRLATCH", "Gate_SRLATCH"},
         "SRLATCH",
         {
-            makeDigitalPin(QPointF(-60, -60.0), 1, "S", "Right", "input"),
-            makeDigitalPin(QPointF(-60, -30.0), 2, "R", "Right", "input"),
-            makeDigitalPin(QPointF(-60, 0.0), 3, "EN", "Right", "input"),
-            makeDigitalPin(QPointF(-60, 30.0), 4, "SET", "Right", "input"),
+            makeDigitalPin(QPointF(-60, 0.0), 1, "S", "Right", "input"),
+            makeDigitalPin(QPointF(-60, 15.0), 2, "R", "Right", "input"),
+            makeDigitalPin(QPointF(-60, 30.0), 3, "EN", "Right", "input"),
+            makeDigitalPin(QPointF(-60, 45.0), 4, "SET", "Right", "input"),
             makeDigitalPin(QPointF(-60, 60.0), 5, "RESET", "Right", "input"),
             makeDigitalPin(QPointF(60, -45.0), 6, "Q", "Left", "output"),
-            makeDigitalPin(QPointF(60, 45.0), 7, "QN", "Left", "output"),
+            makeDigitalPin(QPointF(60, -30.0), 7, "QN", "Left", "output"),
         },
         150.0);
 
