@@ -1669,14 +1669,14 @@ void SymbolLibraryManager::createDefaultBuiltInLibrary() {
     addSym(trans);
 
     // === RAM ===
-    // === RAM ===
     SymbolDefinition ram("RAM");
     ram.setCategory("Integrated Circuits");
     ram.setReferencePrefix("U");
-    ram.addPrimitive(SymbolPrimitive::createRect(QRectF(-40, -60, 80, 120), false));
+    ram.addPrimitive(SymbolPrimitive::createRect(QRectF(-45, -60, 90, 120), false));
     for (int i = 0; i < 8; i++) {
-        ram.addPrimitive(SymbolPrimitive::createPin(QPointF(-55, -50 + i*10), i, "A"+QString::number(i)));
-        ram.addPrimitive(SymbolPrimitive::createPin(QPointF(55, -50 + i*10), i+8, "D"+QString::number(i)));
+        qreal y = std::round((-52.5 + i * 15) / 15.0) * 15.0;
+        ram.addPrimitive(SymbolPrimitive::createPin(QPointF(-60, y), i, "A"+QString::number(i)));
+        ram.addPrimitive(SymbolPrimitive::createPin(QPointF(60, y), i+8, "D"+QString::number(i)));
     }
     addSym(ram);
 
@@ -1705,8 +1705,8 @@ void SymbolLibraryManager::createDefaultBuiltInLibrary() {
             d.addPrimitive(SymbolPrimitive::createLine(QPointF(12, -15), QPointF(22, -25)));
         }
         
-        d.addPrimitive(SymbolPrimitive::createPin(QPointF(-40, 0), 1, "A"));
-        d.addPrimitive(SymbolPrimitive::createPin(QPointF(40, 0), 2, "K"));
+        d.addPrimitive(SymbolPrimitive::createPin(QPointF(-45, 0), 1, "A"));
+        d.addPrimitive(SymbolPrimitive::createPin(QPointF(45, 0), 2, "K"));
         addSym(d);
     };
     addSpecialDiode("Diode_Zener", "Zener");
@@ -2004,18 +2004,7 @@ void SymbolLibraryManager::createDefaultBuiltInLibrary() {
         ram.setDescription(description);
         ram.setAliases({label, QString("RAM"), QString("Memory")});
         ram.setSpiceModelName("RAM");
-        ram.addPrimitive(SymbolPrimitive::createRect(QRectF(-35, -55, 70, 110), false));
-
-        SymbolPrimitive text = SymbolPrimitive::createText(label, QPointF(0, -35), 10, QColor(Qt::black));
-        text.data["hAlign"] = "center";
-        text.data["vAlign"] = "center";
-        ram.addPrimitive(text);
-
-        SymbolPrimitive bodyText = SymbolPrimitive::createText(QString("%1-bit").arg(dataWidth), QPointF(0, -15), 9, QColor(Qt::black));
-        bodyText.data["hAlign"] = "center";
-        bodyText.data["vAlign"] = "center";
-        ram.addPrimitive(bodyText);
-
+        
         auto makeVectorPin = [&](const QPointF& pos, int number, const QString& pinName,
                                  const QString& orientation, const QString& direction,
                                  const QString& group, int index) {
@@ -2024,22 +2013,70 @@ void SymbolLibraryManager::createDefaultBuiltInLibrary() {
             pin.data["signalVectorIndex"] = index;
             return pin;
         };
-
+        
+        auto snapY = [](qreal y) { return std::round(y / 15.0) * 15.0; };
+        
         int pinNumber = 1;
+        qreal minY = 0, maxY = 0;
+        auto initBounds = [&](qreal y) { minY = y; maxY = y; };
+        bool first = true;
+        
+        auto recordPin = [&](qreal y) {
+            if (first) { initBounds(y); first = false; }
+            else if (y < minY) minY = y;
+            else if (y > maxY) maxY = y;
+        };
+        
+        QList<SymbolPrimitive> dataInPins, dataOutPins, addressPins;
         for (int i = 0; i < dataWidth; ++i) {
-            ram.addPrimitive(makeVectorPin(QPointF(-55, -45 + i * 10), pinNumber++, QString("DI%1").arg(i), "Right", "input", "data_in", i));
+            qreal y = snapY(-45 + i * 10);
+            dataInPins.append(makeVectorPin(QPointF(-60, y), pinNumber++, QString("DI%1").arg(i), "Right", "input", "data_in", i));
+            recordPin(y);
         }
         for (int i = 0; i < dataWidth; ++i) {
-            ram.addPrimitive(makeVectorPin(QPointF(55, -45 + i * 10), pinNumber++, QString("DO%1").arg(i), "Left", "output", "data_out", i));
+            qreal y = snapY(-45 + i * 10);
+            dataOutPins.append(makeVectorPin(QPointF(60, y), pinNumber++, QString("DO%1").arg(i), "Left", "output", "data_out", i));
+            recordPin(y);
         }
         for (int i = 0; i < addressWidth; ++i) {
-            ram.addPrimitive(makeVectorPin(QPointF(-15 + i * 10, 75), pinNumber++, QString("A%1").arg(i), "Up", "input", "address", i));
+            qreal y = snapY(75);
+            addressPins.append(makeVectorPin(QPointF(snapY(-15 + i * 10), y), pinNumber++, QString("A%1").arg(i), "Up", "input", "address", i));
         }
-
-        ram.addPrimitive(makeDigitalPin(QPointF(-55, 55), pinNumber++, "WE", "Right", "input"));
-        SymbolPrimitive cs = makeVectorPin(QPointF(55, 55), pinNumber++, "CS0", "Left", "input", "select", 0);
-        ram.addPrimitive(cs);
-
+        
+        qreal weY = snapY(55);
+        SymbolPrimitive wePin = makeDigitalPin(QPointF(-60, weY), pinNumber++, "WE", "Right", "input");
+        recordPin(weY);
+        
+        qreal csY = snapY(55);
+        SymbolPrimitive csPin = makeVectorPin(QPointF(60, csY), pinNumber++, "CS0", "Left", "input", "select", 0);
+        recordPin(csY);
+        
+        // Add all pins
+        for (auto& p : dataInPins) ram.addPrimitive(p);
+        for (auto& p : dataOutPins) ram.addPrimitive(p);
+        for (auto& p : addressPins) ram.addPrimitive(p);
+        ram.addPrimitive(wePin);
+        ram.addPrimitive(csPin);
+        
+        // Body rect with margin
+        qreal margin = 15.0;
+        qreal bodyTop = snapY(minY - margin);
+        qreal bodyBottom = snapY(maxY + margin);
+        qreal bodyHeight = bodyBottom - bodyTop;
+        ram.addPrimitive(SymbolPrimitive::createRect(QRectF(-45, bodyTop, 90, bodyHeight), false));
+        
+        QPointF textPos(0, bodyTop + 15.0);
+        SymbolPrimitive text = SymbolPrimitive::createText(label, textPos, 10, QColor(Qt::black));
+        text.data["hAlign"] = "center";
+        text.data["vAlign"] = "center";
+        ram.addPrimitive(text);
+        
+        QPointF bodyTextPos(0, bodyTop + 30.0);
+        SymbolPrimitive bodyText = SymbolPrimitive::createText(QString("%1-bit").arg(dataWidth), bodyTextPos, 9, QColor(Qt::black));
+        bodyText.data["hAlign"] = "center";
+        bodyText.data["vAlign"] = "center";
+        ram.addPrimitive(bodyText);
+        
         addSym(ram);
     };
 
