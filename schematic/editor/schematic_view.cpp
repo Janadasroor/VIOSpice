@@ -377,6 +377,12 @@ void SchematicView::setCurrentTool(SchematicTool* tool) {
         setCursor(Qt::ArrowCursor);
         viewport()->setCursor(Qt::ArrowCursor);
     }
+
+    // Auto-toggle crosshair for wire mode
+    if (m_crosshairAutoWire) {
+        setShowCrosshair(m_currentTool && m_currentTool->name() == "Wire");
+    }
+
 }
 
 QStringList SchematicView::availableTools() const {
@@ -396,6 +402,28 @@ void SchematicView::setGridStyle(GridStyle style) {
     m_gridStyle = style;
     resetCachedContent();
     viewport()->update();
+}
+
+void SchematicView::setShowCrosshair(bool enabled) {
+    if (m_showCrosshair == enabled) return;
+    m_showCrosshair = enabled;
+    if (enabled) {
+        // crosshair drawn in drawForeground — cursor left as-is
+    } else if (m_currentTool) {
+        viewport()->setCursor(m_currentTool->cursor());
+    } else {
+        viewport()->setCursor(Qt::ArrowCursor);
+    }
+    viewport()->update();
+    Q_EMIT crosshairChanged(enabled);
+}
+
+void SchematicView::setCrosshairAutoWire(bool on) {
+    m_crosshairAutoWire = on;
+    // When re-enabling auto mode, immediately apply current tool rule
+    if (on && m_currentTool) {
+        setShowCrosshair(m_currentTool->name() == "Wire");
+    }
 }
 
 QPointF SchematicView::snapToGrid(QPointF pos) {
@@ -768,9 +796,10 @@ void SchematicView::mouseMoveEvent(QMouseEvent *event) {
     Q_EMIT coordinatesChanged(gridPos);
 
     // Track cursor scene position for crosshair
-    m_cursorScenePos = gridPos;
-    if (m_showCrosshair) {
-        viewport()->update();
+    if (m_cursorScenePos != gridPos) {
+        m_cursorScenePos = gridPos;
+        if (m_showCrosshair)
+            viewport()->repaint();
     }
 
     if (m_spacePressed) {
@@ -1782,6 +1811,16 @@ void SchematicView::drawForeground(QPainter *painter, const QRectF &rect) {
     // Draw vertical line
     painter->drawLine(QPointF(m_cursorScenePos.x(), rect.top()), 
                       QPointF(m_cursorScenePos.x(), rect.bottom()));
+    
+    // Draw combined cursor indicator at crosshair center — a small diamond
+    painter->setPen(Qt::NoPen);
+    painter->setBrush(crossColor);
+    QPolygonF diamond;
+    diamond << QPointF(m_cursorScenePos.x(), m_cursorScenePos.y() - 4.5)
+            << QPointF(m_cursorScenePos.x() + 4.5, m_cursorScenePos.y())
+            << QPointF(m_cursorScenePos.x(), m_cursorScenePos.y() + 4.5)
+            << QPointF(m_cursorScenePos.x() - 4.5, m_cursorScenePos.y());
+    painter->drawPolygon(diamond);
     
     painter->restore();
 }

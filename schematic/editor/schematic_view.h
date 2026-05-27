@@ -117,8 +117,11 @@ public:
     void setSnapToPin(bool enabled) { m_snapToPin = enabled; }
     bool isSnapToPinEnabled() const { return m_snapToPin; }
 
-    void setShowCrosshair(bool enabled) { m_showCrosshair = enabled; viewport()->update(); }
+    void setShowCrosshair(bool enabled);
     bool isCrosshairEnabled() const { return m_showCrosshair; }
+    bool isCrosshairAutoWire() const { return m_crosshairAutoWire; }
+    void setCrosshairAutoWire(bool on);
+    Q_SIGNAL void crosshairChanged(bool enabled);
 
     enum SelectionFilter { SelectAll, SelectComponents, SelectWires };
     void setSelectionFilter(SelectionFilter filter) { m_selectionFilter = filter; }
@@ -168,7 +171,8 @@ private:
     bool m_gridVisible = true;
     bool m_snapToGrid;
     bool m_snapToPin;
-    bool m_showCrosshair;
+    bool m_showCrosshair = false;
+    bool m_crosshairAutoWire = true;
     bool m_simulationRunning = false;
     bool m_probingEnabled = false;
     QPointF m_cursorScenePos;

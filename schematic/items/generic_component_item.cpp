@@ -6,6 +6,7 @@
 #include <QDateTime>
 #include <QStyleOptionGraphicsItem>
 #include "flux/symbols/symbol_library.h"
+#include "../editor/schematic_view.h"
 #include <cmath>
 
 using Flux::Model::SymbolPrimitive;
@@ -356,12 +357,28 @@ void GenericComponentItem::paint(QPainter *painter, const QStyleOptionGraphicsIt
 
 QVariant GenericComponentItem::itemChange(GraphicsItemChange change, const QVariant& value) {
     if (change == QGraphicsItem::ItemPositionChange && !parentItem()) {
-        return snapPointToGrid(value.toPointF(), SchematicItem::kSchematicGridSize);
+        double gs = SchematicItem::kSchematicGridSize;
+        if (scene()) {
+            for (QGraphicsView* v : scene()->views()) {
+                if (auto* sv = qobject_cast<SchematicView*>(v)) {
+                    gs = sv->gridSize();
+                    break;
+                }
+            }
+        }
+        return snapPointToGrid(value.toPointF(), gs);
     }
 
     const QVariant result = SchematicItem::itemChange(change, value);
     if (change == QGraphicsItem::ItemSceneHasChanged && scene() && !parentItem()) {
-        const QPointF snappedPos = snapPointToGrid(pos(), SchematicItem::kSchematicGridSize);
+        double gs = SchematicItem::kSchematicGridSize;
+        for (QGraphicsView* v : scene()->views()) {
+            if (auto* sv = qobject_cast<SchematicView*>(v)) {
+                gs = sv->gridSize();
+                break;
+            }
+        }
+        const QPointF snappedPos = snapPointToGrid(pos(), gs);
         if (snappedPos != pos()) {
             setPos(snappedPos);
         }
