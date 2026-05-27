@@ -79,6 +79,7 @@ private:
     bool m_prevTextAntialiasing = true;
     QPointF m_lastAppliedTotalMove;
     bool m_hasLastAppliedMove = false;
+    int m_wireUpdateSkip = 0;
     
     // Rubber band selection
     bool m_rubberBandActive = false;

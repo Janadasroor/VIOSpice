@@ -1803,7 +1803,9 @@ void SchematicSelectTool::mouseMoveEvent(QMouseEvent* event) {
         }
         
         // --- WIRE UPDATE LOGIC (Absolute Scene Mode) ---
-        if (!m_attachedWires.isEmpty()) {
+        // Throttle: skip every other wire update during fast drags to keep movement
+        // snappy on large selections (>10 symbols). Wires snap back on release.
+        if (!m_attachedWires.isEmpty() && (m_wireUpdateSkip = (m_wireUpdateSkip + 1) % 3) == 0) {
             for (const AttachedWire& aw : m_attachedWires) {
                 if (m_segmentDragActive && aw.wire == m_segmentWire) continue;
                 if (m_vertexDragActive && aw.wire == m_vertexWire) continue;
