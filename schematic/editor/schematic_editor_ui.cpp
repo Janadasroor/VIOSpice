@@ -551,9 +551,12 @@ void SchematicEditor::createToolBar() {
     QAction* crosshairAct = viewMenu->addAction("Show Crosshair");
     crosshairAct->setCheckable(true);
     crosshairAct->setChecked(m_view->isCrosshairEnabled());
-    connect(crosshairAct, &QAction::toggled, this, [this](bool checked) {
-        if (m_view) m_view->setShowCrosshair(checked);
+    connect(crosshairAct, &QAction::toggled, this, [this, crosshairAct](bool checked) {
+        if (!m_view) return;
+        m_view->setCrosshairAutoWire(false); // manual toggle disables auto mode
+        m_view->setShowCrosshair(checked);
     });
+    connect(m_view, &SchematicView::crosshairChanged, crosshairAct, &QAction::setChecked);
 
     m_toggleMiniMapAction = viewMenu->addAction("Show Mini-map");
     m_toggleMiniMapAction->setCheckable(true);
@@ -2351,6 +2354,19 @@ void SchematicEditor::onEditSimulationFromDirective(const QString& currentComman
     }
 
     editDirectiveWithGenericDialog(currentCommand, directiveItem);
+}
+
+void SchematicEditor::loadSimulationResults(const QString& rawPath) {
+    if (!m_simulationPanel || rawPath.isEmpty()) return;
+
+    m_simulationPanel->plotResultsFromRaw(rawPath);
+    
+    if (m_oscilloscopeDock) {
+        refreshOscilloscopeDockContent();
+        m_oscilloscopeDock->setFloating(false);
+        m_oscilloscopeDock->show();
+        m_oscilloscopeDock->raise();
+    }
 }
 
 void SchematicEditor::onRunSimulation() {
