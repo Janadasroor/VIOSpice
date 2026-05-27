@@ -1371,26 +1371,25 @@ void SchematicEditor::createDockWidgets() {
 
     m_componentsPanel = new SchematicComponentsWidget(this);
 
-    connect(m_componentsPanel, &SchematicComponentsWidget::toolSelected, [this](const QString& toolName) {
-        if (!toolName.isEmpty()) {
+    connect(m_componentsPanel, &SchematicComponentsWidget::toolSelected, this, [this](const QString& toolName) {
+        if (!toolName.isEmpty() && m_view) {
             m_view->setCurrentTool(toolName);
-            if (m_view) {
-                m_view->setFocusPolicy(Qt::StrongFocus);
-                if (m_view->viewport()) {
-                    m_view->viewport()->setFocusPolicy(Qt::StrongFocus);
-                    m_view->viewport()->setFocus(Qt::OtherFocusReason);
-                }
-                m_view->setFocus(Qt::OtherFocusReason);
+            m_view->setFocusPolicy(Qt::StrongFocus);
+            if (m_view->viewport()) {
+                m_view->viewport()->setFocusPolicy(Qt::StrongFocus);
+                m_view->viewport()->setFocus(Qt::OtherFocusReason);
             }
+            m_view->setFocus(Qt::OtherFocusReason);
             statusBar()->showMessage("" + toolName + " tool selected", 2000);
         }
     });
 
-    connect(m_componentsPanel, &SchematicComponentsWidget::symbolCreated, [this](const QString& symbolName) {
+    connect(m_componentsPanel, &SchematicComponentsWidget::symbolCreated, this, [this](const QString& symbolName) {
         statusBar()->showMessage("Symbol '" + symbolName + "' created", 3000);
     });
 
     connect(m_componentsPanel, &SchematicComponentsWidget::symbolPlacementRequested, this, [this](const SymbolDefinition& symbol) {
+        if (!m_view || !m_scene || !m_undoStack) return;
         QPointF center = m_view->mapToScene(m_view->viewport()->rect().center());
         auto* item = new GenericComponentItem(symbol);
         item->setPos(center);
