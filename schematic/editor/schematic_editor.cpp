@@ -1800,6 +1800,9 @@ void SchematicEditor::onTimeTravelSnapshot(double t, const QMap<QString, double>
 void SchematicEditor::runLiveERC(const QList<SchematicItem*>& items) {
     if (m_isDestroying || !m_scene || !m_netManager || !m_view || items.isEmpty()) return;
 
+    // Skip during drag (left button held) — nets rebuilt on release.
+    if (qApp->mouseButtons() & Qt::LeftButton) return;
+
     m_netManager->updateNets(m_scene);
     auto violations = SchematicERC::runLive(m_scene, items, m_netManager, m_ercRules);
     m_view->showLiveERCMarkers(violations);
