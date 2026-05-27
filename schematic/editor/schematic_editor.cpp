@@ -1003,10 +1003,12 @@ bool SchematicEditor::canReuseTab(int index) const {
 // ─── View / Zoom Handlers ───────────────────────────────────────────────────
 
 void SchematicEditor::onZoomIn() {
+    if (!m_view) return;
     m_view->scale(1.2, 1.2);
 }
 
 void SchematicEditor::onZoomOut() {
+    if (!m_view) return;
     m_view->scale(1.0/1.2, 1.0/1.2);
 }
 
@@ -1139,6 +1141,7 @@ void SchematicEditor::onZoomSelection() {
 }
 
 void SchematicEditor::onZoomArea() {
+    if (!m_view) return;
     m_view->setCurrentTool("Zoom Area");
 }
 
@@ -1149,6 +1152,7 @@ void SchematicEditor::onPageSizeChanged(const QString& size) {
 }
 
 void SchematicEditor::updateCoordinates(QPointF pos) {
+    if (!m_view) return;
     QString unit = m_view->property("currentUnit").toString();
     if (unit.isEmpty()) unit = "mm";
 

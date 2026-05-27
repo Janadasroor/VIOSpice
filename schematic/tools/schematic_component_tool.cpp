@@ -158,6 +158,12 @@ void SchematicComponentTool::mousePressEvent(QMouseEvent* event) {
         qDebug() << "Placed schematic component:" << m_componentType << "at" << snappedPos;
         view()->itemPlaced(component);
         event->accept();
+
+        // Reset rotation and flip state so next placement starts fresh
+        m_currentRotation = 0;
+        m_flippedH = false;
+        m_flippedV = false;
+        applyPreviewTransforms();
     }
 }
 

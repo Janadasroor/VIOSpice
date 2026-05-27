@@ -158,6 +158,7 @@ void SchematicEditor::applyTheme() {
 }
 
 void SchematicEditor::updateGrid() {
+    if (!m_scene) return;
     // Grid is now drawn directly in SchematicView::drawBackground() for performance.
     // Just clean up any legacy grid items that might still be in the scene.
     QList<QGraphicsItem*> items = m_scene->items();

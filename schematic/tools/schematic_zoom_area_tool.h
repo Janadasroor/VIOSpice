@@ -3,6 +3,7 @@
 
 #include "schematic_tool.h"
 #include <QRubberBand>
+#include <QPointer>
 
 class SchematicZoomAreaTool : public SchematicTool {
     Q_OBJECT
@@ -26,7 +27,7 @@ public:
     ZoomMode defaultMode() const { return m_defaultMode; }
 
 private:
-    QRubberBand* m_rubberBand;
+    QPointer<QRubberBand> m_rubberBand;
     QPoint m_origin;
     QCursor m_zoomInCursor;
     QCursor m_zoomOutCursor;

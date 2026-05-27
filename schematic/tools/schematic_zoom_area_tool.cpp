@@ -36,7 +36,7 @@ SchematicZoomAreaTool::SchematicZoomAreaTool(QObject* parent)
 }
 
 SchematicZoomAreaTool::~SchematicZoomAreaTool() {
-    if (m_rubberBand) delete m_rubberBand;
+    delete m_rubberBand;
 }
 
 void SchematicZoomAreaTool::activate(SchematicView* view) {
