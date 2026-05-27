@@ -1,4 +1,5 @@
 #include "schematic_item.h"
+#include "../editor/schematic_view.h"
 #include "schematic_text_item.h"
 #include <QPainter>
 #include <cmath>
@@ -110,9 +111,19 @@ QVariant SchematicItem::itemChange(GraphicsItemChange change, const QVariant& va
     }
     if (!m_isSubItem && change == QGraphicsItem::ItemPositionChange) {
         QPointF pos = value.toPointF();
-        if (kSchematicGridSize > 0.0) {
-            pos.setX(std::round(pos.x() / kSchematicGridSize) * kSchematicGridSize);
-            pos.setY(std::round(pos.y() / kSchematicGridSize) * kSchematicGridSize);
+        double gs = kSchematicGridSize;
+        if (scene()) {
+            const auto views = scene()->views();
+            for (QGraphicsView* v : views) {
+                if (auto* sv = qobject_cast<SchematicView*>(v)) {
+                    gs = sv->gridSize();
+                    break;
+                }
+            }
+        }
+        if (gs > 0.0) {
+            pos.setX(std::round(pos.x() / gs) * gs);
+            pos.setY(std::round(pos.y() / gs) * gs);
         }
         return pos;
     }
