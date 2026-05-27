@@ -6930,15 +6930,27 @@ void SymbolEditor::keyPressEvent(QKeyEvent* event) {
         event->accept();
         return;
     } else if (event->key() == Qt::Key_R && m_currentTool == Pin) {
-        // Cycle orientation: Right -> Down -> Left -> Up
+        // R or Ctrl+R: rotate orientation: Right -> Down -> Left -> Up
         if (m_previewOrientation == "Right") m_previewOrientation = "Down";
         else if (m_previewOrientation == "Down") m_previewOrientation = "Left";
         else if (m_previewOrientation == "Left") m_previewOrientation = "Up";
         else m_previewOrientation = "Right";
-        
-        // Refresh preview immediately
-        QPointF scenePos = m_view->snapToGrid(m_view->mapToScene(m_view->mapFromGlobal(QCursor::pos())));
-        updatePinPreview(scenePos);
+        if (m_view) {
+            updatePinPreview(m_view->snapToGrid(m_view->mapToScene(m_view->mapFromGlobal(QCursor::pos()))));
+        }
+        statusBar()->showMessage("Pin orientation: " + m_previewOrientation, 1200);
+        event->accept();
+        return;
+    } else if (event->key() == Qt::Key_H && m_currentTool == Pin
+               && !(event->modifiers() & (Qt::ControlModifier | Qt::AltModifier | Qt::MetaModifier))) {
+        // H: flip horizontal (toggle Right <-> Left) — useful for IC opposite-side pins
+        if (m_previewOrientation == "Right") m_previewOrientation = "Left";
+        else if (m_previewOrientation == "Left") m_previewOrientation = "Right";
+        // Up and Down stay unchanged (mirror is a no-op for vertical pins)
+        if (m_view) {
+            updatePinPreview(m_view->snapToGrid(m_view->mapToScene(m_view->mapFromGlobal(QCursor::pos()))));
+        }
+        statusBar()->showMessage("Pin orientation: " + m_previewOrientation, 1200);
         event->accept();
         return;
     } else if (event->key() == Qt::Key_Return && m_currentTool == Pen) {
