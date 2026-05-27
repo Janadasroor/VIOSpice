@@ -31,7 +31,11 @@ SchematicScissorsTool::SchematicScissorsTool(QObject* parent)
 }
 
 SchematicScissorsTool::~SchematicScissorsTool() {
-    delete m_rubberBandItem;
+    if (m_rubberBandItem) {
+        if (m_rubberBandItem->scene())
+            m_rubberBandItem->scene()->removeItem(m_rubberBandItem);
+        delete m_rubberBandItem;
+    }
 }
 
 QCursor SchematicScissorsTool::cursor() const {

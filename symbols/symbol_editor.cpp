@@ -3074,6 +3074,7 @@ void SymbolEditor::createMenuBar() {
     QAction* selectAllAct = editMenu->addAction("Select &All");
     selectAllAct->setShortcut(QKeySequence::SelectAll);
     connect(selectAllAct, &QAction::triggered, this, [this]() {
+        if (!m_scene) return;
         for (auto* it : m_scene->items()) it->setSelected(true);
     });
 
@@ -3693,12 +3694,6 @@ QWidget* SymbolEditor::createSymbolMetadataWidget() {
 }
 
 void SymbolEditor::createLibraryBrowser() {
-    connect(&SymbolLibraryManager::instance(), &SymbolLibraryManager::librariesChanged,
-            this, &SymbolEditor::populateLibraryTree);
-    if (SymbolLibraryManager::instance().libraries().isEmpty()) {
-        SymbolLibraryManager::instance().loadUserLibraries(QDir::homePath() + "/ViospiceLib/sym", true);
-    }
-
     m_libSearchEdit = new QLineEdit();
     m_libSearchEdit->setPlaceholderText("Search symbols…");
     m_libSearchEdit->setClearButtonEnabled(true);
@@ -3722,6 +3717,12 @@ void SymbolEditor::createLibraryBrowser() {
     m_libPreviewView->setFixedHeight(180);
     m_libPreviewView->setRenderHint(QPainter::Antialiasing);
     m_libPreviewView->setFrameShape(QFrame::NoFrame);
+
+    connect(&SymbolLibraryManager::instance(), &SymbolLibraryManager::librariesChanged,
+            this, &SymbolEditor::populateLibraryTree);
+    if (SymbolLibraryManager::instance().libraries().isEmpty()) {
+        SymbolLibraryManager::instance().loadUserLibraries(QDir::homePath() + "/ViospiceLib/sym", true);
+    }
 
     populateLibraryTree();
 }
@@ -3814,6 +3815,7 @@ void SymbolEditor::createPinTable() {
 // ─────────────────────────────────────────────────────────────────────────────
 
 void SymbolEditor::populateLibraryTree() {
+    if (!m_libraryTree) return;
     m_libraryTree->clear();
     
     QList<SymbolLibrary*> allLibs = SymbolLibraryManager::instance().libraries();
@@ -4311,6 +4313,7 @@ void SymbolEditor::onToolSelected() {
         clearPenState();
     }
     
+    if (!m_view || !m_scene) return;
     m_view->setCurrentTool(static_cast<int>(m_currentTool));
     m_view->setDragMode(m_currentTool == Select ? QGraphicsView::RubberBandDrag
                                                 : QGraphicsView::NoDrag);
