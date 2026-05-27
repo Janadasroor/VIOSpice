@@ -1017,9 +1017,12 @@ SymbolEditor::SymbolEditor(const SymbolDefinition& symbol, QWidget* parent)
 }
 
 SymbolEditor::~SymbolEditor() {
-    // Overlay items are not in m_drawnItems, so we must clean them separately.
     removeOverlayItems();
-    // m_drawnItems are owned by the QGraphicsScene; no manual delete needed.
+    // Clear undo stack while m_scene is still alive, so command destructors
+    // can safely check scene() on their visuals without use-after-free.
+    if (m_undoStack) {
+        m_undoStack->clear();
+    }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1311,7 +1314,12 @@ void SymbolEditor::clearScene() {
     m_overlayItems.clear();
     clearResizeHandles();
     m_drawnItems.clear();
-    m_previewItem = nullptr;
+    if (m_previewItem) {
+        if (m_scene && m_previewItem->scene())
+            m_scene->removeItem(m_previewItem);
+        delete m_previewItem;
+        m_previewItem = nullptr;
+    }
     m_polyPoints.clear();
     if (m_scene) {
         m_scene->clear();
@@ -1905,7 +1913,14 @@ void SymbolEditor::applySymbolDefinition(const SymbolDefinition& def) {
     clearScene();
     m_symbol = def;
 
-    // Sync UI metadata
+    // Sync UI metadata — block signals to prevent reentrant updateCodePreview/
+    // updateOverlayLabels while the scene is in an inconsistent state.
+    m_nameEdit->blockSignals(true);
+    m_descriptionEdit->blockSignals(true);
+    m_prefixEdit->blockSignals(true);
+    m_footprintEdit->blockSignals(true);
+    m_modelPathEdit->blockSignals(true);
+    m_modelNameEdit->blockSignals(true);
     m_nameEdit->setText(def.name());
     m_descriptionEdit->setText(def.description());
     m_categoryCombo->setCurrentText(def.category());
@@ -1919,6 +1934,12 @@ void SymbolEditor::applySymbolDefinition(const SymbolDefinition& def) {
     }
     m_modelPathEdit->setText(def.modelPath());
     m_modelNameEdit->setText(def.modelName());
+    m_nameEdit->blockSignals(false);
+    m_descriptionEdit->blockSignals(false);
+    m_prefixEdit->blockSignals(false);
+    m_footprintEdit->blockSignals(false);
+    m_modelPathEdit->blockSignals(false);
+    m_modelNameEdit->blockSignals(false);
 
     // Update Unit Selector if needed
     if (m_unitCombo) {
@@ -6822,8 +6843,7 @@ void SymbolEditor::onRunSRC() {
             QPointF pos(prim.data.value("x").toDouble(), prim.data.value("y").toDouble());
 
             // Duplicate Pin Number (within same unit or shared)
-            QString pinKey = QString::number(num) + "_" + QString::number(prim.unit());
-            // Actually, usually pin numbers must be unique across the WHOLE symbol unless they are power
+            // Usually pin numbers must be unique across the WHOLE symbol unless they are power
             if (pinNumbers.contains(num) && type != "Power") {
                 issues << SRCIssue{QString("ERROR: Duplicate Pin Number '%1' detected.").arg(num), true, i};
             }

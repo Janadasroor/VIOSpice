@@ -11,7 +11,8 @@ namespace {
 
 int normalizeArcAngle16(int angle) {
     // Accept degrees for legacy call sites and convert to Qt's 1/16 degree unit.
-    return (qAbs(angle) <= 360) ? angle * 16 : angle;
+    // Use < 360 to avoid ambiguity: 360 in 1/16 units (22.5°) must not be doubled.
+    return (qAbs(angle) < 360) ? angle * 16 : angle;
 }
 
 int readArcAngle16(const QJsonObject& data, const char* primaryKey, const char* aliasKey, int defaultValue16) {
