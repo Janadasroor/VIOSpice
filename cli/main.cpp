@@ -862,6 +862,145 @@ bool renderSymbolToPng(const SymbolDefinition& symbol, const QString& outPath, b
     return image.save(outPath);
 }
 
+struct ParsedSubckt {
+    QString name;
+    QStringList pins;
+};
+
+static QStringList collapseContinuationLines(const QString& text) {
+    QStringList collapsed;
+    QString current;
+    const QStringList lines = text.split('\n');
+    for (const QString& rawLine : lines) {
+        const QString trimmed = rawLine.trimmed();
+        if (trimmed.startsWith('+')) {
+            const QString continuation = trimmed.mid(1).trimmed();
+            if (current.isEmpty()) {
+                current = continuation;
+            } else if (!continuation.isEmpty()) {
+                if (!current.endsWith(' ')) current += ' ';
+                current += continuation;
+            }
+            continue;
+        }
+        if (!current.isEmpty()) {
+            collapsed.append(current);
+            current.clear();
+        }
+        if (!trimmed.isEmpty()) {
+            current = trimmed;
+        }
+    }
+    if (!current.isEmpty()) {
+        collapsed.append(current);
+    }
+    return collapsed;
+}
+
+static QList<ParsedSubckt> parseSubckts(const QString& text) {
+    const QStringList lines = collapseContinuationLines(text);
+    QList<ParsedSubckt> parsed;
+    for (const QString& line : lines) {
+        if (!line.startsWith('.', Qt::CaseInsensitive)) continue;
+        const QStringList parts = line.split(QRegularExpression("\\s+"), Qt::SkipEmptyParts);
+        if (parts.isEmpty()) continue;
+        if (parts.first().compare(".subckt", Qt::CaseInsensitive) == 0 && parts.size() >= 2) {
+            ParsedSubckt sub;
+            sub.name = parts.at(1);
+            for (int i = 2; i < parts.size(); ++i) {
+                if (parts.at(i).contains('=')) break;
+                sub.pins.append(parts.at(i));
+            }
+            parsed.append(sub);
+        }
+    }
+    return parsed;
+}
+
+bool runSymbolFromSubckt(const QStringList& args, const QCommandLineParser& parser) {
+    if (args.size() < 3) {
+        std::cerr << "Usage: viora symbol-from-subckt <input.cir|lib> <out_dir> [--name <subckt>]" << std::endl;
+        return false;
+    }
+    const QString inputPath = args.at(1);
+    const QString outDir = args.at(2);
+    const QString targetName = parser.value("name");
+
+    QFile file(inputPath);
+    if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        std::cerr << "Error: Cannot read input file: " << inputPath.toStdString() << std::endl;
+        return false;
+    }
+    const QString content = QString::fromUtf8(file.readAll());
+    file.close();
+
+    QList<ParsedSubckt> subckts = parseSubckts(content);
+    if (subckts.isEmpty()) {
+        std::cerr << "Error: No .subckt definitions found in " << inputPath.toStdString() << std::endl;
+        return false;
+    }
+
+    QDir().mkpath(outDir);
+    int count = 0;
+
+    for (const auto& sub : subckts) {
+        if (!targetName.isEmpty() && sub.name.compare(targetName, Qt::CaseInsensitive) != 0) continue;
+
+        SymbolDefinition def(sub.name);
+        def.setDescription(QString("Auto-generated symbol for .subckt %1").arg(sub.name));
+        def.setCategory("Integrated Circuits");
+        def.setReferencePrefix("U");
+        def.setDefaultValue(sub.name);
+        def.setSpiceModelName(sub.name);
+        def.setModelSource("project");
+        def.setModelPath(QFileInfo(inputPath).fileName());
+
+        const int pinCount = sub.pins.size();
+        const int leftCount = (pinCount + 1) / 2;
+        const qreal bodyWidth = 100.0;
+        const qreal pinSpacing = 20.0;
+        const qreal pinLength = 15.0;
+        const qreal bodyHalfHeight = qMax<qreal>(30.0, ((pinCount + 1) / 2) * pinSpacing * 0.5 + 10.0);
+
+        def.addPrimitive(SymbolPrimitive::createRect(QRectF(-bodyWidth / 2.0, -bodyHalfHeight, bodyWidth, bodyHalfHeight * 2.0), false));
+        def.addPrimitive(SymbolPrimitive::createText(sub.name, QPointF(-bodyWidth / 2.0 + 5, -bodyHalfHeight - 15.0), 10));
+
+        QMap<int, QString> mapping;
+        for (int i = 0; i < pinCount; ++i) {
+            const bool leftSide = (i < leftCount);
+            const int sideIndex = leftSide ? i : (i - leftCount);
+            const int countOnSide = leftSide ? leftCount : (pinCount - leftCount);
+            const qreal y = ((countOnSide - 1) * pinSpacing * -0.5) + (sideIndex * pinSpacing);
+            const QPointF pos(leftSide ? (-bodyWidth / 2.0 - pinLength) : (bodyWidth / 2.0 + pinLength), y);
+            const QString orientation = leftSide ? "Right" : "Left";
+            
+            SymbolPrimitive pin = SymbolPrimitive::createPin(pos, i + 1, sub.pins[i], orientation, pinLength);
+            def.addPrimitive(pin);
+            mapping.insert(i + 1, sub.pins[i]);
+        }
+        def.setSpiceNodeMapping(mapping);
+
+        QString outPath = QDir(outDir).filePath(sub.name.toLower() + ".viosym");
+        QFile outFile(outPath);
+        if (outFile.open(QIODevice::WriteOnly)) {
+            QJsonDocument doc(def.toJson());
+            outFile.write(doc.toJson(QJsonDocument::Indented));
+            outFile.close();
+            if (!g_quiet) std::cout << "Generated symbol: " << outPath.toStdString() << std::endl;
+            count++;
+        }
+    }
+
+    if (parser.isSet("json")) {
+        QJsonObject res;
+        res["ok"] = true;
+        res["count"] = count;
+        printJsonValue(res);
+    }
+
+    return count > 0;
+}
+
 bool runSymbolRender(const QStringList& args, const QCommandLineParser& parser) {
     if (args.size() < 3) {
         std::cerr << "Usage: viora symbol-render <file.viosym> <out.png>" << std::endl;
@@ -3867,6 +4006,7 @@ static void printGeneralHelp() {
     std::cout << "  symbol-export <symbolName> <library.sclib> <out.viosym>\n";
     std::cout << "  symbol-list <folder|library.sclib>\n";
     std::cout << "  symbol-validate <file.viosym>\n";
+    std::cout << "  symbol-from-subckt <input.cir|lib> <out_dir> [--name <subckt>]\n";
     std::cout << "\nTips:\n";
     std::cout << "  Use \"viora help <command>\" for command-specific help.\n";
     std::cout << "  Use --json for machine-readable output.\n";
@@ -3966,6 +4106,12 @@ static void printCommandHelp(const QString& command) {
         std::cout << "  --json\n";
         return;
     }
+    if (command == "symbol-from-subckt") {
+        std::cout << "symbol-from-subckt <input.cir|lib> <out_dir>\n";
+        std::cout << "  --name <subckt>        Generate symbol only for specific subcircuit\n";
+        std::cout << "  --json\n";
+        return;
+    }
     printGeneralHelp();
 }
 
@@ -4032,6 +4178,7 @@ int main(int argc, char *argv[]) {
     QCommandLineOption scaleOption("scale", "Render scale (default 4.0)", "scale", "4");
     QCommandLineOption quietOption("quiet", "Silence non-JSON output");
     QCommandLineOption exitWarnOption("exit-on-warning", "Exit with non-zero code if warnings appear (netlist-run/netlist-validate)");
+    QCommandLineOption nameOption("name", "Name of subcircuit or symbol", "name");
     QCommandLineOption helpOption(QStringList() << "h" << "help", "Show help for a command");
     QCommandLineOption noColorOption("no-color", "Disable colored output");
     QCommandLineOption renameNetOption("rename-net", "Rename net label (repeatable): old=new", "pair");
@@ -4090,6 +4237,7 @@ int main(int argc, char *argv[]) {
     parser.addOption(scaleOption);
     parser.addOption(quietOption);
     parser.addOption(exitWarnOption);
+    parser.addOption(nameOption);
     parser.addOption(helpOption);
     parser.addOption(noColorOption);
     parser.addOption(renameNetOption);
@@ -4524,6 +4672,8 @@ int main(int argc, char *argv[]) {
         return runSymbolExport(args) ? 0 : 1;
     } else if (command == "symbol-import") {
         return runSymbolImport(args, parser) ? 0 : 1;
+    } else if (command == "symbol-from-subckt") {
+        return runSymbolFromSubckt(args, parser) ? 0 : 1;
     } else if (command == "library-index") {
         return runLibraryIndex(args, parser) ? 0 : 1;
     } else if (command == "schematic-query") {
