@@ -352,7 +352,7 @@ void NetManager::updateNets(QGraphicsScene* scene) {
         NetClassManager::instance().assignNetToClass(it.key(), it.value());
     }
 
-    qDebug() << "Rebuilt nets via DSU. Count:" << m_nets.size();
+    // qDebug() << "Rebuilt nets via DSU. Count:" << m_nets.size();
 }
 
 QString NetManager::findNetAtPoint(const QPointF& point) const {
