@@ -919,12 +919,13 @@ static QList<ParsedSubckt> parseSubckts(const QString& text) {
 
 bool runSymbolFromSubckt(const QStringList& args, const QCommandLineParser& parser) {
     if (args.size() < 3) {
-        std::cerr << "Usage: viora symbol-from-subckt <input.cir|lib> <out_dir> [--name <subckt>]" << std::endl;
+        std::cerr << "Usage: viora symbol-from-subckt <input.cir|lib> <out_dir> [--name <subckt>] [--type ic|op]" << std::endl;
         return false;
     }
     const QString inputPath = args.at(1);
     const QString outDir = args.at(2);
     const QString targetName = parser.value("name");
+    const QString symbolType = parser.value("symbol-type").toLower(); // Using symbol-type to avoid collision
 
     QFile file(inputPath);
     if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
@@ -947,38 +948,87 @@ bool runSymbolFromSubckt(const QStringList& args, const QCommandLineParser& pars
         if (!targetName.isEmpty() && sub.name.compare(targetName, Qt::CaseInsensitive) != 0) continue;
 
         SymbolDefinition def(sub.name);
-        def.setDescription(QString("Auto-generated symbol for .subckt %1").arg(sub.name));
-        def.setCategory("Integrated Circuits");
-        def.setReferencePrefix("U");
+        def.setDescription(QString("Auto-generated %1 symbol for .subckt %2").arg(symbolType.isEmpty() ? "IC" : symbolType.toUpper(), sub.name));
+        def.setCategory(symbolType == "op" ? "Amplifiers" : "Integrated Circuits");
+        def.setReferencePrefix(symbolType == "op" ? "U" : "U");
         def.setDefaultValue(sub.name);
         def.setSpiceModelName(sub.name);
         def.setModelSource("project");
         def.setModelPath(QFileInfo(inputPath).fileName());
 
         const int pinCount = sub.pins.size();
-        const int leftCount = (pinCount + 1) / 2;
         const qreal bodyWidth = 100.0;
         const qreal pinSpacing = 20.0;
         const qreal pinLength = 15.0;
-        const qreal bodyHalfHeight = qMax<qreal>(30.0, ((pinCount + 1) / 2) * pinSpacing * 0.5 + 10.0);
 
-        def.addPrimitive(SymbolPrimitive::createRect(QRectF(-bodyWidth / 2.0, -bodyHalfHeight, bodyWidth, bodyHalfHeight * 2.0), false));
-        def.addPrimitive(SymbolPrimitive::createText(sub.name, QPointF(-bodyWidth / 2.0 + 5, -bodyHalfHeight - 15.0), 10));
-
-        QMap<int, QString> mapping;
-        for (int i = 0; i < pinCount; ++i) {
-            const bool leftSide = (i < leftCount);
-            const int sideIndex = leftSide ? i : (i - leftCount);
-            const int countOnSide = leftSide ? leftCount : (pinCount - leftCount);
-            const qreal y = ((countOnSide - 1) * pinSpacing * -0.5) + (sideIndex * pinSpacing);
-            const QPointF pos(leftSide ? (-bodyWidth / 2.0 - pinLength) : (bodyWidth / 2.0 + pinLength), y);
-            const QString orientation = leftSide ? "Right" : "Left";
+        if (symbolType == "op") {
+            // Triangular Op-Amp Shape
+            const qreal triWidth = 80.0;
+            const qreal triHeight = 80.0;
+            QList<QPointF> points;
+            points << QPointF(-triWidth / 2.0, -triHeight / 2.0);
+            points << QPointF(-triWidth / 2.0, triHeight / 2.0);
+            points << QPointF(triWidth / 2.0, 0.0);
+            def.addPrimitive(SymbolPrimitive::createPolygon(points, false));
             
-            SymbolPrimitive pin = SymbolPrimitive::createPin(pos, i + 1, sub.pins[i], orientation, pinLength);
-            def.addPrimitive(pin);
-            mapping.insert(i + 1, sub.pins[i]);
+            // Labels inside triangle (+ / -)
+            def.addPrimitive(SymbolPrimitive::createText("-", QPointF(-triWidth / 2.0 + 8, -triHeight / 4.0 - 5), 12));
+            def.addPrimitive(SymbolPrimitive::createText("+", QPointF(-triWidth / 2.0 + 8, triHeight / 4.0 - 5), 12));
+            
+            // Name label below
+            def.addPrimitive(SymbolPrimitive::createText(sub.name, QPointF(-triWidth / 2.0, triHeight / 2.0 + 5), 9));
+
+            QMap<int, QString> mapping;
+            for (int i = 0; i < pinCount; ++i) {
+                // Typical Op-Amp layout heuristic:
+                // 1,2: Inputs (Left)
+                // Last: Output (Right)
+                // Rest: Power/Comp (Top/Bottom)
+                QPointF pos;
+                QString orient = "Right";
+                
+                if (i == 0) { pos = QPointF(-triWidth / 2.0 - pinLength, -triHeight / 4.0); orient = "Right"; } // In-
+                else if (i == 1) { pos = QPointF(-triWidth / 2.0 - pinLength, triHeight / 4.0); orient = "Right"; } // In+
+                else if (i == pinCount - 1) { pos = QPointF(triWidth / 2.0 + pinLength, 0); orient = "Left"; } // Out
+                else {
+                    // Spread rest on top/bottom
+                    bool top = (i % 2 == 0);
+                    // At x=0, the slanted edges are at y = +/- 20.0 (triHeight / 4.0)
+                    const qreal edgeY = top ? (-triHeight / 4.0) : (triHeight / 4.0);
+                    pos = QPointF(0, top ? (edgeY - pinLength) : (edgeY + pinLength));
+                    orient = top ? "Down" : "Up";
+                }
+                
+                def.addPrimitive(SymbolPrimitive::createPin(pos, i + 1, sub.pins[i], orient, pinLength));
+                mapping.insert(i + 1, sub.pins[i]);
+            }
+            def.setSpiceNodeMapping(mapping);
+
+        } else {
+            // Default IC Shape (Rectangle with Dot)
+            const qreal bodyHalfHeight = qMax<qreal>(30.0, ((pinCount + 1) / 2) * pinSpacing * 0.5 + 10.0);
+            def.addPrimitive(SymbolPrimitive::createRect(QRectF(-bodyWidth / 2.0, -bodyHalfHeight, bodyWidth, bodyHalfHeight * 2.0), false));
+            
+            // Pin 1 indicator dot
+            def.addPrimitive(SymbolPrimitive::createCircle(QPointF(-bodyWidth / 2.0 + 8, -bodyHalfHeight + 8), 3.0, true));
+            
+            def.addPrimitive(SymbolPrimitive::createText(sub.name, QPointF(-bodyWidth / 2.0 + 5, -bodyHalfHeight - 15.0), 10));
+
+            const int leftCount = (pinCount + 1) / 2;
+            QMap<int, QString> mapping;
+            for (int i = 0; i < pinCount; ++i) {
+                const bool leftSide = (i < leftCount);
+                const int sideIndex = leftSide ? i : (i - leftCount);
+                const int countOnSide = leftSide ? leftCount : (pinCount - leftCount);
+                const qreal y = ((countOnSide - 1) * pinSpacing * -0.5) + (sideIndex * pinSpacing);
+                const QPointF pos(leftSide ? (-bodyWidth / 2.0 - pinLength) : (bodyWidth / 2.0 + pinLength), y);
+                const QString orientation = leftSide ? "Right" : "Left";
+                
+                def.addPrimitive(SymbolPrimitive::createPin(pos, i + 1, sub.pins[i], orientation, pinLength));
+                mapping.insert(i + 1, sub.pins[i]);
+            }
+            def.setSpiceNodeMapping(mapping);
         }
-        def.setSpiceNodeMapping(mapping);
 
         QString outPath = QDir(outDir).filePath(sub.name.toLower() + ".viosym");
         QFile outFile(outPath);
@@ -4179,6 +4229,7 @@ int main(int argc, char *argv[]) {
     QCommandLineOption quietOption("quiet", "Silence non-JSON output");
     QCommandLineOption exitWarnOption("exit-on-warning", "Exit with non-zero code if warnings appear (netlist-run/netlist-validate)");
     QCommandLineOption nameOption("name", "Name of subcircuit or symbol", "name");
+    QCommandLineOption symTypeOption("symbol-type", "Type of symbol to generate (ic, op)", "type", "ic");
     QCommandLineOption helpOption(QStringList() << "h" << "help", "Show help for a command");
     QCommandLineOption noColorOption("no-color", "Disable colored output");
     QCommandLineOption renameNetOption("rename-net", "Rename net label (repeatable): old=new", "pair");
@@ -4238,6 +4289,7 @@ int main(int argc, char *argv[]) {
     parser.addOption(quietOption);
     parser.addOption(exitWarnOption);
     parser.addOption(nameOption);
+    parser.addOption(symTypeOption);
     parser.addOption(helpOption);
     parser.addOption(noColorOption);
     parser.addOption(renameNetOption);
