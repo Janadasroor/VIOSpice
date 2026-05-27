@@ -8,6 +8,7 @@ NetLabelItem::NetLabelItem(QPointF pos, const QString& label, QGraphicsItem* par
     setPos(pos);
     setFlags(QGraphicsItem::ItemIsSelectable | QGraphicsItem::ItemIsMovable | QGraphicsItem::ItemSendsGeometryChanges);
     setAcceptHoverEvents(true);
+    setZValue(10);
     
     m_font = QFont("Inter", 8, QFont::Medium);
     m_pen = QPen(Qt::white, 1.5);
@@ -109,9 +110,10 @@ void NetLabelItem::paint(QPainter *painter, const QStyleOptionGraphicsItem *opti
     }
     
     if (isSelected()) {
-        painter->setPen(QPen(color, 1, Qt::DashLine));
+        QColor selColor = theme ? theme->selectionBox() : QColor(99, 102, 241);
+        painter->setPen(QPen(selColor, 1.5, Qt::DashLine));
         painter->setBrush(Qt::NoBrush);
-        painter->drawRect(boundingRect());
+        painter->drawRect(boundingRect().adjusted(-1, -1, 1, 1));
     }
     
     drawConnectionPointHighlights(painter);
