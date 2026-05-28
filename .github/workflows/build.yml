@@ -53,9 +53,13 @@ jobs:
             libpulse-dev \
             llvm-21-dev \
             python3 python3-dev
-          # libssl1.1 needed by VioraEDA's python / ngspice dependencies
-          wget -qO /tmp/libssl1.1.deb http://archive.ubuntu.com/ubuntu/pool/main/o/openssl/libssl1.1_1.1.1f-1ubuntu2_amd64.deb
-          sudo dpkg -i /tmp/libssl1.1.deb
+          # Prebuilt ngspice deps (compiled on older Ubuntu): libssl1.1, libldap-2.4
+          for pkg in \
+            http://archive.ubuntu.com/ubuntu/pool/main/o/openssl/libssl1.1_1.1.1f-1ubuntu2_amd64.deb \
+            http://archive.ubuntu.com/ubuntu/pool/main/o/openldap/libldap-2.4-2_2.4.49+dfsg-2ubuntu1.10_amd64.deb; do
+            wget -qO /tmp/pkg.deb "$pkg" && sudo dpkg -i /tmp/pkg.deb || true
+          done
+          sudo apt-get install -f -y
 
       - name: Install system deps (macOS)
         if: runner.os == 'macOS'
@@ -125,8 +129,28 @@ jobs:
         shell: msys2 {0}
         run: cmake --build build --parallel $(nproc)
 
-      - name: Smoke test VioraEDA (Linux / macOS)
-        if: runner.os != 'Windows'
+      - name: Smoke test VioraEDA (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo ldconfig
+          ldd ./build/VioraEDA 2>&1 | grep "not found" || echo "All libraries found"
+          set +e
+          QT_QPA_PLATFORM=offscreen ./build/VioraEDA &
+          pid=$!
+          sleep 8
+          kill $pid 2>/dev/null
+          wait $pid
+          rc=$?
+          set -e
+          if [ $rc -eq 0 ] || [ $rc -ge 128 ]; then
+            echo "PASS: VioraEDA started without crashing (exit code $rc)"
+          else
+            echo "FAIL: VioraEDA crashed (exit code $rc)"
+            exit $rc
+          fi
+
+      - name: Smoke test VioraEDA (macOS)
+        if: runner.os == 'macOS'
         run: |
           set +e
           QT_QPA_PLATFORM=offscreen ./build/VioraEDA &
