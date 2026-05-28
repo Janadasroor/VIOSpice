@@ -111,7 +111,7 @@ jobs:
       - name: Configure (Windows)
         if: runner.os == 'Windows'
         shell: msys2 {0}
-        run: cmake -B build -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF -DVIOSPICE_BUILD_FLUXSCRIPT=ON -G "MSYS Makefiles"
+        run: cmake -B build -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON -DVIOSPICE_BUILD_FLUXSCRIPT=ON -G "MSYS Makefiles"
 
       - name: Build (Linux / macOS)
         if: runner.os != 'Windows'
