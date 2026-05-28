@@ -98,7 +98,7 @@ jobs:
 
       - name: Configure (Linux)
         if: runner.os == 'Linux'
-        run: cmake -B build -DCMAKE_BUILD_TYPE=Release -DVIOSPICE_BUILD_FLUXSCRIPT=ON -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
+        run: cmake -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
 
       - name: Configure (macOS)
         if: runner.os == 'macOS'
@@ -111,7 +111,7 @@ jobs:
       - name: Configure (Windows)
         if: runner.os == 'Windows'
         shell: msys2 {0}
-        run: cmake -B build -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF -G "MSYS Makefiles"
+        run: cmake -B build -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF -DVIOSPICE_BUILD_FLUXSCRIPT=ON -G "MSYS Makefiles"
 
       - name: Build (Linux / macOS)
         if: runner.os != 'Windows'
