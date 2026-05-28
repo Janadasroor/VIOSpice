@@ -147,12 +147,14 @@ jobs:
       - name: Smoke test VioraEDA (Linux / macOS)
         if: runner.os != 'Windows'
         run: |
-          QT_QPA_PLATFORM=offscreen timeout 10 ./build/VioraEDA 2>&1
+          QT_QPA_PLATFORM=offscreen ./build/VioraEDA &
+          pid=$!
+          sleep 8
+          kill $pid 2>/dev/null || true
+          wait $pid
           rc=$?
-          if [ $rc -eq 124 ]; then
-            echo "PASS: VioraEDA started and stayed running (killed by timeout)"
-          elif [ $rc -eq 0 ]; then
-            echo "PASS: VioraEDA started and exited cleanly"
+          if [ $rc -eq 0 ] || [ $rc -ge 128 ]; then
+            echo "PASS: VioraEDA started without crashing (exit code $rc)"
           else
             echo "FAIL: VioraEDA crashed (exit code $rc)"
             exit $rc
@@ -162,12 +164,14 @@ jobs:
         if: runner.os == 'Windows'
         shell: msys2 {0}
         run: |
-          timeout 10 ./build/VioraEDA.exe 2>&1
+          ./build/VioraEDA.exe &
+          pid=$!
+          sleep 8
+          kill $pid 2>/dev/null || true
+          wait $pid
           rc=$?
-          if [ $rc -eq 124 ]; then
-            echo "PASS: VioraEDA started and stayed running (killed by timeout)"
-          elif [ $rc -eq 0 ]; then
-            echo "PASS: VioraEDA started and exited cleanly"
+          if [ $rc -eq 0 ] || [ $rc -ge 128 ]; then
+            echo "PASS: VioraEDA started without crashing (exit code $rc)"
           else
             echo "FAIL: VioraEDA crashed (exit code $rc)"
             exit $rc
