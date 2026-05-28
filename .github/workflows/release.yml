@@ -144,14 +144,43 @@ jobs:
         shell: msys2 {0}
         run: cmake --build build --parallel $(nproc)
 
-      - name: Run tests (Linux / macOS)
+      - name: Smoke test VioraEDA (Linux / macOS)
         if: runner.os != 'Windows'
-        run: ctest --test-dir build --output-on-failure || true
+        run: |
+          QT_QPA_PLATFORM=offscreen timeout 10 ./build/VioraEDA 2>&1
+          rc=$?
+          if [ $rc -eq 124 ]; then
+            echo "PASS: VioraEDA started and stayed running (killed by timeout)"
+          elif [ $rc -eq 0 ]; then
+            echo "PASS: VioraEDA started and exited cleanly"
+          else
+            echo "FAIL: VioraEDA crashed (exit code $rc)"
+            exit $rc
+          fi
 
-      - name: Run tests (Windows)
+      - name: Smoke test VioraEDA (Windows)
         if: runner.os == 'Windows'
         shell: msys2 {0}
-        run: ctest --test-dir build --output-on-failure || true
+        run: |
+          timeout 10 ./build/VioraEDA.exe 2>&1
+          rc=$?
+          if [ $rc -eq 124 ]; then
+            echo "PASS: VioraEDA started and stayed running (killed by timeout)"
+          elif [ $rc -eq 0 ]; then
+            echo "PASS: VioraEDA started and exited cleanly"
+          else
+            echo "FAIL: VioraEDA crashed (exit code $rc)"
+            exit $rc
+          fi
+
+      - name: Run unit tests (Linux / macOS)
+        if: runner.os != 'Windows'
+        run: ctest --test-dir build --output-on-failure -R "^(schematic|core|simulator|rpi|unit_|regression|integration)\."
+
+      - name: Run unit tests (Windows)
+        if: runner.os == 'Windows'
+        shell: msys2 {0}
+        run: ctest --test-dir build --output-on-failure -R "^(schematic|core|simulator|rpi|unit_|regression|integration)\."
 
       - name: Package (Linux)
         if: runner.os == 'Linux'
