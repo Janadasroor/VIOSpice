@@ -193,8 +193,10 @@ jobs:
         if: runner.os == 'Windows'
         shell: msys2 {0}
         run: |
+          export PATH="/mingw64/bin:$PATH"
+          cp -vn /mingw64/bin/libpython3*.dll build/ 2>&1 || true
           ls -la build/VioraEDA* 2>&1
-          objdump -p build/VioraEDA.exe 2>&1 | grep "DLL Name" | head -20
+          objdump -p build/VioraEDA.exe 2>&1 | grep "DLL Name" | grep -i python || true
           set +e
           ./build/VioraEDA.exe &
           pid=$!
