@@ -192,6 +192,8 @@ jobs:
 
       - name: Unit tests (Linux / macOS)
         if: runner.os != 'Windows'
+        env:
+          QT_QPA_PLATFORM: offscreen
         run: ctest --test-dir build --output-on-failure -R "^(schematic|core|simulator|rpi|unit_|regression|integration)\."
 
       - name: Unit tests (Windows)
