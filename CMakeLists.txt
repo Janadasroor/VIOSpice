@@ -474,6 +474,7 @@ if(BUILD_TESTING)
         Qt${QT_VERSION_MAJOR}::Widgets
         Qt${QT_VERSION_MAJOR}::Test
     )
+    vioraeda_setup_rpath(test_spice_directive_netlist)
     add_test(NAME schematic.spice_directive_netlist COMMAND test_spice_directive_netlist)
 
     # Design Rule Management System Tests
@@ -494,6 +495,7 @@ if(BUILD_TESTING)
         Qt${QT_VERSION_MAJOR}::Widgets
         Qt${QT_VERSION_MAJOR}::Test
     )
+    vioraeda_setup_rpath(test_design_rule)
     add_test(NAME core.design_rule COMMAND test_design_rule)
 endif()
 
