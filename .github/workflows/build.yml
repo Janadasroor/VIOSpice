@@ -125,12 +125,14 @@ jobs:
       - name: Smoke test VioraEDA (Linux / macOS)
         if: runner.os != 'Windows'
         run: |
+          set +e
           QT_QPA_PLATFORM=offscreen ./build/VioraEDA &
           pid=$!
           sleep 8
-          kill $pid 2>/dev/null || true
+          kill $pid 2>/dev/null
           wait $pid
           rc=$?
+          set -e
           if [ $rc -eq 0 ] || [ $rc -ge 128 ]; then
             echo "PASS: VioraEDA started without crashing (exit code $rc)"
           else
@@ -142,12 +144,14 @@ jobs:
         if: runner.os == 'Windows'
         shell: msys2 {0}
         run: |
+          set +e
           ./build/VioraEDA.exe &
           pid=$!
           sleep 8
-          kill $pid 2>/dev/null || true
+          kill $pid 2>/dev/null
           wait $pid
           rc=$?
+          set -e
           if [ $rc -eq 0 ] || [ $rc -ge 128 ]; then
             echo "PASS: VioraEDA started without crashing (exit code $rc)"
           else
