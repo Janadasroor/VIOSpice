@@ -917,28 +917,18 @@ static QList<ParsedSubckt> parseSubckts(const QString& text) {
     return parsed;
 }
 
-bool runSymbolFromSubckt(const QStringList& args, const QCommandLineParser& parser) {
-    if (args.size() < 3) {
-        std::cerr << "Usage: viora symbol-from-subckt <input.cir|lib> <out_dir> [--name <subckt>] [--type ic|op]" << std::endl;
-        return false;
-    }
-    const QString inputPath = args.at(1);
-    const QString outDir = args.at(2);
-    const QString targetName = parser.value("name");
-    const QString symbolType = parser.value("symbol-type").toLower(); // Using symbol-type to avoid collision
-
+static int generateSymbolsForLibrary(const QString& inputPath, const QString& outDir, const QString& symbolType, const QString& targetName = QString()) {
     QFile file(inputPath);
     if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
         std::cerr << "Error: Cannot read input file: " << inputPath.toStdString() << std::endl;
-        return false;
+        return 0;
     }
     const QString content = QString::fromUtf8(file.readAll());
     file.close();
 
     QList<ParsedSubckt> subckts = parseSubckts(content);
     if (subckts.isEmpty()) {
-        std::cerr << "Error: No .subckt definitions found in " << inputPath.toStdString() << std::endl;
-        return false;
+        return 0;
     }
 
     QDir().mkpath(outDir);
@@ -957,75 +947,169 @@ bool runSymbolFromSubckt(const QStringList& args, const QCommandLineParser& pars
         def.setModelPath(QFileInfo(inputPath).fileName());
 
         const int pinCount = sub.pins.size();
-        const qreal bodyWidth = 100.0;
-        const qreal pinSpacing = 20.0;
+        const qreal bodyWidth = 90.0;
+        const qreal pinSpacing = 30.0;
         const qreal pinLength = 15.0;
 
         if (symbolType == "op") {
-            // Triangular Op-Amp Shape
-            const qreal triWidth = 80.0;
-            const qreal triHeight = 80.0;
-            QList<QPointF> points;
-            points << QPointF(-triWidth / 2.0, -triHeight / 2.0);
-            points << QPointF(-triWidth / 2.0, triHeight / 2.0);
-            points << QPointF(triWidth / 2.0, 0.0);
-            def.addPrimitive(SymbolPrimitive::createPolygon(points, false));
+            def.setCategory("OpAmps");
+            def.setReferencePrefix("U");
+            QList<QPointF> tri; tri << QPointF(-30, -30) << QPointF(-30, 30) << QPointF(30, 0);
+            def.addPrimitive(SymbolPrimitive::createPolygon(tri, false));
             
-            // Labels inside triangle (+ / -)
-            def.addPrimitive(SymbolPrimitive::createText("-", QPointF(-triWidth / 2.0 + 8, -triHeight / 4.0 - 5), 12));
-            def.addPrimitive(SymbolPrimitive::createText("+", QPointF(-triWidth / 2.0 + 8, triHeight / 4.0 - 5), 12));
+            // Refined Op-Amp with manual leads
+            QMap<int, QString> mapping;
+            if (pinCount >= 1) { // IN-
+                def.addPrimitive(SymbolPrimitive::createLine(QPointF(-45, -15), QPointF(-30, -15)));
+                def.addPrimitive(SymbolPrimitive::createPin(QPointF(-45, -15), 1, sub.pins[0], "Right", 0));
+            }
+            if (pinCount >= 2) { // IN+
+                def.addPrimitive(SymbolPrimitive::createLine(QPointF(-45, 15), QPointF(-30, 15)));
+                def.addPrimitive(SymbolPrimitive::createPin(QPointF(-45, 15), 2, sub.pins[1], "Right", 0));
+            }
+            if (pinCount >= 3) { // VCC
+                def.addPrimitive(SymbolPrimitive::createLine(QPointF(0, -45), QPointF(0, -15)));
+                def.addPrimitive(SymbolPrimitive::createPin(QPointF(0, -45), 3, sub.pins[2], "Down", 0));
+            }
+            if (pinCount >= 4) { // VEE
+                def.addPrimitive(SymbolPrimitive::createLine(QPointF(0, 45), QPointF(0, 15)));
+                def.addPrimitive(SymbolPrimitive::createPin(QPointF(0, 45), 4, sub.pins[3], "Up", 0));
+            }
+            if (pinCount >= 5) { // OUT
+                def.addPrimitive(SymbolPrimitive::createLine(QPointF(30, 0), QPointF(45, 0)));
+                def.addPrimitive(SymbolPrimitive::createPin(QPointF(45, 0), 5, sub.pins[4], "Left", 0));
+            }
+            for(int i=0; i<pinCount; ++i) mapping.insert(i+1, sub.pins[i]);
+            def.setSpiceNodeMapping(mapping);
+
+        } else if (symbolType == "npn" || symbolType == "pnp") {
+            const bool pnp = (symbolType == "pnp");
+            def.setCategory("Semiconductors");
+            def.setReferencePrefix(pnp ? "QP" : "QN");
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(0, -30), QPointF(0, 30))); // Base bar
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(-30, 0), QPointF(0, 0))); // Base terminal
             
-            // Name label below
-            def.addPrimitive(SymbolPrimitive::createText(sub.name, QPointF(-triWidth / 2.0, triHeight / 2.0 + 5), 9));
+            // Collector: Diagonal + Vertical Post
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(0, -15), QPointF(45, -45)));
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(45, -45), QPointF(45, -60)));
+            
+            // Emitter: Diagonal + Vertical Post
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(0, 15), QPointF(45, 45)));
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(45, 45), QPointF(45, 60)));
+            
+            // Arrow (official positions)
+            QList<QPointF> arrow;
+            if (pnp) {
+                arrow << QPointF(0, 15) << QPointF(26.25, 26.25) << QPointF(18.75, 33.75);
+            } else {
+                arrow << QPointF(45, 45) << QPointF(26.25, 26.25) << QPointF(18.75, 33.75);
+            }
+            def.addPrimitive(SymbolPrimitive::createPolygon(arrow, false));
+            
+            QMap<int, QString> mapping;
+            if (pinCount >= 1) def.addPrimitive(SymbolPrimitive::createPin(QPointF(45, -60), 1, sub.pins[0], "Down", 0));
+            if (pinCount >= 2) def.addPrimitive(SymbolPrimitive::createPin(QPointF(-30, 0), 2, sub.pins[1], "Right", 0));
+            if (pinCount >= 3) def.addPrimitive(SymbolPrimitive::createPin(QPointF(45, 60), 3, sub.pins[2], "Up", 0));
+            for(int i=0; i<qMin(pinCount, 3); ++i) mapping.insert(i+1, sub.pins[i]);
+            def.setSpiceNodeMapping(mapping);
+
+        } else if (symbolType == "nmos" || symbolType == "pmos") {
+            const bool pmos = (symbolType == "pmos");
+            def.setCategory("Semiconductors");
+            def.setReferencePrefix(pmos ? "MP" : "MN");
+            
+            // 3-segment dashed channel (at x=0)
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(0, -37.5), QPointF(0, -22.5)));
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(0, -7.5), QPointF(0, 7.5)));
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(0, 22.5), QPointF(0, 37.5)));
+            
+            // Gate bar (at x=-7.5)
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(-7.5, -30), QPointF(-7.5, 30)));
+            // Gate terminal
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(-22.5, 0), QPointF(-7.5, 0)));
+            
+            // Drain terminal
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(0, -30), QPointF(30, -30)));
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(30, -30), QPointF(30, -45)));
+            
+            // Source terminal
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(0, 30), QPointF(30, 30)));
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(30, 30), QPointF(30, 45)));
+            
+            // Source-Bulk tie
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(0, 0), QPointF(30, 0)));
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(30, 0), QPointF(30, 30)));
+            
+            QList<QPointF> arrow;
+            if (pmos) {
+                arrow << QPointF(7.5, 0) << QPointF(0, -3.75) << QPointF(0, 3.75); // Arrow at bulk start
+            } else {
+                arrow << QPointF(0, 0) << QPointF(7.5, -3.75) << QPointF(7.5, 3.75); // Arrow at bulk tip
+            }
+            def.addPrimitive(SymbolPrimitive::createPolygon(arrow, false));
+            
+            QMap<int, QString> mapping;
+            if (pinCount >= 1) def.addPrimitive(SymbolPrimitive::createPin(QPointF(30, -45), 1, sub.pins[0], "Down", 0));
+            if (pinCount >= 2) def.addPrimitive(SymbolPrimitive::createPin(QPointF(-22.5, 0), 2, sub.pins[1], "Right", 0));
+            if (pinCount >= 3) def.addPrimitive(SymbolPrimitive::createPin(QPointF(30, 45), 3, sub.pins[2], "Up", 0));
+            for(int i=0; i<qMin(pinCount, 3); ++i) mapping.insert(i+1, sub.pins[i]);
+            def.setSpiceNodeMapping(mapping);
+
+        } else if (symbolType == "diode") {
+            def.setCategory("Semiconductors");
+            def.setReferencePrefix("D");
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(-15, 11.25), QPointF(15, 11.25))); // Cathode bar
+            QList<QPointF> tri; tri << QPointF(-15, -11.25) << QPointF(15, -11.25) << QPointF(0, 11.25);
+            def.addPrimitive(SymbolPrimitive::createPolygon(tri, false));
+            
+            // Vertical leads
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(0, -11.25), QPointF(0, -30)));
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(0, 11.25), QPointF(0, 30)));
 
             QMap<int, QString> mapping;
-            for (int i = 0; i < pinCount; ++i) {
-                // Typical Op-Amp layout heuristic:
-                // 1,2: Inputs (Left)
-                // Last: Output (Right)
-                // Rest: Power/Comp (Top/Bottom)
-                QPointF pos;
-                QString orient = "Right";
-                
-                if (i == 0) { pos = QPointF(-triWidth / 2.0 - pinLength, -triHeight / 4.0); orient = "Right"; } // In-
-                else if (i == 1) { pos = QPointF(-triWidth / 2.0 - pinLength, triHeight / 4.0); orient = "Right"; } // In+
-                else if (i == pinCount - 1) { pos = QPointF(triWidth / 2.0 + pinLength, 0); orient = "Left"; } // Out
-                else {
-                    // Spread rest on top/bottom
-                    bool top = (i % 2 == 0);
-                    // At x=0, the slanted edges are at y = +/- 20.0 (triHeight / 4.0)
-                    const qreal edgeY = top ? (-triHeight / 4.0) : (triHeight / 4.0);
-                    pos = QPointF(0, top ? (edgeY - pinLength) : (edgeY + pinLength));
-                    orient = top ? "Down" : "Up";
-                }
-                
-                def.addPrimitive(SymbolPrimitive::createPin(pos, i + 1, sub.pins[i], orient, pinLength));
-                mapping.insert(i + 1, sub.pins[i]);
-            }
+            if (pinCount >= 1) def.addPrimitive(SymbolPrimitive::createPin(QPointF(0, -30), 1, sub.pins[0], "Down", 0));
+            if (pinCount >= 2) def.addPrimitive(SymbolPrimitive::createPin(QPointF(0, 30), 2, sub.pins[1], "Up", 0));
+            for(int i=0; i<qMin(pinCount, 2); ++i) mapping.insert(i+1, sub.pins[i]);
             def.setSpiceNodeMapping(mapping);
 
         } else {
-            // Default IC Shape (Rectangle with Dot)
-            const qreal bodyHalfHeight = qMax<qreal>(30.0, ((pinCount + 1) / 2) * pinSpacing * 0.5 + 10.0);
-            def.addPrimitive(SymbolPrimitive::createRect(QRectF(-bodyWidth / 2.0, -bodyHalfHeight, bodyWidth, bodyHalfHeight * 2.0), false));
+            // Default IC Shape (Rectangle with Dot and Notch)
+            const int leftCount = (pinCount + 1) / 2;
+            const qreal bodyHeight = leftCount * pinSpacing;
+            const qreal halfH = bodyHeight / 2.0;
+            const qreal halfW = bodyWidth / 2.0;
+
+            def.addPrimitive(SymbolPrimitive::createRect(QRectF(-halfW, -halfH, bodyWidth, bodyHeight), false));
+            
+            // Top notch
+            def.addPrimitive(SymbolPrimitive::createArc(QRectF(-11.25, -halfH - 5.625, 22.5, 11.25), 0, 180 * 16));
             
             // Pin 1 indicator dot
-            def.addPrimitive(SymbolPrimitive::createCircle(QPointF(-bodyWidth / 2.0 + 8, -bodyHalfHeight + 8), 3.0, true));
+            def.addPrimitive(SymbolPrimitive::createCircle(QPointF(-halfW + 11.25, -halfH + 11.25), 3.75, true));
             
-            def.addPrimitive(SymbolPrimitive::createText(sub.name, QPointF(-bodyWidth / 2.0 + 5, -bodyHalfHeight - 15.0), 10));
+            def.addPrimitive(SymbolPrimitive::createText(sub.name, QPointF(-halfW + 5, -halfH - 20.0), 10));
 
-            const int leftCount = (pinCount + 1) / 2;
             QMap<int, QString> mapping;
-            for (int i = 0; i < pinCount; ++i) {
-                const bool leftSide = (i < leftCount);
-                const int sideIndex = leftSide ? i : (i - leftCount);
-                const int countOnSide = leftSide ? leftCount : (pinCount - leftCount);
-                const qreal y = ((countOnSide - 1) * pinSpacing * -0.5) + (sideIndex * pinSpacing);
-                const QPointF pos(leftSide ? (-bodyWidth / 2.0 - pinLength) : (bodyWidth / 2.0 + pinLength), y);
-                const QString orientation = leftSide ? "Right" : "Left";
-                
-                def.addPrimitive(SymbolPrimitive::createPin(pos, i + 1, sub.pins[i], orientation, pinLength));
+            // Left side pins
+            for (int i = 0; i < leftCount; ++i) {
+                const qreal y = -halfH + 15.0 + i * pinSpacing;
+                const QPointF pos(-halfW - pinLength, y);
+                // Pin lead
+                def.addPrimitive(SymbolPrimitive::createLine(QPointF(-halfW, y), QPointF(-halfW - pinLength, y)));
+                // Pin
+                def.addPrimitive(SymbolPrimitive::createPin(pos, i + 1, sub.pins[i], "Right", 0));
                 mapping.insert(i + 1, sub.pins[i]);
+            }
+            // Right side pins (bottom-up)
+            const int rightCount = pinCount - leftCount;
+            for (int i = 0; i < rightCount; ++i) {
+                const qreal y = halfH - 15.0 - i * pinSpacing;
+                const QPointF pos(halfW + pinLength, y);
+                // Pin lead
+                def.addPrimitive(SymbolPrimitive::createLine(QPointF(halfW, y), QPointF(halfW + pinLength, y)));
+                // Pin
+                def.addPrimitive(SymbolPrimitive::createPin(pos, leftCount + i + 1, sub.pins[leftCount + i], "Left", 0));
+                mapping.insert(leftCount + i + 1, sub.pins[leftCount + i]);
             }
             def.setSpiceNodeMapping(mapping);
         }
@@ -1036,10 +1120,24 @@ bool runSymbolFromSubckt(const QStringList& args, const QCommandLineParser& pars
             QJsonDocument doc(def.toJson());
             outFile.write(doc.toJson(QJsonDocument::Indented));
             outFile.close();
-            if (!g_quiet) std::cout << "Generated symbol: " << outPath.toStdString() << std::endl;
+            if (!g_quiet) std::cout << "Generated symbol: " << outPath.toStdString() << " (from " << QFileInfo(inputPath).fileName().toStdString() << ")" << std::endl;
             count++;
         }
     }
+    return count;
+}
+
+bool runSymbolFromSubckt(const QStringList& args, const QCommandLineParser& parser) {
+    if (args.size() < 3) {
+        std::cerr << "Usage: viora symbol-from-subckt <input.cir|lib> <out_dir> [--name <subckt>] [--type ic|op|...]" << std::endl;
+        return false;
+    }
+    const QString inputPath = args.at(1);
+    const QString outDir = args.at(2);
+    const QString targetName = parser.value("name");
+    const QString symbolType = parser.value("symbol-type").toLower();
+
+    int count = generateSymbolsForLibrary(inputPath, outDir, symbolType, targetName);
 
     if (parser.isSet("json")) {
         QJsonObject res;
@@ -1049,6 +1147,83 @@ bool runSymbolFromSubckt(const QStringList& args, const QCommandLineParser& pars
     }
 
     return count > 0;
+}
+
+bool runLibraryToSymbols(const QStringList& args, const QCommandLineParser& parser) {
+    if (args.size() < 3) {
+        std::cerr << "Usage: viora library-to-symbols <input_path> <out_dir> [--type ic|op|...] [--recursive]" << std::endl;
+        return false;
+    }
+    QString inputPath = args.at(1);
+    const QString outBaseDir = args.at(2);
+    const QString symbolType = parser.value("symbol-type").toLower();
+    const bool recursive = parser.isSet("recursive");
+
+    if (inputPath.startsWith("~")) {
+        inputPath.replace(0, 1, QDir::homePath());
+    }
+
+    QString rootToUse;
+    QStringList filesToProcess;
+    QFileInfo inInfo(inputPath);
+    
+    if (inInfo.isDir()) {
+        rootToUse = inInfo.absoluteFilePath();
+        QDirIterator it(rootToUse, {"*.lib", "*.sub", "*.spi", "*.mod", "*.cir"}, 
+                        QDir::Files, recursive ? QDirIterator::Subdirectories : QDirIterator::NoIteratorFlags);
+        while (it.hasNext()) {
+            filesToProcess << it.next();
+        }
+    } else if (inInfo.exists()) {
+        rootToUse = inInfo.absolutePath();
+        filesToProcess << inputPath;
+    } else {
+        std::cerr << "Error: Input path not found: " << inputPath.toStdString() << std::endl;
+        return false;
+    }
+
+    if (filesToProcess.isEmpty()) {
+        std::cerr << "No SPICE library files found to process." << std::endl;
+        return false;
+    }
+
+    int totalSymbols = 0;
+    int filesProcessed = 0;
+
+    for (const QString& filePath : filesToProcess) {
+        QFileInfo fi(filePath);
+        // Calculate relative path from root to preserve subfolder structure
+        QString relativePath = QDir(rootToUse).relativeFilePath(fi.absolutePath());
+        QString libName = fi.completeBaseName();
+        
+        // Build target directory: out_dir / relative_subfolder / lib_name
+        QDir targetDirObj(outBaseDir);
+        if (relativePath != ".") {
+            targetDirObj.setPath(targetDirObj.filePath(relativePath));
+        }
+        QString targetDir = targetDirObj.filePath(libName);
+        
+        int count = generateSymbolsForLibrary(filePath, targetDir, symbolType);
+        if (count > 0) {
+            totalSymbols += count;
+            filesProcessed++;
+        }
+    }
+
+    if (!g_quiet) {
+        std::cout << "Successfully processed " << filesProcessed << " library files." << std::endl;
+        std::cout << "Generated total of " << totalSymbols << " symbols in " << outBaseDir.toStdString() << std::endl;
+    }
+
+    if (parser.isSet("json")) {
+        QJsonObject res;
+        res["ok"] = true;
+        res["files_processed"] = filesProcessed;
+        res["total_symbols"] = totalSymbols;
+        printJsonValue(res);
+    }
+
+    return filesProcessed > 0;
 }
 
 bool runSymbolRender(const QStringList& args, const QCommandLineParser& parser) {
@@ -1103,6 +1278,33 @@ bool runSymbolRender(const QStringList& args, const QCommandLineParser& parser) 
     return true;
 }
 
+bool runSymbolSearch(const QStringList& args) {
+    if (args.size() < 2) {
+        std::cerr << "Usage: viora symbol-search <query>" << std::endl;
+        return false;
+    }
+    const QString query = args.at(1);
+    
+    QList<SymbolLibrary::SymbolInfo> results = SymbolLibraryManager::instance().searchMetadata(query);
+    
+    QJsonObject out;
+    out["query"] = query;
+    out["count"] = results.size();
+    QJsonArray items;
+    for (const auto& info : results) {
+        QJsonObject item;
+        item["name"] = info.name;
+        item["library"] = info.library;
+        item["category"] = info.category;
+        item["description"] = info.description;
+        item["tags"] = info.tags;
+        items.append(item);
+    }
+    out["results"] = items;
+    printJsonValue(out);
+    return true;
+}
+
 bool runSymbolList(const QStringList& args) {
     if (args.size() < 2) {
         std::cerr << "Usage: viora symbol-list <folder|library.sclib>" << std::endl;
@@ -1136,32 +1338,20 @@ bool runSymbolList(const QStringList& args) {
             appendSymbol(name, QFileInfo(path).fileName());
         }
     } else if (info.isDir()) {
-        QDir dir(path);
-        QStringList viosyms = dir.entryList(QStringList() << "*.viosym", QDir::Files);
-        for (const QString& file : viosyms) {
-            QString filePath = dir.filePath(file);
-            QFile f(filePath);
-            if (f.open(QIODevice::ReadOnly)) {
-                QJsonParseError parseError;
-                QJsonDocument doc = QJsonDocument::fromJson(f.readAll(), &parseError);
-                f.close();
-                if (parseError.error == QJsonParseError::NoError && doc.isObject()) {
-                    QJsonObject obj = doc.object();
-                    QString name = obj.value("name").toString();
-                    if (name.trimmed().isEmpty()) name = QFileInfo(filePath).completeBaseName();
-                    appendSymbol(name, file);
-                    continue;
+        SymbolLibraryManager& manager = SymbolLibraryManager::instance();
+        manager.loadUserLibraries(path, false); 
+        
+        for (SymbolLibrary* lib : manager.libraries()) {
+            if (lib->path().startsWith(path)) {
+                const QList<SymbolLibrary::SymbolInfo> infos = lib->symbolInfos();
+                for (const auto& i : infos) {
+                    QJsonObject s;
+                    s["name"] = i.name;
+                    s["source"] = lib->name();
+                    s["category"] = i.category;
+                    s["description"] = i.description;
+                    symbols.append(s);
                 }
-            }
-            appendSymbol(QFileInfo(filePath).completeBaseName(), file);
-        }
-
-        QStringList libs = dir.entryList(QStringList() << "*.sclib", QDir::Files);
-        for (const QString& libFile : libs) {
-            SymbolLibrary lib;
-            if (!lib.load(dir.filePath(libFile))) continue;
-            for (const QString& name : lib.symbolNames()) {
-                appendSymbol(name, libFile);
             }
         }
     } else {
@@ -3782,6 +3972,11 @@ void printSchema(const QString& command) {
             QJsonObject{{"args", QJsonArray{"file.raw"}}, {"options", QJsonObject{{"signal", "name (repeatable)"}, {"signal-regex", "pattern"}, {"format", "csv|json|parquet"}, {"max-points", "int"}, {"base-signal", "name"}, {"range", "t0:t1"}, {"out", "file (parquet)"}}}},
             QJsonObject{{"file", "string"}, {"x", "array[number]"}, {"signals", "array[{name,values}]"}}
         );
+    } else if (command == "raw-stats") {
+        setSchema(
+            QJsonObject{{"args", QJsonArray{"file.raw"}}, {"options", QJsonObject{{"signal", "name (repeatable)"}, {"range", "t0:t1"}}}},
+            QJsonObject{{"file", "string"}, {"stats", "array[object]"}}
+        );
     } else if (command == "symbol-query") {
         setSchema(
             QJsonObject{{"args", QJsonArray{"file.viosym"}}},
@@ -4057,6 +4252,7 @@ static void printGeneralHelp() {
     std::cout << "  symbol-list <folder|library.sclib>\n";
     std::cout << "  symbol-validate <file.viosym>\n";
     std::cout << "  symbol-from-subckt <input.cir|lib> <out_dir> [--name <subckt>]\n";
+    std::cout << "  library-to-symbols <input_path> <out_dir> [--recursive]\n";
     std::cout << "\nTips:\n";
     std::cout << "  Use \"viora help <command>\" for command-specific help.\n";
     std::cout << "  Use --json for machine-readable output.\n";
@@ -4110,6 +4306,11 @@ static void printCommandHelp(const QString& command) {
         std::cout << "  --max-points <n>  --base-signal <name>  --range t0:t1\n";
         return;
     }
+    if (command == "raw-stats") {
+        std::cout << "raw-stats <file.raw>\n";
+        std::cout << "  --signal <name> (repeatable)  --range t0:t1\n";
+        return;
+    }
     if (command == "view") {
         std::cout << "view <file.raw>\n";
         std::cout << "  --type plot|osc        Viewer type: standard plot or hardware-realistic oscilloscope (default: plot)\n";
@@ -4159,10 +4360,91 @@ static void printCommandHelp(const QString& command) {
     if (command == "symbol-from-subckt") {
         std::cout << "symbol-from-subckt <input.cir|lib> <out_dir>\n";
         std::cout << "  --name <subckt>        Generate symbol only for specific subcircuit\n";
+        std::cout << "  --symbol-type <t>      Symbol geometry type: ic, op, npn, pnp, nmos, pmos, diode\n";
         std::cout << "  --json\n";
         return;
     }
+    if (command == "library-to-symbols") {
+        std::cout << "library-to-symbols <input_path> <out_dir>\n";
+        std::cout << "  --recursive            Scan subdirectories for library files\n";
+        std::cout << "  --symbol-type <t>      Symbol geometry type: ic, op, npn, pnp, nmos, pmos, diode\n";
+        std::cout << "  --json\n";
+        std::cout << "\nNote: This command creates subfolders for each library for better organization.\n";
+        return;
+    }
     printGeneralHelp();
+}
+
+bool runRawStats(const QString& filePath, const QCommandLineParser& parser) {
+    RawData data;
+    if (!RawDataParser::loadRawAscii(filePath.toStdString(), &data)) {
+        std::cerr << "Error: Failed to load raw file." << std::endl;
+        return false;
+    }
+
+    double tStart = std::numeric_limits<double>::quiet_NaN();
+    double tEnd = std::numeric_limits<double>::quiet_NaN();
+    QString rangeError;
+    if (!parseRangeOption(parser.value("range"), &tStart, &tEnd, &rangeError)) {
+        std::cerr << "Error: " << rangeError.toStdString() << std::endl;
+        return false;
+    }
+
+    QStringList signalNames = parser.values("signal");
+    if (signalNames.isEmpty()) {
+        for (int i = 1; i < (int)data.varNames.size(); ++i) {
+            signalNames << QString::fromStdString(data.varNames[i]);
+        }
+    }
+
+    QJsonObject out;
+    out["file"] = filePath;
+    QJsonArray results;
+
+    for (const auto& sig : signalNames) {
+        int idx = -1;
+        for (int i = 0; i < (int)data.varNames.size(); ++i) {
+            if (QString::fromStdString(data.varNames[i]) == sig) {
+                idx = i;
+                break;
+            }
+        }
+        if (idx < 1) continue;
+        
+        const auto& values = data.y[idx - 1];
+        double minVal = std::numeric_limits<double>::max();
+        double maxVal = std::numeric_limits<double>::lowest();
+        double sum = 0;
+        double sumSq = 0;
+        int count = 0;
+
+        for (size_t i = 0; i < data.x.size(); ++i) {
+            double t = data.x[i];
+            if (!std::isnan(tStart) && t < tStart) continue;
+            if (!std::isnan(tEnd) && t > tEnd) continue;
+
+            double v = values[i];
+            minVal = std::min(minVal, v);
+            maxVal = std::max(maxVal, v);
+            sum += v;
+            sumSq += v * v;
+            count++;
+        }
+
+        if (count > 0) {
+            QJsonObject s;
+            s["signal"] = sig;
+            s["min"] = minVal;
+            s["max"] = maxVal;
+            s["avg"] = sum / count;
+            s["rms"] = std::sqrt(sumSq / count);
+            s["points"] = count;
+            results.append(s);
+        }
+    }
+    out["stats"] = results;
+    printJsonValue(out);
+    return true;
 }
 
 int main(int argc, char *argv[]) {
@@ -4253,6 +4535,7 @@ int main(int argc, char *argv[]) {
     QCommandLineOption measureFormatOption("measure-format", "Measure output format (text|json)", "mformat", "text");
     QCommandLineOption assertOption("assert", "Fail if assertion is false (repeatable). Examples: \"V(OUT) > 4.5\", \"V(OUT)_min > 4.5\"", "aexpr");
     QCommandLineOption summaryOption("summary", "Show concise summary (raw-info)");
+    QCommandLineOption recursiveOption("recursive", "Scan subdirectories recursively (library-to-symbols)");
     QCommandLineOption viewTypeOption("type", "Viewer type (plot, osc)", "viewtype", "plot");
 
     QCommandLineOption signalRegexOption("signal-regex", "Filter signals by regex (raw-export)", "pattern");
@@ -4313,6 +4596,7 @@ int main(int argc, char *argv[]) {
     parser.addOption(measureFormatOption);
     parser.addOption(assertOption);
     parser.addOption(summaryOption);
+    parser.addOption(recursiveOption);
     parser.addOption(viewTypeOption);
     parser.addOption(signalRegexOption);
     parser.addOption(outOption);
@@ -4432,7 +4716,7 @@ int main(int argc, char *argv[]) {
 
     QString filePath = args.at(1);
 
-    if (!QFileInfo::exists(filePath)) {
+    if (command != "library-to-symbols" && !QFileInfo::exists(filePath)) {
         std::cerr << "Error: File not found: " << filePath.toStdString() << std::endl;
         return 1;
     }
@@ -4718,6 +5002,8 @@ int main(int argc, char *argv[]) {
         return runSymbolQuery(args) ? 0 : 1;
     } else if (command == "symbol-validate") {
         return runSymbolValidate(args) ? 0 : 1;
+    } else if (command == "symbol-search") {
+        return runSymbolSearch(args) ? 0 : 1;
     } else if (command == "symbol-list") {
         return runSymbolList(args) ? 0 : 1;
     } else if (command == "symbol-export") {
@@ -4726,6 +5012,8 @@ int main(int argc, char *argv[]) {
         return runSymbolImport(args, parser) ? 0 : 1;
     } else if (command == "symbol-from-subckt") {
         return runSymbolFromSubckt(args, parser) ? 0 : 1;
+    } else if (command == "library-to-symbols") {
+        return runLibraryToSymbols(args, parser) ? 0 : 1;
     } else if (command == "library-index") {
         return runLibraryIndex(args, parser) ? 0 : 1;
     } else if (command == "schematic-query") {
@@ -4752,6 +5040,8 @@ int main(int argc, char *argv[]) {
         return runRawInfo(filePath, parser) ? 0 : 1;
     } else if (command == "raw-export") {
         return runRawExport(filePath, parser) ? 0 : 1;
+    } else if (command == "raw-stats") {
+        return runRawStats(filePath, parser) ? 0 : 1;
     } else if (command == "view") {
         QString viewType = parser.value("type").toLower();
         if (viewType == "osc" || viewType == "oscilloscope") {
