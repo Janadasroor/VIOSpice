@@ -194,9 +194,11 @@ jobs:
         shell: msys2 {0}
         run: |
           export PATH="/mingw64/bin:$PATH"
+          # VioraEDA.exe links python314.dll, but MSYS2 provides libpython3.14.dll
           cp -vn /mingw64/bin/libpython3*.dll build/ 2>&1 || true
-          ls -la build/VioraEDA* 2>&1
+          cp -vn /mingw64/bin/libpython3.14.dll build/python314.dll 2>&1 || true
           objdump -p build/VioraEDA.exe 2>&1 | grep "DLL Name" | grep -i python || true
+          ls -la build/python3* build/libpython3* 2>&1 || true
           set +e
           ./build/VioraEDA.exe &
           pid=$!
