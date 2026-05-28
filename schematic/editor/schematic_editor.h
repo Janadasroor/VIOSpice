@@ -51,6 +51,7 @@ public:
     ~SchematicEditor();
 
     bool openFile(const QString& filePath);
+    void loadSimulationResults(const QString& rawPath);
     void setProjectContext(const QString& projectName, const QString& projectDir, const QStringList& workspaceFolders = QStringList());
 
     void showSimulationResults(const class SimResults& results);
@@ -82,13 +83,15 @@ public:
     
     void runSimulationConfig(const SimulationSetupDialog::Config& config);
 
+public:
+    void onPlaceSymbolInSchematic(const class SymbolDefinition& symbol);
+
 private Q_SLOTS:
     void onZoomFit();
     void onZoomAllComponents();
     void onZoomSelection();
     void onZoomArea();
     void updatePropertyBar();
-    void onPlaceSymbolInSchematic(const class SymbolDefinition& symbol);
 
     void onTabChanged(int index);
     void onTabCloseRequested(int index);
@@ -427,6 +430,7 @@ private:
     void showQuickOpenDialog();
     void onQuickOpenFileSelected(const QString& filePath);
     class QuickOpenDialog* m_quickOpenDialog;
+    class LibraryBrowserDialog* m_libraryBrowser = nullptr;
 
     // Closed tabs history for "Reopen Closed Tab"
     struct ClosedTabInfo {
