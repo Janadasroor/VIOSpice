@@ -231,11 +231,15 @@ jobs:
 
       - name: Run unit tests (Linux / macOS)
         if: runner.os != 'Windows'
+        env:
+          QT_QPA_PLATFORM: offscreen
         run: ctest --test-dir build --output-on-failure -R "^(schematic|core|simulator|rpi|unit_|regression|integration)\."
 
       - name: Run unit tests (Windows)
         if: runner.os == 'Windows'
         shell: msys2 {0}
+        env:
+          QT_QPA_PLATFORM: offscreen
         run: ctest --test-dir build --output-on-failure -R "^(schematic|core|simulator|rpi|unit_|regression|integration)\."
 
       - name: Package (Linux)
