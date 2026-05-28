@@ -284,7 +284,7 @@ endif()
 # --- FluxScript Support ---
 option(VIOSPICE_DOWNLOAD_FLUXSCRIPT "Download prebuilt FluxScript" OFF)
 option(VIOSPICE_BUILD_FLUXSCRIPT "Build FluxScript from source" OFF)
-set(FLUXSCRIPT_DOWNLOAD_BASE "https://github.com/Janadasroor/fluxscript/releases/download/v0.1.0"
+set(FLUXSCRIPT_DOWNLOAD_BASE "https://github.com/Janadasroor/fluxscript/releases/download/v1.2.0"
     CACHE STRING "URL prefix for prebuilt FluxScript archive")
 
 if(WIN32)
@@ -294,7 +294,7 @@ elseif(APPLE)
     set(FLUXSCRIPT_ARCHIVE "fluxscript-macos-arm64.tar.gz")
     set(FLUXSCRIPT_LIB_NAME "libFluxScript.dylib")
 else()
-    set(FLUXSCRIPT_ARCHIVE "fluxscript-linux-x86_64.tar.gz")
+    set(FLUXSCRIPT_ARCHIVE "fluxscript-linux-arm64.tar.gz")
     set(FLUXSCRIPT_LIB_NAME "libFluxScript.so")
 endif()
 set(FLUXSCRIPT_DOWNLOAD_URL "${FLUXSCRIPT_DOWNLOAD_BASE}/${FLUXSCRIPT_ARCHIVE}")
