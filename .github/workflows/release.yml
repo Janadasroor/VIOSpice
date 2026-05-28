@@ -97,7 +97,7 @@ jobs:
             llvm-21-dev \
             python3 python3-dev
           # libssl1.1 needed by VioraEDA's python / ngspice dependencies
-          wget -qO /tmp/libssl1.1.deb http://archive.ubuntu.com/ubuntu/pool/main/o/openssl/libssl1.1_1.1.1f-1ubuntu2.22_amd64.deb
+          wget -qO /tmp/libssl1.1.deb http://archive.ubuntu.com/ubuntu/pool/main/o/openssl/libssl1.1_1.1.1f-1ubuntu2_amd64.deb
           sudo dpkg -i /tmp/libssl1.1.deb
 
       - name: Install system deps (macOS)
@@ -169,6 +169,8 @@ jobs:
         if: runner.os == 'Windows'
         shell: msys2 {0}
         run: |
+          ls -la build/VioraEDA* 2>&1
+          objdump -p build/VioraEDA.exe 2>&1 | grep "DLL Name" | head -20
           set +e
           ./build/VioraEDA.exe &
           pid=$!
