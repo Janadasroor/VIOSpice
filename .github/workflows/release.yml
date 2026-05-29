@@ -118,7 +118,7 @@ jobs:
 
       - name: Configure (Linux)
         if: runner.os == 'Linux'
-        run: cmake -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
+        run: cmake -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache -DMI_OVERRIDE=OFF
 
       - name: Install LLVM (macOS)
         if: runner.os == 'macOS'
@@ -128,7 +128,7 @@ jobs:
         if: runner.os == 'macOS'
         run: |
           cmake -B build -DCMAKE_BUILD_TYPE=Release \
-            -DLLVM_DIR="$(brew --prefix llvm)/lib/cmake/llvm"
+            -DLLVM_DIR="$(brew --prefix llvm)/lib/cmake/llvm" -DMI_OVERRIDE=OFF
 
       - name: Configure (Windows)
         if: runner.os == 'Windows'
@@ -137,7 +137,7 @@ jobs:
           PYPATH=$(cygpath -w /mingw64/bin/python.exe)
           cmake -B build -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON -DVIOSPICE_BUILD_FLUXSCRIPT=ON \
             -DPython3_EXECUTABLE="$PYPATH" -DPython_EXECUTABLE="$PYPATH" \
-            -G "MSYS Makefiles"
+            -G "MSYS Makefiles" -DMI_OVERRIDE=OFF
 
       - name: Build (Linux)
         if: runner.os == 'Linux'
