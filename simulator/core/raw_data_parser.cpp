@@ -130,9 +130,15 @@ bool RawDataParser::loadRawAscii(const std::string& path, RawData* out, std::str
         }
 
         if (line.rfind("No. Variables:", 0) == 0) {
-            try { numVariables = std::stoi(trim(line.substr(14))); } catch (...) { numVariables = 0; }
+            std::string sub = trim(line.substr(14));
+            char* endptr = nullptr;
+            long val = std::strtol(sub.c_str(), &endptr, 10);
+            numVariables = (endptr != sub.c_str()) ? static_cast<int>(val) : 0;
         } else if (line.rfind("No. Points:", 0) == 0) {
-            try { numPoints = std::stoi(trim(line.substr(11))); } catch (...) { numPoints = 0; }
+            std::string sub = trim(line.substr(11));
+            char* endptr = nullptr;
+            long val = std::strtol(sub.c_str(), &endptr, 10);
+            numPoints = (endptr != sub.c_str()) ? static_cast<int>(val) : 0;
         } else if (line.rfind("Command:", 0) == 0) {
             std::string cmd = toLower(trim(line.substr(8)));
             if (cmd.find("tran") != std::string::npos) data.analysisType = SimAnalysisType::Transient;

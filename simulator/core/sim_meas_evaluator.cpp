@@ -497,8 +497,11 @@ bool SimMeasEvaluator::parseTrigger(
                 const std::string rhs = tok.substr(tok.find('=') + 1);
                 if (toLower(rhs) == "last") trig.useLast = true;
                 else {
-                    int idx = std::stoi(rhs);
-                    if (idx > 0) trig.index = idx;
+                    char* endptr = nullptr;
+                    long val = std::strtol(rhs.c_str(), &endptr, 10);
+                    if (endptr != rhs.c_str() && *endptr == '\0') {
+                        if (val > 0) trig.index = static_cast<int>(val);
+                    }
                 }
             }
             pos++;
@@ -509,8 +512,11 @@ bool SimMeasEvaluator::parseTrigger(
                 const std::string rhs = tok.substr(tok.find('=') + 1);
                 if (toLower(rhs) == "last") trig.useLast = true;
                 else {
-                    int idx = std::stoi(rhs);
-                    if (idx > 0) trig.index = idx;
+                    char* endptr = nullptr;
+                    long val = std::strtol(rhs.c_str(), &endptr, 10);
+                    if (endptr != rhs.c_str() && *endptr == '\0') {
+                        if (val > 0) trig.index = static_cast<int>(val);
+                    }
                 }
             }
             pos++;
