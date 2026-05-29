@@ -1925,20 +1925,13 @@ void SchematicEditor::openVirtualTerminalWindow(SchematicItem* item) {
     if (!item) return;
     QUuid id = item->id();
     if (m_terminalWindows.contains(id)) {
-        VirtualTerminalWindow* w = m_terminalWindows[id];
-        w->setWindowFlags(w->windowFlags() | Qt::WindowStaysOnTopHint);
-        w->show();
-        w->raise();
-        w->activateWindow();
-        QTimer::singleShot(200, w, [w]() {
-            w->setWindowFlags(w->windowFlags() & ~Qt::WindowStaysOnTopHint);
-            w->show();
-        });
+        m_terminalWindows[id]->show();
+        m_terminalWindows[id]->raise();
+        m_terminalWindows[id]->activateWindow();
         return;
     }
 
-    auto* win = new VirtualTerminalWindow(id, "Terminal - " + item->reference());
-    win->setAttribute(Qt::WA_DeleteOnClose);
+    auto* win = new VirtualTerminalWindow(id, "Terminal - " + item->reference(), this);
     win->setWindowFlags(Qt::Window | Qt::WindowTitleHint | Qt::WindowSystemMenuHint | Qt::WindowMinMaxButtonsHint | Qt::WindowCloseButtonHint);
     m_terminalWindows[id] = win;
 
@@ -1946,7 +1939,10 @@ void SchematicEditor::openVirtualTerminalWindow(SchematicItem* item) {
     connect(win, &VirtualTerminalWindow::configChanged, this, &SchematicEditor::onVirtualTerminalConfigChanged);
     connect(win, &VirtualTerminalWindow::propertiesRequested, this, &SchematicEditor::onVirtualTerminalPropertiesRequested);
     connect(win, &VirtualTerminalWindow::txDataReady, this, &SchematicEditor::onVirtualTerminalTxDataReady);
-    connect(item, &QObject::destroyed, win, &QWidget::close);
+    QPointer<VirtualTerminalWindow> winGuard(win);
+    connect(item, &QObject::destroyed, this, [winGuard]() {
+        if (winGuard) { qDebug() << "VT item destroyed, closing window:" << winGuard->windowTitle(); winGuard->close(); }
+    });
 
     if (auto* term = dynamic_cast<VirtualTerminalItem*>(item)) {
         win->setConfig(term->config());
@@ -1960,14 +1956,9 @@ void SchematicEditor::openVirtualTerminalWindow(SchematicItem* item) {
         }
     }
 
-    win->setWindowFlags(win->windowFlags() | Qt::WindowStaysOnTopHint);
     win->show();
     win->raise();
     win->activateWindow();
-    QTimer::singleShot(200, win, [win]() {
-        win->setWindowFlags(win->windowFlags() & ~Qt::WindowStaysOnTopHint);
-        win->show();
-    });
 }
 
 void SchematicEditor::onTimeTravelSnapshot(double t, const QMap<QString, double>& nodeVoltages, const QMap<QString, double>& currents) {
