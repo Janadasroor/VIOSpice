@@ -11,6 +11,10 @@ VirtualTerminalWindow::VirtualTerminalWindow(const QUuid& id, const QString& tit
     : QMainWindow(parent), m_id(id) {
     setWindowTitle(title);
     resize(600, 400);
+    static int cascade = 0;
+    QPoint base = parent ? static_cast<QWidget*>(parent)->mapToGlobal(QPoint(80, 80)) : QPoint(100, 100);
+    move(base + QPoint(cascade * 30, cascade * 30));
+    cascade = (cascade + 1) % 10;
     setupUI();
 }
 
