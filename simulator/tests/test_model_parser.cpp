@@ -1,9 +1,5 @@
 #include "../core/sim_model_parser.h"
 
-#include <QFile>
-#include <QCoreApplication>
-#include <QDir>
-
 #include <iostream>
 #include <regex>
 #include <stdexcept>
@@ -281,8 +277,7 @@ void testPolyControlledSourcesAreAccepted() {
 
 } // namespace
 
-int main(int argc, char** argv) {
-    QCoreApplication a(argc, argv);
+int main() {
     try {
         testModelInheritance();
         testLibSectionFilter();
