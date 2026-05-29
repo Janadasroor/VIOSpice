@@ -120,7 +120,7 @@ std::string trimStr(const std::string& s) {
 
 bool convertMeanToMeasLine(const std::string& meanLine, int lineNo, std::string& outMeasLine) {
     const std::string trimmed = trimStr(meanLine);
-    static const std::regex re(
+    const std::regex re(
         "^\\.mean\\s+(?:(avg|max|min|rms)\\s+)?([^\\s]+)(?:\\s+from\\s*=\\s*([^\\s]+))?(?:\\s+to\\s*=\\s*([^\\s]+))?\\s*$",
         std::regex_constants::icase);
     std::smatch m;
