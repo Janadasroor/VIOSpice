@@ -158,7 +158,7 @@ jobs:
       - name: Smoke test VioraEDA (macOS)
         if: runner.os == 'macOS'
         env:
-          DYLD_LIBRARY_PATH: ${{ github.workspace }}/build/viomatrixc-prebuilt/lib
+          DYLD_LIBRARY_PATH: ${{ github.workspace }}/build/viomatrixc-prebuilt/lib:${{ github.workspace }}/build/fluxscript-prebuilt/lib
         run: |
           set +e
           QT_QPA_PLATFORM=offscreen ./build/VioraEDA &
@@ -253,7 +253,7 @@ jobs:
         if: runner.os != 'Windows'
         env:
           QT_QPA_PLATFORM: offscreen
-          DYLD_LIBRARY_PATH: ${{ github.workspace }}/build/viomatrixc-prebuilt/lib
+          DYLD_LIBRARY_PATH: ${{ github.workspace }}/build/viomatrixc-prebuilt/lib:${{ github.workspace }}/build/fluxscript-prebuilt/lib
         run: ctest --test-dir build --output-on-failure -R "^(schematic|core|simulator|rpi|unit_|regression|integration)\."
 
       - name: Unit tests (Windows)
