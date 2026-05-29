@@ -50,6 +50,9 @@ endif()
 include(FetchContent)
 
 # Fetch and configure Slang (SystemVerilog Frontend)
+if(WIN32)
+    set(SLANG_USE_MIMALLOC OFF CACHE BOOL "Disable mimalloc on Windows to prevent exit heap corruption" FORCE)
+endif()
 FetchContent_Declare(
     slang
     GIT_REPOSITORY https://github.com/MikePopoloski/slang.git
