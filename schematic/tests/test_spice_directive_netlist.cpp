@@ -25,11 +25,10 @@
 
 namespace {
 bool isSimulationAvailable() {
-#if defined(Q_OS_WIN) || defined(_WIN32)
-    return false; // Skip simulations on Windows CI to prevent ngspice background thread deadlocks
-#else
+    if (qEnvironmentVariableIsSet("GITHUB_ACTIONS")) {
+        return false; // Skip simulations on CI to prevent background thread event loop deadlocks
+    }
     return SimulationManager::instance().isAvailable();
-#endif
 }
 } // namespace
 

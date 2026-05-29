@@ -57,5 +57,5 @@ private Q_SLOTS:
     }
 };
 
-QTEST_MAIN(TestRFMath)
+QTEST_APPLESS_MAIN(TestRFMath)
 #include "test_rf_math.moc"
