@@ -38,7 +38,6 @@ Q_SIGNALS:
 
 private Q_SLOTS:
     void onCellChanged(int row, int column);
-    void onBoolToggled(bool checked); 
 
 private:
     void setupUi();

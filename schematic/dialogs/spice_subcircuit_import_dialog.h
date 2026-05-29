@@ -52,6 +52,7 @@ private Q_SLOTS:
     void updateFromText();
     void onSelectedSubcktChanged();
     void onAiGenerateClicked();
+    void onPickFile();
     void onAiProcessFinished(int exitCode);
     void onAiProcessReadyRead();
 
@@ -88,9 +89,11 @@ private:
     SpiceHighlighter* m_highlighter;
     
     QPushButton* m_aiGenerateBtn;
+    QPushButton* m_pickFileBtn;
     QProgressBar* m_progressBar;
     QProcess* m_aiProcess = nullptr;
     QString m_aiResponseBuffer;
+    QString m_aiErrorBuffer;
     QString m_preferredLibraryFileName;
     QList<ParsedSubckt> m_parsedSubckts;
 };

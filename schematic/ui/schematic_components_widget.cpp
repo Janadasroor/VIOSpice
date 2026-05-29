@@ -13,6 +13,7 @@
 #include <QPainterPath>
 #include <QTabWidget>
 #include <QVBoxLayout>
+#include <QProgressBar>
 #include <QHeaderView>
 #include <QFileInfo>
 #include <QCoreApplication>
@@ -99,6 +100,75 @@ bool isUserLibraryPath(const QString& p) {
     return !isBundledKicadSymLibraryPath(p);
 }
 
+/**
+ * @brief Smarter filter for component search that handles synonyms and category matches.
+ */
+class ComponentFilterProxyModel : public QSortFilterProxyModel {
+public:
+    explicit ComponentFilterProxyModel(QObject* parent = nullptr) : QSortFilterProxyModel(parent) {
+        setFilterCaseSensitivity(Qt::CaseInsensitive);
+        setRecursiveFilteringEnabled(true);
+    }
+
+protected:
+    bool filterAcceptsRow(int sourceRow, const QModelIndex& sourceParent) const override {
+        const QString query = filterRegularExpression().pattern().trimmed().toLower();
+        if (query.isEmpty()) return true;
+
+        QModelIndex index = sourceModel()->index(sourceRow, 0, sourceParent);
+        const QString name = sourceModel()->data(index, Qt::DisplayRole).toString().toLower();
+        const QString category = sourceModel()->data(index, SymbolListModel::CategoryRole).toString().toLower();
+        const QString library = sourceModel()->data(index, SymbolListModel::LibraryRole).toString().toLower();
+
+        // 1. Check if this item matches
+        if (matchSmarter(name, category, library, query)) return true;
+
+        // 2. Check if any parent matches (if so, we accept all children)
+        QModelIndex p = sourceParent;
+        while (p.isValid()) {
+            const QString pName = sourceModel()->data(p, Qt::DisplayRole).toString().toLower();
+            const QString pLibrary = sourceModel()->data(p, SymbolListModel::LibraryRole).toString().toLower();
+            if (pName.contains(query) || pLibrary.contains(query)) return true;
+            p = p.parent();
+        }
+
+        return false;
+    }
+
+private:
+    bool matchSmarter(const QString& name, const QString& category, const QString& library, const QString& query) const {
+        if (name.contains(query) || category.contains(query) || library.contains(query)) return true;
+
+        // Synonym: "instruments" matches "simulation", "probe", "meter", "scope", "analyzer"
+        if (query == "instruments" || query == "instrument") {
+            if (category == "simulation" || category == "instruments" ||
+                name.contains("probe") || name.contains("meter") || 
+                name.contains("oscilloscope") || name.contains("logic analyzer")) {
+                return true;
+            }
+        }
+
+        // Synonym: "meter" matches voltmeters/ammeters
+        if (query == "meter") {
+            if (name.contains("voltmeter") || name.contains("ammeter") || name.contains("wattmeter")) return true;
+        }
+        
+        // Synonym: "pwr" matches power symbols
+        if (query == "pwr" || query == "power") {
+            if (category.contains("power") || name.contains("vcc") || name.contains("gnd")) return true;
+        }
+
+        // Substring common abbreviations
+        if (query == "cap") return name.contains("capacitor");
+        if (query == "res") return name.contains("resistor");
+        if (query == "dio") return name.contains("diode");
+        if (query == "tran" || query == "tnr") return name.contains("transistor");
+        if (query == "src") return name.contains("source");
+
+        return false;
+    }
+};
+
 } // namespace
 
 // Replaced by SymbolPreviewWidget
@@ -110,10 +180,8 @@ SchematicComponentsWidget::SchematicComponentsWidget(QWidget *parent)
 {
     // 1. Initialize data models first
     m_symbolListModel = new SymbolListModel(this);
-    m_proxyModel = new QSortFilterProxyModel(this);
+    m_proxyModel = new ComponentFilterProxyModel(this);
     m_proxyModel->setSourceModel(m_symbolListModel);
-    m_proxyModel->setFilterCaseSensitivity(Qt::CaseInsensitive);
-    m_proxyModel->setRecursiveFilteringEnabled(true);
     connect(&SymbolLibraryManager::instance(), &SymbolLibraryManager::librariesChanged,
             this, &SchematicComponentsWidget::populate);
 
@@ -135,6 +203,28 @@ SchematicComponentsWidget::SchematicComponentsWidget(QWidget *parent)
         "QTabBar::tab:selected { background: %2; color: #3b82f6; border-bottom: 2px solid #3b82f6; }"
         "QTabBar::tab:hover:!selected { background: %4; }"
     ).arg(border, bg, fg, (theme && theme->type() == PCBTheme::Light) ? "#f1f5f9" : "#2a2a2a"));
+
+    m_progressBar = new QProgressBar(this);
+    m_progressBar->setFixedHeight(4);
+    m_progressBar->setTextVisible(false);
+    m_progressBar->setStyleSheet(QString(
+        "QProgressBar { background: transparent; border: none; }"
+        "QProgressBar::chunk { background-color: #3b82f6; }"
+    ));
+    m_progressBar->hide();
+
+    connect(&SymbolLibraryManager::instance(), &SymbolLibraryManager::progressUpdated,
+            this, [this](const QString& status, int progress, int total) {
+        m_progressBar->show();
+        m_progressBar->setMaximum(total);
+        m_progressBar->setValue(progress);
+        m_progressBar->setToolTip(status);
+    });
+    connect(&SymbolLibraryManager::instance(), &SymbolLibraryManager::loadingFinished,
+            m_progressBar, &QWidget::hide);
+
+    mainLayout->addWidget(m_progressBar);
+    mainLayout->addWidget(m_tabs);
 
     // --- Tab 1: Symbols ---
     m_symbolTab = new QWidget();
@@ -352,20 +442,21 @@ void SchematicComponentsWidget::populate() {
         {"GND", "Power Symbols"}, {"VCC", "Power Symbols"}, {"VDD", "Power Symbols"},
         {"VSS", "Power Symbols"}, {"VBAT", "Power Symbols"}, {"3.3V", "Power Symbols"},
         {"5V", "Power Symbols"}, {"12V", "Power Symbols"},
-        {"Probe", "Simulation"},
-        {"Voltage Probe", "Simulation"},
-        {"Current Probe", "Simulation"},
-        {"Power Probe", "Simulation"},
-        {"Voltmeter (DC)", "Simulation"},
-        {"Voltmeter (AC)", "Simulation"},
-        {"Ammeter (DC)", "Simulation"},
-        {"Ammeter (AC)", "Simulation"},
-        {"Wattmeter", "Simulation"},
-        {"Power Meter", "Simulation"},
-        {"Frequency Counter", "Simulation"},
-        {"Logic Probe", "Simulation"},
-        {"Logic Analyzer", "Simulation"},
-        {"Oscilloscope Instrument", "Simulation"},
+        {"Probe", "Instruments"},
+        {"Voltage Probe", "Instruments"},
+        {"Current Probe", "Instruments"},
+        {"Power Probe", "Instruments"},
+        {"Voltmeter (DC)", "Instruments"},
+        {"Voltmeter (AC)", "Instruments"},
+        {"Ammeter (DC)", "Instruments"},
+        {"Ammeter (AC)", "Instruments"},
+        {"Wattmeter", "Instruments"},
+        {"Power Meter", "Instruments"},
+        {"Frequency Counter", "Instruments"},
+        {"Logic Probe", "Instruments"},
+        {"Logic Analyzer", "Instruments"},
+        {"Virtual Terminal", "Instruments"},
+        {"Oscilloscope Instrument", "Instruments"},
         {"Flux Measurement Probe", "Simulation"},
         {"Tuning Slider", "Simulation"},
         {"Smart Signal Block", "Simulation"},

@@ -94,6 +94,8 @@ private:
     std::function<QVariantMap()> m_getSchematicContextFn;
     std::function<QVariantMap(const QString& code)> m_runPythonCodeFn;
     std::function<bool(const QString& path)> m_openSchematicFn;
+    std::function<bool(const QString& path)> m_openProjectFn;
+    std::function<void(const QString& path)> m_loadSimResultsFn;
 
 public:
     // Set UI integration hooks (called by the GUI on startup)
@@ -103,6 +105,8 @@ public:
     void setGetSchematicContextFn(std::function<QVariantMap()> fn) { m_getSchematicContextFn = std::move(fn); }
     void setRunPythonCodeFn(std::function<QVariantMap(const QString&)> fn) { m_runPythonCodeFn = std::move(fn); }
     void setOpenSchematicFn(std::function<bool(const QString&)> fn) { m_openSchematicFn = std::move(fn); }
+    void setOpenProjectFn(std::function<bool(const QString&)> fn) { m_openProjectFn = std::move(fn); }
+    void setLoadSimResultsFn(std::function<void(const QString&)> fn) { m_loadSimResultsFn = std::move(fn); }
 };
 
 #endif // UI_COMMAND_SERVER_H

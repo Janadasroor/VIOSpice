@@ -478,39 +478,33 @@ void LibraryBrowserDialog::performSymbolSearch(const QString& query) {
         }
     }
 
+    int resultCount = 0;
+    const int MAX_DISPLAY_RESULTS = 500;
+
     auto appendResult = [&](const SearchResult& result) {
         const QString visibleName = result.displayName.isEmpty() ? result.name : result.displayName;
         const QString key = visibleName.trimmed().toLower();
         if (key.isEmpty() || seenNames.contains(key)) return;
         seenNames.insert(key);
 
+        if (resultCount >= MAX_DISPLAY_RESULTS) {
+            resultCount++;
+            return;
+        }
+
         QListWidgetItem* item = new QListWidgetItem(m_resultsList);
-        QWidget* itemWidget = new QWidget();
-        itemWidget->setMinimumHeight(55);
-        QVBoxLayout* itemLayout = new QVBoxLayout(itemWidget);
-        itemLayout->setContentsMargins(10, 8, 10, 8);
-        itemLayout->setSpacing(2);
-
-        PCBTheme* theme = ThemeManager::theme();
-        QString accent = theme ? theme->accentColor().name() : "#007acc";
-        QString secFg = theme ? theme->textSecondary().name() : "#666";
-
-        QLabel* nameLabel = new QLabel(visibleName);
-        nameLabel->setStyleSheet(QString("font-weight: 700; font-size: 13px; color: %1;").arg(accent));
-
+        item->setText(visibleName);
+        
         QString detailText = result.category;
         if (detailText.isEmpty()) detailText = "General";
-        detailText += " • Verified Symbol";
+        item->setToolTip(QString("%1\nCategory: %2\nLibrary: %3").arg(result.description, detailText, result.library));
+        
+        // Use standard data roles instead of setItemWidget for massive speedup
+        item->setData(Qt::UserRole, result.name);
+        item->setData(Qt::UserRole + 1, result.category);
 
-        QLabel* detailLabel = new QLabel(detailText);
-        detailLabel->setStyleSheet(QString("font-size: 11px; color: %1;").arg(secFg));
-
-        itemLayout->addWidget(nameLabel);
-        itemLayout->addWidget(detailLabel);
-
-        item->setSizeHint(itemWidget->sizeHint().expandedTo(QSize(0, 55)));
-        m_resultsList->setItemWidget(item, itemWidget);
         m_searchResults.append(result);
+        resultCount++;
     };
 
     for (const SearchResult& result : found) {
@@ -526,12 +520,24 @@ void LibraryBrowserDialog::performSymbolSearch(const QString& query) {
         {"NMOS Transistor", "Semiconductors"}, {"PMOS Transistor", "Semiconductors"},
         {"IC", "Integrated Circuits"}, {"RAM", "Integrated Circuits"}, {"OpAmp", "Integrated Circuits"},
         {"Switch", "Interactive"}, {"Voltage Controlled Switch", "Interactive"}, {"LED", "Interactive"}, {"Blinking LED", "Interactive"}, {"GND", "Power"}, {"VCC", "Power"},
-        {"Oscilloscope Instrument", "Simulation"}, {"Logic Analyzer", "Simulation"},
+        {"Oscilloscope Instrument", "Instruments"}, {"Logic Analyzer", "Instruments"},
+        {"Virtual Terminal", "Instruments"},
+        {"Voltmeter (DC)", "Instruments"}, {"Ammeter (DC)", "Instruments"},
+        {"Wattmeter", "Instruments"}, {"Frequency Counter", "Instruments"},
         {"Voltage Source (DC)", "Simulation"}, {"Voltage Source (Sine)", "Simulation"},
         {"BV", "Simulation"}, {"BI", "Simulation"}
     };
     for (const auto& tool : builtInTools) {
-        if (!q.isEmpty() && !tool.first.contains(q, Qt::CaseInsensitive)) continue;
+        bool match = q.isEmpty();
+        if (!match) {
+            if (tool.first.contains(q, Qt::CaseInsensitive) || tool.second.contains(q, Qt::CaseInsensitive)) {
+                match = true;
+            } else if ((q == "instruments" || q == "instrument") && tool.second == "Instruments") {
+                match = true;
+            }
+        }
+        if (!match) continue;
+        
         SearchResult result;
         result.name = tool.first;
         result.displayName = cleanDigitalDisplayName(tool.first);
@@ -541,7 +547,14 @@ void LibraryBrowserDialog::performSymbolSearch(const QString& query) {
         appendResult(result);
     }
 
-    if (m_searchResults.isEmpty()) {
+    if (resultCount > MAX_DISPLAY_RESULTS) {
+        QListWidgetItem* more = new QListWidgetItem(QString("... and %1 more. Refine your search to find specific components.").arg(resultCount - MAX_DISPLAY_RESULTS));
+        more->setFlags(Qt::NoItemFlags);
+        more->setForeground(QBrush(QColor("#94a3b8")));
+        m_resultsList->addItem(more);
+    }
+
+    if (m_searchResults.isEmpty() && resultCount == 0) {
         QListWidgetItem* empty = new QListWidgetItem("No results found.");
         empty->setFlags(Qt::NoItemFlags);
         m_resultsList->addItem(empty);

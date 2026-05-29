@@ -11,6 +11,7 @@
 #include <QCryptographicHash>
 #include "../schematic/items/schematic_item.h"
 #include "../schematic/analysis/net_manager.h"
+#include "../schematic/analysis/schematic_erc_advanced.h"
 
 #include "../flux/bridges/flux_design_rule_bridge.h"
 #include "jit_context_manager.h"
@@ -286,11 +287,9 @@ QList<DesignRuleViolation> DesignRuleEngine::checkErcRules(
     NetManager* netManager
 ) {
     QList<DesignRuleViolation> violations;
+    if (!scene || !m_ruleSet) return violations;
 
-    // TODO: Integrate with existing SchematicERC system
-    // For now, return empty list
-    // Future: Convert SchematicERC violations to DesignRuleViolation format
-
+    violations = SchematicERCAdvanced::runAllChecks(scene, netManager, m_ruleSet);
     return violations;
 }
 

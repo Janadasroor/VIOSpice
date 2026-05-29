@@ -50,6 +50,8 @@ Q_SIGNALS:
     void penHandleDragged(QPointF handlePos);
     void penPointFinished();
     void penPathClosed();
+    void pinRotateRequested();
+    void pinFlipHRequested();
     void penClicked(QPointF scenePos, int pointIndex = -1, int handleIndex = -1);
     void penDoubleClicked(QPointF scenePos, int pointIndex = -1);
     void bezierEditPointClicked(QPointF scenePos);

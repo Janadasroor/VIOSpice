@@ -22,28 +22,27 @@ CapacitorItem::CapacitorItem(QPointF pos, QString value, CapacitorStyle style, Q
 void CapacitorItem::buildPrimitives() {
     m_primitives.clear();
     
+    // Left plate (vertical line at x=-5)
+    m_primitives.push_back(std::make_unique<LinePrimitive>(QPointF(-5, -15), QPointF(-5, 15)));
     // Left lead wire
-    m_primitives.push_back(std::make_unique<LinePrimitive>(QPointF(-45, 0), QPointF(-7.5, 0)));
-    
-    // Left plate (vertical line)
-    m_primitives.push_back(std::make_unique<LinePrimitive>(QPointF(-7.5, -22.5), QPointF(-7.5, 22.5)));
+    m_primitives.push_back(std::make_unique<LinePrimitive>(QPointF(-45, 0), QPointF(-5, 0)));
     
     // Right plate
     if (m_style == Polarized) {
         // Curved plate for polarized (arc)
-        m_primitives.push_back(std::make_unique<ArcPrimitive>(QRectF(7.5, -22.5, 15, 45), 90 * 16, 180 * 16));
-        m_primitives.push_back(std::make_unique<TextPrimitive>("+", QPointF(-30, -12), 15));
+        m_primitives.push_back(std::make_unique<ArcPrimitive>(QRectF(5, -15, 10, 30), 90 * 16, 180 * 16));
+        m_primitives.push_back(std::make_unique<TextPrimitive>("+", QPointF(-22.5, -12), 12));
         
-        // Right lead wire (starts from arc center/edge)
-        m_primitives.push_back(std::make_unique<LinePrimitive>(QPointF(22.5, 0), QPointF(45, 0)));
+        // Right lead wire (starts from arc edge)
+        m_primitives.push_back(std::make_unique<LinePrimitive>(QPointF(15, 0), QPointF(45, 0)));
     } else {
-        // Standard vertical line
-        m_primitives.push_back(std::make_unique<LinePrimitive>(QPointF(7.5, -22.5), QPointF(7.5, 22.5)));
+        // Standard vertical line at x=5
+        m_primitives.push_back(std::make_unique<LinePrimitive>(QPointF(5, -15), QPointF(5, 15)));
         // Right lead wire
-        m_primitives.push_back(std::make_unique<LinePrimitive>(QPointF(7.5, 0), QPointF(45, 0)));
+        m_primitives.push_back(std::make_unique<LinePrimitive>(QPointF(5, 0), QPointF(45, 0)));
     }
     
-    // Pins (connection points)
+    // Pins (terminal tips)
     m_primitives.push_back(std::make_unique<CirclePrimitive>(QPointF(-45, 0), 3.75, true));
     m_primitives.push_back(std::make_unique<CirclePrimitive>(QPointF(45, 0), 3.75, true));
 }

@@ -20,88 +20,83 @@ TransistorItem::TransistorItem(QPointF pos, QString value, TransistorType type, 
     m_brush = QBrush(theme->schematicComponent());
     
     buildPrimitives();
-    createLabels(QPointF(22.5, -22.5), QPointF(22.5, 22.5));
+    createLabels(QPointF(45, -30), QPointF(45, 30));
 }
 
 void TransistorItem::buildPrimitives() {
     m_primitives.clear();
     
     if (m_transistorType == NPN || m_transistorType == PNP) {
-        // BJT Transistor Symbol
-        // Circle body
-        m_primitives.push_back(std::make_unique<CirclePrimitive>(QPointF(0, 0), 22.5, false));
+        // BJT Transistor Symbol (Vertical)
+        // Base bar
+        m_primitives.push_back(std::make_unique<LinePrimitive>(QPointF(0, -30), QPointF(0, 30)));
+        // Base terminal
+        m_primitives.push_back(std::make_unique<LinePrimitive>(QPointF(-30, 0), QPointF(0, 0)));
         
-        // Base line (vertical)
-        m_primitives.push_back(std::make_unique<LinePrimitive>(QPointF(-15, -22.5), QPointF(-15, 22.5)));
+        // Collector: Diagonal + Vertical Post
+        m_primitives.push_back(std::make_unique<LinePrimitive>(QPointF(0, -15), QPointF(45, -45)));
+        m_primitives.push_back(std::make_unique<LinePrimitive>(QPointF(45, -45), QPointF(45, -60)));
         
-        // Base lead
-        m_primitives.push_back(std::make_unique<LinePrimitive>(QPointF(-45, 0), QPointF(-15, 0)));
+        // Emitter: Diagonal + Vertical Post
+        m_primitives.push_back(std::make_unique<LinePrimitive>(QPointF(0, 15), QPointF(45, 45)));
+        m_primitives.push_back(std::make_unique<LinePrimitive>(QPointF(45, 45), QPointF(45, 60)));
         
-        // Emitter line
-        m_primitives.push_back(std::make_unique<LinePrimitive>(QPointF(-15, -15), QPointF(kGridAlignedRightPinX, -22.5)));
-        
-        // Collector line
-        m_primitives.push_back(std::make_unique<LinePrimitive>(QPointF(-15, 15), QPointF(kGridAlignedRightPinX, 22.5)));
-        
-        // Emitter lead
-        m_primitives.push_back(std::make_unique<LinePrimitive>(QPointF(kGridAlignedRightPinX, -22.5), QPointF(kGridAlignedRightPinX, -45)));
-        
-        // Collector lead
-        m_primitives.push_back(std::make_unique<LinePrimitive>(QPointF(kGridAlignedRightPinX, 22.5), QPointF(kGridAlignedRightPinX, 45)));
-        
-        // Arrow on emitter (direction depends on NPN/PNP)
+        // Arrow on emitter
         QList<QPointF> arrow;
         if (m_transistorType == NPN) {
-            // Arrow pointing away from base
-            arrow << QPointF(6, -18) << QPointF(kGridAlignedRightPinX, -22.5) << QPointF(3, -22.5);
+            // Arrow pointing away from base (at emitter post start)
+            arrow << QPointF(45, 45) << QPointF(26.25, 26.25) << QPointF(18.75, 33.75);
         } else {
-            // Arrow pointing toward base (PNP)
-            arrow << QPointF(-9, -18) << QPointF(-15, -15) << QPointF(-6, -12);
+            // Arrow pointing toward base (at emitter bar start)
+            arrow << QPointF(0, 15) << QPointF(26.25, 26.25) << QPointF(18.75, 33.75);
         }
-        m_primitives.push_back(std::make_unique<PolygonPrimitive>(arrow, true));
+        m_primitives.push_back(std::make_unique<PolygonPrimitive>(arrow, false));
         
     } else {
-        // MOSFET Symbol
-        // Body line (vertical)
-        m_primitives.push_back(std::make_unique<LinePrimitive>(QPointF(-12, -22.5), QPointF(-12, 22.5)));
+        // MOSFET Symbol (Vertical)
+        // 3-segment dashed channel (at x=0)
+        m_primitives.push_back(std::make_unique<LinePrimitive>(QPointF(0, -37.5), QPointF(0, -22.5)));
+        m_primitives.push_back(std::make_unique<LinePrimitive>(QPointF(0, -7.5), QPointF(0, 7.5)));
+        m_primitives.push_back(std::make_unique<LinePrimitive>(QPointF(0, 22.5), QPointF(0, 37.5)));
         
-        // Gate line
-        m_primitives.push_back(std::make_unique<LinePrimitive>(QPointF(-18, -15), QPointF(-18, 15)));
+        // Gate bar (at x=-7.5)
+        m_primitives.push_back(std::make_unique<LinePrimitive>(QPointF(-7.5, -30), QPointF(-7.5, 30)));
+        // Gate terminal
+        m_primitives.push_back(std::make_unique<LinePrimitive>(QPointF(-22.5, 0), QPointF(-7.5, 0)));
         
-        // Gate lead
-        m_primitives.push_back(std::make_unique<LinePrimitive>(QPointF(-45, 0), QPointF(-18, 0)));
+        // Drain terminal
+        m_primitives.push_back(std::make_unique<LinePrimitive>(QPointF(0, -30), QPointF(30, -30)));
+        m_primitives.push_back(std::make_unique<LinePrimitive>(QPointF(30, -30), QPointF(30, -45)));
         
-        // Source segment
-        m_primitives.push_back(std::make_unique<LinePrimitive>(QPointF(-12, -15), QPointF(kGridAlignedRightPinX, -22.5)));
-        m_primitives.push_back(std::make_unique<LinePrimitive>(QPointF(kGridAlignedRightPinX, -22.5), QPointF(kGridAlignedRightPinX, -45)));
+        // Source terminal
+        m_primitives.push_back(std::make_unique<LinePrimitive>(QPointF(0, 30), QPointF(30, 30)));
+        m_primitives.push_back(std::make_unique<LinePrimitive>(QPointF(30, 30), QPointF(30, 45)));
         
-        // Drain segment
-        m_primitives.push_back(std::make_unique<LinePrimitive>(QPointF(-12, 15), QPointF(kGridAlignedRightPinX, 22.5)));
-        m_primitives.push_back(std::make_unique<LinePrimitive>(QPointF(kGridAlignedRightPinX, 22.5), QPointF(kGridAlignedRightPinX, 45)));
+        // Source-Bulk tie
+        m_primitives.push_back(std::make_unique<LinePrimitive>(QPointF(0, 0), QPointF(30, 0)));
+        m_primitives.push_back(std::make_unique<LinePrimitive>(QPointF(30, 0), QPointF(30, 30)));
         
-        // Body connection
-        m_primitives.push_back(std::make_unique<LinePrimitive>(QPointF(-12, 0), QPointF(kGridAlignedRightPinX, 0)));
-        m_primitives.push_back(std::make_unique<LinePrimitive>(QPointF(kGridAlignedRightPinX, 0), QPointF(kGridAlignedRightPinX, 22.5)));
-        
-        // Arrow (direction depends on N/P type)
+        // Arrow (at bulk connection point)
         QList<QPointF> arrow;
         if (m_transistorType == NMOS) {
-            arrow << QPointF(-6, 0) << QPointF(0, -6) << QPointF(0, 6);
+            // Arrow pointing toward channel
+            arrow << QPointF(0, 0) << QPointF(7.5, -3.75) << QPointF(7.5, 3.75);
         } else {
-            arrow << QPointF(0, 0) << QPointF(-6, -6) << QPointF(-6, 6);
+            // Arrow pointing away from channel
+            arrow << QPointF(7.5, 0) << QPointF(0, -3.75) << QPointF(0, 3.75);
         }
-        m_primitives.push_back(std::make_unique<PolygonPrimitive>(arrow, true));
+        m_primitives.push_back(std::make_unique<PolygonPrimitive>(arrow, false));
     }
     
-    // Pin dots
-    m_primitives.push_back(std::make_unique<CirclePrimitive>(QPointF(-45, 0), 3.75, true));
-    
+    // Pin dots (terminal tips)
     if (m_transistorType == NPN || m_transistorType == PNP) {
-        m_primitives.push_back(std::make_unique<CirclePrimitive>(QPointF(kGridAlignedRightPinX, -45), 3.75, true));
-        m_primitives.push_back(std::make_unique<CirclePrimitive>(QPointF(kGridAlignedRightPinX, 45), 3.75, true));
+        m_primitives.push_back(std::make_unique<CirclePrimitive>(QPointF(-30, 0), 3.75, true)); // Base
+        m_primitives.push_back(std::make_unique<CirclePrimitive>(QPointF(45, -60), 3.75, true)); // Collector
+        m_primitives.push_back(std::make_unique<CirclePrimitive>(QPointF(45, 60), 3.75, true)); // Emitter
     } else {
-        m_primitives.push_back(std::make_unique<CirclePrimitive>(QPointF(kGridAlignedRightPinX, -45), 3.75, true));
-        m_primitives.push_back(std::make_unique<CirclePrimitive>(QPointF(kGridAlignedRightPinX, 45), 3.75, true));
+        m_primitives.push_back(std::make_unique<CirclePrimitive>(QPointF(-22.5, 0), 3.75, true)); // Gate
+        m_primitives.push_back(std::make_unique<CirclePrimitive>(QPointF(30, -45), 3.75, true)); // Drain
+        m_primitives.push_back(std::make_unique<CirclePrimitive>(QPointF(30, 45), 3.75, true)); // Source
     }
 }
 
@@ -222,7 +217,7 @@ bool TransistorItem::fromJson(const QJsonObject& json) {
     m_transistorType = static_cast<TransistorType>(json["transistorType"].toInt());
     setPos(QPointF(json["x"].toDouble(), json["y"].toDouble()));
     buildPrimitives();
-    createLabels(QPointF(22.5, -22.5), QPointF(22.5, 22.5));
+    createLabels(QPointF(45, -30), QPointF(45, 30));
     if (json.contains("refX")) {
         setReferenceLabelPos(QPointF(json["refX"].toDouble(), json["refY"].toDouble()));
     }
@@ -261,14 +256,14 @@ QString TransistorItem::pinName(int index) const {
 
 QList<QPointF> TransistorItem::connectionPoints() const {
     QList<QPointF> points;
-    points.append(QPointF(-45, 0)); // Base/Gate
-    
     if (m_transistorType == NPN || m_transistorType == PNP) {
-        points.append(QPointF(kGridAlignedRightPinX, -45));
-        points.append(QPointF(kGridAlignedRightPinX, 45));
+        points.append(QPointF(-30, 0));  // Base
+        points.append(QPointF(45, -60)); // Collector
+        points.append(QPointF(45, 60));  // Emitter
     } else {
-        points.append(QPointF(kGridAlignedRightPinX, -45));
-        points.append(QPointF(kGridAlignedRightPinX, 45));
+        points.append(QPointF(-22.5, 0)); // Gate
+        points.append(QPointF(30, -45));  // Drain
+        points.append(QPointF(30, 45));   // Source
     }
     return points;
 }

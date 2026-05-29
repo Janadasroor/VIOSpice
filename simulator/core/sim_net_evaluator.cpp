@@ -240,7 +240,9 @@ NetEvaluation SimNetEvaluator::evaluate(const std::vector<NetStatement>& stateme
                 continue;
             }
         } else if (hasOutput) {
-            eval.diagnostics.push_back(".net output specification is not implemented yet: " + stmt.outputSpec);
+            // Voltage and current .net output are handled above; this branch is a
+            // safety net for any future unrecognized output spec types.
+            eval.diagnostics.push_back(".net output specification not recognized: " + stmt.outputSpec);
             continue;
         }
 

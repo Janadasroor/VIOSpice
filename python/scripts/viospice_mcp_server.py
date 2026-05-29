@@ -145,9 +145,11 @@ def viospice_raw_export(file: str, out: str, format: str = "json") -> dict:
 
 
 @mcp.tool()
-def viospice_launch_viewer(file: str) -> dict:
-    """Launch the standalone visual waveform viewer (oscilloscope) for a .raw simulation file."""
-    return core.launch_viewer(file)
+def viospice_launch_viewer(file: str, type: str = "plot") -> dict:
+    """Launch the standalone visual waveform viewer (oscilloscope) for a .raw simulation file.
+    Use type='osc' for a hardware-realistic analog oscilloscope view.
+    """
+    return core.launch_viewer(file, type=type)
 
 
 @mcp.tool()
@@ -212,6 +214,14 @@ def viospice_netlist_validate(file: str = None, cir: str = None) -> dict:
 
 
 @mcp.tool()
+def viospice_netlist_to_schematic(file: str, out: str = None) -> dict:
+    """Convert a validated SPICE netlist (.cir) into a Viora schematic (.flxsch).
+    AI Agents: Always write and test a .cir file first, then call this to generate the schematic.
+    """
+    return core.netlist_to_schematic(file, out)
+
+
+@mcp.tool()
 def viospice_netlist_run_async(
     file: str = None,
     cir: str = None,
@@ -223,6 +233,7 @@ def viospice_netlist_run_async(
     compat: bool = True,
     smart_signals: list = None,
     verilog_blocks: list = None,
+    xspice_blocks: list = None,
     options: str = None,
     temperature: float = None,
 ):
@@ -237,6 +248,7 @@ def viospice_netlist_run_async(
         robust=robust, compat=compat,
         smart_signals=smart_signals,
         verilog_blocks=verilog_blocks,
+        xspice_blocks=xspice_blocks,
         options=options, temperature=temperature,
     )
 
@@ -323,9 +335,24 @@ def viora_ui_get_current_tab() -> dict:
 
 
 @mcp.tool()
-def viospice_ui_open_schematic(path: str, convert: bool = False) -> dict:
+def viora_ui_open_schematic(path: str, convert: bool = False) -> dict:
     """Open a schematic or netlist file in the running VioraEDA GUI editor."""
     return core.open_schematic(path=path, convert=convert)
+
+
+@mcp.tool()
+def viora_ui_open_project(path: str) -> dict:
+    """Open a project file or directory in the running VioraEDA GUI."""
+    return core.open_project(path)
+
+
+@mcp.tool()
+def viora_ui_load_simulation_results(path: str) -> dict:
+    """Load a .raw simulation results file into the running VioraEDA GUI.
+    This will automatically display the results in the bottom-panel Analog Oscilloscope.
+    """
+    return core.load_simulation_results(path)
+
 
 
 if __name__ == "__main__":

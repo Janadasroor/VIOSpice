@@ -278,6 +278,25 @@ QVariantMap UICommandServer::handleCommand(const QVariantMap& request) {
             response["error"] = "Open schematic not available";
         }
     }
+    else if (cmd == "open_project") {
+        QString path = params.value("path").toString();
+        if (m_openProjectFn) {
+            response["ok"] = m_openProjectFn(path);
+        } else {
+            response["ok"] = false;
+            response["error"] = "Open project not available";
+        }
+    }
+    else if (cmd == "load_simulation_results") {
+        QString path = params.value("path").toString();
+        if (m_loadSimResultsFn) {
+            m_loadSimResultsFn(path);
+            response["ok"] = true;
+        } else {
+            response["ok"] = false;
+            response["error"] = "Load simulation results not available";
+        }
+    }
     else if (cmd == "get_schematic_context") {
         if (m_getSchematicContextFn) {
             response = m_getSchematicContextFn();

@@ -477,6 +477,27 @@ if(BUILD_TESTING)
     vioraeda_setup_rpath(test_spice_directive_netlist)
     add_test(NAME schematic.spice_directive_netlist COMMAND test_spice_directive_netlist)
 
+    add_executable(test_virtual_terminal schematic/tests/test_virtual_terminal.cpp)
+    set_target_properties(test_virtual_terminal PROPERTIES AUTOMOC ON)
+    target_include_directories(test_virtual_terminal PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/schematic
+        ${CMAKE_CURRENT_SOURCE_DIR}/schematic/items
+        ${CMAKE_CURRENT_SOURCE_DIR}/schematic/ui
+    )
+    target_link_libraries(test_virtual_terminal PRIVATE
+        VioSchematic
+        VioSymbols
+        VioSimulator
+        VioCore
+        VioUI
+        Qt${QT_VERSION_MAJOR}::Core
+        Qt${QT_VERSION_MAJOR}::Gui
+        Qt${QT_VERSION_MAJOR}::Widgets
+        Qt${QT_VERSION_MAJOR}::Test
+    )
+    vioraeda_setup_rpath(test_virtual_terminal)
+    add_test(NAME schematic.virtual_terminal COMMAND test_virtual_terminal)
+
     # Design Rule Management System Tests
     add_executable(test_design_rule
         tests/test_design_rule.cpp

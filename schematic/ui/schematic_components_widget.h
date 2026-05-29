@@ -43,6 +43,7 @@ private:
     QTabWidget *m_tabs;
     QWidget *m_symbolTab;
     class ModelBrowserWidget *m_modelTab;
+    class QProgressBar *m_progressBar;
 
     QLineEdit *m_searchBox;
     QTreeView *m_componentList;
