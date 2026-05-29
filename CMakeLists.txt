@@ -205,6 +205,7 @@ else()
 endif()
 
 add_compile_definitions(HAVE_NGSPICE)
+add_compile_definitions(VIOSPICE_CM_DIR="${CMAKE_BINARY_DIR}/cm")
 set(VIOSPICE_ENGINE_FOUND TRUE)
 set(VIOSPICE_ENGINE_LIBRARIES "${VIOSPICE_PREFERRED_ENGINE_LIB}")
 
