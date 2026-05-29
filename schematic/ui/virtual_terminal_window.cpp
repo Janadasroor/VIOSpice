@@ -6,6 +6,7 @@
 #include <QPushButton>
 #include <QTextBlock>
 #include <QCloseEvent>
+#include <QDebug>
 
 VirtualTerminalWindow::VirtualTerminalWindow(const QUuid& id, const QString& title, QWidget* parent)
     : QMainWindow(parent), m_id(id) {
@@ -118,12 +119,16 @@ void VirtualTerminalWindow::updateData(const SimResults& results, const QString&
         return false;
     };
 
+    qDebug() << "VT updateData rxNet:" << rxNet << "txNet:" << txNet << "waveforms:" << results.waveforms.size();
     for (const auto& wave : results.waveforms) {
         QString name = QString::fromStdString(wave.name);
+        qDebug() << "  wave:" << name << "points:" << wave.xData.size();
 
         if (matchNet(name, rxNet)) {
+            qDebug() << "  -> MATCHES rxNet, calling processSerialData";
             processSerialData(wave.xData, wave.yData, config, true);
         } else if (matchNet(name, txNet)) {
+            qDebug() << "  -> MATCHES txNet, calling processSerialData";
             processSerialData(wave.xData, wave.yData, config, false);
         }
     }
@@ -170,6 +175,7 @@ void VirtualTerminalWindow::processSerialData(const std::vector<double>& times, 
 
         if (!inStart) {
             if (prevVal && !val) {
+                qDebug() << "VT UART start bit detected at t=" << t << (isRx ? "RX" : "TX");
                 inStart = true;
                 nextBitTime = t + bitPeriod * 1.5;
                 bitsCaptured = 0;
@@ -184,6 +190,9 @@ void VirtualTerminalWindow::processSerialData(const std::vector<double>& times, 
                     if (val) currentChar |= (1 << bitsCaptured);
                     bitsCaptured++;
                     nextBitTime += bitPeriod;
+                    if (bitsCaptured == config.dataBits) {
+                        qDebug() << "VT UART byte received:" << (int)currentChar << (char)(currentChar >= 32 ? currentChar : '?') << (isRx ? "RX" : "TX");
+                    }
                 } else if (bitsCaptured == config.dataBits && config.parity != "None") {
                     if (val == VirtualTerminalWindow::parityCheck(currentChar, config.dataBits, config.parity)) {
                         bitsCaptured++;
@@ -200,7 +209,7 @@ void VirtualTerminalWindow::processSerialData(const std::vector<double>& times, 
                             text = QString(QChar(currentChar));
                         }
                         if (!isRx) {
-                            m_terminal->insertPlainText(QString("<TX: %1").arg(text));
+    m_terminal->insertPlainText(QString("<TX: %1>").arg(text));
                             m_terminal->insertPlainText(">");
                         } else {
                             m_terminal->insertPlainText(text);
