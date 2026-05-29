@@ -17,6 +17,7 @@
 #include "../items/current_source_item.h"
 #include "../items/net_label_item.h"
 #include "../items/oscilloscope_item.h"
+#include "../items/virtual_terminal_item.h"
 #include "../items/signal_generator_item.h"
 #include "../items/switch_item.h"
 #include "../items/led_item.h"
@@ -94,6 +95,7 @@
 #include "../items/generic_component_item.h"
 #include "../items/voltage_controlled_switch_item.h"
 #include "../dialogs/oscilloscope_properties_dialog.h"
+#include "../dialogs/virtual_terminal_properties_dialog.h"
 #include "../dialogs/erc_rules_dialog.h"
 #include "../ui/simulation_panel.h"
 #include "../dialogs/find_replace_dialog.h"
@@ -799,6 +801,11 @@ void SchematicEditor::onSelectionChanged() {
                 openLogicEditor(smartBlock);
             }
 
+            // 0a. Virtual Terminal - open terminal window on single click
+            if (auto* term = dynamic_cast<VirtualTerminalItem*>(item)) {
+                openVirtualTerminalWindow(term);
+            }
+
             // 1. Component Cross-Probe
             if (ConfigManager::instance().autoFocusOnCrossProbe() && !item->reference().isEmpty()) {
                 SyncManager::instance().pushCrossProbe(item->reference());
@@ -889,6 +896,14 @@ void SchematicEditor::onItemDoubleClicked(SchematicItem* item) {
             probe->openPropertiesDialog();
             return;
         }
+    }
+
+    if (item->itemTypeName() == "VirtualTerminalInstrument" || item->itemTypeName() == "Virtual Terminal") {
+        if (auto* term = dynamic_cast<VirtualTerminalItem*>(item)) {
+            VirtualTerminalPropertiesDialog dlg(term, m_undoStack, m_scene, this);
+            dlg.exec();
+        }
+        return;
     }
 
     // 1. Specialized Smart Dialogs
@@ -2172,12 +2187,15 @@ void SchematicEditor::onOpenPowerNetsManager() {
 }
 
 void SchematicEditor::onOpenComponentBrowser() {
-    LibraryBrowserDialog dialog(this);
+    if (!m_libraryBrowser) {
+        m_libraryBrowser = new LibraryBrowserDialog(this);
+        // Connect the placement signal from the dialog to our placement slot
+        connect(m_libraryBrowser, &LibraryBrowserDialog::symbolPlaced, this, &SchematicEditor::onPlaceSymbolInSchematic);
+    }
     
-    // Connect the placement signal from the dialog to our placement slot
-    connect(&dialog, &LibraryBrowserDialog::symbolPlaced, this, &SchematicEditor::onPlaceSymbolInSchematic);
-    
-    dialog.exec();
+    m_libraryBrowser->show();
+    m_libraryBrowser->raise();
+    m_libraryBrowser->activateWindow();
 }
 
 void SchematicEditor::onShowHelp() {

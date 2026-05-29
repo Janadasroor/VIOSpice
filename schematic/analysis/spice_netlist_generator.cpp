@@ -1,6 +1,7 @@
 #include "spice_netlist_generator.h"
 #include "../items/schematic_item.h"
 #include "../items/smart_signal_item.h"
+#include "../items/virtual_terminal_item.h"
 #include "net_manager.h"
 #include "../io/netlist_generator.h"
 #include "../../symbols/symbol_library.h"
@@ -3291,6 +3292,8 @@ SpiceNetlistGenerator::GeneratedNetlist SpiceNetlistGenerator::generate(QGraphic
     qDebug() << "[SpiceNetlistGenerator] Pin mapping built.";
 
     // Collect include paths from symbol metadata (subcircuit .inc/.lib)
+    // and embedded subcircuit code
+    QMap<QString, QString> embeddedSubcircuits; // subckt name -> code
     for (const auto& comp : pkg.components) {
         SymbolDefinition* sym = SymbolLibraryManager::instance().findSymbol(comp.typeName);
         if (!sym) continue;
@@ -3299,6 +3302,13 @@ SpiceNetlistGenerator::GeneratedNetlist SpiceNetlistGenerator::generate(QGraphic
             if (!resolved.isEmpty()) {
                 if (resolved.toLower().endsWith(".lib")) libPaths.insert(resolved);
                 else includePaths.insert(resolved);
+            }
+        }
+        // Collect unique embedded subcircuit code
+        if (sym->modelSource() == "embedded" && !sym->spiceSubcircuitCode().isEmpty()) {
+            const QString name = sym->modelName().trimmed();
+            if (!name.isEmpty()) {
+                embeddedSubcircuits.insert(name, sym->spiceSubcircuitCode());
             }
         }
     }
@@ -3601,6 +3611,16 @@ SpiceNetlistGenerator::GeneratedNetlist SpiceNetlistGenerator::generate(QGraphic
         netlist += "\n";
     }
 
+    // Write embedded subcircuit definitions from symbol metadata
+    if (!embeddedSubcircuits.isEmpty()) {
+        netlist += "* Embedded Subcircuits (from symbol definitions)\n";
+        for (auto it = embeddedSubcircuits.constBegin(); it != embeddedSubcircuits.constEnd(); ++it) {
+            netlist += it.value();
+            if (!it.value().endsWith('\n')) netlist += '\n';
+            netlist += '\n';
+        }
+    }
+
     // 3. Global Power Net Mapping for hidden pin auto-connection
     QMap<QString, QString> powerNetMapping; // "VCC" -> "Net5", "VEE" -> "Net6"
     QSet<QString> emittedPowerSymbols; // Track power symbols to avoid processing duplicates
@@ -3771,6 +3791,7 @@ SpiceNetlistGenerator::GeneratedNetlist SpiceNetlistGenerator::generate(QGraphic
 
         // Determine SPICE prefix
         const bool isSevenSegmentDisplay = comp.typeName.contains("Segment Display", Qt::CaseInsensitive);
+        const bool isVirtualTerminal = (comp.typeName == "VirtualTerminalInstrument" || comp.typeName == "Virtual Terminal");
         bool isInstrument = (comp.typeName == "OscilloscopeInstrument" ||
                              comp.typeName == "Oscilloscope Instrument" ||
                              comp.typeName == "VoltmeterInstrument" ||
@@ -3784,7 +3805,9 @@ SpiceNetlistGenerator::GeneratedNetlist SpiceNetlistGenerator::generate(QGraphic
                              comp.typeName == "FrequencyCounterInstrument" ||
                              comp.typeName == "Frequency Counter" ||
                              comp.typeName == "LogicProbeInstrument" ||
-                             comp.typeName == "Logic Probe");
+                             comp.typeName == "Logic Probe" ||
+                             comp.typeName == "VirtualTerminalInstrument" ||
+                             comp.typeName == "Virtual Terminal");
 
         if (isSevenSegmentDisplay) {
             // Visual-only instrument-style display:
@@ -3804,6 +3827,28 @@ SpiceNetlistGenerator::GeneratedNetlist SpiceNetlistGenerator::generate(QGraphic
 
                 netlist += QString("R_%1_%2 %3 0 100Meg\n").arg(ref, pk, node);
             }
+
+            // For Virtual Terminal with pending TX data, emit a PWL source on the TX pin
+            if (isVirtualTerminal) {
+                for (auto* scItem : scene->items()) {
+                    if (auto* vt = dynamic_cast<VirtualTerminalItem*>(scItem)) {
+                        if (vt->reference() == ref && vt->hasPendingTxData()) {
+                            QString txNode = pins.value("2", "");
+                            if (!txNode.isEmpty() && txNode != "0") {
+                                QVector<QPair<double, double>> txWave = vt->pendingTxWaveform();
+                                QStringList pwlPairs;
+                                for (const auto& pt : txWave) {
+                                    pwlPairs << QString::number(pt.first, 'g', 12) << QString::number(pt.second, 'g', 6);
+                                }
+                                netlist += QString("V_%1_TX %2 0 PWL(%3)\n").arg(ref, txNode, pwlPairs.join(" "));
+                            }
+                            vt->clearPendingTxWaveform();
+                            break;
+                        }
+                    }
+                }
+            }
+
             continue;
         }
 
