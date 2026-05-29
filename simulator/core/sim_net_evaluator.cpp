@@ -7,7 +7,6 @@
 #include <cctype>
 #include <complex>
 #include <cmath>
-#include <regex>
 #include <sstream>
 
 namespace {

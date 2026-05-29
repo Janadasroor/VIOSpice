@@ -99,6 +99,7 @@ int cmdExtensionInstall(const QStringList& args);
 
 namespace {
 bool g_quiet = false;
+bool g_debug = false;
 bool g_noColor = false;
 bool g_exitOnWarning = false;
 
@@ -963,7 +964,7 @@ public:
             rule.pinCount = match.value("pin_count").toInt(-1);
             QString regexStr = match.value("name_regex").toString();
             if (!regexStr.isEmpty()) {
-                rule.nameRegex = QRegularExpression(regexStr);
+                rule.nameRegex = QRegularExpression(regexStr, QRegularExpression::CaseInsensitiveOption);
             }
             
             QJsonValue mType = match.value("model_type");
@@ -981,19 +982,25 @@ public:
     QString match(const SpiceEntity& ent) const {
         for (const auto& rule : m_rules) {
             if (!rule.spiceType.isEmpty() && rule.spiceType != ent.type) continue;
-            if (rule.pinCount != -1 && rule.pinCount != ent.pins.size() && ent.type == ".subckt") continue;
+            if (rule.pinCount != -1 && rule.pinCount != (int)ent.pins.size() && ent.type == ".subckt") continue;
             
             if (ent.type == ".model") {
-                if (!rule.modelTypes.isEmpty() && !rule.modelTypes.contains(ent.modelType)) continue;
-                // For models, we check name_regex if provided
+                if (!rule.modelTypes.isEmpty() && !rule.modelTypes.contains(ent.modelType.toUpper())) continue;
             }
             
             if (rule.nameRegex.isValid()) {
-                if (!rule.nameRegex.match(ent.name).hasMatch()) continue;
+                auto res = rule.nameRegex.match(ent.name);
+                if (!res.hasMatch()) {
+                    // Fallback to case-insensitive
+                    auto matchCi = QRegularExpression(rule.nameRegex.pattern(), QRegularExpression::CaseInsensitiveOption).match(ent.name);
+                    if (!matchCi.hasMatch()) continue;
+                }
             }
             
+            if (g_debug) std::cout << "Matched " << ent.name.toStdString() << " to " << rule.templateName.toStdString() << std::endl;
             return rule.templateName;
         }
+        if (g_debug) std::cout << "Failed to match " << ent.name.toStdString() << " (Type: " << ent.type.toStdString() << ", Pins: " << ent.pins.size() << ")" << std::endl;
         return "";
     }
 
@@ -2063,29 +2070,32 @@ static int generateSymbolsForLibrary(const QString& inputPath, const QString& ou
             def.addPrimitive(SymbolPrimitive::createLine(QPointF(-20, 15), QPointF(-30, 25)));
             
             QMap<int, QString> mapping;
-            if (pinCount >= 1) { // D
+            // Standard SPICE order: 1:CLR, 2:D, 3:CLK, 4:PRE, 5:Q, 6:QN
+            if (pinCount >= 1) { // CLR (Bottom)
+                def.addPrimitive(SymbolPrimitive::createLine(QPointF(0, 43.75), QPointF(0, 55)));
+                def.addPrimitive(SymbolPrimitive::createCircle(QPointF(0, 41.875), 1.875, false)); // Bubble
+                def.addPrimitive(SymbolPrimitive::createPin(QPointF(0, 55), 1, "CLR", "Up", 0));
+            }
+            if (pinCount >= 2) { // D (Left)
                 def.addPrimitive(SymbolPrimitive::createLine(QPointF(-30, -15), QPointF(-45, -15)));
-                def.addPrimitive(SymbolPrimitive::createPin(QPointF(-45, -15), 1, "D", "Right", 0));
+                def.addPrimitive(SymbolPrimitive::createPin(QPointF(-45, -15), 2, "D", "Right", 0));
             }
-            if (pinCount >= 2) { // CLK
+            if (pinCount >= 3) { // CLK (Left)
                 def.addPrimitive(SymbolPrimitive::createLine(QPointF(-30, 15), QPointF(-45, 15)));
-                def.addPrimitive(SymbolPrimitive::createPin(QPointF(-45, 15), 2, "CLK", "Right", 0));
+                def.addPrimitive(SymbolPrimitive::createPin(QPointF(-45, 15), 3, "CLK", "Right", 0));
             }
-            if (pinCount >= 3) { // Q
+            if (pinCount >= 4) { // PRE (Top)
+                def.addPrimitive(SymbolPrimitive::createLine(QPointF(0, -43.75), QPointF(0, -55)));
+                def.addPrimitive(SymbolPrimitive::createCircle(QPointF(0, -41.875), 1.875, false)); // Bubble
+                def.addPrimitive(SymbolPrimitive::createPin(QPointF(0, -55), 4, "PRE", "Down", 0));
+            }
+            if (pinCount >= 5) { // Q (Right)
                 def.addPrimitive(SymbolPrimitive::createLine(QPointF(30, -15), QPointF(45, -15)));
-                def.addPrimitive(SymbolPrimitive::createPin(QPointF(45, -15), 3, "Q", "Left", 0));
+                def.addPrimitive(SymbolPrimitive::createPin(QPointF(45, -15), 5, "Q", "Left", 0));
             }
-            if (pinCount >= 4) { // Q\ 
+            if (pinCount >= 6) { // QN (Right)
                 def.addPrimitive(SymbolPrimitive::createLine(QPointF(30, 15), QPointF(45, 15)));
-                def.addPrimitive(SymbolPrimitive::createPin(QPointF(45, 15), 4, "Q\\", "Left", 0));
-            }
-            if (pinCount >= 5) { // PRE
-                def.addPrimitive(SymbolPrimitive::createLine(QPointF(0, -40), QPointF(0, -55)));
-                def.addPrimitive(SymbolPrimitive::createPin(QPointF(0, -55), 5, "PRE", "Down", 0));
-            }
-            if (pinCount >= 6) { // CLR
-                def.addPrimitive(SymbolPrimitive::createLine(QPointF(0, 40), QPointF(0, 55)));
-                def.addPrimitive(SymbolPrimitive::createPin(QPointF(0, 55), 6, "CLR", "Up", 0));
+                def.addPrimitive(SymbolPrimitive::createPin(QPointF(45, 15), 6, "Q\\", "Left", 0));
             }
             for(int i=0; i<pinCount; ++i) mapping.insert(i+1, getPinName(i));
             def.setSpiceNodeMapping(mapping);
@@ -2100,33 +2110,36 @@ static int generateSymbolsForLibrary(const QString& inputPath, const QString& ou
             def.addPrimitive(SymbolPrimitive::createLine(QPointF(-20, 0), QPointF(-30, 10)));
             
             QMap<int, QString> mapping;
-            if (pinCount >= 1) { // J
-                def.addPrimitive(SymbolPrimitive::createLine(QPointF(-30, -30), QPointF(-45, -30)));
-                def.addPrimitive(SymbolPrimitive::createPin(QPointF(-45, -30), 1, "J", "Right", 0));
-            }
-            if (pinCount >= 2) { // CLK
+            // Common JK order: 1:CLK, 2:J, 3:K, 4:PRE, 5:CLR, 6:Q, 7:QN
+            if (pinCount >= 1) { // CLK (Left)
                 def.addPrimitive(SymbolPrimitive::createLine(QPointF(-30, 0), QPointF(-45, 0)));
-                def.addPrimitive(SymbolPrimitive::createPin(QPointF(-45, 0), 2, "CLK", "Right", 0));
+                def.addPrimitive(SymbolPrimitive::createPin(QPointF(-45, 0), 1, "CLK", "Right", 0));
             }
-            if (pinCount >= 3) { // K
+            if (pinCount >= 2) { // J (Left)
+                def.addPrimitive(SymbolPrimitive::createLine(QPointF(-30, -30), QPointF(-45, -30)));
+                def.addPrimitive(SymbolPrimitive::createPin(QPointF(-45, -30), 2, "J", "Right", 0));
+            }
+            if (pinCount >= 3) { // K (Left)
                 def.addPrimitive(SymbolPrimitive::createLine(QPointF(-30, 30), QPointF(-45, 30)));
                 def.addPrimitive(SymbolPrimitive::createPin(QPointF(-45, 30), 3, "K", "Right", 0));
             }
-            if (pinCount >= 4) { // Q
+            if (pinCount >= 4) { // PRE (Top)
+                def.addPrimitive(SymbolPrimitive::createLine(QPointF(0, -53.75), QPointF(0, -65)));
+                def.addPrimitive(SymbolPrimitive::createCircle(QPointF(0, -51.875), 1.875, false)); // Bubble
+                def.addPrimitive(SymbolPrimitive::createPin(QPointF(0, -65), 4, "PRE", "Down", 0));
+            }
+            if (pinCount >= 5) { // CLR (Bottom)
+                def.addPrimitive(SymbolPrimitive::createLine(QPointF(0, 53.75), QPointF(0, 65)));
+                def.addPrimitive(SymbolPrimitive::createCircle(QPointF(0, 51.875), 1.875, false)); // Bubble
+                def.addPrimitive(SymbolPrimitive::createPin(QPointF(0, 65), 5, "CLR", "Up", 0));
+            }
+            if (pinCount >= 6) { // Q (Right)
                 def.addPrimitive(SymbolPrimitive::createLine(QPointF(30, -30), QPointF(45, -30)));
-                def.addPrimitive(SymbolPrimitive::createPin(QPointF(45, -30), 4, "Q", "Left", 0));
+                def.addPrimitive(SymbolPrimitive::createPin(QPointF(45, -30), 6, "Q", "Left", 0));
             }
-            if (pinCount >= 5) { // Q\ 
+            if (pinCount >= 7) { // QN (Right)
                 def.addPrimitive(SymbolPrimitive::createLine(QPointF(30, 30), QPointF(45, 30)));
-                def.addPrimitive(SymbolPrimitive::createPin(QPointF(45, 30), 5, "Q\\", "Left", 0));
-            }
-            if (pinCount >= 6) { // PRE
-                def.addPrimitive(SymbolPrimitive::createLine(QPointF(0, -50), QPointF(0, -65)));
-                def.addPrimitive(SymbolPrimitive::createPin(QPointF(0, -65), 6, "PRE", "Down", 0));
-            }
-            if (pinCount >= 7) { // CLR
-                def.addPrimitive(SymbolPrimitive::createLine(QPointF(0, 50), QPointF(0, 65)));
-                def.addPrimitive(SymbolPrimitive::createPin(QPointF(0, 65), 7, "CLR", "Up", 0));
+                def.addPrimitive(SymbolPrimitive::createPin(QPointF(45, 30), 7, "Q\\", "Left", 0));
             }
             for(int i=0; i<pinCount; ++i) mapping.insert(i+1, getPinName(i));
             def.setSpiceNodeMapping(mapping);
@@ -5839,6 +5852,7 @@ int main(int argc, char *argv[]) {
     QCommandLineOption schemaOption("schema", "Print JSON schema for the command and exit");
     QCommandLineOption scaleOption("scale", "Render scale (default 4.0)", "scale", "4");
     QCommandLineOption quietOption("quiet", "Silence non-JSON output");
+    QCommandLineOption debugOption("debug", "Enable verbose debug output.");
     QCommandLineOption exitWarnOption("exit-on-warning", "Exit with non-zero code if warnings appear (netlist-run/netlist-validate)");
     QCommandLineOption nameOption("name", "Name of subcircuit or symbol", "name");
     QCommandLineOption symTypeOption("symbol-type", "Type of symbol to generate (ic, op)", "type", "ic");
@@ -5901,6 +5915,7 @@ int main(int argc, char *argv[]) {
     parser.addOption(schemaOption);
     parser.addOption(scaleOption);
     parser.addOption(quietOption);
+    parser.addOption(debugOption);
     parser.addOption(exitWarnOption);
     parser.addOption(nameOption);
     parser.addOption(symTypeOption);
