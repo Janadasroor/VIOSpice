@@ -195,9 +195,19 @@ jobs:
         shell: msys2 {0}
         run: |
           set -x
-          cp -av /mingw64/bin/*.dll build/ 2>/dev/null || true
-          cp -v /mingw64/bin/libpython3.14.dll build/python314.dll 2>&1 || true
+          # Copy local prebuilt engine DLL
           cp -v build/viomatrixc-prebuilt/bin/libngspice-0.dll build/ 2>&1 || true
+          
+          # Dynamically copy the actual libpython DLL and create any expected aliases
+          py_dll=$(find /mingw64/bin -maxdepth 1 -name "libpython3.*.dll" | head -n 1)
+          if [ -n "$py_dll" ]; then
+            cp -v "$py_dll" build/ || true
+            py_version=$(basename "$py_dll" | sed -E 's/libpython([0-9]+)\.([0-9]+)\.dll/\1\2/')
+            cp -v "$py_dll" "build/python${py_version}.dll" 2>/dev/null || true
+          fi
+          cp -v /mingw64/bin/python3.dll build/ 2>/dev/null || true
+
+          # Copy Qt Windows platform plugin
           for pdir in /mingw64/share/qt6/plugins /mingw64/plugins /mingw64/lib/qt6/plugins; do
             if [ -f "$pdir/platforms/qwindows.dll" ]; then
               mkdir -p build/platforms
@@ -205,21 +215,59 @@ jobs:
               break
             fi
           done
-          # Smoke test using CLI (viora.exe) — VioraEDA.exe is GUI subsystem
-          # and MSYS2 returns exit code 127 when running GUI apps in background.
+
+          # Auto-discover and bundle missing MinGW / local DLLs from transitive dependencies
+          shopt -s nocasematch
+          unset SCANNED
+          declare -a QUEUE
+          # Seed queue with all executables and DLLs currently in build/
+          while IFS= read -r f; do QUEUE+=("$f"); done < <(find build -maxdepth 1 -type f \( -name '*.exe' -o -name '*.dll' \) 2>/dev/null)
+          while [ ${#QUEUE[@]} -gt 0 ]; do
+             f="${QUEUE[0]}"
+             QUEUE=("${QUEUE[@]:1}")
+             base=$(basename "$f")
+             case " ${SCANNED[*]} " in *" $base "*) continue ;; esac
+             SCANNED+=("$base")
+             for dll in $(objdump -p "$f" 2>/dev/null | grep "DLL Name" | awk '{print $3}'); do
+               [ -f "build/$dll" ] && continue
+               case "$dll" in
+                 kernel32.dll|user32.dll|gdi32.dll|advapi32.dll|shell32.dll|ole32.dll|oleaut32.dll|comdlg32.dll|imm32.dll|winmm.dll|ws2_32.dll|msvcrt.dll|version.dll|shlwapi.dll|comctl32.dll|uxtheme.dll|winspool.drv|msimg32.dll|usp10.dll|dnsapi.dll|iphlpapi.dll|opengl32.dll|glu32.dll|setupapi.dll|cfgmgr32.dll|ntmarta.dll|wldap32.dll|crypt32.dll|wtsapi32.dll|secur32.dll|wintrust.dll|oleacc.dll|riched20.dll|lz32.dll|mpr.dll|netapi32.dll|powrprof.dll|propsys.dll|dwmapi.dll|bcrypt.dll|ntdll.dll|sechost.dll|api-ms-win-*|d3d*.dll|DWrite.dll|dxgi.dll|AUTHZ.dll|AVRT.dll|USERENV.dll|WINHTTP.dll|RPCRT4.dll)
+                   continue ;;
+               esac
+               # First look recursively in build/ (for locally built DLLs like libFluxScript.dll)
+               local_dll=$(find build -name "$dll" 2>/dev/null | head -n 1)
+               if [ -n "$local_dll" ] && [ -f "$local_dll" ] && [ ! -f "build/$dll" ]; then
+                 cp -v "$local_dll" build/ && echo "  copied local $dll"
+                 QUEUE+=("build/$dll")
+               elif [ -f "/mingw64/bin/$dll" ] && [ ! -f "build/$dll" ]; then
+                 cp "/mingw64/bin/$dll" build/ && echo "  copied MinGW $dll (transitive dep)"
+                 QUEUE+=("build/$dll")
+               fi
+             done
+          done
+
+          echo "=== DLL dependency check ==="
+          which ldd 2>/dev/null && ldd build/VioraEDA.exe 2>&1 | grep -i "not found" || echo "(ldd not available or no unresolved)"
+          echo "=== file info ==="
+          file build/VioraEDA.exe 2>&1 || true
+          # Launch VioraEDA.exe (GUI). Use Windows tasklist to verify it runs.
           set +e
-          echo "=== launching viora.exe (CLI) ==="
-          QT_QPA_PLATFORM=windows \
-            ./build/viora.exe --help 2>&1
-          rc=$?
-          set -e
-          echo "=== exit code: $rc ==="
-          if [ $rc -eq 0 ] || [ $rc -ge 128 ]; then
-            echo "PASS: viora CLI started (exit code $rc)"
+          echo "=== launching VioraEDA.exe ==="
+          QT_DEBUG_PLUGINS=1 QT_QPA_PLATFORM=windows \
+            ./build/VioraEDA.exe &
+          pid=$!
+          sleep 5
+          if tasklist.exe 2>/dev/null | grep -iq "VioraEDA"; then
+            echo "=== process confirmed alive via tasklist ==="
+            taskkill.exe /F /IM VioraEDA.exe 2>/dev/null || true
+            echo "PASS: VioraEDA GUI launched and ran"
           else
-            echo "FAIL: viora CLI crashed (exit code $rc)"
-            exit $rc
+            wait $pid 2>/dev/null
+            rc=$?
+            echo "FAIL: VioraEDA GUI exited early (code $rc)"
+            exit 1
           fi
+          set -e
 
       - name: Run unit tests (Linux / macOS)
         if: runner.os != 'Windows'
@@ -302,41 +350,47 @@ jobs:
           cp /mingw64/bin/libwinpthread-1.dll staging/bin/ 2>/dev/null || echo "no libwinpthread"
           cp /mingw64/bin/zlib1.dll staging/bin/ 2>/dev/null || echo "no zlib1"
           cp /mingw64/bin/libzstd.dll staging/bin/ 2>/dev/null || echo "no libzstd"
-          # Python DLL — full runtime from MSYS2 MinGW (same version exes compiled against), stable ABI shim from MSYS2 MinGW
-          cp /mingw64/bin/python3*.dll staging/bin/ 2>/dev/null || true
-          cp /mingw64/bin/libpython3*.dll staging/bin/ 2>/dev/null || echo "no MinGW libpython DLL"
-          # Only copy python3.dll from toolcache if MinGW didn't provide one (it's MSVC — may mismatch ngspice)
-          if [ ! -f "staging/bin/python3.dll" ]; then
-            PY_HOST=$(ls -d /c/hostedtoolcache/windows/Python/3.*/x64 2>/dev/null | head -1)
-            if [ -n "$PY_HOST" ] && [ -d "$PY_HOST" ]; then
-              cp "$PY_HOST/python3.dll" staging/bin/ 2>/dev/null && echo "copied python3.dll from toolcache (fallback)" || true
-            fi
+
+          # Dynamically copy the actual libpython DLL and create any expected aliases
+          py_dll=$(find /mingw64/bin -maxdepth 1 -name "libpython3.*.dll" | head -n 1)
+          if [ -n "$py_dll" ]; then
+            cp -v "$py_dll" staging/bin/ || true
+            py_version=$(basename "$py_dll" | sed -E 's/libpython([0-9]+)\.([0-9]+)\.dll/\1\2/')
+            cp -v "$py_dll" "staging/bin/python${py_version}.dll" 2>/dev/null || true
           fi
+          cp -v /mingw64/bin/python3.dll staging/bin/ 2>/dev/null || true
+
           # Bundle Qt DLLs
           windeployqt --dir staging/bin staging/bin/VioraEDA.exe
-          # Auto-discover and bundle missing MinGW DLLs from transitive dependencies
+          
+          # Auto-discover and bundle missing MinGW / local DLLs from transitive dependencies
           shopt -s nocasematch
           unset SCANNED
           declare -a QUEUE
-          # Seed queue with all static-link files
+          # Seed queue with all files currently in staging/bin
           while IFS= read -r f; do QUEUE+=("$f"); done < <(find staging/bin -type f \( -name '*.exe' -o -name '*.dll' \) 2>/dev/null)
           while [ ${#QUEUE[@]} -gt 0 ]; do
-            f="${QUEUE[0]}"
-            QUEUE=("${QUEUE[@]:1}")
-            base=$(basename "$f")
-            case " ${SCANNED[*]} " in *" $base "*) continue ;; esac
-            SCANNED+=("$base")
-            for dll in $(objdump -p "$f" 2>/dev/null | grep "DLL Name" | awk '{print $3}'); do
-              [ -f "staging/bin/$dll" ] && continue
-              case "$dll" in
-                kernel32.dll|user32.dll|gdi32.dll|advapi32.dll|shell32.dll|ole32.dll|oleaut32.dll|comdlg32.dll|imm32.dll|winmm.dll|ws2_32.dll|msvcrt.dll|version.dll|shlwapi.dll|comctl32.dll|uxtheme.dll|winspool.drv|msimg32.dll|usp10.dll|dnsapi.dll|iphlpapi.dll|opengl32.dll|glu32.dll|setupapi.dll|cfgmgr32.dll|ntmarta.dll|wldap32.dll|crypt32.dll|wtsapi32.dll|secur32.dll|wintrust.dll|oleacc.dll|riched20.dll|lz32.dll|mpr.dll|netapi32.dll|powrprof.dll|propsys.dll|dwmapi.dll|bcrypt.dll|ntdll.dll|sechost.dll|api-ms-win-*|d3d*.dll|DWrite.dll|dxgi.dll|AUTHZ.dll|AVRT.dll|USERENV.dll|WINHTTP.dll|RPCRT4.dll)
-                  continue ;;
-              esac
-              if [ -f "/mingw64/bin/$dll" ] && [ ! -f "staging/bin/$dll" ]; then
-                cp "/mingw64/bin/$dll" staging/bin/ && echo "  copied $dll (transitive dep)"
-                QUEUE+=("staging/bin/$dll")
-              fi
-            done
+             f="${QUEUE[0]}"
+             QUEUE=("${QUEUE[@]:1}")
+             base=$(basename "$f")
+             case " ${SCANNED[*]} " in *" $base "*) continue ;; esac
+             SCANNED+=("$base")
+             for dll in $(objdump -p "$f" 2>/dev/null | grep "DLL Name" | awk '{print $3}'); do
+               [ -f "staging/bin/$dll" ] && continue
+               case "$dll" in
+                 kernel32.dll|user32.dll|gdi32.dll|advapi32.dll|shell32.dll|ole32.dll|oleaut32.dll|comdlg32.dll|imm32.dll|winmm.dll|ws2_32.dll|msvcrt.dll|version.dll|shlwapi.dll|comctl32.dll|uxtheme.dll|winspool.drv|msimg32.dll|usp10.dll|dnsapi.dll|iphlpapi.dll|opengl32.dll|glu32.dll|setupapi.dll|cfgmgr32.dll|ntmarta.dll|wldap32.dll|crypt32.dll|wtsapi32.dll|secur32.dll|wintrust.dll|oleacc.dll|riched20.dll|lz32.dll|mpr.dll|netapi32.dll|powrprof.dll|propsys.dll|dwmapi.dll|bcrypt.dll|ntdll.dll|sechost.dll|api-ms-win-*|d3d*.dll|DWrite.dll|dxgi.dll|AUTHZ.dll|AVRT.dll|USERENV.dll|WINHTTP.dll|RPCRT4.dll)
+                   continue ;;
+               esac
+               # First look recursively in build/ (for locally built DLLs like libFluxScript.dll)
+               local_dll=$(find build -name "$dll" 2>/dev/null | head -n 1)
+               if [ -n "$local_dll" ] && [ -f "$local_dll" ] && [ ! -f "staging/bin/$dll" ]; then
+                 cp -v "$local_dll" staging/bin/ && echo "  copied local $dll"
+                 QUEUE+=("staging/bin/$dll")
+               elif [ -f "/mingw64/bin/$dll" ] && [ ! -f "staging/bin/$dll" ]; then
+                 cp "/mingw64/bin/$dll" staging/bin/ && echo "  copied $dll (transitive dep)"
+                 QUEUE+=("staging/bin/$dll")
+               fi
+             done
           done
           cd staging
           zip -r ../VioraEDA-${{ github.ref_name }}-windows-x86_64.zip .
@@ -361,6 +415,7 @@ jobs:
           check_file "bin/libstdc++-6.dll"
           check_file "bin/libwinpthread-1.dll"
           check_file "bin/python3.dll"
+          check_file "bin/libFluxScript.dll"
           check_file "cm/analog.cm"
           check_file "cm/digital.cm"
           echo "--- staging tree ---"
