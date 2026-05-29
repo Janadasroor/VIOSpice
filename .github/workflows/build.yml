@@ -106,7 +106,7 @@ jobs:
 
       - name: Configure (Linux)
         if: runner.os == 'Linux'
-        run: cmake -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
+        run: cmake -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache -DMI_OVERRIDE=OFF
 
       - name: Configure (macOS)
         if: runner.os == 'macOS'
@@ -114,12 +114,12 @@ jobs:
           brew install llvm
           cmake -B build -DCMAKE_BUILD_TYPE=Release \
             -DLLVM_DIR="$(brew --prefix llvm)/lib/cmake/llvm" \
-            -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
+            -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache -DMI_OVERRIDE=OFF
 
       - name: Configure (Windows)
         if: runner.os == 'Windows'
         shell: msys2 {0}
-        run: cmake -B build -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON -DVIOSPICE_BUILD_FLUXSCRIPT=ON -G "MSYS Makefiles"
+        run: cmake -B build -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON -DVIOSPICE_BUILD_FLUXSCRIPT=ON -G "MSYS Makefiles" -DMI_OVERRIDE=OFF
 
       - name: Build (Linux / macOS)
         if: runner.os != 'Windows'
