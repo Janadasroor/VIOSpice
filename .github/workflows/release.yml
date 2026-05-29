@@ -197,8 +197,22 @@ jobs:
           # VioraEDA.exe links python314.dll, but MSYS2 provides libpython3.14.dll
           cp -vn /mingw64/bin/libpython3*.dll build/ 2>&1 || true
           cp -vn /mingw64/bin/libpython3.14.dll build/python314.dll 2>&1 || true
-          objdump -p build/VioraEDA.exe 2>&1 | grep "DLL Name" | grep -i python || true
-          ls -la build/python3* build/libpython3* 2>&1 || true
+          # Copy all DLLs that VioraEDA.exe needs
+          echo "=== All DLL dependencies ==="
+          objdump -p build/VioraEDA.exe 2>&1 | grep "DLL Name"
+          echo "=== Copying dependency DLLs ==="
+          for dll in $(objdump -p build/VioraEDA.exe 2>&1 | grep "DLL Name" | awk '{print $2}'); do
+            found=$(find /mingw64/bin -name "$dll" -o -name "lib${dll}" 2>/dev/null | head -1)
+            if [ -n "$found" ]; then
+              cp -vn "$found" "build/$dll" 2>&1 || true
+            elif [ -f "/mingw64/bin/$dll" ]; then
+              cp -vn "/mingw64/bin/$dll" "build/$dll" 2>&1 || true
+            else
+              echo "  NOT FOUND: $dll"
+            fi
+          done
+          echo "=== Build dir DLLs ==="
+          ls -la build/*.dll 2>&1 | head -40
           set +e
           ./build/VioraEDA.exe &
           pid=$!
