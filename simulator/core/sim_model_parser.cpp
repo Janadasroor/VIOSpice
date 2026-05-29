@@ -50,12 +50,12 @@ int parsePolyDimensionToken(const std::vector<std::string>& tokens, size_t polyI
 
     auto parsePositiveInt = [](const std::string& raw) -> int {
         if (raw.empty()) return 0;
-        try {
-            const int value = std::stoi(raw);
-            return value > 0 ? value : 0;
-        } catch (...) {
+        char* endptr = nullptr;
+        long val = std::strtol(raw.c_str(), &endptr, 10);
+        if (endptr == raw.c_str() || *endptr != '\0') {
             return 0;
         }
+        return val > 0 ? static_cast<int>(val) : 0;
     };
 
     const std::string& token = tokens[polyIdx];
@@ -197,11 +197,10 @@ int mapSubcktNodeToken(
     auto pinIt = pinToId.find(token);
     if (pinIt != pinToId.end()) return pinIt->second;
 
-    try {
-        const int n = std::stoi(token);
-        if (n >= 0) return n;
-    } catch (...) {
-        // Alphanumeric node name (common in LTspice)
+    char* endptr = nullptr;
+    long n = std::strtol(token.c_str(), &endptr, 10);
+    if (endptr != token.c_str() && *endptr == '\0') {
+        if (n >= 0) return static_cast<int>(n);
     }
 
     auto it = localNodeToId.find(token);
