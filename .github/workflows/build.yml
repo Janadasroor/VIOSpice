@@ -251,4 +251,7 @@ jobs:
       - name: Unit tests (Windows)
         if: runner.os == 'Windows'
         shell: msys2 {0}
-        run: ctest --test-dir build --output-on-failure -R "^(schematic|core|simulator|rpi|unit_|regression|integration)\."
+        run: |
+          export PATH="$PWD/build:/mingw64/bin:$PATH"
+          export QT_QPA_PLATFORM=minimal
+          ctest --test-dir build --output-on-failure -R "^(schematic|core|simulator|rpi|unit_|regression|integration)\."
