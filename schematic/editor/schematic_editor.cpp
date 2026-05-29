@@ -1818,6 +1818,35 @@ void SchematicEditor::onRealTimeDataBatchReceived(const std::vector<double>& tim
             wave.yData = std::move(y);
             rtResults.waveforms.push_back(std::move(wave));
         }
+
+        // Inject pending TX waveforms from Virtual Terminals into the real-time data stream.
+        // In real-time mode the simulator runs a static netlist; a PWL source for TX data
+        // would never appear without a restart. Instead, we synthesise the waveform here.
+        if (m_scene && m_netManager) {
+            double currentTime = times.empty() ? 0.0 : times.back();
+            for (auto* item : m_scene->items()) {
+                if (auto* vt = dynamic_cast<VirtualTerminalItem*>(item)) {
+                    if (vt->hasPendingTxData()) {
+                        QString txNet = m_netManager->findNetAtPoint(vt->mapToScene(vt->connectionPoints()[1]));
+                        if (!txNet.isEmpty()) {
+                            QVector<QPair<double, double>> txWave = vt->pendingTxWaveform();
+                            vt->clearPendingTxWaveform();
+                            SimWaveform wave;
+                            wave.name = ("V(" + txNet + ")").toStdString();
+                            wave.xData.reserve(txWave.size());
+                            wave.yData.reserve(txWave.size());
+                            for (const auto& pt : txWave) {
+                                wave.xData.push_back(currentTime + pt.first + 1e-12);
+                                wave.yData.push_back(pt.second);
+                            }
+                            rtResults.waveforms.push_back(std::move(wave));
+                            qDebug() << "VT injected TX waveform on net:" << txNet << "points:" << txWave.size();
+                        }
+                    }
+                }
+            }
+        }
+
         updateVirtualTerminals(rtResults);
     }
 }
