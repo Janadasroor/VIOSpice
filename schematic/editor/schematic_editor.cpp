@@ -322,6 +322,7 @@ SchematicEditor::~SchematicEditor() {
         m_undoStack->clear(); // Ensure commands are deleted while scene and NetManager are still alive
     }
     for (auto* win : m_laWindows) delete win;
+    for (auto it = m_terminalWindows.begin(); it != m_terminalWindows.end(); ++it) delete it.value();
     delete m_lastSimResults;
 }
 
@@ -1928,7 +1929,8 @@ void SchematicEditor::openVirtualTerminalWindow(SchematicItem* item) {
         return;
     }
 
-    auto* win = new VirtualTerminalWindow(id, "Terminal - " + item->reference(), this);
+    auto* win = new VirtualTerminalWindow(id, "Terminal - " + item->reference());
+    win->setAttribute(Qt::WA_DeleteOnClose);
     m_terminalWindows[id] = win;
 
     connect(win, &VirtualTerminalWindow::windowClosing, this, &SchematicEditor::onVirtualTerminalWindowClosing);
