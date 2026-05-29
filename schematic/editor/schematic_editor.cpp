@@ -1931,8 +1931,8 @@ void SchematicEditor::openVirtualTerminalWindow(SchematicItem* item) {
         return;
     }
 
-    auto* win = new VirtualTerminalWindow(id, "Terminal - " + item->reference(), this);
-    win->setWindowFlags(Qt::Window | Qt::WindowTitleHint | Qt::WindowSystemMenuHint | Qt::WindowMinMaxButtonsHint | Qt::WindowCloseButtonHint);
+    auto* win = new VirtualTerminalWindow(id, "Terminal - " + item->reference());
+    win->setWindowFlags(Qt::Tool | Qt::WindowTitleHint | Qt::WindowSystemMenuHint | Qt::WindowMinMaxButtonsHint | Qt::WindowCloseButtonHint);
     m_terminalWindows[id] = win;
 
     connect(win, &VirtualTerminalWindow::windowClosing, this, &SchematicEditor::onVirtualTerminalWindowClosing);
