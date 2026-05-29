@@ -195,44 +195,45 @@ jobs:
         shell: msys2 {0}
         run: |
           export PATH="/mingw64/bin:$PATH"
-          # VioraEDA.exe links python314.dll, but MSYS2 provides libpython3.14.dll
+          # Gather all dependency DLLs into build/ for Windows DLL resolution
           cp -vn /mingw64/bin/libpython3*.dll build/ 2>&1 || true
           cp -vn /mingw64/bin/libpython3.14.dll build/python314.dll 2>&1 || true
-          # Copy all dependency DLLs next to the exe so Windows finds them
-          echo "=== Copying dependency DLLs ==="
-          objdump -p build/VioraEDA.exe 2>&1 | grep "DLL Name" | while IFS= read -r line; do
-            dll="${line#*DLL Name: }"
-            dll="${dll%$'\r'}"
+          # Collect DLL list from objdump and copy them in one shot
+          objdump -p build/VioraEDA.exe 2>&1 | grep "DLL Name" | sed 's/.*DLL Name: *//' > /tmp/needed_dlls.txt
+          echo "=== Needed DLLs ==="
+          cat /tmp/needed_dlls.txt
+          echo "=== Copying DLLs ==="
+          while IFS=$'\r' read -r dll || [ -n "$dll" ]; do
             [ -z "$dll" ] && continue
-            # Skip system DLLs (always resolved from C:\Windows\System32)
-            case "$dll" in
-              ADVAPI32.dll|KERNEL32.dll|msvcrt.dll|ntdll.dll|ole32.dll|SHELL32.dll) continue ;;
-            esac
-            found=""
-            for dir in /mingw64/bin /mingw64/lib "$(dirname build/VioraEDA.exe)/viomatrixc-prebuilt/bin"; do
-              if [ -f "$dir/$dll" ]; then found="$dir/$dll"; break; fi
-              if [ -f "$dir/$(echo "$dll" | tr '[:upper:]' '[:lower:]')" ]; then found="$dir/$(echo "$dll" | tr '[:upper:]' '[:lower:]')"; break; fi
+            case "$dll" in ADVAPI32.dll|KERNEL32.dll|msvcrt.dll|ntdll.dll|ole32.dll|SHELL32.dll) continue ;; esac
+            # Check both exact name and common aliases
+            for src in \
+              "/mingw64/bin/$dll" \
+              "/mingw64/lib/$dll" \
+              "build/viomatrixc-prebuilt/bin/$dll" \
+            ; do
+              if [ -f "$src" ] && [ ! -f "build/$dll" ]; then
+                cp -v "$src" "build/$dll" 2>&1 || true
+                break
+              fi
             done
-            if [ -n "$found" ]; then
-              cp -vn "$found" "build/$dll" 2>&1 || true
-            else
-              echo "  NOT FOUND: $dll"
+            if [ ! -f "build/$dll" ]; then
+              echo "  NOT COPIED: $dll"
+            fi
+          done < /tmp/needed_dlls.txt
+          # Copy Qt platform plugin
+          for pdir in /mingw64/share/qt6/plugins /mingw64/plugins /mingw64/lib/qt6/plugins; do
+            if [ -f "$pdir/platforms/qwindows.dll" ]; then
+              mkdir -p build/platforms
+              cp -v "$pdir/platforms/qwindows.dll" build/platforms/ 2>&1 || true
+              break
             fi
           done
-          # Copy Qt platform plugin
-          qt_plugin_dir=""
-          for dir in /mingw64/share/qt6/plugins /mingw64/plugins /mingw64/lib/qt6/plugins; do
-            if [ -d "$dir/platforms" ]; then qt_plugin_dir="$dir"; break; fi
-          done
-          if [ -n "$qt_plugin_dir" ]; then
-            mkdir -p build/platforms
-            cp -vn "$qt_plugin_dir/platforms/qwindows.dll" build/platforms/ 2>&1 || true
-          fi
-          echo "=== Build dir contents ==="
+          echo "=== Build DLLs ==="
           ls -la build/*.dll 2>&1 | head -50
           ls -la build/platforms/ 2>&1 || echo "(no platforms dir)"
           set +e
-          QT_QPA_PLATFORM=windows ./build/VioraEDA.exe > /tmp/viora_stdout.log 2> /tmp/viora_stderr.log &
+          ./build/VioraEDA.exe > /tmp/viora_stdout.log 2> /tmp/viora_stderr.log &
           pid=$!
           sleep 8
           kill $pid 2>/dev/null
