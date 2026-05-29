@@ -1926,6 +1926,7 @@ void SchematicEditor::openVirtualTerminalWindow(SchematicItem* item) {
     if (m_terminalWindows.contains(id)) {
         m_terminalWindows[id]->show();
         m_terminalWindows[id]->raise();
+        m_terminalWindows[id]->activateWindow();
         return;
     }
 
@@ -1952,6 +1953,8 @@ void SchematicEditor::openVirtualTerminalWindow(SchematicItem* item) {
     }
 
     win->show();
+    win->raise();
+    win->activateWindow();
 }
 
 void SchematicEditor::onTimeTravelSnapshot(double t, const QMap<QString, double>& nodeVoltages, const QMap<QString, double>& currents) {
