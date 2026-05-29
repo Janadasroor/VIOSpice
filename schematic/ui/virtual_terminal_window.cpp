@@ -4,6 +4,7 @@
 #include <QToolBar>
 #include <QAction>
 #include <QPushButton>
+#include <QTextBlock>
 #include <QCloseEvent>
 
 VirtualTerminalWindow::VirtualTerminalWindow(const QUuid& id, const QString& title, QWidget* parent)
@@ -164,29 +165,30 @@ void VirtualTerminalWindow::processSerialData(const std::vector<double>& times, 
         bool val = values[i] > threshold;
 
         if (!inStart) {
-            // Detect falling edge (HIGH→LOW transition) = start bit
             if (prevVal && !val) {
                 inStart = true;
                 nextBitTime = t + bitPeriod * 1.5;
                 bitsCaptured = 0;
                 currentChar = 0;
             }
-            prevVal = val;
         } else {
+            if (t - nextBitTime > bitPeriod * 3) {
+                inStart = false;
+            }
             if (t >= nextBitTime) {
                 if (bitsCaptured < config.dataBits) {
                     if (val) currentChar |= (1 << bitsCaptured);
                     bitsCaptured++;
                     nextBitTime += bitPeriod;
-                } else {
-                    bool parityOk = true;
-                    if (config.parity != "None") {
-                        bool expectedParity = VirtualTerminalWindow::parityCheck(currentChar, config.dataBits, config.parity);
-                        parityOk = (val == expectedParity);
-                        nextBitTime += bitPeriod;
+                } else if (bitsCaptured == config.dataBits && config.parity != "None") {
+                    if (val == VirtualTerminalWindow::parityCheck(currentChar, config.dataBits, config.parity)) {
+                        bitsCaptured++;
+                    } else {
+                        inStart = false;
                     }
-
-                    if (parityOk && val) {
+                    nextBitTime += bitPeriod;
+                } else {
+                    if (val) {
                         QString text;
                         if (config.hexMode) {
                             text = QString("%1 ").arg((int)currentChar, 2, 16, QChar('0')).toUpper();
@@ -202,11 +204,17 @@ void VirtualTerminalWindow::processSerialData(const std::vector<double>& times, 
                         if (config.autoScroll) {
                             m_terminal->moveCursor(QTextCursor::End);
                         }
+                        if (m_terminal->document()->blockCount() > 10000) {
+                            QTextCursor cur(m_terminal->document()->begin());
+                            cur.movePosition(QTextCursor::Down, QTextCursor::KeepAnchor, m_terminal->document()->blockCount() - 5000);
+                            cur.removeSelectedText();
+                        }
                     }
                     inStart = false;
                 }
             }
         }
+        prevVal = val;
     }
 }
 
@@ -218,7 +226,6 @@ void VirtualTerminalWindow::sendData() {
     m_txInput->clear();
 
     m_terminal->insertPlainText(QString("<TX: %1").arg(text));
-    Q_EMIT configChanged(m_id, m_config);
 
     QVector<QPair<double, double>> waveform = generateTxWaveform(data);
     if (!waveform.isEmpty()) {

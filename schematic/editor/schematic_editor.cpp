@@ -1939,14 +1939,17 @@ void SchematicEditor::openVirtualTerminalWindow(SchematicItem* item) {
 
     if (auto* term = dynamic_cast<VirtualTerminalItem*>(item)) {
         win->setConfig(term->config());
+        if (m_lastSimResults) {
+            QString rxNet, txNet;
+            if (m_netManager) {
+                rxNet = m_netManager->findNetAtPoint(term->mapToScene(term->connectionPoints()[0]));
+                txNet = m_netManager->findNetAtPoint(term->mapToScene(term->connectionPoints()[1]));
+            }
+            win->updateData(*m_lastSimResults, rxNet, txNet, term->config());
+        }
     }
 
     win->show();
-
-    // Replay last simulation results to the new window
-    if (m_lastSimResults) {
-        updateVirtualTerminals(*m_lastSimResults);
-    }
 }
 
 void SchematicEditor::onTimeTravelSnapshot(double t, const QMap<QString, double>& nodeVoltages, const QMap<QString, double>& currents) {
