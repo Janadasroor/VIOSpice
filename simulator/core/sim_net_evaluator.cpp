@@ -48,8 +48,17 @@ const SimWaveform* findWaveform(const SimResults& results, const std::string& si
     candidates.push_back(upper);
 
     // If it looks like a bare node name, also try V(NODENAME)
-    static const std::regex bareNodeRe("^[A-Za-z0-9_.$:+-]+$");
-    if (std::regex_match(upper, bareNodeRe)) {
+    auto isBareNodeName = [](const std::string& s) -> bool {
+        if (s.empty()) return false;
+        for (char c : s) {
+            if (!std::isalnum(static_cast<unsigned char>(c)) &&
+                c != '_' && c != '.' && c != '$' && c != ':' && c != '+' && c != '-') {
+                return false;
+            }
+        }
+        return true;
+    };
+    if (isBareNodeName(upper)) {
         candidates.push_back("V(" + upper + ")");
     }
 
@@ -79,23 +88,45 @@ std::string netBaseName(const NetStatement& stmt) {
 }
 
 bool parseVoltageOutputSpec(const std::string& spec, std::string& posNode, std::string& negNode) {
-    static const std::regex re(
-        "^[Vv]\\(\\s*([^,()]+)\\s*(?:,\\s*([^()]+)\\s*)?\\)$");
-    std::smatch m;
     std::string trimmed = trim(spec);
-    if (!std::regex_match(trimmed, m, re)) return false;
-    posNode = toUpper(trim(m[1].str()));
-    negNode = m[2].matched ? toUpper(trim(m[2].str())) : std::string();
-    return true;
+    if (trimmed.size() < 4) return false;
+    if (std::tolower(static_cast<unsigned char>(trimmed.front())) != 'v') return false;
+    if (trimmed[1] != '(' || trimmed.back() != ')') return false;
+
+    // Extract contents inside V(...)
+    std::string inside = trimmed.substr(2, trimmed.size() - 3);
+
+    // Find comma if any
+    size_t commaPos = inside.find(',');
+    if (commaPos == std::string::npos) {
+        std::string pos = trim(inside);
+        if (pos.empty() || pos.find('(') != std::string::npos || pos.find(')') != std::string::npos) return false;
+        posNode = toUpper(pos);
+        negNode.clear();
+        return true;
+    } else {
+        std::string pos = trim(inside.substr(0, commaPos));
+        std::string neg = trim(inside.substr(commaPos + 1));
+        if (pos.empty() || pos.find('(') != std::string::npos || pos.find(')') != std::string::npos) return false;
+        if (neg.empty() || neg.find('(') != std::string::npos || neg.find(')') != std::string::npos) return false;
+        if (neg.find(',') != std::string::npos) return false;
+        posNode = toUpper(pos);
+        negNode = toUpper(neg);
+        return true;
+    }
 }
 
 bool parseCurrentOutputSpec(const std::string& spec, std::string& currentSignal) {
-    static const std::regex re(
-        "^[Ii]\\(\\s*([^()]+)\\s*\\)$");
-    std::smatch m;
     std::string trimmed = trim(spec);
-    if (!std::regex_match(trimmed, m, re)) return false;
-    currentSignal = "I(" + toUpper(trim(m[1].str())) + ")";
+    if (trimmed.size() < 4) return false;
+    if (std::tolower(static_cast<unsigned char>(trimmed.front())) != 'i') return false;
+    if (trimmed[1] != '(' || trimmed.back() != ')') return false;
+
+    // Extract contents inside I(...)
+    std::string inside = trim(trimmed.substr(2, trimmed.size() - 3));
+    if (inside.empty() || inside.find('(') != std::string::npos || inside.find(')') != std::string::npos || inside.find(',') != std::string::npos) return false;
+
+    currentSignal = "I(" + toUpper(inside) + ")";
     return true;
 }
 
