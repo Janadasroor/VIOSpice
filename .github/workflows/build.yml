@@ -261,12 +261,11 @@ jobs:
         shell: msys2 {0}
         run: |
           rm -f build/*.dll 2>/dev/null || true
-          # Copy Qt6 and GCC runtime DLLs that test executables need.
-          # Do NOT copy ALL /mingw64/bin/*.dll — that caused heap corruption.
-          for d in Qt6{Core,Gui,Widgets,Test,Charts,Network,Svg,Multimedia,OpenGL,Qml,Quick,Sql,PrintSupport,WebSockets,OpenGLWidgets,QuickWidgets,Core5Compat,DBus,Concurrent}; do
-            cp -v /mingw64/bin/$d.dll build/ 2>/dev/null || true
-          done
-          for d in libgcc_s_seh-1 libstdc++-6 libwinpthread-1 zlib1 libzstd libpng16-16 libfreetype-6 libharfbuzz-0 libpcre2-8-0; do
+          # Use windeployqt to gather all Qt DLLs and their transitive deps cleanly.
+          windeployqt --no-compiler-runtime --no-opengl-sw --release \
+            build/VioraEDA.exe 2>&1 || true
+          # Copy GCC runtime DLLs (windeployqt doesn't bundle these on MSYS2)
+          for d in libgcc_s_seh-1 libstdc++-6 libwinpthread-1; do
             cp -v /mingw64/bin/$d.dll build/ 2>/dev/null || true
           done
           export QT_QPA_PLATFORM=offscreen
