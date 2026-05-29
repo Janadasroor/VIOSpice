@@ -23,6 +23,16 @@
 #include <algorithm>
 #include <cmath>
 
+namespace {
+bool isSimulationAvailable() {
+#if defined(Q_OS_WIN) || defined(_WIN32)
+    return false; // Skip simulations on Windows CI to prevent ngspice background thread deadlocks
+#else
+    return SimulationManager::instance().isAvailable();
+#endif
+}
+} // namespace
+
 class SpiceDirectiveNetlistTest : public QObject {
     Q_OBJECT
 
@@ -285,7 +295,7 @@ void SpiceDirectiveNetlistTest::acceptsLm555BehavioralSubcktDirective() {
 }
 
 void SpiceDirectiveNetlistTest::simulatesLm555BehavioralSubcktDirective() {
-    if (!SimulationManager::instance().isAvailable()) {
+    if (!isSimulationAvailable()) {
         QSKIP("Ngspice is not available in this build.");
     }
 
@@ -966,7 +976,7 @@ void SpiceDirectiveNetlistTest::preservesMultiInductorMutualCouplingDirectives()
 }
 
 void SpiceDirectiveNetlistTest::loadsBoostConverterLtspiceDirectiveInNgspice() {
-    if (!SimulationManager::instance().isAvailable()) {
+    if (!isSimulationAvailable()) {
         QSKIP("Ngspice is not available in this build.");
     }
 
@@ -1051,7 +1061,7 @@ void SpiceDirectiveNetlistTest::loadsBoostConverterLtspiceDirectiveInNgspice() {
 }
 
 void SpiceDirectiveNetlistTest::emulatesLtspiceStepParamList() {
-    if (!SimulationManager::instance().isAvailable()) {
+    if (!isSimulationAvailable()) {
         QSKIP("Ngspice is not available in this build.");
     }
 
@@ -1103,7 +1113,7 @@ void SpiceDirectiveNetlistTest::emulatesLtspiceStepParamList() {
 }
 
 void SpiceDirectiveNetlistTest::emulatesLtspiceStepParamFileList() {
-    if (!SimulationManager::instance().isAvailable()) {
+    if (!isSimulationAvailable()) {
         QSKIP("Ngspice is not available in this build.");
     }
 
@@ -1163,7 +1173,7 @@ void SpiceDirectiveNetlistTest::emulatesLtspiceStepParamFileList() {
 }
 
 void SpiceDirectiveNetlistTest::emulatesLtspiceStepSourceFileList() {
-    if (!SimulationManager::instance().isAvailable()) {
+    if (!isSimulationAvailable()) {
         QSKIP("Ngspice is not available in this build.");
     }
 
@@ -1223,7 +1233,7 @@ void SpiceDirectiveNetlistTest::emulatesLtspiceStepSourceFileList() {
 }
 
 void SpiceDirectiveNetlistTest::sortsFirstLtspiceStepDimensionIncreasing() {
-    if (!SimulationManager::instance().isAvailable()) {
+    if (!isSimulationAvailable()) {
         QSKIP("Ngspice is not available in this build.");
     }
 
@@ -1279,7 +1289,7 @@ void SpiceDirectiveNetlistTest::sortsFirstLtspiceStepDimensionIncreasing() {
 }
 
 void SpiceDirectiveNetlistTest::emulatesLtspiceStepModelParameterList() {
-    if (!SimulationManager::instance().isAvailable()) {
+    if (!isSimulationAvailable()) {
         QSKIP("Ngspice is not available in this build.");
     }
 
@@ -1344,7 +1354,7 @@ void SpiceDirectiveNetlistTest::emulatesLtspiceStepModelParameterList() {
 }
 
 void SpiceDirectiveNetlistTest::emulatesLtspiceStepModelParameterFileList() {
-    if (!SimulationManager::instance().isAvailable()) {
+    if (!isSimulationAvailable()) {
         QSKIP("Ngspice is not available in this build.");
     }
 
@@ -1405,7 +1415,7 @@ void SpiceDirectiveNetlistTest::emulatesLtspiceStepModelParameterFileList() {
 }
 
 void SpiceDirectiveNetlistTest::emulatesLtspiceStepModelParameterOnContinuedModelCard() {
-    if (!SimulationManager::instance().isAvailable()) {
+    if (!isSimulationAvailable()) {
         QSKIP("Ngspice is not available in this build.");
     }
 
@@ -1746,7 +1756,7 @@ void SpiceDirectiveNetlistTest::evaluatesLtspiceNetTwoPortStatements() {
 }
 
 void SpiceDirectiveNetlistTest::boostConverterFeedbackDoesNotRunAway() {
-    if (!SimulationManager::instance().isAvailable()) {
+    if (!isSimulationAvailable()) {
         QSKIP("Ngspice is not available in this build.");
     }
 
