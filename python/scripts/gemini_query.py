@@ -181,7 +181,7 @@ def generate(prompt="", context="", mode="schematic", history="", instructions="
     api_key = os.environ.get("GEMINI_API_KEY")
     if not api_key:
         print("Error: GEMINI_API_KEY environment variable not set.", file=sys.stderr)
-        return
+        sys.exit(1)
 
     client = genai.Client(api_key=api_key)
     common_instructions = """

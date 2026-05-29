@@ -230,6 +230,14 @@ class UIProxy:
         """Open a schematic or netlist file in the GUI."""
         return self._send_request("open_schematic", {"path": path})
 
+    def open_project(self, path: str) -> Dict[str, Any]:
+        """Open a VioraEDA project file or directory in the GUI."""
+        return self._send_request("open_project", {"path": path})
+
+    def load_simulation_results(self, path: str) -> Dict[str, Any]:
+        """Load a .raw simulation results file into the active GUI editor's oscilloscope."""
+        return self._send_request("load_simulation_results", {"path": path})
+
     def get_schematic_context(self) -> Dict[str, Any]:
         """Get information about the current schematic."""
         return self._send_request("get_schematic_context")

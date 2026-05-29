@@ -39,6 +39,12 @@ target_sources(VioSchematic PRIVATE
     ui/new_extension_dialog.h
     ui/manifest_editor.cpp
     ui/manifest_editor.h
+    items/virtual_terminal_item.cpp
+    items/virtual_terminal_item.h
+    ui/virtual_terminal_window.cpp
+    ui/virtual_terminal_window.h
+    dialogs/virtual_terminal_properties_dialog.cpp
+    dialogs/virtual_terminal_properties_dialog.h
 )
 
 if(VIOSPICE_ENGINE_FOUND)

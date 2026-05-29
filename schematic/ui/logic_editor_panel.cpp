@@ -447,7 +447,7 @@ void LogicEditorPanel::setupUi() {
     auto* snapLayout = new QVBoxLayout(snapTab);
     
     m_snapBtn = new QPushButton("CAPTURE SNAPSHOT", this);
-    m_snapBtn->setStyleSheet("background: #007acc; color: #fff; font-weight: bold; padding: 10px; border-radius: 4px;");
+    m_snapBtn->setStyleSheet("background: #52525b; color: #fff; font-weight: bold; padding: 10px; border-radius: 4px;");
     snapLayout->addWidget(m_snapBtn);
     
     m_snapList = new QListWidget(this);
@@ -468,7 +468,7 @@ void LogicEditorPanel::setupUi() {
     // Footer
     auto* footer = new QFrame();
     footer->setFixedHeight(22);
-    footer->setStyleSheet("background: #007acc;");
+    footer->setStyleSheet("background: #52525b;");
     auto* footLayout = new QHBoxLayout(footer);
     footLayout->setContentsMargins(10, 0, 10, 0);
     m_statusLabel = new QLabel("Ready");
@@ -781,7 +781,7 @@ void LogicEditorPanel::runTests() {
     if (!m_targetBlock) return;
     if (m_api) Flux::Core::set_active_schematic_api(m_api);
     
-    m_console->append("<br><font color='#007acc'>[Tester] Starting Test Suite...</font>");
+    m_console->append("<br><font color='#52525b'>[Tester] Starting Test Suite...</font>");
     QString code = m_editor->toPlainText();
     QMap<int, QString> errors;
     if (!Flux::JITContextManager::instance().compileAndLoad(m_targetBlock->reference(), code, errors)) {
@@ -982,7 +982,7 @@ void LogicEditorPanel::onApplyClicked() {
     saveCurrentToBlock();
     
     if (m_targetBlock->engineType() == SmartSignalItem::EngineType::FluxScript) {
-        m_console->append("<font color='#007acc'>[FluxScript] Compiling JIT Module for deployment...</font>");
+        m_console->append("<font color='#52525b'>[FluxScript] Compiling JIT Module for deployment...</font>");
         QMap<int, QString> errors;
         if (Flux::JITContextManager::instance().compileAndLoad(m_targetBlock->reference(), m_targetBlock->fluxCode(), errors)) {
             m_console->append("<font color='#22c55e'>[JIT] Deployment Success! Current engine: FluxScript.</font>");

@@ -20,22 +20,26 @@ DiodeItem::DiodeItem(QPointF pos, QString value, QGraphicsItem *parent)
 
 void DiodeItem::buildPrimitives() {
     m_primitives.clear();
-    
-    // Leads
-    m_primitives.push_back(std::make_unique<LinePrimitive>(QPointF(-45, 0), QPointF(-15, 0)));
-    m_primitives.push_back(std::make_unique<LinePrimitive>(QPointF(15, 0), QPointF(45, 0)));
-    
+
+    // Cathode bar
+    m_primitives.push_back(std::make_unique<LinePrimitive>(QPointF(-15, 11.25), QPointF(15, 11.25)));
+
     // Triangle (Anode -> Cathode)
     QList<QPointF> triangle;
-    triangle << QPointF(-15, -22.5) << QPointF(-15, 22.5) << QPointF(15, 0);
+    triangle << QPointF(-15, -11.25) << QPointF(15, -11.25) << QPointF(0, 11.25);
     m_primitives.push_back(std::make_unique<PolygonPrimitive>(triangle, false));
-    
-    // Cathode bar
-    m_primitives.push_back(std::make_unique<LinePrimitive>(QPointF(15, -22.5), QPointF(15, 22.5)));
-    
-    // Pins
-    m_primitives.push_back(std::make_unique<CirclePrimitive>(QPointF(-45, 0), 3.75, true));
-    m_primitives.push_back(std::make_unique<CirclePrimitive>(QPointF(45, 0), 3.75, true));
+
+    // Vertical leads to terminals
+    m_primitives.push_back(std::make_unique<LinePrimitive>(QPointF(0, -11.25), QPointF(0, -30)));
+    m_primitives.push_back(std::make_unique<LinePrimitive>(QPointF(0, 11.25), QPointF(0, 30)));
+
+    // Pins (terminal tips)
+    m_primitives.push_back(std::make_unique<CirclePrimitive>(QPointF(0, -30), 3.75, true));
+    m_primitives.push_back(std::make_unique<CirclePrimitive>(QPointF(0, 30), 3.75, true));
+}
+
+QList<QPointF> DiodeItem::connectionPoints() const {
+    return { QPointF(0, -30), QPointF(0, 30) };
 }
 
 void DiodeItem::setValue(const QString& value) {
@@ -162,8 +166,4 @@ SchematicItem* DiodeItem::clone() const {
     state["id"] = QUuid::createUuid().toString();
     newItem->fromJson(state);
     return newItem;
-}
-
-QList<QPointF> DiodeItem::connectionPoints() const {
-    return { QPointF(-45, 0), QPointF(45, 0) };
 }

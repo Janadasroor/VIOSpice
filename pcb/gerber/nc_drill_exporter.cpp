@@ -174,9 +174,38 @@ QMap<double, int> NCDrillExporter::collectToolTable(QGraphicsScene* scene, bool 
     return toolTable;
 }
 
+static constexpr int kPlatedDataKey = 0x4E50; // 'NP' — non-plated flag
+
 bool NCDrillExporter::hasNonPlatedHoles(QGraphicsScene* scene) {
-    // Currently all pads are assumed plated. Return false until NPTH pad support is added.
-    Q_UNUSED(scene);
+    if (!scene) return false;
+
+    for (auto* gItem : scene->items()) {
+        // Check for explicit non-plated marker (data set to false)
+        QVariant platedData = gItem->data(kPlatedDataKey);
+        if (platedData.isValid() && !platedData.toBool())
+            return true;
+
+        // Non-plated vias (mechanical only)
+        if (auto* via = dynamic_cast<ViaItem*>(gItem)) {
+            if (!via->netName().isEmpty()) continue;
+            // Untracked vias with non-plated marker
+            if (gItem->data(kPlatedDataKey).isValid() && !gItem->data(kPlatedDataKey).toBool())
+                return true;
+        }
+
+        // Pads: look for mounting hole patterns
+        if (auto* pad = dynamic_cast<PadItem*>(gItem)) {
+            if (pad->drillSize() <= 0.001) continue; // SMD
+            // Check parent component reference for MTG/HOLE indicators
+            if (auto* parent = dynamic_cast<ComponentItem*>(pad->parentItem())) {
+                QString ref = parent->name();
+                if (ref.contains("MTG", Qt::CaseInsensitive) || ref.contains("HOLE", Qt::CaseInsensitive))
+                    return true;
+            }
+            if (pad->padShape().toLower() == "mountinghole")
+                return true;
+        }
+    }
     return false;
 }
 
@@ -229,7 +258,9 @@ QList<NCDrillExporter::DrillHole> NCDrillExporter::collectHoles(QGraphicsScene* 
                 itemName = "Pad";
             }
 
-            isPlated = true; // Default: all pads with drills are plated through-hole
+            // Check for non-plated marker
+            QVariant platedData = pad->data(kPlatedDataKey);
+            isPlated = !platedData.isValid() || platedData.toBool();
 
             // Check for oblong/slot pads
             QString shape = pad->padShape().toLower();

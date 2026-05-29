@@ -151,6 +151,7 @@ private:
     void createToolBar();
     void rebuildPanelsMenu();
     void tryAutoDetectModelName();
+    void onSpiceSubcircuitCodeChanged();
     void createStatusBar();
     enum class SaveTarget { None, CurrentFlow, Library };
     void setEditingUnlocked(bool unlocked, const QString& message = QString());
@@ -285,6 +286,8 @@ protected:
     QComboBox* m_modelSourceCombo = nullptr;
     QLineEdit* m_modelPathEdit = nullptr;
     QLineEdit* m_modelNameEdit = nullptr;
+    QPlainTextEdit* m_spiceSubcircuitEdit = nullptr;
+    QWidget* m_embeddedCodeWidget = nullptr;
     QTableWidget* m_subcktMappingTable = nullptr;
     QLabel* m_subcktMappingSummaryLabel = nullptr;
     QLabel* m_subcktSyncLabel = nullptr;
@@ -332,6 +335,7 @@ protected:
     QAction* m_undoAction = nullptr;
     QAction* m_redoAction = nullptr;
     QAction* m_deleteAction = nullptr;
+    QAction* m_rotateCWAct = nullptr;
 
     // Drawing state
     QList<QPointF> m_polyPoints;

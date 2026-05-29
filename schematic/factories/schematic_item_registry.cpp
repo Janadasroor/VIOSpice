@@ -29,6 +29,7 @@
 #include "behavioral_current_source_item.h"
 #include "logic_analyzer_item.h"
 #include "oscilloscope_item.h"
+#include "virtual_terminal_item.h"
 #include "smart_signal_item.h"
 #include "flux_measurement_item.h"
 #include "instrument_probe_item.h"
@@ -147,21 +148,21 @@ void SchematicItemRegistry::registerBuiltInItems() {
     // Register Transistor PNP
     factory.registerItemType("Transistor_PNP", [makeGenericFromLibrary](QPointF pos, const QJsonObject& properties, QGraphicsItem* parent) -> SchematicItem* {
         const QString value = properties.value("value").toString("2N3906");
-        if (auto* item = makeGenericFromLibrary("Transistor_PNP", pos, value, parent)) return item;
+        if (auto* item = makeGenericFromLibrary("PNP Transistor", pos, value, parent)) return item;
         return new TransistorItem(pos, value, TransistorItem::PNP, parent);
     });
 
     // Register Transistor NMOS
     factory.registerItemType("Transistor_NMOS", [makeGenericFromLibrary](QPointF pos, const QJsonObject& properties, QGraphicsItem* parent) -> SchematicItem* {
         const QString value = properties.value("value").toString("2N7000");
-        if (auto* item = makeGenericFromLibrary("Transistor_NMOS", pos, value, parent)) return item;
+        if (auto* item = makeGenericFromLibrary("NMOS Transistor", pos, value, parent)) return item;
         return new TransistorItem(pos, value, TransistorItem::NMOS, parent);
     });
 
     // Register Transistor PMOS
     factory.registerItemType("Transistor_PMOS", [makeGenericFromLibrary](QPointF pos, const QJsonObject& properties, QGraphicsItem* parent) -> SchematicItem* {
         const QString value = properties.value("value").toString("BS250");
-        if (auto* item = makeGenericFromLibrary("Transistor_PMOS", pos, value, parent)) return item;
+        if (auto* item = makeGenericFromLibrary("PMOS Transistor", pos, value, parent)) return item;
         return new TransistorItem(pos, value, TransistorItem::PMOS, parent);
     });
 
@@ -634,6 +635,18 @@ void SchematicItemRegistry::registerBuiltInItems() {
 
     factory.registerItemType("Logic Analyzer", [](QPointF pos, const QJsonObject&, QGraphicsItem* parent) -> SchematicItem* {
         return new LogicAnalyzerItem(pos, parent);
+    });
+
+    factory.registerItemType("VirtualTerminalInstrument", [](QPointF pos, const QJsonObject& properties, QGraphicsItem* parent) -> SchematicItem* {
+        auto* item = new VirtualTerminalItem(pos, parent);
+        if (!properties.isEmpty()) item->fromJson(properties);
+        return item;
+    });
+
+    factory.registerItemType("Virtual Terminal", [](QPointF pos, const QJsonObject& properties, QGraphicsItem* parent) -> SchematicItem* {
+        auto* item = new VirtualTerminalItem(pos, parent);
+        if (!properties.isEmpty()) item->fromJson(properties);
+        return item;
     });
 
     factory.registerItemType("Oscilloscope Instrument", [](QPointF pos, const QJsonObject&, QGraphicsItem* parent) -> SchematicItem* {

@@ -1,4 +1,5 @@
 #include "spice_subcircuit_import_dialog.h"
+#include "theme_manager.h"
 
 #include "../ui/spice_highlighter.h"
 #include "../../simulator/bridge/model_library_manager.h"
@@ -21,6 +22,7 @@
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QInputDialog>
+#include <QFileDialog>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QJsonArray>
@@ -82,6 +84,14 @@ SpiceSubcircuitImportDialog::SpiceSubcircuitImportDialog(const QString& projectD
     , m_autoPlaceAfterSaveCheck(nullptr)
     , m_buttonBox(nullptr)
     , m_highlighter(nullptr) {
+    // Override inherited palette Highlight to neutral so buttons don't inherit blue
+    {
+        QPalette p = palette();
+        p.setColor(QPalette::Highlight, QColor("#52525b"));
+        p.setColor(QPalette::HighlightedText, Qt::white);
+        setPalette(p);
+    }
+
     setupUi();
     updateFromText();
 }
@@ -111,13 +121,17 @@ void SpiceSubcircuitImportDialog::setupUi() {
     m_textEdit->setFont(mono);
     m_highlighter = new SpiceHighlighter(m_textEdit->document());
     
-    // AI Generate Button row
+    // AI Generate + File Pick button row
     auto* aiLayout = new QHBoxLayout();
+    m_pickFileBtn = new QPushButton("Pick File...", this);
+    m_pickFileBtn->setToolTip("Load a .cir / .lib / .sub / .sp file");
+    aiLayout->addWidget(m_pickFileBtn);
+    aiLayout->addStretch();
     m_aiGenerateBtn = new QPushButton("✨ Generate with Viora AI...", this);
     m_aiGenerateBtn->setStyleSheet(
-        "QPushButton { background-color: #3b82f6; color: white; font-weight: bold; padding: 8px 16px; border-radius: 4px; }"
-        "QPushButton:hover { background-color: #2563eb; }"
-        "QPushButton:disabled { background-color: #94a3b8; }"
+        "QPushButton { background-color: #52525b; color: white; font-weight: bold; padding: 8px 16px; border-radius: 4px; border: none; }"
+        "QPushButton:hover { background-color: #3f3f46; }"
+        "QPushButton:disabled { background-color: #27272a; color: #71717a; }"
     );
     m_progressBar = new QProgressBar(this);
     m_progressBar->setRange(0, 0);
@@ -191,12 +205,25 @@ void SpiceSubcircuitImportDialog::setupUi() {
     m_buttonBox = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, this);
     mainLayout->addWidget(m_buttonBox);
 
+    // Override global accent hover border on buttons for this dialog
+    {
+        QString buttonOverride =
+            "QPushButton:hover { border-color: #52525b; }"
+            "QPushButton:pressed { border-color: #3f3f46; }"
+            "QDialogButtonBox QPushButton { padding: 6px 16px; }";
+        QString ss = ThemeManager::theme()
+            ? ThemeManager::theme()->widgetStylesheet() + buttonOverride
+            : buttonOverride;
+        setStyleSheet(ss);
+    }
+
     connect(m_buttonBox, &QDialogButtonBox::accepted, this, &SpiceSubcircuitImportDialog::onAccepted);
     connect(m_buttonBox, &QDialogButtonBox::rejected, this, &QDialog::reject);
     connect(m_textEdit, &QPlainTextEdit::textChanged, this, &SpiceSubcircuitImportDialog::updateFromText);
     connect(m_fileNameEdit, &QLineEdit::textChanged, this, &SpiceSubcircuitImportDialog::refreshPathPreview);
     connect(m_subcktPicker, &QComboBox::currentIndexChanged, this, &SpiceSubcircuitImportDialog::onSelectedSubcktChanged);
     connect(m_openSymbolEditorCheck, &QCheckBox::toggled, m_autoPlaceAfterSaveCheck, &QWidget::setEnabled);
+    connect(m_pickFileBtn, &QPushButton::clicked, this, &SpiceSubcircuitImportDialog::onPickFile);
     connect(m_aiGenerateBtn, &QPushButton::clicked, this, &SpiceSubcircuitImportDialog::onAiGenerateClicked);
 }
 
@@ -474,6 +501,40 @@ void SpiceSubcircuitImportDialog::onSelectedSubcktChanged() {
     updateFromText();
 }
 
+void SpiceSubcircuitImportDialog::onPickFile() {
+    const QString filter = "SPICE Files (*.cir *.lib *.sub *.sp *.spice *.cdl);;All Files (*)";
+    const QString filePath = QFileDialog::getOpenFileName(this, "Pick Subcircuit File", QString(), filter);
+    if (filePath.isEmpty()) return;
+
+    QFile file(filePath);
+    if (!file.open(QIODevice::ReadOnly)) {
+        QMessageBox::warning(this, "Error", QString("Failed to open:\n%1").arg(filePath));
+        return;
+    }
+
+    QByteArray data = file.readAll();
+    file.close();
+
+    // Detect encoding: try UTF-8, then Latin-1, then system default
+    QString text;
+    if (data.size() >= 3 && data[0] == '\xEF' && data[1] == '\xBB' && data[2] == '\xBF') {
+        text = QString::fromUtf8(data.mid(3));
+    } else if (data.size() >= 2 && data[0] == '\xFF' && data[1] == '\xFE') {
+        text = QString::fromUtf16(reinterpret_cast<const char16_t*>(data.constData() + 2), (data.size() - 2) / 2);
+    } else {
+        text = QString::fromUtf8(data);
+        if (text.contains(QChar(0xFFFD))) {
+            text = QString::fromLatin1(data);
+        }
+    }
+
+    m_textEdit->setPlainText(text);
+    m_fileNameEdit->setText(QFileInfo(filePath).fileName());
+    if (m_statusLabel) {
+        m_statusLabel->setText(QString("Loaded: %1").arg(filePath));
+    }
+}
+
 void SpiceSubcircuitImportDialog::onAiGenerateClicked() {
     bool ok;
     QString prompt = QInputDialog::getText(this, "Viora AI Subcircuit Generator",
@@ -485,6 +546,7 @@ void SpiceSubcircuitImportDialog::onAiGenerateClicked() {
     m_progressBar->show();
     m_statusLabel->setText("Viora AI is synthesizing your component model...");
     m_aiResponseBuffer.clear();
+    m_aiErrorBuffer.clear();
 
     if (m_aiProcess) {
         m_aiProcess->kill();
@@ -495,6 +557,9 @@ void SpiceSubcircuitImportDialog::onAiGenerateClicked() {
     m_aiProcess->setProcessEnvironment(FluxScriptManager::getConfiguredEnvironment());
 
     connect(m_aiProcess, &QProcess::readyReadStandardOutput, this, &SpiceSubcircuitImportDialog::onAiProcessReadyRead);
+    connect(m_aiProcess, &QProcess::readyReadStandardError, this, [this]() {
+        m_aiErrorBuffer += QString::fromUtf8(m_aiProcess->readAllStandardError());
+    });
     connect(m_aiProcess, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished), this, &SpiceSubcircuitImportDialog::onAiProcessFinished);
 
     QString scriptPath = QDir(FluxScriptManager::getScriptsDir()).absoluteFilePath("gemini_query.py");
@@ -515,20 +580,51 @@ void SpiceSubcircuitImportDialog::onAiProcessFinished(int exitCode) {
     m_aiGenerateBtn->setEnabled(true);
 
     if (exitCode != 0) {
+        QString errMsg = m_aiErrorBuffer.trimmed();
         m_statusLabel->setText("Error: AI generation failed.");
-        QMessageBox::critical(this, "AI Error", "The Viora AI process failed. Please check your internet connection and Gemini API key.");
+        QMessageBox::critical(this, "AI Error",
+            errMsg.isEmpty()
+                ? "The Viora AI process failed. Please check your internet connection and Gemini API key."
+                : errMsg);
+        m_aiErrorBuffer.clear();
         return;
     }
 
-    // Extraction logic for JSON
-    QString jsonStr = m_aiResponseBuffer.trimmed();
-    int start = jsonStr.indexOf('{');
-    int end = jsonStr.lastIndexOf('}');
-    if (start != -1 && end != -1 && end > start) {
-        jsonStr = jsonStr.mid(start, end - start + 1);
+    // Robust JSON extraction — try raw parse first, then brace-balanced extraction
+    QString raw = m_aiResponseBuffer.trimmed();
+    if (raw.isEmpty()) {
+        const QString errMsg = m_aiErrorBuffer.trimmed();
+        m_statusLabel->setText("Error: AI returned empty response.");
+        QMessageBox::critical(this, "AI Error",
+            errMsg.isEmpty()
+                ? "The AI process produced no output. Check that GEMINI_API_KEY is set."
+                : errMsg);
+        m_aiErrorBuffer.clear();
+        return;
     }
-
-    QJsonDocument doc = QJsonDocument::fromJson(jsonStr.toUtf8());
+    QJsonDocument doc = QJsonDocument::fromJson(raw.toUtf8());
+    if (doc.isNull() || !doc.isObject()) {
+        // Scan for a balanced top-level JSON object
+        int start = -1;
+        int depth = 0;
+        bool inString = false;
+        for (int i = 0; i < raw.size(); ++i) {
+            const QChar c = raw[i];
+            if (c == '"' && (i == 0 || raw[i-1] != '\\')) inString = !inString;
+            if (inString) continue;
+            if (c == '{') {
+                if (start == -1) start = i;
+                ++depth;
+            } else if (c == '}') {
+                --depth;
+                if (depth == 0 && start != -1) {
+                    raw = raw.mid(start, i - start + 1);
+                    break;
+                }
+            }
+        }
+        doc = QJsonDocument::fromJson(raw.toUtf8());
+    }
     if (doc.isNull() || !doc.isObject()) {
         m_statusLabel->setText("Error: Failed to parse AI response.");
         QMessageBox::critical(this, "Parse Error", "The AI returned an invalid response format.");

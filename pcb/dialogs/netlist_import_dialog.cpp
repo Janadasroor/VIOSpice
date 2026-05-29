@@ -292,11 +292,49 @@ void NetlistImportDialog::loadNetlistFile(const QString& filePath) {
 }
 
 void NetlistImportDialog::loadFromSchematic() {
-    // TODO: Integrate with schematic editor to pull the ECOPackage via SyncManager
-    // For now, show a placeholder message
-    m_sourceSummaryLabel->setText("ℹ️ Schematic integration requires an open schematic project.\n"
-                                   "Use 'File → Import Netlist' from the schematic editor, or load a netlist file.");
-    m_sourceSummaryLabel->setStyleSheet("padding: 8px; background: palette(alternate-base); color: palette(text); border-radius: 4px;");
+    auto& sync = SyncManager::instance();
+    if (!sync.hasPendingECO()) {
+        m_sourceSummaryLabel->setText("ℹ️ No schematic data available. Open a schematic and run\n"
+                                       "'Tools → Sync to PCB' first, or load a netlist file.");
+        m_sourceSummaryLabel->setStyleSheet("padding: 8px; background: palette(alternate-base); color: palette(text); border-radius: 4px;");
+        return;
+    }
+
+    ECOPackage eco = sync.pendingECO();
+    sync.clearPendingECO();
+
+    // Convert ECOPackage to NetlistImportPackage
+    m_importPkg = NetlistImportPackage();
+    m_importPkg.sourcePath = "Schematic Editor";
+    m_importPkg.format = "ECO";
+
+    for (const auto& ecoComp : eco.components) {
+        NetlistImportComponent comp;
+        comp.reference = ecoComp.reference;
+        comp.value = ecoComp.value;
+        comp.footprint = ecoComp.footprint;
+        comp.spiceModel = ecoComp.spiceModel;
+        comp.typeName = ecoComp.typeName;
+        comp.pinCount = ecoComp.symbolPinCount;
+        comp.pinPadMapping = ecoComp.pinPadMapping;
+        comp.excludeFromPcb = ecoComp.excludeFromPcb;
+        m_importPkg.components.append(comp);
+    }
+
+    for (const auto& ecoNet : eco.nets) {
+        NetlistImportNet net;
+        net.name = ecoNet.name;
+        for (const auto& ecoPin : ecoNet.pins) {
+            NetlistImportPin pin;
+            pin.componentRef = ecoPin.componentRef;
+            pin.pinName = ecoPin.pinName;
+            net.pins.append(pin);
+        }
+        m_importPkg.nets.append(net);
+    }
+
+    m_sourceSummaryLabel->setText("✅ Loaded from schematic: " + PCBNetlistImporter::summary(m_importPkg));
+    m_sourceSummaryLabel->setStyleSheet("padding: 8px; background: palette(alternate-base); border-radius: 4px;");
 }
 
 // ============================================================================
