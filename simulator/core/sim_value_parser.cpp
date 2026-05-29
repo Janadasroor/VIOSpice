@@ -7,25 +7,30 @@
 
 namespace {
 
-std::string trim(std::string_view sv) {
-    auto start = sv.begin();
-    while (start != sv.end() && std::isspace(static_cast<unsigned char>(*start))) ++start;
-    if (start == sv.end()) return {};
-    auto end = sv.end();
-    --end;
-    while (end != start && std::isspace(static_cast<unsigned char>(*end))) --end;
-    auto len = static_cast<size_t>(end - start) + 1;
-    return std::string(&*start, len);
+std::string trim(const std::string& s) {
+    size_t start = 0;
+    while (start < s.size() && std::isspace(static_cast<unsigned char>(s[start]))) {
+        start++;
+    }
+    if (start == s.size()) {
+        return "";
+    }
+    size_t end = s.size() - 1;
+    while (end > start && std::isspace(static_cast<unsigned char>(s[end]))) {
+        end--;
+    }
+    return s.substr(start, end - start + 1);
 }
 
-std::string toLower(std::string_view sv) {
-    std::string out(sv.size(), '\0');
-    std::transform(sv.begin(), sv.end(), out.begin(),
-                   [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+std::string toLower(const std::string& s) {
+    std::string out = s;
+    for (char& c : out) {
+        c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+    }
     return out;
 }
 
-bool splitSuffix(std::string_view suffixRaw, double& factor, std::string& unit) {
+bool splitSuffix(const std::string& suffixRaw, double& factor, std::string& unit) {
     std::string suffix = toLower(trim(suffixRaw));
 
     // Normalize micro and ohm Unicode variants to ASCII equivalents.
