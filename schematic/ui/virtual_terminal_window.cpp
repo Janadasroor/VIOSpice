@@ -277,6 +277,7 @@ QVector<QPair<double, double>> VirtualTerminalWindow::generateTxWaveform(const Q
 }
 
 void VirtualTerminalWindow::closeEvent(QCloseEvent* event) {
+    qDebug() << "VT closeEvent for:" << m_id << "reason: spontaneous?" << event->spontaneous();
     Q_EMIT windowClosing(m_id);
     QMainWindow::closeEvent(event);
 }
