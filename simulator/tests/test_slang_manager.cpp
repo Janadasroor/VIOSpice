@@ -141,11 +141,11 @@ int main() {
             std::cerr << "FAIL: adder4 compiled empty\n";
             failures++;
         } else {
-            // a, b each 4-bit: inputPins = [a_0,a_1,a_2,a_3, b_0,b_1,b_2,b_3]
+            // a, b each 4-bit: inputPins = [a0,a1,a2,a3, b0,b1,b2,b3]
             assert(compiled.inputPins.size() == 8);
-            assert(compiled.inputPins[0] == "a_0");
-            assert(compiled.inputPins[3] == "a_3");
-            assert(compiled.inputPins[4] == "b_0");
+            assert(compiled.inputPins.contains("a0"));
+            assert(compiled.inputPins.contains("a3"));
+            assert(compiled.inputPins.contains("b0"));
             assert(compiled.inputWidths.size() == 2);
             assert(compiled.inputWidths[0] == 4);
             assert(compiled.inputWidths[1] == 4);
@@ -156,12 +156,14 @@ int main() {
             assert(compiled.outputs[1].outputPin == "sum_0");
             assert(compiled.outputs[4].outputPin == "sum_3");
 
-            // Helper to build LSB-first input array for a and b
-            auto makeInputs = [](int aVal, int bVal) -> std::vector<double> {
-                std::vector<double> v(8);
+            // Helper to build LSB-first input array for a and b dynamically
+            auto makeInputs = [&](int aVal, int bVal) -> std::vector<double> {
+                std::vector<double> v(8, 0.0);
                 for (int i = 0; i < 4; i++) {
-                    v[i]     = (aVal >> i) & 1 ? 5.0 : 0.0;
-                    v[i + 4] = (bVal >> i) & 1 ? 5.0 : 0.0;
+                    int aIdx = compiled.inputPins.indexOf(QString("a%1").arg(i));
+                    int bIdx = compiled.inputPins.indexOf(QString("b%1").arg(i));
+                    if (aIdx >= 0) v[aIdx] = (aVal >> i) & 1 ? 5.0 : 0.0;
+                    if (bIdx >= 0) v[bIdx] = (bVal >> i) & 1 ? 5.0 : 0.0;
                 }
                 return v;
             };
@@ -218,11 +220,11 @@ int main() {
             std::cerr << "FAIL: mux2 compiled empty\n";
             failures++;
         } else {
-            // Inputs: sel_0 (1) + a_0..a_3 (4) + b_0..b_3 (4) = 9
+            // Inputs: sel (1) + a0..a3 (4) + b0..b3 (4) = 9
             assert(compiled.inputPins.size() == 9);
-            assert(compiled.inputPins[0] == "sel");
-            assert(compiled.inputPins[1] == "a_0");
-            assert(compiled.inputPins[5] == "b_0");
+            assert(compiled.inputPins.contains("sel"));
+            assert(compiled.inputPins.contains("a0"));
+            assert(compiled.inputPins.contains("b0"));
             assert(compiled.inputWidths.size() == 3);
             assert(compiled.inputWidths[0] == 1);
             assert(compiled.inputWidths[1] == 4);
@@ -232,12 +234,15 @@ int main() {
             assert(compiled.outputs[0].outputPin == "y_0");
             assert(compiled.outputs[3].outputPin == "y_3");
 
-            auto makeInputs = [](int selVal, int aVal, int bVal) -> std::vector<double> {
-                std::vector<double> v(9);
-                v[0] = selVal ? 5.0 : 0.0;
+            auto makeInputs = [&](int selVal, int aVal, int bVal) -> std::vector<double> {
+                std::vector<double> v(9, 0.0);
+                int selIdx = compiled.inputPins.indexOf("sel");
+                if (selIdx >= 0) v[selIdx] = selVal ? 5.0 : 0.0;
                 for (int i = 0; i < 4; i++) {
-                    v[1 + i] = (aVal >> i) & 1 ? 5.0 : 0.0;
-                    v[5 + i] = (bVal >> i) & 1 ? 5.0 : 0.0;
+                    int aIdx = compiled.inputPins.indexOf(QString("a%1").arg(i));
+                    int bIdx = compiled.inputPins.indexOf(QString("b%1").arg(i));
+                    if (aIdx >= 0) v[aIdx] = (aVal >> i) & 1 ? 5.0 : 0.0;
+                    if (bIdx >= 0) v[bIdx] = (bVal >> i) & 1 ? 5.0 : 0.0;
                 }
                 return v;
             };
@@ -285,11 +290,13 @@ int main() {
             failures++;
         } else {
             assert(compiled.outputs.size() == 4);
-            auto makeInputs = [](int aVal, int bVal) -> std::vector<double> {
-                std::vector<double> v(8);
+            auto makeInputs = [&](int aVal, int bVal) -> std::vector<double> {
+                std::vector<double> v(8, 0.0);
                 for (int i = 0; i < 4; i++) {
-                    v[i]     = (aVal >> i) & 1 ? 5.0 : 0.0;
-                    v[i + 4] = (bVal >> i) & 1 ? 5.0 : 0.0;
+                    int aIdx = compiled.inputPins.indexOf(QString("a%1").arg(i));
+                    int bIdx = compiled.inputPins.indexOf(QString("b%1").arg(i));
+                    if (aIdx >= 0) v[aIdx] = (aVal >> i) & 1 ? 5.0 : 0.0;
+                    if (bIdx >= 0) v[bIdx] = (bVal >> i) & 1 ? 5.0 : 0.0;
                 }
                 return v;
             };
@@ -334,11 +341,13 @@ int main() {
             assert(compiled.inputWidths[0] == 2);
             assert(compiled.inputWidths[1] == 2);
 
-            auto makeInputs = [](int aVal, int bVal) -> std::vector<double> {
-                std::vector<double> v(4);
+            auto makeInputs = [&](int aVal, int bVal) -> std::vector<double> {
+                std::vector<double> v(4, 0.0);
                 for (int i = 0; i < 2; i++) {
-                    v[i]     = (aVal >> i) & 1 ? 5.0 : 0.0;
-                    v[i + 2] = (bVal >> i) & 1 ? 5.0 : 0.0;
+                    int aIdx = compiled.inputPins.indexOf(QString("a%1").arg(i));
+                    int bIdx = compiled.inputPins.indexOf(QString("b%1").arg(i));
+                    if (aIdx >= 0) v[aIdx] = (aVal >> i) & 1 ? 5.0 : 0.0;
+                    if (bIdx >= 0) v[bIdx] = (bVal >> i) & 1 ? 5.0 : 0.0;
                 }
                 return v;
             };
@@ -380,25 +389,29 @@ int main() {
                 std::cerr << "FAIL: dff output is not a DffNode\n";
                 failures++;
             } else {
+                int clkIdx = compiled.inputPins.indexOf("clk");
+                int dIdx = compiled.inputPins.indexOf("d");
+                assert(clkIdx >= 0 && dIdx >= 0);
+
                 double inputs[2];
                 // t0: clk=0, d=0 → Q should stay 0 (no edge)
-                inputs[0] = 0.0; inputs[1] = 0.0;
+                inputs[clkIdx] = 0.0; inputs[dIdx] = 0.0;
                 double q0 = dffNode->eval(inputs);
                 assert(q0 == 0.0);
                 // t1: clk=5 (rising edge), d=5 → Q should capture 5V
-                inputs[0] = 5.0; inputs[1] = 5.0;
+                inputs[clkIdx] = 5.0; inputs[dIdx] = 5.0;
                 double q1 = dffNode->eval(inputs);
                 assert(q1 == 5.0);
                 // t2: clk=5 (steady), d=0 → Q should hold 5V
-                inputs[0] = 5.0; inputs[1] = 0.0;
+                inputs[clkIdx] = 5.0; inputs[dIdx] = 0.0;
                 double q2 = dffNode->eval(inputs);
                 assert(q2 == 5.0);
                 // t3: clk=0 (falling edge → no capture), d=0
-                inputs[0] = 0.0; inputs[1] = 0.0;
+                inputs[clkIdx] = 0.0; inputs[dIdx] = 0.0;
                 double q3 = dffNode->eval(inputs);
                 assert(q3 == 5.0); // still holding
                 // t4: clk=5 (rising edge), d=0 → Q should capture 0V
-                inputs[0] = 5.0; inputs[1] = 0.0;
+                inputs[clkIdx] = 5.0; inputs[dIdx] = 0.0;
                 double q4 = dffNode->eval(inputs);
                 assert(q4 == 0.0);
                 // reset internal state for next test
@@ -433,21 +446,26 @@ int main() {
                 // Verify reset port is set
                 assert(dffNode->rstIndex >= 0);
 
+                int clkIdx = compiled.inputPins.indexOf("clk");
+                int rstIdx = compiled.inputPins.indexOf("rst");
+                int dIdx = compiled.inputPins.indexOf("d");
+                assert(clkIdx >= 0 && rstIdx >= 0 && dIdx >= 0);
+
                 double inputs[3];
                 // t0: clk=0, rst=0, d=0
-                inputs[0] = 0.0; inputs[1] = 0.0; inputs[2] = 0.0;
+                inputs[clkIdx] = 0.0; inputs[rstIdx] = 0.0; inputs[dIdx] = 0.0;
                 double q0 = dffNode->eval(inputs);
                 assert(q0 == 0.0);
                 // t1: clk=5 (rising edge), d=5 → capture
-                inputs[0] = 5.0; inputs[1] = 0.0; inputs[2] = 5.0;
+                inputs[clkIdx] = 5.0; inputs[rstIdx] = 0.0; inputs[dIdx] = 5.0;
                 double q1 = dffNode->eval(inputs);
                 assert(q1 == 5.0);
                 // t2: rst=5 (rising edge) → reset to 0
-                inputs[0] = 5.0; inputs[1] = 5.0; inputs[2] = 5.0;
+                inputs[clkIdx] = 5.0; inputs[rstIdx] = 5.0; inputs[dIdx] = 5.0;
                 double q2 = dffNode->eval(inputs);
                 assert(q2 == 0.0);
                 // t3: rst=0, clk=5 → holding 0
-                inputs[0] = 5.0; inputs[1] = 0.0; inputs[2] = 5.0;
+                inputs[clkIdx] = 5.0; inputs[rstIdx] = 0.0; inputs[dIdx] = 5.0;
                 double q3 = dffNode->eval(inputs);
                 assert(q3 == 0.0);
             }

@@ -867,9 +867,11 @@ bool renderSymbolToPng(const SymbolDefinition& symbol, const QString& outPath, b
     return image.save(outPath);
 }
 
-struct ParsedSubckt {
+struct SpiceEntity {
+    QString type; // ".subckt" or ".model"
     QString name;
     QStringList pins;
+    QString modelType; // For .model: D, NPN, PNP, etc.
 };
 
 static QStringList collapseContinuationLines(const QString& text) {
@@ -902,27 +904,104 @@ static QStringList collapseContinuationLines(const QString& text) {
     return collapsed;
 }
 
-static QList<ParsedSubckt> parseSubckts(const QString& text) {
+static QList<SpiceEntity> parseSpiceEntities(const QString& text) {
     const QStringList lines = collapseContinuationLines(text);
-    QList<ParsedSubckt> parsed;
+    QList<SpiceEntity> parsed;
     for (const QString& line : lines) {
         if (!line.startsWith('.', Qt::CaseInsensitive)) continue;
         const QStringList parts = line.split(QRegularExpression("\\s+"), Qt::SkipEmptyParts);
         if (parts.isEmpty()) continue;
+        
         if (parts.first().compare(".subckt", Qt::CaseInsensitive) == 0 && parts.size() >= 2) {
-            ParsedSubckt sub;
-            sub.name = parts.at(1);
+            SpiceEntity ent;
+            ent.type = ".subckt";
+            ent.name = parts.at(1);
             for (int i = 2; i < parts.size(); ++i) {
                 if (parts.at(i).contains('=')) break;
-                sub.pins.append(parts.at(i));
+                ent.pins.append(parts.at(i));
             }
-            parsed.append(sub);
+            parsed.append(ent);
+        } else if (parts.first().compare(".model", Qt::CaseInsensitive) == 0 && parts.size() >= 3) {
+            SpiceEntity ent;
+            ent.type = ".model";
+            ent.name = parts.at(1);
+            QString mType = parts.at(2);
+            if (mType.contains('(')) mType = mType.left(mType.indexOf('('));
+            ent.modelType = mType.toUpper();
+            parsed.append(ent);
         }
     }
     return parsed;
 }
 
-static int generateSymbolsForLibrary(const QString& inputPath, const QString& outDir, const QString& symbolType, const QString& targetName = QString()) {
+struct MappingRule {
+    QString name;
+    QString templateName;
+    QString spiceType;
+    int pinCount = -1;
+    QRegularExpression nameRegex;
+    QStringList modelTypes;
+};
+
+class SymbolMatcher {
+public:
+    bool loadMapping(const QString& path) {
+        QFile file(path);
+        if (!file.open(QIODevice::ReadOnly)) return false;
+        QJsonDocument doc = QJsonDocument::fromJson(file.readAll());
+        if (!doc.isObject()) return false;
+        
+        QJsonArray rulesArr = doc.object().value("rules").toArray();
+        for (const QJsonValue& val : rulesArr) {
+            QJsonObject obj = val.toObject();
+            QJsonObject match = obj.value("match").toObject();
+            
+            MappingRule rule;
+            rule.name = obj.value("name").toString();
+            rule.templateName = obj.value("template").toString();
+            rule.spiceType = match.value("spice_type").toString();
+            rule.pinCount = match.value("pin_count").toInt(-1);
+            QString regexStr = match.value("name_regex").toString();
+            if (!regexStr.isEmpty()) {
+                rule.nameRegex = QRegularExpression(regexStr);
+            }
+            
+            QJsonValue mType = match.value("model_type");
+            if (mType.isArray()) {
+                for (const QJsonValue& v : mType.toArray()) rule.modelTypes << v.toString().toUpper();
+            } else if (!mType.isUndefined()) {
+                rule.modelTypes << mType.toString().toUpper();
+            }
+            
+            m_rules << rule;
+        }
+        return true;
+    }
+
+    QString match(const SpiceEntity& ent) const {
+        for (const auto& rule : m_rules) {
+            if (!rule.spiceType.isEmpty() && rule.spiceType != ent.type) continue;
+            if (rule.pinCount != -1 && rule.pinCount != ent.pins.size() && ent.type == ".subckt") continue;
+            
+            if (ent.type == ".model") {
+                if (!rule.modelTypes.isEmpty() && !rule.modelTypes.contains(ent.modelType)) continue;
+                // For models, we check name_regex if provided
+            }
+            
+            if (rule.nameRegex.isValid()) {
+                if (!rule.nameRegex.match(ent.name).hasMatch()) continue;
+            }
+            
+            return rule.templateName;
+        }
+        return "";
+    }
+
+private:
+    QList<MappingRule> m_rules;
+};
+
+static int generateSymbolsForLibrary(const QString& inputPath, const QString& outDir, const QString& symbolType, const QString& targetName = QString(), const SymbolMatcher* matcher = nullptr) {
     QFile file(inputPath);
     if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
         std::cerr << "Error: Cannot read input file: " << inputPath.toStdString() << std::endl;
@@ -931,64 +1010,361 @@ static int generateSymbolsForLibrary(const QString& inputPath, const QString& ou
     const QString content = QString::fromUtf8(file.readAll());
     file.close();
 
-    QList<ParsedSubckt> subckts = parseSubckts(content);
-    if (subckts.isEmpty()) {
+    QList<SpiceEntity> entities = parseSpiceEntities(content);
+    if (entities.isEmpty()) {
         return 0;
     }
 
     QDir().mkpath(outDir);
     int count = 0;
 
-    for (const auto& sub : subckts) {
+    for (const auto& sub : entities) {
         if (!targetName.isEmpty() && sub.name.compare(targetName, Qt::CaseInsensitive) != 0) continue;
 
+        auto getPinName = [&](int i) -> QString {
+            if (i >= 0 && i < sub.pins.size()) return sub.pins[i];
+            return QString::number(i + 1);
+        };
+
+        QString typeToUse = symbolType;
+        if (typeToUse.isEmpty() && matcher) {
+            typeToUse = matcher->match(sub);
+        }
+
         SymbolDefinition def(sub.name);
-        def.setDescription(QString("Auto-generated %1 symbol for .subckt %2").arg(symbolType.isEmpty() ? "IC" : symbolType.toUpper(), sub.name));
-        def.setCategory(symbolType == "op" ? "Amplifiers" : "Integrated Circuits");
-        def.setReferencePrefix(symbolType == "op" ? "U" : "U");
+        def.setDescription(QString("Auto-generated %1 symbol for %2 %3").arg(typeToUse.isEmpty() ? "IC" : typeToUse.toUpper(), sub.type, sub.name));
+        def.setCategory(typeToUse == "op" ? "Amplifiers" : "Integrated Circuits");
+        def.setReferencePrefix(typeToUse == "op" ? "U" : "U");
         def.setDefaultValue(sub.name);
         def.setSpiceModelName(sub.name);
         def.setModelSource("project");
         def.setModelPath(QFileInfo(inputPath).fileName());
 
-        const int pinCount = sub.pins.size();
+        int pinCount = sub.pins.size();
+        if (sub.type == ".model") {
+            if (sub.modelType == "D") pinCount = 2;
+            else if (sub.modelType == "NPN" || sub.modelType == "PNP" || sub.modelType == "NJF" || sub.modelType == "PJF") pinCount = 3;
+            else if (sub.modelType == "NMOS" || sub.modelType == "PMOS" || sub.modelType == "VDMOS") pinCount = 3;
+            else if (sub.modelType == "SW" || sub.modelType == "CSW") pinCount = 2;
+        }
         const qreal bodyWidth = 90.0;
         const qreal pinSpacing = 30.0;
         const qreal pinLength = 15.0;
 
-        if (symbolType == "op") {
-            def.setCategory("OpAmps");
-            def.setReferencePrefix("U");
-            QList<QPointF> tri; tri << QPointF(-30, -30) << QPointF(-30, 30) << QPointF(30, 0);
-            def.addPrimitive(SymbolPrimitive::createPolygon(tri, false));
-            
-            // Refined Op-Amp with manual leads
+        if (typeToUse == "triode") {
+            def.setCategory("Vacuum Tubes");
+            def.setReferencePrefix("V");
+            def.addPrimitive(SymbolPrimitive::createCircle(QPointF(0, 0), 37.5, false)); // Envelope
+            // Plate (Anode)
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(-15, -22.5), QPointF(15, -22.5)));
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(0, -22.5), QPointF(0, -45)));
+            // Grid (Dashed)
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(-15, 0), QPointF(-7.5, 0)));
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(-3.75, 0), QPointF(3.75, 0)));
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(7.5, 0), QPointF(15, 0)));
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(-15, 0), QPointF(-45, 0)));
+            // Cathode
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(-11.25, 22.5), QPointF(11.25, 22.5)));
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(-11.25, 22.5), QPointF(-11.25, 15)));
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(0, 22.5), QPointF(0, 45)));
+            // Heater (Filament) - if 5 pins (A G K H1 H2)
+            if (pinCount >= 5) {
+                def.addPrimitive(SymbolPrimitive::createLine(QPointF(-7.5, 37.5), QPointF(0, 26.25)));
+                def.addPrimitive(SymbolPrimitive::createLine(QPointF(7.5, 37.5), QPointF(0, 26.25)));
+            }
             QMap<int, QString> mapping;
-            if (pinCount >= 1) { // IN-
-                def.addPrimitive(SymbolPrimitive::createLine(QPointF(-45, -15), QPointF(-30, -15)));
-                def.addPrimitive(SymbolPrimitive::createPin(QPointF(-45, -15), 1, sub.pins[0], "Right", 0));
+            if (pinCount >= 1) def.addPrimitive(SymbolPrimitive::createPin(QPointF(0, -45), 1, "A", "Down", 0));
+            if (pinCount >= 2) def.addPrimitive(SymbolPrimitive::createPin(QPointF(-45, 0), 2, "G", "Right", 0));
+            if (pinCount >= 3) def.addPrimitive(SymbolPrimitive::createPin(QPointF(0, 45), 3, "K", "Up", 0));
+            if (pinCount >= 5) {
+                def.addPrimitive(SymbolPrimitive::createPin(QPointF(-15, 45), 4, "H1", "Up", 0));
+                def.addPrimitive(SymbolPrimitive::createPin(QPointF(15, 45), 5, "H2", "Up", 0));
             }
-            if (pinCount >= 2) { // IN+
-                def.addPrimitive(SymbolPrimitive::createLine(QPointF(-45, 15), QPointF(-30, 15)));
-                def.addPrimitive(SymbolPrimitive::createPin(QPointF(-45, 15), 2, sub.pins[1], "Right", 0));
-            }
-            if (pinCount >= 3) { // VCC
-                def.addPrimitive(SymbolPrimitive::createLine(QPointF(0, -45), QPointF(0, -15)));
-                def.addPrimitive(SymbolPrimitive::createPin(QPointF(0, -45), 3, sub.pins[2], "Down", 0));
-            }
-            if (pinCount >= 4) { // VEE
-                def.addPrimitive(SymbolPrimitive::createLine(QPointF(0, 45), QPointF(0, 15)));
-                def.addPrimitive(SymbolPrimitive::createPin(QPointF(0, 45), 4, sub.pins[3], "Up", 0));
-            }
-            if (pinCount >= 5) { // OUT
-                def.addPrimitive(SymbolPrimitive::createLine(QPointF(30, 0), QPointF(45, 0)));
-                def.addPrimitive(SymbolPrimitive::createPin(QPointF(45, 0), 5, sub.pins[4], "Left", 0));
-            }
-            for(int i=0; i<pinCount; ++i) mapping.insert(i+1, sub.pins[i]);
+            for(int i=0; i<pinCount; ++i) mapping.insert(i+1, getPinName(i));
             def.setSpiceNodeMapping(mapping);
 
-        } else if (symbolType == "npn" || symbolType == "pnp") {
-            const bool pnp = (symbolType == "pnp");
+        } else if (typeToUse == "pentode") {
+            def.setCategory("Vacuum Tubes");
+            def.setReferencePrefix("V");
+            def.addPrimitive(SymbolPrimitive::createCircle(QPointF(0, 0), 37.5, false));
+            // Plate (Anode)
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(-15, -22.5), QPointF(15, -22.5)));
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(0, -22.5), QPointF(0, -45)));
+            // Grids (G3 suppressed, G2 screen, G1 control)
+            for (int i = 0; i < 3; ++i) {
+                qreal y = -11.25 + i * 11.25;
+                def.addPrimitive(SymbolPrimitive::createLine(QPointF(-15, y), QPointF(-7.5, y)));
+                def.addPrimitive(SymbolPrimitive::createLine(QPointF(-3.75, y), QPointF(3.75, y)));
+                def.addPrimitive(SymbolPrimitive::createLine(QPointF(7.5, y), QPointF(15, y)));
+            }
+            // Grid Leads
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(-15, 11.25), QPointF(-45, 11.25))); // G1 (Control)
+            if (pinCount >= 4) def.addPrimitive(SymbolPrimitive::createLine(QPointF(15, 0), QPointF(45, 0))); // G2 (Screen)
+            if (pinCount >= 5) def.addPrimitive(SymbolPrimitive::createLine(QPointF(15, -11.25), QPointF(45, -11.25))); // G3 (Suppressor)
+            // Cathode
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(-11.25, 22.5), QPointF(11.25, 22.5)));
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(-11.25, 22.5), QPointF(-11.25, 15)));
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(0, 22.5), QPointF(0, 45)));
+            // Heater (Filament) - if 6+ pins
+            if (pinCount >= 6) {
+                def.addPrimitive(SymbolPrimitive::createLine(QPointF(-7.5, 37.5), QPointF(0, 26.25)));
+                def.addPrimitive(SymbolPrimitive::createLine(QPointF(7.5, 37.5), QPointF(0, 26.25)));
+            }
+            QMap<int, QString> mapping;
+            if (pinCount >= 1) def.addPrimitive(SymbolPrimitive::createPin(QPointF(0, -45), 1, "A", "Down", 0));
+            if (pinCount >= 2) def.addPrimitive(SymbolPrimitive::createPin(QPointF(45, 0), 2, "G2", "Left", 0));
+            if (pinCount >= 3) def.addPrimitive(SymbolPrimitive::createPin(QPointF(-45, 11.25), 3, "G1", "Right", 0));
+            if (pinCount >= 4) def.addPrimitive(SymbolPrimitive::createPin(QPointF(0, 45), 4, "K", "Up", 0));
+            if (pinCount >= 5) def.addPrimitive(SymbolPrimitive::createPin(QPointF(45, -11.25), 5, "G3", "Left", 0));
+            if (pinCount >= 7) {
+                def.addPrimitive(SymbolPrimitive::createPin(QPointF(-15, 45), 6, "H1", "Up", 0));
+                def.addPrimitive(SymbolPrimitive::createPin(QPointF(15, 45), 7, "H2", "Up", 0));
+            }
+            for(int i=0; i<pinCount; ++i) mapping.insert(i+1, getPinName(i));
+            def.setSpiceNodeMapping(mapping);
+
+        } else if (typeToUse == "zener") {
+            def.setCategory("Semiconductors");
+            def.setReferencePrefix("DZ");
+            // Cathode bar with bends
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(-15, 11.25), QPointF(15, 11.25)));
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(15, 11.25), QPointF(15, 18.75)));
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(-15, 11.25), QPointF(-15, 3.75)));
+            QList<QPointF> tri; tri << QPointF(-15, -11.25) << QPointF(15, -11.25) << QPointF(0, 11.25);
+            def.addPrimitive(SymbolPrimitive::createPolygon(tri, false));
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(0, -11.25), QPointF(0, -30)));
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(0, 11.25), QPointF(0, 30)));
+            QMap<int, QString> mapping;
+            if (pinCount >= 1) def.addPrimitive(SymbolPrimitive::createPin(QPointF(0, -30), 1, "A", "Down", 0));
+            if (pinCount >= 2) def.addPrimitive(SymbolPrimitive::createPin(QPointF(0, 30), 2, "K", "Up", 0));
+            for(int i=0; i<qMin(pinCount, 2); ++i) mapping.insert(i+1, getPinName(i));
+            def.setSpiceNodeMapping(mapping);
+
+        } else if (typeToUse == "schottky") {
+            def.setCategory("Semiconductors");
+            def.setReferencePrefix("DS");
+            // Cathode bar with hooks
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(-15, 11.25), QPointF(15, 11.25)));
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(15, 11.25), QPointF(15, 3.75)));
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(15, 3.75), QPointF(7.5, 3.75)));
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(-15, 11.25), QPointF(-15, 18.75)));
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(-15, 18.75), QPointF(-7.5, 18.75)));
+            QList<QPointF> tri; tri << QPointF(-15, -11.25) << QPointF(15, -11.25) << QPointF(0, 11.25);
+            def.addPrimitive(SymbolPrimitive::createPolygon(tri, false));
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(0, -11.25), QPointF(0, -30)));
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(0, 11.25), QPointF(0, 30)));
+            QMap<int, QString> mapping;
+            if (pinCount >= 1) def.addPrimitive(SymbolPrimitive::createPin(QPointF(0, -30), 1, "A", "Down", 0));
+            if (pinCount >= 2) def.addPrimitive(SymbolPrimitive::createPin(QPointF(0, 30), 2, "K", "Up", 0));
+            for(int i=0; i<qMin(pinCount, 2); ++i) mapping.insert(i+1, getPinName(i));
+            def.setSpiceNodeMapping(mapping);
+
+        } else if (typeToUse == "varicap") {
+            def.setCategory("Semiconductors");
+            def.setReferencePrefix("DV");
+            // Double line at cathode (capacitor look)
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(-15, 11.25), QPointF(15, 11.25)));
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(-15, 18.75), QPointF(15, 18.75)));
+            QList<QPointF> tri; tri << QPointF(-15, -11.25) << QPointF(15, -11.25) << QPointF(0, 11.25);
+            def.addPrimitive(SymbolPrimitive::createPolygon(tri, false));
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(0, -11.25), QPointF(0, -30)));
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(0, 18.75), QPointF(0, 37.5)));
+            QMap<int, QString> mapping;
+            if (pinCount >= 1) def.addPrimitive(SymbolPrimitive::createPin(QPointF(0, -30), 1, "A", "Down", 0));
+            if (pinCount >= 2) def.addPrimitive(SymbolPrimitive::createPin(QPointF(0, 37.5), 2, "K", "Up", 0));
+            for(int i=0; i<qMin(pinCount, 2); ++i) mapping.insert(i+1, getPinName(i));
+            def.setSpiceNodeMapping(mapping);
+
+        } else if (typeToUse == "inductor") {
+            def.setCategory("Passives");
+            def.setReferencePrefix("L");
+            // 4 arcs for inductor
+            def.addPrimitive(SymbolPrimitive::createArc(QRectF(-30, -7.5, 15, 15), 0, 180 * 16));
+            def.addPrimitive(SymbolPrimitive::createArc(QRectF(-15, -7.5, 15, 15), 0, 180 * 16));
+            def.addPrimitive(SymbolPrimitive::createArc(QRectF(0, -7.5, 15, 15), 0, 180 * 16));
+            def.addPrimitive(SymbolPrimitive::createArc(QRectF(15, -7.5, 15, 15), 0, 180 * 16));
+            // Leads
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(-30, 0), QPointF(-45, 0)));
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(30, 0), QPointF(45, 0)));
+            QMap<int, QString> mapping;
+            if (pinCount >= 1) def.addPrimitive(SymbolPrimitive::createPin(QPointF(-45, 0), 1, "1", "Right", 0));
+            if (pinCount >= 2) def.addPrimitive(SymbolPrimitive::createPin(QPointF(45, 0), 2, "2", "Left", 0));
+            for(int i=0; i<qMin(pinCount, 2); ++i) mapping.insert(i+1, getPinName(i));
+            def.setSpiceNodeMapping(mapping);
+
+        } else if (typeToUse == "adc" || typeToUse == "dac") {
+            def.setCategory("Data Converters");
+            def.setReferencePrefix("U");
+            def.addPrimitive(SymbolPrimitive::createRect(QRectF(-45, -45, 90, 90), false));
+            def.addPrimitive(SymbolPrimitive::createText(symbolType.toUpper(), QPointF(-15, -10), 10));
+            QMap<int, QString> mapping;
+            // Generic labeled box
+            for (int i = 0; i < qMin(pinCount, 8); ++i) {
+                qreal y = -30 + (i % 4) * 20;
+                bool left = (i < 4);
+                def.addPrimitive(SymbolPrimitive::createLine(QPointF(left ? -45 : 45, y), QPointF(left ? -60 : 60, y)));
+                def.addPrimitive(SymbolPrimitive::createPin(QPointF(left ? -60 : 60, y), i + 1, QString("P%1").arg(i+1), left ? "Right" : "Left", 0));
+                mapping.insert(i + 1, getPinName(i));
+            }
+            def.setSpiceNodeMapping(mapping);
+
+        } else if (typeToUse == "njfet" || typeToUse == "pjfet") {
+            const bool pjfet = (typeToUse == "pjfet");
+            def.setCategory("Semiconductors");
+            def.setReferencePrefix("J");
+            // Channel bar
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(0, -30), QPointF(0, 30)));
+            // Gate terminal
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(-30, 0), QPointF(0, 0)));
+            // Drain/Source terminals
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(0, -22.5), QPointF(30, -22.5)));
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(30, -22.5), QPointF(30, -45)));
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(0, 22.5), QPointF(30, 22.5)));
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(30, 22.5), QPointF(30, 45)));
+            // Arrow
+            QList<QPointF> arrow;
+            if (pjfet) { // Points AWAY from channel
+                arrow << QPointF(-22.5, 0) << QPointF(-7.5, -7.5) << QPointF(-7.5, 7.5);
+            } else { // Points INTO channel
+                arrow << QPointF(-7.5, 0) << QPointF(-22.5, -7.5) << QPointF(-22.5, 7.5);
+            }
+            def.addPrimitive(SymbolPrimitive::createPolygon(arrow, false));
+            QMap<int, QString> mapping;
+            if (pinCount >= 1) def.addPrimitive(SymbolPrimitive::createPin(QPointF(30, -45), 1, "D", "Down", 0));
+            if (pinCount >= 2) def.addPrimitive(SymbolPrimitive::createPin(QPointF(-30, 0), 2, "G", "Right", 0));
+            if (pinCount >= 3) def.addPrimitive(SymbolPrimitive::createPin(QPointF(30, 45), 3, "S", "Up", 0));
+            for(int i=0; i<qMin(pinCount, 3); ++i) mapping.insert(i+1, getPinName(i));
+            def.setSpiceNodeMapping(mapping);
+
+        } else if (typeToUse == "optocoupler_4pin") {
+            def.setCategory("Optoelectronics");
+            def.setReferencePrefix("U");
+            def.addPrimitive(SymbolPrimitive::createRect(QRectF(-45, -37.5, 90, 75), false));
+            // Internal LED
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(-30, -7.5), QPointF(-30, 7.5))); // Cathode bar
+            QList<QPointF> tri; tri << QPointF(-40, -7.5) << QPointF(-20, -7.5) << QPointF(-30, 7.5);
+            def.addPrimitive(SymbolPrimitive::createPolygon(tri, false));
+            // Internal Phototransistor (NPN)
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(15, -15), QPointF(15, 15))); // Base bar
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(15, -7.5), QPointF(30, -22.5))); // Collector
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(15, 7.5), QPointF(30, 22.5)));   // Emitter
+            // Emitter Arrow
+            QList<QPointF> eArrow; eArrow << QPointF(30, 22.5) << QPointF(22.5, 11.25) << QPointF(15, 18.75);
+            def.addPrimitive(SymbolPrimitive::createPolygon(eArrow, false));
+            // Opto Arrows (with tips)
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(-10, -7.5), QPointF(5, -7.5)));
+            QList<QPointF> tip1; tip1 << QPointF(5, -7.5) << QPointF(0, -11.25) << QPointF(0, -3.75);
+            def.addPrimitive(SymbolPrimitive::createPolygon(tip1, false));
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(-10, 7.5), QPointF(5, 7.5)));
+            QList<QPointF> tip2; tip2 << QPointF(5, 7.5) << QPointF(0, 3.75) << QPointF(0, 11.25);
+            def.addPrimitive(SymbolPrimitive::createPolygon(tip2, false));
+            // Leads
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(-30, -7.5), QPointF(-30, -52.5))); // Anode
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(-30, 7.5), QPointF(-30, 52.5)));   // Cathode
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(30, -22.5), QPointF(30, -52.5)));  // Collector
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(30, 22.5), QPointF(30, 52.5)));    // Emitter
+            QMap<int, QString> mapping;
+            if (pinCount >= 1) def.addPrimitive(SymbolPrimitive::createPin(QPointF(-30, -52.5), 1, "A", "Down", 0));
+            if (pinCount >= 2) def.addPrimitive(SymbolPrimitive::createPin(QPointF(-30, 52.5), 2, "K", "Up", 0));
+            if (pinCount >= 3) def.addPrimitive(SymbolPrimitive::createPin(QPointF(30, 52.5), 3, "E", "Up", 0));
+            if (pinCount >= 4) def.addPrimitive(SymbolPrimitive::createPin(QPointF(30, -52.5), 4, "C", "Down", 0));
+            for(int i=0; i<qMin(pinCount, 4); ++i) mapping.insert(i+1, getPinName(i));
+            def.setSpiceNodeMapping(mapping);
+
+        } else if (typeToUse == "photodiode") {
+            def.setCategory("Optoelectronics");
+            def.setReferencePrefix("D");
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(-15, 11.25), QPointF(15, 11.25))); // Cathode bar
+            QList<QPointF> tri; tri << QPointF(-15, -11.25) << QPointF(15, -11.25) << QPointF(0, 11.25);
+            def.addPrimitive(SymbolPrimitive::createPolygon(tri, false));
+            // Incoming Arrows (with tips)
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(-30, -30), QPointF(-15, -15)));
+            QList<QPointF> tip1; tip1 << QPointF(-15, -15) << QPointF(-22.5, -15) << QPointF(-15, -22.5);
+            def.addPrimitive(SymbolPrimitive::createPolygon(tip1, false));
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(-37.5, -22.5), QPointF(-22.5, -7.5)));
+            QList<QPointF> tip2; tip2 << QPointF(-22.5, -7.5) << QPointF(-30, -7.5) << QPointF(-22.5, -15);
+            def.addPrimitive(SymbolPrimitive::createPolygon(tip2, false));
+            // Leads
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(0, -11.25), QPointF(0, -37.5)));
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(0, 11.25), QPointF(0, 37.5)));
+            QMap<int, QString> mapping;
+            if (pinCount >= 1) def.addPrimitive(SymbolPrimitive::createPin(QPointF(0, -37.5), 1, "A", "Down", 0));
+            if (pinCount >= 2) def.addPrimitive(SymbolPrimitive::createPin(QPointF(0, 37.5), 2, "K", "Up", 0));
+            for(int i=0; i<qMin(pinCount, 2); ++i) mapping.insert(i+1, getPinName(i));
+            def.setSpiceNodeMapping(mapping);
+
+        } else if (typeToUse == "tl431") {
+            def.setCategory("Semiconductors");
+            def.setReferencePrefix("U");
+            // Classic Adjustable Zener
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(-15, 11.25), QPointF(15, 11.25)));
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(15, 11.25), QPointF(15, 18.75)));
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(-15, 11.25), QPointF(-15, 3.75)));
+            QList<QPointF> tri; tri << QPointF(-15, -11.25) << QPointF(15, -11.25) << QPointF(0, 11.25);
+            def.addPrimitive(SymbolPrimitive::createPolygon(tri, false));
+            // Reference lead (diagonal to control junction)
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(-30, 0), QPointF(-11.25, 0)));
+            // Leads
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(0, -11.25), QPointF(0, -30)));
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(0, 11.25), QPointF(0, 30)));
+            QMap<int, QString> mapping;
+            if (pinCount >= 1) def.addPrimitive(SymbolPrimitive::createPin(QPointF(0, 30), 1, "K", "Up", 0));
+            if (pinCount >= 2) def.addPrimitive(SymbolPrimitive::createPin(QPointF(-30, 0), 2, "REF", "Right", 0));
+            if (pinCount >= 3) def.addPrimitive(SymbolPrimitive::createPin(QPointF(0, -30), 3, "A", "Down", 0));
+            for(int i=0; i<qMin(pinCount, 3); ++i) mapping.insert(i+1, getPinName(i));
+            def.setSpiceNodeMapping(mapping);
+
+        } else if (typeToUse == "op") {
+            def.setCategory("Amplifiers");
+            def.setReferencePrefix("U");
+            if (pinCount <= 5) {
+                // Single OpAmp (Traditional Triangle)
+                QList<QPointF> tri; tri << QPointF(-20, -25) << QPointF(-20, 25) << QPointF(20, 0);
+                def.addPrimitive(SymbolPrimitive::createPolygon(tri, false));
+                def.addPrimitive(SymbolPrimitive::createText("+", QPointF(-17, 10), 8));
+                def.addPrimitive(SymbolPrimitive::createText("-", QPointF(-17, -15), 10));
+                // Leads
+                def.addPrimitive(SymbolPrimitive::createLine(QPointF(-20, -12.5), QPointF(-40, -12.5)));
+                def.addPrimitive(SymbolPrimitive::createPin(QPointF(-40, -12.5), 1, "IN-", "Right", 0));
+                def.addPrimitive(SymbolPrimitive::createLine(QPointF(-20, 12.5), QPointF(-40, 12.5)));
+                def.addPrimitive(SymbolPrimitive::createPin(QPointF(-40, 12.5), 2, "IN+", "Right", 0));
+                def.addPrimitive(SymbolPrimitive::createLine(QPointF(20, 0), QPointF(40, 0)));
+                def.addPrimitive(SymbolPrimitive::createPin(QPointF(40, 0), 3, "OUT", "Left", 0));
+                if (pinCount >= 4) {
+                    def.addPrimitive(SymbolPrimitive::createLine(QPointF(0, -12.5), QPointF(0, -30)));
+                    def.addPrimitive(SymbolPrimitive::createPin(QPointF(0, -30), 4, "V+", "Down", 0));
+                }
+                if (pinCount >= 5) {
+                    def.addPrimitive(SymbolPrimitive::createLine(QPointF(0, 12.5), QPointF(0, 30)));
+                    def.addPrimitive(SymbolPrimitive::createPin(QPointF(0, 30), 5, "V-", "Up", 0));
+                }
+            } else {
+                // Multi-OpAmp package (Dual/Quad)
+                const int ampCount = (pinCount >= 14) ? 4 : 2;
+                const qreal h = ampCount * 40.0;
+                def.addPrimitive(SymbolPrimitive::createRect(QRectF(-30, -h/2, 60, h), false));
+                for (int i=0; i<ampCount; ++i) {
+                    qreal yOff = -h/2 + 20 + i*40;
+                    QList<QPointF> tri; 
+                    tri << QPointF(-15, yOff-10) << QPointF(-15, yOff+10) << QPointF(5, yOff);
+                    def.addPrimitive(SymbolPrimitive::createPolygon(tri, false));
+                    def.addPrimitive(SymbolPrimitive::createText(QString::number(i+1), QPointF(10, yOff-5), 6));
+                }
+                const int half = (pinCount+1)/2;
+                for (int i = 0; i < pinCount; ++i) {
+                    bool left = i < half;
+                    qreal y = -h/2 + 10 + (left ? i : (pinCount - 1 - i)) * 20;
+                    QPointF pos(left ? -45 : 45, y);
+                    def.addPrimitive(SymbolPrimitive::createLine(QPointF(left?-30:30, y), pos));
+                    def.addPrimitive(SymbolPrimitive::createPin(pos, i+1, getPinName(i), left?"Right":"Left", 0));
+                }
+            }
+            QMap<int, QString> mapping;
+            for(int i=0; i<pinCount; ++i) mapping.insert(i+1, getPinName(i));
+            def.setSpiceNodeMapping(mapping);
+
+        } else if (typeToUse == "npn" || typeToUse == "pnp") {
+            const bool pnp = (typeToUse == "pnp");
             def.setCategory("Semiconductors");
             def.setReferencePrefix(pnp ? "QP" : "QN");
             def.addPrimitive(SymbolPrimitive::createLine(QPointF(0, -30), QPointF(0, 30))); // Base bar
@@ -1012,14 +1388,14 @@ static int generateSymbolsForLibrary(const QString& inputPath, const QString& ou
             def.addPrimitive(SymbolPrimitive::createPolygon(arrow, false));
             
             QMap<int, QString> mapping;
-            if (pinCount >= 1) def.addPrimitive(SymbolPrimitive::createPin(QPointF(45, -60), 1, sub.pins[0], "Down", 0));
-            if (pinCount >= 2) def.addPrimitive(SymbolPrimitive::createPin(QPointF(-30, 0), 2, sub.pins[1], "Right", 0));
-            if (pinCount >= 3) def.addPrimitive(SymbolPrimitive::createPin(QPointF(45, 60), 3, sub.pins[2], "Up", 0));
-            for(int i=0; i<qMin(pinCount, 3); ++i) mapping.insert(i+1, sub.pins[i]);
+            if (pinCount >= 1) def.addPrimitive(SymbolPrimitive::createPin(QPointF(45, -60), 1, getPinName(0), "Down", 0));
+            if (pinCount >= 2) def.addPrimitive(SymbolPrimitive::createPin(QPointF(-30, 0), 2, getPinName(1), "Right", 0));
+            if (pinCount >= 3) def.addPrimitive(SymbolPrimitive::createPin(QPointF(45, 60), 3, getPinName(2), "Up", 0));
+            for(int i=0; i<qMin(pinCount, 3); ++i) mapping.insert(i+1, getPinName(i));
             def.setSpiceNodeMapping(mapping);
 
-        } else if (symbolType == "nmos" || symbolType == "pmos") {
-            const bool pmos = (symbolType == "pmos");
+        } else if (typeToUse == "nmos" || typeToUse == "pmos") {
+            const bool pmos = (typeToUse == "pmos");
             def.setCategory("Semiconductors");
             def.setReferencePrefix(pmos ? "MP" : "MN");
             
@@ -1054,13 +1430,13 @@ static int generateSymbolsForLibrary(const QString& inputPath, const QString& ou
             def.addPrimitive(SymbolPrimitive::createPolygon(arrow, false));
             
             QMap<int, QString> mapping;
-            if (pinCount >= 1) def.addPrimitive(SymbolPrimitive::createPin(QPointF(30, -45), 1, sub.pins[0], "Down", 0));
-            if (pinCount >= 2) def.addPrimitive(SymbolPrimitive::createPin(QPointF(-22.5, 0), 2, sub.pins[1], "Right", 0));
-            if (pinCount >= 3) def.addPrimitive(SymbolPrimitive::createPin(QPointF(30, 45), 3, sub.pins[2], "Up", 0));
-            for(int i=0; i<qMin(pinCount, 3); ++i) mapping.insert(i+1, sub.pins[i]);
+            if (pinCount >= 1) def.addPrimitive(SymbolPrimitive::createPin(QPointF(30, -45), 1, getPinName(0), "Down", 0));
+            if (pinCount >= 2) def.addPrimitive(SymbolPrimitive::createPin(QPointF(-22.5, 0), 2, getPinName(1), "Right", 0));
+            if (pinCount >= 3) def.addPrimitive(SymbolPrimitive::createPin(QPointF(30, 45), 3, getPinName(2), "Up", 0));
+            for(int i=0; i<qMin(pinCount, 3); ++i) mapping.insert(i+1, getPinName(i));
             def.setSpiceNodeMapping(mapping);
 
-        } else if (symbolType == "diode") {
+        } else if (typeToUse == "diode") {
             def.setCategory("Semiconductors");
             def.setReferencePrefix("D");
             def.addPrimitive(SymbolPrimitive::createLine(QPointF(-15, 11.25), QPointF(15, 11.25))); // Cathode bar
@@ -1072,9 +1448,782 @@ static int generateSymbolsForLibrary(const QString& inputPath, const QString& ou
             def.addPrimitive(SymbolPrimitive::createLine(QPointF(0, 11.25), QPointF(0, 30)));
 
             QMap<int, QString> mapping;
-            if (pinCount >= 1) def.addPrimitive(SymbolPrimitive::createPin(QPointF(0, -30), 1, sub.pins[0], "Down", 0));
-            if (pinCount >= 2) def.addPrimitive(SymbolPrimitive::createPin(QPointF(0, 30), 2, sub.pins[1], "Up", 0));
-            for(int i=0; i<qMin(pinCount, 2); ++i) mapping.insert(i+1, sub.pins[i]);
+            if (pinCount >= 1) def.addPrimitive(SymbolPrimitive::createPin(QPointF(0, -30), 1, getPinName(0), "Down", 0));
+            if (pinCount >= 2) def.addPrimitive(SymbolPrimitive::createPin(QPointF(0, 30), 2, getPinName(1), "Up", 0));
+            for(int i=0; i<qMin(pinCount, 2); ++i) mapping.insert(i+1, getPinName(i));
+            def.setSpiceNodeMapping(mapping);
+
+        } else if (typeToUse == "led") {
+            def.setCategory("Optoelectronics");
+            def.setReferencePrefix("D");
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(-15, 11.25), QPointF(15, 11.25))); // Cathode bar
+            QList<QPointF> tri; tri << QPointF(-15, -11.25) << QPointF(15, -11.25) << QPointF(0, 11.25);
+            def.addPrimitive(SymbolPrimitive::createPolygon(tri, false));
+            // Emission Arrows (with tips)
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(15, -15), QPointF(30, -30)));
+            QList<QPointF> tip1; tip1 << QPointF(30, -30) << QPointF(22.5, -30) << QPointF(30, -22.5);
+            def.addPrimitive(SymbolPrimitive::createPolygon(tip1, false));
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(22.5, -7.5), QPointF(37.5, -22.5)));
+            QList<QPointF> tip2; tip2 << QPointF(37.5, -22.5) << QPointF(30, -22.5) << QPointF(37.5, -15);
+            def.addPrimitive(SymbolPrimitive::createPolygon(tip2, false));
+            // Leads
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(0, -11.25), QPointF(0, -30)));
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(0, 11.25), QPointF(0, 30)));
+            QMap<int, QString> mapping;
+            if (pinCount >= 1) def.addPrimitive(SymbolPrimitive::createPin(QPointF(0, -30), 1, "A", "Down", 0));
+            if (pinCount >= 2) def.addPrimitive(SymbolPrimitive::createPin(QPointF(0, 30), 2, "K", "Up", 0));
+            for(int i=0; i<qMin(pinCount, 2); ++i) mapping.insert(i+1, getPinName(i));
+            def.setSpiceNodeMapping(mapping);
+
+        } else if (typeToUse == "triac") {
+            def.setCategory("Semiconductors");
+            def.setReferencePrefix("TR");
+            QList<QPointF> tri1; tri1 << QPointF(-15, -15) << QPointF(15, -15) << QPointF(0, 0);
+            QList<QPointF> tri2; tri2 << QPointF(-15, 15) << QPointF(15, 15) << QPointF(0, 0);
+            def.addPrimitive(SymbolPrimitive::createPolygon(tri1, false));
+            def.addPrimitive(SymbolPrimitive::createPolygon(tri2, false));
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(-15, 0), QPointF(15, 0))); // Middle bar
+            // Gate (connected to MT1 junction side)
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(7.5, 7.5), QPointF(22.5, 22.5)));
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(22.5, 22.5), QPointF(45, 22.5)));
+            // Leads
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(0, -15), QPointF(0, -30)));
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(0, 15), QPointF(0, 30)));
+            QMap<int, QString> mapping;
+            if (pinCount >= 1) def.addPrimitive(SymbolPrimitive::createPin(QPointF(0, -30), 1, "MT2", "Down", 0));
+            if (pinCount >= 2) def.addPrimitive(SymbolPrimitive::createPin(QPointF(0, 30), 2, "MT1", "Up", 0));
+            if (pinCount >= 3) def.addPrimitive(SymbolPrimitive::createPin(QPointF(45, 22.5), 3, "G", "Left", 0));
+            for(int i=0; i<qMin(pinCount, 3); ++i) mapping.insert(i+1, getPinName(i));
+            def.setSpiceNodeMapping(mapping);
+
+        } else if (typeToUse == "scr") {
+            def.setCategory("Semiconductors");
+            def.setReferencePrefix("SCR");
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(-15, 11.25), QPointF(15, 11.25))); // Cathode bar
+            QList<QPointF> tri; tri << QPointF(-15, -11.25) << QPointF(15, -11.25) << QPointF(0, 11.25);
+            def.addPrimitive(SymbolPrimitive::createPolygon(tri, false));
+            // Gate (connected near cathode junction)
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(0, 11.25), QPointF(15, 22.5)));
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(15, 22.5), QPointF(45, 22.5)));
+            // Leads
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(0, -11.25), QPointF(0, -30)));
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(0, 11.25), QPointF(0, 30)));
+            QMap<int, QString> mapping;
+            if (pinCount >= 1) def.addPrimitive(SymbolPrimitive::createPin(QPointF(0, -30), 1, "A", "Down", 0));
+            if (pinCount >= 2) def.addPrimitive(SymbolPrimitive::createPin(QPointF(0, 30), 2, "K", "Up", 0));
+            if (pinCount >= 3) def.addPrimitive(SymbolPrimitive::createPin(QPointF(45, 22.5), 3, "G", "Left", 0));
+            for(int i=0; i<qMin(pinCount, 3); ++i) mapping.insert(i+1, getPinName(i));
+            def.setSpiceNodeMapping(mapping);
+
+        } else if (typeToUse == "diac") {
+            def.setCategory("Semiconductors");
+            def.setReferencePrefix("DIA");
+            QList<QPointF> tri1; tri1 << QPointF(-15, -15) << QPointF(15, -15) << QPointF(0, 0);
+            QList<QPointF> tri2; tri2 << QPointF(-15, 15) << QPointF(15, 15) << QPointF(0, 0);
+            def.addPrimitive(SymbolPrimitive::createPolygon(tri1, false));
+            def.addPrimitive(SymbolPrimitive::createPolygon(tri2, false));
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(-15, 0), QPointF(15, 0)));
+            // Leads
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(0, -15), QPointF(0, -30)));
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(0, 15), QPointF(0, 30)));
+            QMap<int, QString> mapping;
+            if (pinCount >= 1) def.addPrimitive(SymbolPrimitive::createPin(QPointF(0, -30), 1, getPinName(0), "Down", 0));
+            if (pinCount >= 2) def.addPrimitive(SymbolPrimitive::createPin(QPointF(0, 30), 2, getPinName(1), "Up", 0));
+            for(int i=0; i<qMin(pinCount, 2); ++i) mapping.insert(i+1, getPinName(i));
+            def.setSpiceNodeMapping(mapping);
+
+        } else if (typeToUse == "igbt") {
+            def.setCategory("Semiconductors");
+            def.setReferencePrefix("QG");
+            // Channel/Gate structure
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(0, -22.5), QPointF(0, 22.5))); // Channel bar
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(-7.5, -22.5), QPointF(-7.5, 22.5))); // Gate bar
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(-22.5, 0), QPointF(-7.5, 0))); // Gate lead
+            // Collector
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(0, -11.25), QPointF(30, -30)));
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(30, -30), QPointF(30, -45)));
+            // Emitter
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(0, 11.25), QPointF(30, 30)));
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(30, 30), QPointF(30, 45)));
+            // Emitter Arrow (into the terminal)
+            QList<QPointF> arrow; arrow << QPointF(30, 30) << QPointF(18.75, 22.5) << QPointF(15, 33.75);
+            def.addPrimitive(SymbolPrimitive::createPolygon(arrow, false));
+            QMap<int, QString> mapping;
+            if (pinCount >= 1) def.addPrimitive(SymbolPrimitive::createPin(QPointF(30, -45), 1, "C", "Down", 0));
+            if (pinCount >= 2) def.addPrimitive(SymbolPrimitive::createPin(QPointF(-22.5, 0), 2, "G", "Right", 0));
+            if (pinCount >= 3) def.addPrimitive(SymbolPrimitive::createPin(QPointF(30, 45), 3, "E", "Up", 0));
+            for(int i=0; i<qMin(pinCount, 3); ++i) mapping.insert(i+1, getPinName(i));
+            def.setSpiceNodeMapping(mapping);
+
+        } else if (typeToUse == "darlington_npn") {
+            def.setCategory("Semiconductors");
+            def.setReferencePrefix("QD");
+            // First NPN
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(-15, -15), QPointF(-15, 15))); // Base bar 1
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(-30, 0), QPointF(-15, 0))); // Base in
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(-15, -7.5), QPointF(7.5, -22.5))); // Collector 1
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(-15, 7.5), QPointF(0, 18.75))); // Emitter 1 -> Base 2
+            // Second NPN
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(0, 3.75), QPointF(0, 33.75))); // Base bar 2
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(0, 11.25), QPointF(15, 0))); // Collector 2
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(0, 26.25), QPointF(15, 37.5))); // Emitter 2
+            // Collector connection
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(7.5, -22.5), QPointF(15, -22.5)));
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(15, -22.5), QPointF(15, 0)));
+            // External Leads
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(15, -22.5), QPointF(15, -45))); // C
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(15, 37.5), QPointF(15, 52.5)));  // E
+            // Arrow on Q2 emitter
+            QList<QPointF> arrow; arrow << QPointF(15, 37.5) << QPointF(7.5, 26.25) << QPointF(0, 33.75);
+            def.addPrimitive(SymbolPrimitive::createPolygon(arrow, false));
+            QMap<int, QString> mapping;
+            if (pinCount >= 1) def.addPrimitive(SymbolPrimitive::createPin(QPointF(15, -45), 1, "C", "Down", 0));
+            if (pinCount >= 2) def.addPrimitive(SymbolPrimitive::createPin(QPointF(-30, 0), 2, "B", "Right", 0));
+            if (pinCount >= 3) def.addPrimitive(SymbolPrimitive::createPin(QPointF(15, 52.5), 3, "E", "Up", 0));
+            for(int i=0; i<qMin(pinCount, 3); ++i) mapping.insert(i+1, getPinName(i));
+            def.setSpiceNodeMapping(mapping);
+
+        } else if (typeToUse == "tvs_bidir") {
+            def.setCategory("Protective");
+            def.setReferencePrefix("D");
+            // Two triangles pointing at each other
+            QList<QPointF> tri1; tri1 << QPointF(-11.25, -15) << QPointF(11.25, -15) << QPointF(0, 0);
+            QList<QPointF> tri2; tri2 << QPointF(-11.25, 15) << QPointF(11.25, 15) << QPointF(0, 0);
+            def.addPrimitive(SymbolPrimitive::createPolygon(tri1, false));
+            def.addPrimitive(SymbolPrimitive::createPolygon(tri2, false));
+            // Back-to-back Zener bars
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(-11.25, 0), QPointF(11.25, 0)));
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(-11.25, 0), QPointF(-11.25, -7.5)));
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(11.25, 0), QPointF(11.25, 7.5)));
+            // Leads
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(0, -15), QPointF(0, -30)));
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(0, 15), QPointF(0, 30)));
+            QMap<int, QString> mapping;
+            if (pinCount >= 1) def.addPrimitive(SymbolPrimitive::createPin(QPointF(0, -30), 1, getPinName(0), "Down", 0));
+            if (pinCount >= 2) def.addPrimitive(SymbolPrimitive::createPin(QPointF(0, 30), 2, getPinName(1), "Up", 0));
+            for(int i=0; i<qMin(pinCount, 2); ++i) mapping.insert(i+1, getPinName(i));
+            def.setSpiceNodeMapping(mapping);
+
+        } else if (typeToUse == "varistor") {
+            def.setCategory("Protective");
+            def.setReferencePrefix("RV");
+            def.addPrimitive(SymbolPrimitive::createRect(QRectF(-22.5, -7.5, 45, 15), false));
+            // Varistor diagonal
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(-22.5, 15), QPointF(22.5, -15)));
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(-22.5, 15), QPointF(-30, 15))); // Hook left
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(22.5, -15), QPointF(30, -15))); // Hook right
+            // Leads
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(-22.5, 0), QPointF(-37.5, 0)));
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(22.5, 0), QPointF(37.5, 0)));
+            QMap<int, QString> mapping;
+            if (pinCount >= 1) def.addPrimitive(SymbolPrimitive::createPin(QPointF(-37.5, 0), 1, getPinName(0), "Right", 0));
+            if (pinCount >= 2) def.addPrimitive(SymbolPrimitive::createPin(QPointF(37.5, 0), 2, getPinName(1), "Left", 0));
+            for(int i=0; i<qMin(pinCount, 2); ++i) mapping.insert(i+1, getPinName(i));
+            def.setSpiceNodeMapping(mapping);
+
+        } else if (typeToUse == "oscillator_4pin") {
+            def.setCategory("Oscillators");
+            def.setReferencePrefix("U");
+            def.addPrimitive(SymbolPrimitive::createRect(QRectF(-30, -30, 60, 60), false));
+            // Crystal symbol inside
+            def.addPrimitive(SymbolPrimitive::createRect(QRectF(-7.5, -11.25, 15, 22.5), false));
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(-11.25, -15), QPointF(-11.25, 15)));
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(11.25, -15), QPointF(11.25, 15)));
+            // Leads
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(-30, -15), QPointF(-45, -15))); // VCC/NC
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(-30, 15), QPointF(-45, 15)));  // GND
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(30, -15), QPointF(45, -15)));  // OUT
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(30, 15), QPointF(45, 15)));   // OE/NC
+            QMap<int, QString> mapping;
+            if (pinCount >= 1) def.addPrimitive(SymbolPrimitive::createPin(QPointF(-45, -15), 1, "VCC", "Right", 0));
+            if (pinCount >= 2) def.addPrimitive(SymbolPrimitive::createPin(QPointF(-45, 15), 2, "GND", "Right", 0));
+            if (pinCount >= 3) def.addPrimitive(SymbolPrimitive::createPin(QPointF(45, 15), 3, "OUT", "Left", 0));
+            if (pinCount >= 4) def.addPrimitive(SymbolPrimitive::createPin(QPointF(45, -15), 4, "OE", "Left", 0));
+            for(int i=0; i<qMin(pinCount, 4); ++i) mapping.insert(i+1, getPinName(i));
+            def.setSpiceNodeMapping(mapping);
+
+        } else if (typeToUse == "vref_series") {
+            def.setCategory("Semiconductors");
+            def.setReferencePrefix("U");
+            def.addPrimitive(SymbolPrimitive::createRect(QRectF(-30, -30, 60, 60), false));
+            def.addPrimitive(SymbolPrimitive::createText("VREF", QPointF(-20, -10), 8));
+            // Leads
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(-30, 0), QPointF(-45, 0))); // IN
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(30, 0), QPointF(45, 0)));  // OUT
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(0, 30), QPointF(0, 45)));   // GND
+            QMap<int, QString> mapping;
+            if (pinCount >= 1) def.addPrimitive(SymbolPrimitive::createPin(QPointF(-45, 0), 1, "IN", "Right", 0));
+            if (pinCount >= 2) def.addPrimitive(SymbolPrimitive::createPin(QPointF(0, 45), 2, "GND", "Up", 0));
+            if (pinCount >= 3) def.addPrimitive(SymbolPrimitive::createPin(QPointF(45, 0), 3, "OUT", "Left", 0));
+            for(int i=0; i<qMin(pinCount, 3); ++i) mapping.insert(i+1, getPinName(i));
+            def.setSpiceNodeMapping(mapping);
+
+        } else if (typeToUse == "current_source") {
+            def.setCategory("Simulation");
+            def.setReferencePrefix("I");
+            def.addPrimitive(SymbolPrimitive::createCircle(QPointF(0, 0), 22.5, false));
+            // Arrow inside
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(0, -11.25), QPointF(0, 11.25)));
+            QList<QPointF> tip; tip << QPointF(0, 11.25) << QPointF(-3.75, 3.75) << QPointF(3.75, 3.75);
+            def.addPrimitive(SymbolPrimitive::createPolygon(tip, false));
+            // Leads
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(0, -22.5), QPointF(0, -37.5)));
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(0, 22.5), QPointF(0, 37.5)));
+            QMap<int, QString> mapping;
+            if (pinCount >= 1) def.addPrimitive(SymbolPrimitive::createPin(QPointF(0, -37.5), 1, "+", "Down", 0));
+            if (pinCount >= 2) def.addPrimitive(SymbolPrimitive::createPin(QPointF(0, 37.5), 2, "-", "Up", 0));
+            for(int i=0; i<qMin(pinCount, 2); ++i) mapping.insert(i+1, getPinName(i));
+            def.setSpiceNodeMapping(mapping);
+
+        } else if (typeToUse == "antenna") {
+            def.setCategory("Miscellaneous");
+            def.setReferencePrefix("ANT");
+            // Triangular antenna
+            QList<QPointF> tri; tri << QPointF(0, 0) << QPointF(-15, -15) << QPointF(15, -15);
+            def.addPrimitive(SymbolPrimitive::createPolygon(tri, false));
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(0, 0), QPointF(0, 15)));
+            // Leads
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(0, 15), QPointF(0, 30)));
+            QMap<int, QString> mapping;
+            if (pinCount >= 1) def.addPrimitive(SymbolPrimitive::createPin(QPointF(0, 30), 1, "1", "Up", 0));
+            for(int i=0; i<qMin(pinCount, 1); ++i) mapping.insert(i+1, getPinName(i));
+            def.setSpiceNodeMapping(mapping);
+
+        } else if (typeToUse == "battery") {
+            def.setCategory("Miscellaneous");
+            def.setReferencePrefix("B");
+            // Long/short line pairs
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(-15, -7.5), QPointF(15, -7.5))); // Long
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(-7.5, 7.5), QPointF(7.5, 7.5)));  // Short
+            // Leads
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(0, -7.5), QPointF(0, -22.5)));
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(0, 7.5), QPointF(0, 22.5)));
+            QMap<int, QString> mapping;
+            if (pinCount >= 1) def.addPrimitive(SymbolPrimitive::createPin(QPointF(0, -22.5), 1, "+", "Down", 0));
+            if (pinCount >= 2) def.addPrimitive(SymbolPrimitive::createPin(QPointF(0, 22.5), 2, "-", "Up", 0));
+            for(int i=0; i<qMin(pinCount, 2); ++i) mapping.insert(i+1, getPinName(i));
+            def.setSpiceNodeMapping(mapping);
+
+        } else if (typeToUse == "relay") {
+            def.setCategory("Electromechanical");
+            def.setReferencePrefix("RLY");
+            // Coil
+            def.addPrimitive(SymbolPrimitive::createRect(QRectF(-45, -15, 30, 30), false));
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(-30, -15), QPointF(-30, 15))); // Diagonal through coil
+            // Switch
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(15, -15), QPointF(15, -5)));
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(15, -5), QPointF(30, 10))); // Switch arm
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(15, 15), QPointF(15, 10)));
+            // Leads
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(-30, -15), QPointF(-30, -30)));
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(-30, 15), QPointF(-30, 30)));
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(15, -15), QPointF(15, -30)));
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(15, 15), QPointF(15, 30)));
+            QMap<int, QString> mapping;
+            if (pinCount >= 1) def.addPrimitive(SymbolPrimitive::createPin(QPointF(-30, -30), 1, getPinName(0), "Down", 0));
+            if (pinCount >= 2) def.addPrimitive(SymbolPrimitive::createPin(QPointF(-30, 30), 2, getPinName(1), "Up", 0));
+            if (pinCount >= 3) def.addPrimitive(SymbolPrimitive::createPin(QPointF(15, -30), 3, getPinName(2), "Down", 0));
+            if (pinCount >= 4) def.addPrimitive(SymbolPrimitive::createPin(QPointF(15, 30), 4, getPinName(3), "Up", 0));
+            for(int i=0; i<qMin(pinCount, 4); ++i) mapping.insert(i+1, getPinName(i));
+            def.setSpiceNodeMapping(mapping);
+
+        } else if (typeToUse == "fuse") {
+            def.setCategory("Protective");
+            def.setReferencePrefix("F");
+            // S-curve for fuse
+            def.addPrimitive(SymbolPrimitive::createArc(QRectF(-15, -7.5, 15, 15), 0, 180 * 16));
+            def.addPrimitive(SymbolPrimitive::createArc(QRectF(0, -7.5, 15, 15), 180 * 16, 180 * 16));
+            // Leads
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(-15, 0), QPointF(-30, 0)));
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(15, 0), QPointF(30, 0)));
+            QMap<int, QString> mapping;
+            if (pinCount >= 1) def.addPrimitive(SymbolPrimitive::createPin(QPointF(-30, 0), 1, getPinName(0), "Right", 0));
+            if (pinCount >= 2) def.addPrimitive(SymbolPrimitive::createPin(QPointF(30, 0), 2, getPinName(1), "Left", 0));
+            for(int i=0; i<qMin(pinCount, 2); ++i) mapping.insert(i+1, getPinName(i));
+            def.setSpiceNodeMapping(mapping);
+
+        } else if (typeToUse == "bridge_rectifier") {
+            def.setCategory("Semiconductors");
+            def.setReferencePrefix("BR");
+            // Diamond body
+            QList<QPointF> diamond; diamond << QPointF(0, -30) << QPointF(30, 0) << QPointF(0, 30) << QPointF(-30, 0);
+            def.addPrimitive(SymbolPrimitive::createPolygon(diamond, false));
+            // Internal diodes (abstracted as + and - and ~ labels)
+            def.addPrimitive(SymbolPrimitive::createText("+", QPointF(-5, -20), 8));
+            def.addPrimitive(SymbolPrimitive::createText("-", QPointF(-5, 10), 8));
+            def.addPrimitive(SymbolPrimitive::createText("~", QPointF(15, -5), 8));
+            def.addPrimitive(SymbolPrimitive::createText("~", QPointF(-25, -5), 8));
+            // Leads
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(0, -30), QPointF(0, -45)));
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(0, 30), QPointF(0, 45)));
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(-30, 0), QPointF(-45, 0)));
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(30, 0), QPointF(45, 0)));
+            QMap<int, QString> mapping;
+            if (pinCount >= 1) def.addPrimitive(SymbolPrimitive::createPin(QPointF(0, -45), 1, getPinName(0), "Down", 0));
+            if (pinCount >= 2) def.addPrimitive(SymbolPrimitive::createPin(QPointF(0, 45), 2, getPinName(1), "Up", 0));
+            if (pinCount >= 3) def.addPrimitive(SymbolPrimitive::createPin(QPointF(-45, 0), 3, getPinName(2), "Right", 0));
+            if (pinCount >= 4) def.addPrimitive(SymbolPrimitive::createPin(QPointF(45, 0), 4, getPinName(3), "Left", 0));
+            for(int i=0; i<qMin(pinCount, 4); ++i) mapping.insert(i+1, getPinName(i));
+            def.setSpiceNodeMapping(mapping);
+
+        } else if (typeToUse == "transformer") {
+            def.setCategory("Passives");
+            def.setReferencePrefix("T");
+            // Primary coil (3 arcs)
+            def.addPrimitive(SymbolPrimitive::createArc(QRectF(-30, -30, 15, 20), 90 * 16, 180 * 16));
+            def.addPrimitive(SymbolPrimitive::createArc(QRectF(-30, -10, 15, 20), 90 * 16, 180 * 16));
+            def.addPrimitive(SymbolPrimitive::createArc(QRectF(-30, 10, 15, 20), 90 * 16, 180 * 16));
+            // Secondary coil (3 arcs)
+            def.addPrimitive(SymbolPrimitive::createArc(QRectF(15, -30, 15, 20), 270 * 16, 180 * 16));
+            def.addPrimitive(SymbolPrimitive::createArc(QRectF(15, -10, 15, 20), 270 * 16, 180 * 16));
+            def.addPrimitive(SymbolPrimitive::createArc(QRectF(15, 10, 15, 20), 270 * 16, 180 * 16));
+            // Core lines
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(-5, -25), QPointF(-5, 25)));
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(5, -25), QPointF(5, 25)));
+            // Leads
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(-22.5, -30), QPointF(-45, -30)));
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(-22.5, 30), QPointF(-45, 30)));
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(22.5, -30), QPointF(45, -30)));
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(22.5, 30), QPointF(45, 30)));
+            QMap<int, QString> mapping;
+            if (pinCount >= 1) def.addPrimitive(SymbolPrimitive::createPin(QPointF(-45, -30), 1, getPinName(0), "Right", 0));
+            if (pinCount >= 2) def.addPrimitive(SymbolPrimitive::createPin(QPointF(-45, 30), 2, getPinName(1), "Right", 0));
+            if (pinCount >= 3) def.addPrimitive(SymbolPrimitive::createPin(QPointF(45, -30), 3, getPinName(2), "Left", 0));
+            if (pinCount >= 4) def.addPrimitive(SymbolPrimitive::createPin(QPointF(45, 30), 4, getPinName(3), "Left", 0));
+            for(int i=0; i<qMin(pinCount, 4); ++i) mapping.insert(i+1, getPinName(i));
+            def.setSpiceNodeMapping(mapping);
+
+        } else if (typeToUse == "potentiometer") {
+            def.setCategory("Passives");
+            def.setReferencePrefix("RV");
+            // Resistor body (zigzag)
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(-30, 0), QPointF(-20, -10)));
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(-20, -10), QPointF(0, 10)));
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(0, 10), QPointF(20, -10)));
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(20, -10), QPointF(30, 0)));
+            // Wiper
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(0, 10), QPointF(0, 30)));
+            // Leads
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(-30, 0), QPointF(-45, 0)));
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(30, 0), QPointF(45, 0)));
+            QMap<int, QString> mapping;
+            if (pinCount >= 1) def.addPrimitive(SymbolPrimitive::createPin(QPointF(-45, 0), 1, getPinName(0), "Right", 0));
+            if (pinCount >= 2) def.addPrimitive(SymbolPrimitive::createPin(QPointF(45, 0), 2, getPinName(1), "Left", 0));
+            if (pinCount >= 3) def.addPrimitive(SymbolPrimitive::createPin(QPointF(0, 30), 3, getPinName(2), "Up", 0));
+            for(int i=0; i<qMin(pinCount, 3); ++i) mapping.insert(i+1, getPinName(i));
+            def.setSpiceNodeMapping(mapping);
+
+        } else if (typeToUse == "crystal") {
+            def.setCategory("Passives");
+            def.setReferencePrefix("Y");
+            // Plates
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(-7.5, -15), QPointF(-7.5, 15)));
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(7.5, -15), QPointF(7.5, 15)));
+            // Crystal block
+            def.addPrimitive(SymbolPrimitive::createRect(QRectF(-3.75, -11.25, 7.5, 22.5), false));
+            // Leads
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(-7.5, 0), QPointF(-30, 0)));
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(7.5, 0), QPointF(30, 0)));
+            QMap<int, QString> mapping;
+            if (pinCount >= 1) def.addPrimitive(SymbolPrimitive::createPin(QPointF(-30, 0), 1, getPinName(0), "Right", 0));
+            if (pinCount >= 2) def.addPrimitive(SymbolPrimitive::createPin(QPointF(30, 0), 2, getPinName(1), "Left", 0));
+            for(int i=0; i<qMin(pinCount, 2); ++i) mapping.insert(i+1, getPinName(i));
+            def.setSpiceNodeMapping(mapping);
+
+        } else if (typeToUse == "comparator") {
+            def.setCategory("Comparators");
+            def.setReferencePrefix("U");
+            QList<QPointF> tri; tri << QPointF(-30, -30) << QPointF(-30, 30) << QPointF(30, 0);
+            def.addPrimitive(SymbolPrimitive::createPolygon(tri, false));
+            // Same layout as OpAmp but labeled as comparator
+            def.addPrimitive(SymbolPrimitive::createText("CMP", QPointF(-25, -5), 8));
+            QMap<int, QString> mapping;
+            if (pinCount >= 1) def.addPrimitive(SymbolPrimitive::createPin(QPointF(-45, -15), 1, getPinName(0), "Right", 0));
+            if (pinCount >= 2) def.addPrimitive(SymbolPrimitive::createPin(QPointF(-45, 15), 2, getPinName(1), "Right", 0));
+            if (pinCount >= 3) def.addPrimitive(SymbolPrimitive::createPin(QPointF(0, -45), 3, getPinName(2), "Down", 0));
+            if (pinCount >= 4) def.addPrimitive(SymbolPrimitive::createPin(QPointF(0, 45), 4, getPinName(3), "Up", 0));
+            if (pinCount >= 5) def.addPrimitive(SymbolPrimitive::createPin(QPointF(45, 0), 5, getPinName(4), "Left", 0));
+            for(int i=0; i<pinCount; ++i) mapping.insert(i+1, getPinName(i));
+            def.setSpiceNodeMapping(mapping);
+
+        } else if (typeToUse == "ic8_timer") {
+            def.setCategory("Integrated Circuits");
+            def.setReferencePrefix("U");
+            def.addPrimitive(SymbolPrimitive::createRect(QRectF(-45, -60,  90, 120), false));
+            // 555 Timer Pin Layout (Standard)
+            def.addPrimitive(SymbolPrimitive::createText("555", QPointF(-15, -10), 10));
+            QMap<int, QString> mapping;
+            QStringList timerNames = {"GND", "TRIG", "OUT", "RESET", "CTRL", "THRES", "DISCH", "VCC"};
+            for (int i = 0; i < 4; ++i) {
+                qreal y = -45 + i * 30;
+                def.addPrimitive(SymbolPrimitive::createLine(QPointF(-45, y), QPointF(-60, y)));
+                def.addPrimitive(SymbolPrimitive::createPin(QPointF(-60, y), i + 1, timerNames.at(i), "Right", 0));
+            }
+            for (int i = 0; i < 4; ++i) {
+                qreal y = 45 - i * 30;
+                def.addPrimitive(SymbolPrimitive::createLine(QPointF(45, y), QPointF(60, y)));
+                def.addPrimitive(SymbolPrimitive::createPin(QPointF(60, y), 8 - i, timerNames.at(7 - i), "Left", 0));
+            }
+            for(int i=0; i<8; ++i) mapping.insert(i+1, getPinName(i));
+            def.setSpiceNodeMapping(mapping);
+
+        } else if (typeToUse == "vref_shunt") {
+            def.setCategory("Integrated Circuits");
+            def.setReferencePrefix("U");
+            // Shunt reference symbol (Zener-like with 3 pins)
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(-15, 11.25), QPointF(15, 11.25)));
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(15, 11.25), QPointF(15, 18.75)));
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(-15, 11.25), QPointF(-15, 3.75)));
+            QList<QPointF> tri; tri << QPointF(-15, -11.25) << QPointF(15, -11.25) << QPointF(0, 11.25);
+            def.addPrimitive(SymbolPrimitive::createPolygon(tri, false));
+            // Leads
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(0, -11.25), QPointF(0, -30)));
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(0, 11.25), QPointF(0, 30)));
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(-15, 0), QPointF(-30, 0)));
+            QMap<int, QString> mapping;
+            if (pinCount >= 1) def.addPrimitive(SymbolPrimitive::createPin(QPointF(0, -30), 1, "K", "Down", 0));
+            if (pinCount >= 2) def.addPrimitive(SymbolPrimitive::createPin(QPointF(0, 30), 2, "A", "Up", 0));
+            if (pinCount >= 3) def.addPrimitive(SymbolPrimitive::createPin(QPointF(-30, 0), 3, "REF", "Right", 0));
+            for(int i=0; i<qMin(pinCount, 3); ++i) mapping.insert(i+1, getPinName(i));
+            def.setSpiceNodeMapping(mapping);
+
+        } else if (typeToUse == "logic_vco") {
+            def.setCategory("Logic");
+            def.setReferencePrefix("U");
+            def.addPrimitive(SymbolPrimitive::createRect(QRectF(-40, -30, 80, 60), false));
+            def.addPrimitive(SymbolPrimitive::createCircle(QPointF(0, 0), 15, false));
+            // Sine wave icon
+            QPainterPath sine; sine.moveTo(-7.5, 0); sine.quadTo(-3.75, -7.5, 0, 0); sine.quadTo(3.75, 7.5, 7.5, 0);
+            for (int i=0; i<sine.toFillPolygon().size()-1; ++i) def.addPrimitive(SymbolPrimitive::createLine(sine.toFillPolygon().at(i), sine.toFillPolygon().at(i+1)));
+            def.addPrimitive(SymbolPrimitive::createText("VCO", QPointF(-12, -25), 8));
+            
+            QMap<int, QString> mapping;
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(-40, 0), QPointF(-55, 0)));
+            def.addPrimitive(SymbolPrimitive::createPin(QPointF(-55, 0), 1, "IN", "Right", 0));
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(40, 0), QPointF(55, 0)));
+            def.addPrimitive(SymbolPrimitive::createPin(QPointF(55, 0), 2, "OUT", "Left", 0));
+            for(int i=0; i<qMin(pinCount, 2); ++i) mapping.insert(i+1, getPinName(i));
+            def.setSpiceNodeMapping(mapping);
+
+        } else if (typeToUse == "switch_v" || typeToUse == "switch_i") {
+            def.setCategory("Switches");
+            def.setReferencePrefix("S");
+            // Switch arm
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(-15, 0), QPointF(11.25, -11.25)));
+            // Terminals
+            def.addPrimitive(SymbolPrimitive::createCircle(QPointF(-15, 0), 1.875, false));
+            def.addPrimitive(SymbolPrimitive::createCircle(QPointF(15, 0), 1.875, false));
+            // Leads
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(-15, 0), QPointF(-37.5, 0)));
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(15, 0), QPointF(37.5, 0)));
+            if (typeToUse == "switch_i") {
+                // Control coil (dashed)
+                def.addPrimitive(SymbolPrimitive::createLine(QPointF(-15, 15), QPointF(15, 15)));
+                def.addPrimitive(SymbolPrimitive::createLine(QPointF(-15, 15), QPointF(-15, 30)));
+                def.addPrimitive(SymbolPrimitive::createLine(QPointF(15, 15), QPointF(15, 30)));
+            }
+            QMap<int, QString> mapping;
+            if (pinCount >= 1) def.addPrimitive(SymbolPrimitive::createPin(QPointF(-37.5, 0), 1, "1", "Right", 0));
+            if (pinCount >= 2) def.addPrimitive(SymbolPrimitive::createPin(QPointF(37.5, 0), 2, "2", "Left", 0));
+            for(int i=0; i<qMin(pinCount, 2); ++i) mapping.insert(i+1, getPinName(i));
+            def.setSpiceNodeMapping(mapping);
+
+        } else if (typeToUse == "speaker") {
+            def.setCategory("Audio");
+            def.setReferencePrefix("SPK");
+            // Speaker cone
+            QList<QPointF> cone; cone << QPointF(-7.5, -7.5) << QPointF(15, -22.5) << QPointF(15, 22.5) << QPointF(-7.5, 7.5);
+            def.addPrimitive(SymbolPrimitive::createPolygon(cone, false));
+            def.addPrimitive(SymbolPrimitive::createRect(QRectF(-15, -7.5, 7.5, 15), false));
+            // Leads
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(-11.25, -7.5), QPointF(-11.25, -30)));
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(-11.25, 7.5), QPointF(-11.25, 30)));
+            QMap<int, QString> mapping;
+            if (pinCount >= 1) def.addPrimitive(SymbolPrimitive::createPin(QPointF(-11.25, -30), 1, "+", "Down", 0));
+            if (pinCount >= 2) def.addPrimitive(SymbolPrimitive::createPin(QPointF(-11.25, 30), 2, "-", "Up", 0));
+            for(int i=0; i<qMin(pinCount, 2); ++i) mapping.insert(i+1, getPinName(i));
+            def.setSpiceNodeMapping(mapping);
+
+        } else if (typeToUse == "hall_sensor") {
+            def.setCategory("Sensors");
+            def.setReferencePrefix("U");
+            def.addPrimitive(SymbolPrimitive::createRect(QRectF(-30, -30, 60, 60), false));
+            def.addPrimitive(SymbolPrimitive::createText("HALL", QPointF(-18.75, -7.5), 8));
+            // Leads
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(-30, -15), QPointF(-45, -15))); // VCC
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(-30, 15), QPointF(-45, 15)));  // GND
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(30, 0), QPointF(45, 0)));    // OUT
+            QMap<int, QString> mapping;
+            if (pinCount >= 1) def.addPrimitive(SymbolPrimitive::createPin(QPointF(-45, -15), 1, "VCC", "Right", 0));
+            if (pinCount >= 2) def.addPrimitive(SymbolPrimitive::createPin(QPointF(-45, 15), 2, "GND", "Right", 0));
+            if (pinCount >= 3) def.addPrimitive(SymbolPrimitive::createPin(QPointF(45, 0), 3, "OUT", "Left", 0));
+            for(int i=0; i<qMin(pinCount, 3); ++i) mapping.insert(i+1, getPinName(i));
+            def.setSpiceNodeMapping(mapping);
+
+        } else if (typeToUse == "gate_and" || typeToUse == "gate_nand") {
+            def.setCategory("Logic");
+            def.setReferencePrefix("U");
+            const bool nand = (typeToUse == "gate_nand");
+            QPainterPath path;
+            path.moveTo(-20, -25);
+            path.lineTo(0, -25);
+            path.arcTo(QRectF(-25, -25, 50, 50), 90, -180);
+            path.lineTo(-20, 25);
+            path.closeSubpath();
+            def.addPrimitive(SymbolPrimitive::createPolygon(path.toFillPolygon().toList(), false));
+            if (nand) def.addPrimitive(SymbolPrimitive::createCircle(QPointF(28.75, 0), 3.75, false));
+            
+            // Input pins
+            const int inCount = qMax(2, pinCount - 1);
+            for (int i = 0; i < inCount; ++i) {
+                qreal y = (inCount == 2) ? (i == 0 ? -12.5 : 12.5) : (-20.0 + i * (40.0 / (inCount - 1)));
+                def.addPrimitive(SymbolPrimitive::createLine(QPointF(-20, y), QPointF(-40, y)));
+                def.addPrimitive(SymbolPrimitive::createPin(QPointF(-40, y), i + 1, getPinName(i), "Right", 0));
+            }
+            // Output pin
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(nand ? 32.5 : 25, 0), QPointF(45, 0)));
+            def.addPrimitive(SymbolPrimitive::createPin(QPointF(45, 0), inCount + 1, getPinName(inCount), "Left", 0));
+            
+            QMap<int, QString> mapping;
+            for(int i=0; i<pinCount; ++i) mapping.insert(i+1, getPinName(i));
+            def.setSpiceNodeMapping(mapping);
+
+        } else if (typeToUse == "gate_or" || typeToUse == "gate_nor" || typeToUse == "gate_xor" || typeToUse == "gate_xnor") {
+            def.setCategory("Logic");
+            def.setReferencePrefix("U");
+            const bool invert = (typeToUse == "gate_nor" || typeToUse == "gate_xnor");
+            const bool xor_gate = (typeToUse == "gate_xor" || typeToUse == "gate_xnor");
+            
+            QPainterPath path;
+            path.moveTo(-15, -25);
+            path.quadTo(QPointF(-5, 0), QPointF(-15, 25)); // Back curve
+            path.quadTo(QPointF(10, 25), QPointF(30, 0));   // Bottom curve to point
+            path.quadTo(QPointF(10, -25), QPointF(-15, -25)); // Top curve back to start
+            def.addPrimitive(SymbolPrimitive::createPolygon(path.toFillPolygon().toList(), false));
+            
+            if (xor_gate) {
+                // Second arc for XOR/XNOR - Must be a distinct line
+                for (int i = 0; i < 10; ++i) {
+                    qreal t1 = i / 10.0;
+                    qreal t2 = (i + 1) / 10.0;
+                    auto quadPoint = [](qreal t, QPointF p0, QPointF p1, QPointF p2) {
+                        return (1-t)*(1-t)*p0 + 2*(1-t)*t*p1 + t*t*p2;
+                    };
+                    QPointF p0(-22.5, -25), p1(-12.5, 0), p2(-22.5, 25);
+                    def.addPrimitive(SymbolPrimitive::createLine(quadPoint(t1, p0, p1, p2), quadPoint(t2, p0, p1, p2)));
+                }
+            }
+            
+            if (invert) def.addPrimitive(SymbolPrimitive::createCircle(QPointF(33.75, 0), 3.75, false));
+            
+            const int inCount = qMax(2, pinCount - 1);
+            for (int i = 0; i < inCount; ++i) {
+                qreal y = (inCount == 2) ? (i == 0 ? -12.5 : 12.5) : (-20.0 + i * (40.0 / (inCount - 1)));
+                // Find X on the back curve for the lead attachment
+                // back curve: P0=(-15,-25), P1=(-5,0), P2=(-15,25)
+                // y(t) = (1-t)^2*(-25) + 2(1-t)t*0 + t^2*(25) = -25 + 50t => t = (y+25)/50
+                qreal t = (y + 25.0) / 50.0;
+                qreal x = (1-t)*(1-t)*(-15.0) + 2*(1-t)*t*(-5.0) + t*t*(-15.0);
+                
+                def.addPrimitive(SymbolPrimitive::createLine(QPointF(x, y), QPointF(-40, y)));
+                def.addPrimitive(SymbolPrimitive::createPin(QPointF(-40, y), i + 1, getPinName(i), "Right", 0));
+            }
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(invert ? 37.5 : 30, 0), QPointF(45, 0)));
+            def.addPrimitive(SymbolPrimitive::createPin(QPointF(45, 0), inCount + 1, getPinName(inCount), "Left", 0));
+            
+            QMap<int, QString> mapping;
+            for(int i=0; i<pinCount; ++i) mapping.insert(i+1, getPinName(i));
+            def.setSpiceNodeMapping(mapping);
+
+        } else if (typeToUse == "gate_not" || typeToUse == "gate_buf") {
+            def.setCategory("Logic");
+            def.setReferencePrefix("U");
+            const bool invert = (typeToUse == "gate_not");
+            QList<QPointF> tri; 
+            tri << QPointF(-15, -20) << QPointF(-15, 20) << QPointF(15, 0);
+            def.addPrimitive(SymbolPrimitive::createPolygon(tri, false));
+            if (invert) def.addPrimitive(SymbolPrimitive::createCircle(QPointF(18.75, 0), 3.75, false));
+            
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(-15, 0), QPointF(-35, 0)));
+            def.addPrimitive(SymbolPrimitive::createPin(QPointF(-35, 0), 1, "A", "Right", 0));
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(invert ? 22.5 : 15, 0), QPointF(40, 0)));
+            def.addPrimitive(SymbolPrimitive::createPin(QPointF(40, 0), 2, "Y", "Left", 0));
+            
+            QMap<int, QString> mapping;
+            for(int i=0; i<qMin(pinCount, 2); ++i) mapping.insert(i+1, getPinName(i));
+            def.setSpiceNodeMapping(mapping);
+
+        } else if (typeToUse == "logic_dff") {
+            def.setCategory("Logic");
+            def.setReferencePrefix("U");
+            def.addPrimitive(SymbolPrimitive::createRect(QRectF(-30, -40, 60, 80), false));
+            def.addPrimitive(SymbolPrimitive::createText("DFF", QPointF(-12, -5), 10));
+            // Clock triangle
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(-30, 5), QPointF(-20, 15)));
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(-20, 15), QPointF(-30, 25)));
+            
+            QMap<int, QString> mapping;
+            if (pinCount >= 1) { // D
+                def.addPrimitive(SymbolPrimitive::createLine(QPointF(-30, -15), QPointF(-45, -15)));
+                def.addPrimitive(SymbolPrimitive::createPin(QPointF(-45, -15), 1, "D", "Right", 0));
+            }
+            if (pinCount >= 2) { // CLK
+                def.addPrimitive(SymbolPrimitive::createLine(QPointF(-30, 15), QPointF(-45, 15)));
+                def.addPrimitive(SymbolPrimitive::createPin(QPointF(-45, 15), 2, "CLK", "Right", 0));
+            }
+            if (pinCount >= 3) { // Q
+                def.addPrimitive(SymbolPrimitive::createLine(QPointF(30, -15), QPointF(45, -15)));
+                def.addPrimitive(SymbolPrimitive::createPin(QPointF(45, -15), 3, "Q", "Left", 0));
+            }
+            if (pinCount >= 4) { // Q\ 
+                def.addPrimitive(SymbolPrimitive::createLine(QPointF(30, 15), QPointF(45, 15)));
+                def.addPrimitive(SymbolPrimitive::createPin(QPointF(45, 15), 4, "Q\\", "Left", 0));
+            }
+            if (pinCount >= 5) { // PRE
+                def.addPrimitive(SymbolPrimitive::createLine(QPointF(0, -40), QPointF(0, -55)));
+                def.addPrimitive(SymbolPrimitive::createPin(QPointF(0, -55), 5, "PRE", "Down", 0));
+            }
+            if (pinCount >= 6) { // CLR
+                def.addPrimitive(SymbolPrimitive::createLine(QPointF(0, 40), QPointF(0, 55)));
+                def.addPrimitive(SymbolPrimitive::createPin(QPointF(0, 55), 6, "CLR", "Up", 0));
+            }
+            for(int i=0; i<pinCount; ++i) mapping.insert(i+1, getPinName(i));
+            def.setSpiceNodeMapping(mapping);
+
+        } else if (typeToUse == "logic_jkff") {
+            def.setCategory("Logic");
+            def.setReferencePrefix("U");
+            def.addPrimitive(SymbolPrimitive::createRect(QRectF(-30, -50, 60, 100), false));
+            def.addPrimitive(SymbolPrimitive::createText("JKFF", QPointF(-18, -5), 10));
+            // Clock triangle
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(-30, -10), QPointF(-20, 0)));
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(-20, 0), QPointF(-30, 10)));
+            
+            QMap<int, QString> mapping;
+            if (pinCount >= 1) { // J
+                def.addPrimitive(SymbolPrimitive::createLine(QPointF(-30, -30), QPointF(-45, -30)));
+                def.addPrimitive(SymbolPrimitive::createPin(QPointF(-45, -30), 1, "J", "Right", 0));
+            }
+            if (pinCount >= 2) { // CLK
+                def.addPrimitive(SymbolPrimitive::createLine(QPointF(-30, 0), QPointF(-45, 0)));
+                def.addPrimitive(SymbolPrimitive::createPin(QPointF(-45, 0), 2, "CLK", "Right", 0));
+            }
+            if (pinCount >= 3) { // K
+                def.addPrimitive(SymbolPrimitive::createLine(QPointF(-30, 30), QPointF(-45, 30)));
+                def.addPrimitive(SymbolPrimitive::createPin(QPointF(-45, 30), 3, "K", "Right", 0));
+            }
+            if (pinCount >= 4) { // Q
+                def.addPrimitive(SymbolPrimitive::createLine(QPointF(30, -30), QPointF(45, -30)));
+                def.addPrimitive(SymbolPrimitive::createPin(QPointF(45, -30), 4, "Q", "Left", 0));
+            }
+            if (pinCount >= 5) { // Q\ 
+                def.addPrimitive(SymbolPrimitive::createLine(QPointF(30, 30), QPointF(45, 30)));
+                def.addPrimitive(SymbolPrimitive::createPin(QPointF(45, 30), 5, "Q\\", "Left", 0));
+            }
+            if (pinCount >= 6) { // PRE
+                def.addPrimitive(SymbolPrimitive::createLine(QPointF(0, -50), QPointF(0, -65)));
+                def.addPrimitive(SymbolPrimitive::createPin(QPointF(0, -65), 6, "PRE", "Down", 0));
+            }
+            if (pinCount >= 7) { // CLR
+                def.addPrimitive(SymbolPrimitive::createLine(QPointF(0, 50), QPointF(0, 65)));
+                def.addPrimitive(SymbolPrimitive::createPin(QPointF(0, 65), 7, "CLR", "Up", 0));
+            }
+            for(int i=0; i<pinCount; ++i) mapping.insert(i+1, getPinName(i));
+            def.setSpiceNodeMapping(mapping);
+
+        } else if (typeToUse == "logic_mux") {
+            def.setCategory("Logic");
+            def.setReferencePrefix("U");
+            QList<QPointF> muxShape = {QPointF(-20, -40), QPointF(20, -25), QPointF(20, 25), QPointF(-20, 40)};
+            def.addPrimitive(SymbolPrimitive::createPolygon(muxShape, false));
+            def.addPrimitive(SymbolPrimitive::createText("MUX", QPointF(-10, -5), 8));
+            QMap<int, QString> mapping;
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(-20, -20), QPointF(-35, -20)));
+            def.addPrimitive(SymbolPrimitive::createPin(QPointF(-35, -20), 1, "I0", "Right", 0));
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(-20, 20), QPointF(-35, 20)));
+            def.addPrimitive(SymbolPrimitive::createPin(QPointF(-35, 20), 2, "I1", "Right", 0));
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(0, 32.5), QPointF(0, 45)));
+            def.addPrimitive(SymbolPrimitive::createPin(QPointF(0, 45), 3, "S", "Up", 0));
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(20, 0), QPointF(35, 0)));
+            def.addPrimitive(SymbolPrimitive::createPin(QPointF(35, 0), 4, "Y", "Left", 0));
+            for(int i=0; i<qMin(4, pinCount); ++i) mapping.insert(i+1, getPinName(i));
+            def.setSpiceNodeMapping(mapping);
+
+        } else if (typeToUse == "logic_gate_3pin" || typeToUse == "logic_gate_5pin") {
+            def.setCategory("Logic");
+            def.setReferencePrefix("U");
+            // Generic Gate Shape (D-shape)
+            QPainterPath path;
+            path.moveTo(-15, -30);
+            path.lineTo(0, -30);
+            path.arcTo(QRectF(-15, -30, 30, 60), 90, -180);
+            path.lineTo(-15, 30);
+            path.closeSubpath();
+            def.addPrimitive(SymbolPrimitive::createPolygon(path.toFillPolygon().toList(), false));
+            
+            QMap<int, QString> mapping;
+            // Inputs
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(-15, -15), QPointF(-30, -15)));
+            def.addPrimitive(SymbolPrimitive::createPin(QPointF(-30, -15), 1, "A", "Right", 0));
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(-15, 15), QPointF(-30, 15)));
+            def.addPrimitive(SymbolPrimitive::createPin(QPointF(-30, 15), 2, "B", "Right", 0));
+            // Output
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(15, 0), QPointF(30, 0)));
+            def.addPrimitive(SymbolPrimitive::createPin(QPointF(30, 0), 3, "Y", "Left", 0));
+            
+            if (typeToUse == "logic_gate_5pin") {
+                def.addPrimitive(SymbolPrimitive::createLine(QPointF(0, -30), QPointF(0, -45)));
+                def.addPrimitive(SymbolPrimitive::createPin(QPointF(0, -45), 4, "VCC", "Down", 0));
+                def.addPrimitive(SymbolPrimitive::createLine(QPointF(0, 30), QPointF(0, 45)));
+                def.addPrimitive(SymbolPrimitive::createPin(QPointF(0, 45), 5, "GND", "Up", 0));
+            }
+            for(int i=0; i<pinCount; ++i) mapping.insert(i+1, getPinName(i));
+            def.setSpiceNodeMapping(mapping);
+
+        } else if (typeToUse == "regulator") {
+            def.setCategory("Power");
+            def.setReferencePrefix("U");
+            def.addPrimitive(SymbolPrimitive::createRect(QRectF(-30, -30, 60, 60), false));
+            // Leads
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(-30, 0), QPointF(-45, 0))); // IN
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(30, 0), QPointF(45, 0)));  // OUT
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(0, 30), QPointF(0, 45)));   // GND
+            QMap<int, QString> mapping;
+            if (pinCount >= 1) def.addPrimitive(SymbolPrimitive::createPin(QPointF(-45, 0), 1, "IN", "Right", 0));
+            if (pinCount >= 2) def.addPrimitive(SymbolPrimitive::createPin(QPointF(0, 45), 2, "GND", "Up", 0));
+            if (pinCount >= 3) def.addPrimitive(SymbolPrimitive::createPin(QPointF(45, 0), 3, "OUT", "Left", 0));
+            for(int i=0; i<qMin(pinCount, 3); ++i) mapping.insert(i+1, getPinName(i));
+            def.setSpiceNodeMapping(mapping);
+
+        } else if (typeToUse == "supervisor") {
+            def.setCategory("Power");
+            def.setReferencePrefix("U");
+            def.addPrimitive(SymbolPrimitive::createRect(QRectF(-30, -30, 60, 60), false));
+            def.addPrimitive(SymbolPrimitive::createText("RESET", QPointF(-20, -10), 8));
+            // Leads
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(-30, -15), QPointF(-45, -15))); // VCC
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(-30, 15), QPointF(-45, 15)));   // GND
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(30, 0), QPointF(45, 0)));    // RESET
+            QMap<int, QString> mapping;
+            if (pinCount >= 1) def.addPrimitive(SymbolPrimitive::createPin(QPointF(-45, -15), 1, "VCC", "Right", 0));
+            if (pinCount >= 2) def.addPrimitive(SymbolPrimitive::createPin(QPointF(30, 0), 2, "RST", "Left", 0));
+            if (pinCount >= 3) def.addPrimitive(SymbolPrimitive::createPin(QPointF(-45, 15), 3, "GND", "Right", 0));
+            for(int i=0; i<qMin(pinCount, 3); ++i) mapping.insert(i+1, getPinName(i));
+            def.setSpiceNodeMapping(mapping);
+
+        } else if (typeToUse == "switch_v") {
+            def.setCategory("Switches");
+            def.setReferencePrefix("S");
+            def.addPrimitive(SymbolPrimitive::createCircle(QPointF(-15, 0), 3.75, false));
+            def.addPrimitive(SymbolPrimitive::createCircle(QPointF(15, 0), 3.75, false));
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(-15, 0), QPointF(15, -15))); // Arm
+            // Leads
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(-15, 0), QPointF(-30, 0)));
+            def.addPrimitive(SymbolPrimitive::createLine(QPointF(15, 0), QPointF(30, 0)));
+            QMap<int, QString> mapping;
+            if (pinCount >= 1) def.addPrimitive(SymbolPrimitive::createPin(QPointF(-30, 0), 1, "P1", "Right", 0));
+            if (pinCount >= 2) def.addPrimitive(SymbolPrimitive::createPin(QPointF(30, 0), 2, "P2", "Left", 0));
+            for(int i=0; i<qMin(pinCount, 2); ++i) mapping.insert(i+1, getPinName(i));
             def.setSpiceNodeMapping(mapping);
 
         } else {
@@ -1102,8 +2251,8 @@ static int generateSymbolsForLibrary(const QString& inputPath, const QString& ou
                 // Pin lead
                 def.addPrimitive(SymbolPrimitive::createLine(QPointF(-halfW, y), QPointF(-halfW - pinLength, y)));
                 // Pin
-                def.addPrimitive(SymbolPrimitive::createPin(pos, i + 1, sub.pins[i], "Right", 0));
-                mapping.insert(i + 1, sub.pins[i]);
+                def.addPrimitive(SymbolPrimitive::createPin(pos, i + 1, getPinName(i), "Right", 0));
+                mapping.insert(i + 1, getPinName(i));
             }
             // Right side pins (bottom-up)
             const int rightCount = pinCount - leftCount;
@@ -1113,8 +2262,8 @@ static int generateSymbolsForLibrary(const QString& inputPath, const QString& ou
                 // Pin lead
                 def.addPrimitive(SymbolPrimitive::createLine(QPointF(halfW, y), QPointF(halfW + pinLength, y)));
                 // Pin
-                def.addPrimitive(SymbolPrimitive::createPin(pos, leftCount + i + 1, sub.pins[leftCount + i], "Left", 0));
-                mapping.insert(leftCount + i + 1, sub.pins[leftCount + i]);
+                def.addPrimitive(SymbolPrimitive::createPin(pos, leftCount + i + 1, getPinName(leftCount + i), "Left", 0));
+                mapping.insert(leftCount + i + 1, getPinName(leftCount + i));
             }
             def.setSpiceNodeMapping(mapping);
         }
@@ -1226,6 +2375,81 @@ bool runLibraryToSymbols(const QStringList& args, const QCommandLineParser& pars
         res["files_processed"] = filesProcessed;
         res["total_symbols"] = totalSymbols;
         printJsonValue(res);
+    }
+
+    return filesProcessed > 0;
+}
+
+bool runLibraryAutoConvert(const QStringList& args, const QCommandLineParser& parser) {
+    if (args.size() < 3) {
+        std::cerr << "Usage: viora library-auto-convert <input_path> <out_dir> [--mapping <mapping.json>] [--recursive]" << std::endl;
+        return false;
+    }
+    QString inputPath = args.at(1);
+    const QString outBaseDir = args.at(2);
+    const QString mappingPath = parser.value("mapping");
+    const bool recursive = parser.isSet("recursive");
+
+    SymbolMatcher matcher;
+    if (!mappingPath.isEmpty()) {
+        if (!matcher.loadMapping(mappingPath)) {
+            std::cerr << "Error: Failed to load mapping JSON: " << mappingPath.toStdString() << std::endl;
+            return false;
+        }
+    }
+
+    if (inputPath.startsWith("~")) {
+        inputPath.replace(0, 1, QDir::homePath());
+    }
+
+    QString rootToUse;
+    QStringList filesToProcess;
+    QFileInfo inInfo(inputPath);
+    
+    if (inInfo.isDir()) {
+        rootToUse = inInfo.absoluteFilePath();
+        QDirIterator it(rootToUse, {"*.lib", "*.sub", "*.spi", "*.mod", "*.cir"}, 
+                        QDir::Files, recursive ? QDirIterator::Subdirectories : QDirIterator::NoIteratorFlags);
+        while (it.hasNext()) {
+            filesToProcess << it.next();
+        }
+    } else if (inInfo.exists()) {
+        rootToUse = inInfo.absolutePath();
+        filesToProcess << inputPath;
+    } else {
+        std::cerr << "Error: Input path not found: " << inputPath.toStdString() << std::endl;
+        return false;
+    }
+
+    if (filesToProcess.isEmpty()) {
+        std::cerr << "No SPICE library files found to process." << std::endl;
+        return false;
+    }
+
+    int totalSymbols = 0;
+    int filesProcessed = 0;
+
+    for (const QString& filePath : filesToProcess) {
+        QFileInfo fi(filePath);
+        QString relativePath = QDir(rootToUse).relativeFilePath(fi.absolutePath());
+        QString libName = fi.completeBaseName();
+        
+        QDir targetDirObj(outBaseDir);
+        if (relativePath != ".") {
+            targetDirObj.setPath(targetDirObj.filePath(relativePath));
+        }
+        QString targetDir = targetDirObj.filePath(libName);
+        
+        int count = generateSymbolsForLibrary(filePath, targetDir, "", "", &matcher);
+        if (count > 0) {
+            totalSymbols += count;
+            filesProcessed++;
+        }
+    }
+
+    if (!g_quiet) {
+        std::cout << "Successfully auto-converted " << filesProcessed << " library files." << std::endl;
+        std::cout << "Generated total of " << totalSymbols << " symbols in " << outBaseDir.toStdString() << std::endl;
     }
 
     return filesProcessed > 0;
@@ -4344,6 +5568,7 @@ static void printGeneralHelp() {
     std::cout << "  symbol-validate <file.viosym>\n";
     std::cout << "  symbol-from-subckt <input.cir|lib> <out_dir> [--name <subckt>]\n";
     std::cout << "  library-to-symbols <input_path> <out_dir> [--recursive]\n";
+    std::cout << "  library-auto-convert <input_path> <out_dir> [--mapping <mapping.json>] [--recursive]\n";
     std::cout << "\nTips:\n";
     std::cout << "  Use \"viora help <command>\" for command-specific help.\n";
     std::cout << "  Use --json for machine-readable output.\n";
@@ -4457,7 +5682,7 @@ static void printCommandHelp(const QString& command) {
     if (command == "symbol-from-subckt") {
         std::cout << "symbol-from-subckt <input.cir|lib> <out_dir>\n";
         std::cout << "  --name <subckt>        Generate symbol only for specific subcircuit\n";
-        std::cout << "  --symbol-type <t>      Symbol geometry type: ic, op, npn, pnp, nmos, pmos, diode\n";
+        std::cout << "  --symbol-type <t>      Symbol type: op, comparator, regulator, triac, scr, diode, zener, led, logic_gate_3pin, gate_and, gate_or, etc.\n";
         std::cout << "  --json\n";
         return;
     }
@@ -4467,6 +5692,14 @@ static void printCommandHelp(const QString& command) {
         std::cout << "  --symbol-type <t>      Symbol geometry type: ic, op, npn, pnp, nmos, pmos, diode\n";
         std::cout << "  --json\n";
         std::cout << "\nNote: This command creates subfolders for each library for better organization.\n";
+        return;
+    }
+    if (command == "library-auto-convert") {
+        std::cout << "library-auto-convert <input_path> <out_dir> --mapping <mapping.json>\n";
+        std::cout << "  --mapping <file.json>  JSON file containing matching rules for symbols\n";
+        std::cout << "  --recursive            Scan subdirectories for library files\n";
+        std::cout << "\nThis command uses the mapping JSON to automatically assign the best high-fidelity\n";
+        std::cout << "symbol shape to each component in the SPICE library.\n";
         return;
     }
     printGeneralHelp();
@@ -4609,6 +5842,7 @@ int main(int argc, char *argv[]) {
     QCommandLineOption exitWarnOption("exit-on-warning", "Exit with non-zero code if warnings appear (netlist-run/netlist-validate)");
     QCommandLineOption nameOption("name", "Name of subcircuit or symbol", "name");
     QCommandLineOption symTypeOption("symbol-type", "Type of symbol to generate (ic, op)", "type", "ic");
+    QCommandLineOption mappingOption("mapping", "Mapping JSON file for automatic symbol assignment", "mapping.json");
     QCommandLineOption helpOption(QStringList() << "h" << "help", "Show help for a command");
     QCommandLineOption noColorOption("no-color", "Disable colored output");
     QCommandLineOption renameNetOption("rename-net", "Rename net label (repeatable): old=new", "pair");
@@ -4670,6 +5904,7 @@ int main(int argc, char *argv[]) {
     parser.addOption(exitWarnOption);
     parser.addOption(nameOption);
     parser.addOption(symTypeOption);
+    parser.addOption(mappingOption);
     parser.addOption(helpOption);
     parser.addOption(noColorOption);
     parser.addOption(renameNetOption);
@@ -5119,6 +6354,8 @@ int main(int argc, char *argv[]) {
         return runSymbolFromSubckt(args, parser) ? 0 : 1;
     } else if (command == "library-to-symbols") {
         return runLibraryToSymbols(args, parser) ? 0 : 1;
+    } else if (command == "library-auto-convert") {
+        return runLibraryAutoConvert(args, parser) ? 0 : 1;
     } else if (command == "library-index") {
         return runLibraryIndex(args, parser) ? 0 : 1;
     } else if (command == "schematic-query") {
