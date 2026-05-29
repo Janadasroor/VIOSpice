@@ -885,10 +885,8 @@ void SourceControlPanel::onCompareBranchesClicked() {
     dialog->setAttribute(Qt::WA_DeleteOnClose);
 
     connect(dialog, &BranchComparisonDialog::mergeRequested, this, [this](const QString& source, const QString& target) {
-        Q_UNUSED(source);
         Q_UNUSED(target);
-        // TODO: Implement merge with source/target parameters
-        // For now, just merge the source branch
+        // target is the current branch (merged INTO); git merge <source> handles it
         m_mgr.mergeBranch(source);
     });
 

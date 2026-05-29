@@ -686,16 +686,26 @@ void WaveformViewer::setupUi() {
 
     layout->addLayout(mainArea);
  
-    m_legendContainer = new QWidget(this);
+    // Wrap legend in a scroll area to prevent window growth
+    QScrollArea* legendScroll = new QScrollArea(this);
+    legendScroll->setWidgetResizable(true);
+    legendScroll->setFrameShape(QFrame::NoFrame);
+    legendScroll->setFixedHeight(32);
+    legendScroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+    legendScroll->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    legendScroll->setStyleSheet("background: transparent;");
+
+    m_legendContainer = new QWidget(legendScroll);
     m_legendLayout = new QHBoxLayout(m_legendContainer);
-    m_legendLayout->setContentsMargins(10, 2, 10, 2);
+    m_legendLayout->setContentsMargins(10, 0, 10, 0);
     m_legendLayout->setSpacing(15);
 
     m_xAxisTitleLabel = new QLabel("Time (s)", this);
     m_legendLayout->addWidget(m_xAxisTitleLabel);
     m_legendLayout->addStretch();
 
-    layout->addWidget(m_legendContainer);
+    legendScroll->setWidget(m_legendContainer);
+    layout->addWidget(legendScroll);
  
     auto *footer = new QHBoxLayout();
     m_coordLabel = new QLabel("Ready");
@@ -728,7 +738,10 @@ void WaveformViewer::setupStyle() {
     }
 
     m_splitter->setStyleSheet(QString("QSplitter::handle { background: %1; }").arg(border));
-    m_legendContainer->setStyleSheet(QString("background: %1; border-top: 1px solid %2;").arg(panelBg, border));
+    m_legendContainer->setStyleSheet(QString("background: %1;").arg(panelBg));
+    if (auto* scroll = findChild<QScrollArea*>()) {
+        scroll->setStyleSheet(QString("QScrollArea { background: %1; border-top: 1px solid %2; }").arg(panelBg, border));
+    }
     m_xAxisTitleLabel->setStyleSheet(QString("color: %1; font-weight: bold; font-size: 10px; text-transform: uppercase;").arg(secondary));
     m_coordLabel->setStyleSheet(QString("font-family: monospace; color: %1;").arg(accent));
     m_statsLabel->setStyleSheet(QString("font-family: monospace; color: %1;").arg(isDark ? "#f59e0b" : "#b45309"));

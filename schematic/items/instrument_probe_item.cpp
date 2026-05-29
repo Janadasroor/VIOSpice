@@ -97,28 +97,28 @@ void InstrumentProbeItem::paint(QPainter* painter, const QStyleOptionGraphicsIte
     if (m_kind == Kind::Oscilloscope) {
         painter->setBrush(QColor(10, 20, 10));
         painter->setPen(QPen(Qt::white, 1));
-        painter->drawRect(-30, -50, 60, 50);
+        painter->drawRect(-25, -50, 60, 50);
 
         painter->setPen(QPen(QColor(30, 50, 30), 1));
-        for (int i = -20; i <= 20; i += 10) painter->drawLine(i, -50, i, 0);
-        for (int i = -40; i <= -10; i += 10) painter->drawLine(-30, i, 30, i);
+        for (int i = -15; i <= 25; i += 10) painter->drawLine(i, -50, i, 0);
+        for (int i = -40; i <= -10; i += 10) painter->drawLine(-25, i, 35, i);
 
         painter->setPen(Qt::white);
         QFont f = painter->font();
         f.setPointSize(7);
         painter->setFont(f);
         
-        // Labels centered on Y=15, 30, 45, 60
-        painter->drawText(QRectF(-40, 7.5, 30, 15), Qt::AlignLeft, "CH1");
-        painter->drawText(QRectF(-40, 22.5, 30, 15), Qt::AlignLeft, "CH2");
-        painter->drawText(QRectF(-40, 37.5, 30, 15), Qt::AlignLeft, "CH3");
-        painter->drawText(QRectF(-40, 52.5, 30, 15), Qt::AlignLeft, "CH4");
-        
-        // Pin lines
-        painter->drawLine(-45, 15, -35, 15);
-        painter->drawLine(-45, 30, -35, 30);
-        painter->drawLine(-45, 45, -35, 45);
-        painter->drawLine(-45, 60, -35, 60);
+        // Pin lines (sticking out to the left)
+        painter->drawLine(-45, 15, -30, 15);
+        painter->drawLine(-45, 30, -30, 30);
+        painter->drawLine(-45, 45, -30, 45);
+        painter->drawLine(-45, 60, -30, 60);
+
+        // Labels centered inside the body near pins
+        painter->drawText(QRectF(-28, 10, 30, 10), Qt::AlignLeft | Qt::AlignVCenter, "CH1");
+        painter->drawText(QRectF(-28, 25, 30, 10), Qt::AlignLeft | Qt::AlignVCenter, "CH2");
+        painter->drawText(QRectF(-28, 40, 30, 10), Qt::AlignLeft | Qt::AlignVCenter, "CH3");
+        painter->drawText(QRectF(-28, 55, 30, 10), Qt::AlignLeft | Qt::AlignVCenter, "CH4");
     } else {
         painter->setPen(QPen(Qt::white, 1));
         painter->drawLine(-45, 15, -26, 15);

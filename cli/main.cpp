@@ -1,3 +1,8 @@
+#include "schematic_item.h"
+#include "factories/schematic_item_registry.h"
+#include "factories/schematic_item_factory.h"
+#include "items/virtual_terminal_item.h"
+#include "items/instrument_probe_item.h"
 #include <QApplication>
 #include <QCommandLineParser>
 #include <QDebug>
@@ -1224,6 +1229,92 @@ bool runLibraryToSymbols(const QStringList& args, const QCommandLineParser& pars
     }
 
     return filesProcessed > 0;
+}
+
+bool runItemRender(const QStringList& args, const QCommandLineParser& parser) {
+    if (args.size() < 3) {
+        std::cerr << "Usage: viora item-render <file.json> <out.png> [--transparent] [--scale <n>]" << std::endl;
+        return false;
+    }
+    const QString filePath = args.at(1);
+    const QString outPath = args.at(2);
+    
+    QFile file(filePath);
+    if (!file.open(QIODevice::ReadOnly)) {
+        std::cerr << "Error: Cannot read item JSON file: " << filePath.toStdString() << std::endl;
+        return false;
+    }
+    QJsonParseError parseError;
+    QJsonDocument doc = QJsonDocument::fromJson(file.readAll(), &parseError);
+    if (parseError.error != QJsonParseError::NoError || !doc.isObject()) {
+        std::cerr << "Error: Invalid item JSON: " << parseError.errorString().toStdString() << std::endl;
+        return false;
+    }
+    
+    QJsonObject itemJson = doc.object();
+    QString type = itemJson.value("type").toString();
+    if (type.isEmpty()) {
+        std::cerr << "Error: JSON missing 'type' field." << std::endl;
+        return false;
+    }
+    
+    QGraphicsScene scene;
+    SchematicItem* item = SchematicItemFactory::instance().createItem(type, QPointF(0, 0), itemJson, nullptr);
+    if (!item) {
+        std::cerr << "Error: Failed to create item of type: " << type.toStdString() << std::endl;
+        return false;
+    }
+    scene.addItem(item);
+    
+    // Ensure styles/fonts are initialized for the item
+    if (auto* term = dynamic_cast<VirtualTerminalItem*>(item)) {
+        // Force update or apply styles if necessary for specific items
+    }
+    
+    QRectF rect = item->boundingRect();
+    if (rect.isNull() || rect.width() <= 0 || rect.height() <= 0) {
+        rect = QRectF(-20, -20, 40, 40); // fallback
+    }
+
+    const qreal margin = 10.0;
+    const bool transparent = parser.isSet("transparent");
+    const qreal scale = qMax(0.1, parser.value("scale").toDouble());
+    
+    QSize imageSize = QSize(qCeil((rect.width() + margin * 2.0) * scale),
+                            qCeil((rect.height() + margin * 2.0) * scale));
+
+    QImage image(imageSize, QImage::Format_ARGB32);
+    image.fill(transparent ? Qt::transparent : QColor(30, 30, 30));
+
+    QPainter painter(&image);
+    painter.setRenderHint(QPainter::Antialiasing);
+    painter.setRenderHint(QPainter::TextAntialiasing);
+    
+    // Setup rendering context for the scene
+    painter.translate((-rect.left() + margin) * scale, (-rect.top() + margin) * scale);
+    painter.scale(scale, scale);
+
+    QStyleOptionGraphicsItem opt;
+    item->paint(&painter, &opt, nullptr);
+    painter.end();
+    
+    if (!image.save(outPath)) {
+        std::cerr << "Error: Failed to save rendered item to " << outPath.toStdString() << std::endl;
+        return false;
+    }
+
+    if (parser.isSet("json")) {
+        QJsonObject out;
+        out["file"] = filePath;
+        out["output"] = outPath;
+        out["transparent"] = transparent;
+        out["scale"] = scale;
+        out["type"] = type;
+        printJsonValue(out);
+    } else {
+        printInfoStd("Rendered item to " + outPath.toStdString());
+    }
+    return true;
 }
 
 bool runSymbolRender(const QStringList& args, const QCommandLineParser& parser) {
@@ -4352,6 +4443,12 @@ static void printCommandHelp(const QString& command) {
         std::cout << "  --scale <n>  --transparent  --json\n";
         return;
     }
+    if (command == "item-render") {
+        std::cout << "item-render <file.json> <out.png>\n";
+        std::cout << "  Render an instantiated schematic item (like an instrument) from JSON to PNG.\n";
+        std::cout << "  --scale <n>  --transparent  --json\n";
+        return;
+    }
     if (command == "symbol-validate") {
         std::cout << "symbol-validate <file.viosym>\n";
         std::cout << "  --json\n";
@@ -4637,6 +4734,14 @@ int main(int argc, char *argv[]) {
             printGeneralHelp();
         }
         return 0;
+    }
+
+    if (args.size() > 0) {
+        QString command = args.at(0);
+        if (command == "item-render") {
+            SchematicItemRegistry::registerBuiltInItems();
+            return runItemRender(args, parser) ? 0 : 1;
+        }
     }
 
     if (args.size() < 1) {

@@ -40,6 +40,7 @@ SymbolEditorView::SymbolEditorView(QWidget* parent)
     setBackgroundBrush(QBrush(theme ? theme->canvasBackground() : QColor(30, 30, 30)));
     // Start more zoomed-in for easier initial symbol editing.
     scale(1.5, 1.5);
+
 }
 
 void SymbolEditorView::setCurrentTool(int tool) {
@@ -373,7 +374,9 @@ void SymbolEditorView::mouseMoveEvent(QMouseEvent* event) {
         if (m_currentTool == 0 && dragMode() != QGraphicsView::RubberBandDrag) {
             QPointF snapEnd = snapToGrid(mapToScene(event->pos()));
             QPointF delta   = snapEnd - m_snapPressPos;
-            if (delta != QPointF(0, 0) && scene() && !scene()->selectedItems().isEmpty())
+            // Require at least half-grid movement to avoid jitter on simple clicks
+            if (qAbs(delta.x()) + qAbs(delta.y()) >= m_gridSize * 0.5
+                && scene() && !scene()->selectedItems().isEmpty())
                 Q_EMIT itemsMoved(delta);
         }
         setDragMode(QGraphicsView::NoDrag);
@@ -404,8 +407,11 @@ void SymbolEditorView::zoomByFactor(qreal factor) {
 }
 
 void SymbolEditorView::keyPressEvent(QKeyEvent* event) {
-    if (event->key() == Qt::Key_Escape)
+    if (event->key() == Qt::Key_Escape) {
         Q_EMIT rightClicked();
+        event->accept();
+        return;
+    }
     QGraphicsView::keyPressEvent(event);
 }
 

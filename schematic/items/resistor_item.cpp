@@ -63,29 +63,16 @@ ResistorItem::~ResistorItem() {
 void ResistorItem::buildPrimitives() {
     m_primitives.clear();
     
-    if (m_style == US) {
-        m_primitives.push_back(std::make_unique<LinePrimitive>(QPointF(-60, 0), QPointF(-45, 0)));
-        
-        QList<QPointF> zigzag;
-        zigzag << QPointF(-45, 0)
-               << QPointF(-37.5, -22.5)
-               << QPointF(-22.5, 22.5)
-               << QPointF(-7.5, -22.5)
-               << QPointF(7.5, 22.5)
-               << QPointF(22.5, -22.5)
-               << QPointF(37.5, 22.5)
-               << QPointF(45, 0);
-        m_primitives.push_back(std::make_unique<PolylinePrimitive>(zigzag));
-        
-        m_primitives.push_back(std::make_unique<LinePrimitive>(QPointF(45, 0), QPointF(60, 0)));
-    } else {
-        m_primitives.push_back(std::make_unique<LinePrimitive>(QPointF(-60, 0), QPointF(-22.5, 0)));
-        m_primitives.push_back(std::make_unique<RectPrimitive>(QRectF(-22.5, -22.5, 45, 45)));
-        m_primitives.push_back(std::make_unique<LinePrimitive>(QPointF(22.5, 0), QPointF(60, 0)));
-    }
+    // Resistor body (Rectangle standard)
+    m_primitives.push_back(std::make_unique<RectPrimitive>(QRectF(-30, -8, 60, 16), false));
     
-    m_primitives.push_back(std::make_unique<CirclePrimitive>(QPointF(-60, 0), 3.75, true));
-    m_primitives.push_back(std::make_unique<CirclePrimitive>(QPointF(60, 0), 3.75, true));
+    // Horizontal leads
+    m_primitives.push_back(std::make_unique<LinePrimitive>(QPointF(-45, 0), QPointF(-30, 0)));
+    m_primitives.push_back(std::make_unique<LinePrimitive>(QPointF(30, 0), QPointF(45, 0)));
+    
+    // Pin dots
+    m_primitives.push_back(std::make_unique<CirclePrimitive>(QPointF(-45, 0), 3.75, true));
+    m_primitives.push_back(std::make_unique<CirclePrimitive>(QPointF(45, 0), 3.75, true));
 }
 
 void ResistorItem::setValue(const QString& value) {
@@ -219,11 +206,7 @@ SchematicItem* ResistorItem::clone() const {
 }
 
 QList<QPointF> ResistorItem::connectionPoints() const {
-    QList<QPointF> points;
-    for (auto* pin : m_model->pins()) {
-        points.append(pin->pos);
-    }
-    return points;
+    return { QPointF(-45, 0), QPointF(45, 0) };
 }
 void ResistorItem::setSimState(const QMap<QString, double>& nodeVoltages, const QMap<QString, double>& branchCurrents) {
     Q_UNUSED(branchCurrents)

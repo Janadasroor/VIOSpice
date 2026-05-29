@@ -56,7 +56,6 @@ private Q_SLOTS:
     void openSpiceModelManager();
     void showPythonConsole();
     void importLtspiceBatch();
-    void importKicadBatch();
     void importLtspiceDiodeModels();
     void importLtspiceJfetModels();
     void importLtspiceBjtModels();

@@ -62,11 +62,11 @@ void SchematicToolRegistryBuiltIn::registerBuiltInTools() {
     
     registry.registerTool("Diode", []() { return new SchematicComponentTool("Diode"); });
     
-    registry.registerTool("Transistor", []() { return new SchematicComponentTool("Transistor"); });
-    registry.registerTool("NPN Transistor", []() { return new SchematicComponentTool("Transistor"); }); // Alias
-    registry.registerTool("PNP Transistor", []() { return new SchematicComponentTool("Transistor_PNP"); });
-    registry.registerTool("NMOS Transistor", []() { return new SchematicComponentTool("Transistor_NMOS"); });
-    registry.registerTool("PMOS Transistor", []() { return new SchematicComponentTool("Transistor_PMOS"); });
+    registry.registerTool("Transistor", []() { return new SchematicComponentTool("NPN Transistor"); });
+    registry.registerTool("NPN Transistor", []() { return new SchematicComponentTool("NPN Transistor"); });
+    registry.registerTool("PNP Transistor", []() { return new SchematicComponentTool("PNP Transistor"); });
+    registry.registerTool("NMOS Transistor", []() { return new SchematicComponentTool("NMOS Transistor"); });
+    registry.registerTool("PMOS Transistor", []() { return new SchematicComponentTool("PMOS Transistor"); });
     registry.registerTool("Gate_AND", []() { return new SchematicComponentTool("Gate_AND"); });
     registry.registerTool("Gate_OR", []() { return new SchematicComponentTool("Gate_OR"); });
     registry.registerTool("Gate_XOR", []() { return new SchematicComponentTool("Gate_XOR"); });
@@ -97,6 +97,7 @@ void SchematicToolRegistryBuiltIn::registerBuiltInTools() {
     registry.registerTool("16-Segment Display", []() { return new SchematicComponentTool("16-Segment Display"); });
     registry.registerTool("Signal Generator", []() { return new SchematicComponentTool("Signal Generator"); });
     registry.registerTool("Logic Analyzer", []() { return new SchematicComponentTool("Logic Analyzer"); });
+    registry.registerTool("Virtual Terminal", []() { return new SchematicComponentTool("VirtualTerminalInstrument"); });
     registry.registerTool("Oscilloscope Instrument", []() { return new SchematicComponentTool("Oscilloscope Instrument"); });
     registry.registerTool("Smart Signal Block", []() { return new SchematicComponentTool("SmartSignalBlock"); });
     registry.registerTool("Flux Measurement Probe", []() { return new SchematicComponentTool("Flux Measurement Probe"); });

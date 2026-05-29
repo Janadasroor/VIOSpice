@@ -380,7 +380,21 @@ SymbolDefinition* SymbolLibrary::findSymbol(const QString& name) {
     if (it != m_symbols.end()) {
         SymbolDefinition& sym = it.value();
         if (sym.isStub()) {
-            SymbolDefinition loaded = KicadSymbolImporter::importSymbol(m_path, name);
+            SymbolDefinition loaded;
+            if (sym.libraryPath().endsWith(".viosym", Qt::CaseInsensitive)) {
+                QFile file(sym.libraryPath());
+                if (file.open(QIODevice::ReadOnly)) {
+                    QJsonDocument doc = QJsonDocument::fromJson(file.readAll());
+                    if (doc.isObject()) {
+                        QString originalCategory = sym.category();
+                        loaded = SymbolDefinition::fromJson(doc.object());
+                        if (loaded.category().isEmpty()) loaded.setCategory(originalCategory);
+                    }
+                }
+            } else {
+                loaded = KicadSymbolImporter::importSymbol(sym.libraryPath().isEmpty() ? m_path : sym.libraryPath(), name);
+            }
+
             if (!loaded.name().isEmpty()) {
                 sym = loaded;
                 sym.setStub(false);
@@ -395,7 +409,21 @@ SymbolDefinition* SymbolLibrary::findSymbol(const QString& name) {
         if (symbolMatchesLookupKey(jt.value(), name)) {
             SymbolDefinition& sym = jt.value();
             if (sym.isStub()) {
-                SymbolDefinition loaded = KicadSymbolImporter::importSymbol(m_path, sym.name());
+                SymbolDefinition loaded;
+                if (sym.libraryPath().endsWith(".viosym", Qt::CaseInsensitive)) {
+                    QFile file(sym.libraryPath());
+                    if (file.open(QIODevice::ReadOnly)) {
+                        QJsonDocument doc = QJsonDocument::fromJson(file.readAll());
+                        if (doc.isObject()) {
+                            QString originalCategory = sym.category();
+                            loaded = SymbolDefinition::fromJson(doc.object());
+                            if (loaded.category().isEmpty()) loaded.setCategory(originalCategory);
+                        }
+                    }
+                } else {
+                    loaded = KicadSymbolImporter::importSymbol(sym.libraryPath().isEmpty() ? m_path : sym.libraryPath(), sym.name());
+                }
+
                 if (!loaded.name().isEmpty()) {
                     sym = loaded;
                     sym.setStub(false);
@@ -414,7 +442,21 @@ const SymbolDefinition* SymbolLibrary::findSymbol(const QString& name) const {
     if (it != m_symbols.end()) {
         const SymbolDefinition& sym = it.value();
         if (sym.isStub()) {
-            SymbolDefinition loaded = KicadSymbolImporter::importSymbol(m_path, name);
+            SymbolDefinition loaded;
+            if (sym.libraryPath().endsWith(".viosym", Qt::CaseInsensitive)) {
+                QFile file(sym.libraryPath());
+                if (file.open(QIODevice::ReadOnly)) {
+                    QJsonDocument doc = QJsonDocument::fromJson(file.readAll());
+                    if (doc.isObject()) {
+                        QString originalCategory = sym.category();
+                        loaded = SymbolDefinition::fromJson(doc.object());
+                        if (loaded.category().isEmpty()) loaded.setCategory(originalCategory);
+                    }
+                }
+            } else {
+                loaded = KicadSymbolImporter::importSymbol(sym.libraryPath().isEmpty() ? m_path : sym.libraryPath(), name);
+            }
+
             if (!loaded.name().isEmpty()) {
                 SymbolDefinition& mutableSym = const_cast<SymbolDefinition&>(sym);
                 mutableSym = loaded;
@@ -429,7 +471,21 @@ const SymbolDefinition* SymbolLibrary::findSymbol(const QString& name) const {
         if (symbolMatchesLookupKey(jt.value(), name)) {
             const SymbolDefinition& sym = jt.value();
             if (sym.isStub()) {
-                SymbolDefinition loaded = KicadSymbolImporter::importSymbol(m_path, sym.name());
+                SymbolDefinition loaded;
+                if (sym.libraryPath().endsWith(".viosym", Qt::CaseInsensitive)) {
+                    QFile file(sym.libraryPath());
+                    if (file.open(QIODevice::ReadOnly)) {
+                        QJsonDocument doc = QJsonDocument::fromJson(file.readAll());
+                        if (doc.isObject()) {
+                            QString originalCategory = sym.category();
+                            loaded = SymbolDefinition::fromJson(doc.object());
+                            if (loaded.category().isEmpty()) loaded.setCategory(originalCategory);
+                        }
+                    }
+                } else {
+                    loaded = KicadSymbolImporter::importSymbol(sym.libraryPath().isEmpty() ? m_path : sym.libraryPath(), sym.name());
+                }
+
                 if (!loaded.name().isEmpty()) {
                     SymbolDefinition& mutableSym = const_cast<SymbolDefinition&>(sym);
                     mutableSym = loaded;
@@ -491,6 +547,24 @@ void SymbolLibrary::ensureLoaded() const {
                 sym.setStub(false);
                 if (sym.category().isEmpty()) sym.setCategory(originalCategory);
                 normalizeExternalSymbolPinGrid(sym);
+            }
+        }
+    } else {
+        // For loose .viosym libraries, load each stub individually
+        for (auto it = m_symbols.begin(); it != m_symbols.end(); ++it) {
+            SymbolDefinition& sym = it.value();
+            if (sym.isStub() && sym.libraryPath().endsWith(".viosym", Qt::CaseInsensitive)) {
+                QFile file(sym.libraryPath());
+                if (file.open(QIODevice::ReadOnly)) {
+                    QJsonDocument doc = QJsonDocument::fromJson(file.readAll());
+                    if (doc.isObject()) {
+                        QString originalCategory = sym.category();
+                        sym = SymbolDefinition::fromJson(doc.object());
+                        sym.setStub(false);
+                        if (sym.category().isEmpty()) sym.setCategory(originalCategory);
+                        normalizeExternalSymbolPinGrid(sym);
+                    }
+                }
             }
         }
     }
@@ -1142,6 +1216,7 @@ void SymbolLibraryManager::loadUserLibraries(const QString& userLibPath, bool as
 
     QMap<QString, SymbolLibrary*> looseLibs;
     QStringList deferredKicadFiles;
+    QStringList deferredViosymFiles;
     auto shouldIncludeBasicsLibrary = [&](const QString& libName) {
         if (!basicsOnly) return true;
         static const QSet<QString> basics = {
@@ -1196,25 +1271,52 @@ void SymbolLibraryManager::loadUserLibraries(const QString& userLibPath, bool as
             }
         }
 
+        // --- Pass 2: .viosym (Individual Symbol Files) ---
         QDirIterator symIt(path, QStringList() << "*.viosym", QDir::Files, QDirIterator::Subdirectories);
         while (symIt.hasNext()) {
             QString filePath = symIt.next();
-            QFile file(filePath);
-            if (!file.open(QIODevice::ReadOnly)) continue;
-            QJsonDocument doc = QJsonDocument::fromJson(file.readAll());
-            if (!doc.isObject()) continue;
-            QJsonObject obj = doc.object();
-            if (obj.contains("library")) continue;
-            SymbolDefinition sym = SymbolDefinition::fromJson(obj);
-            normalizeExternalSymbolPinGrid(sym);
-            if (sym.name().trimmed().isEmpty()) {
-                sym.setName(QFileInfo(filePath).completeBaseName());
+            if (asyncColdIndexing) {
+                deferredViosymFiles.append(filePath);
+                continue;
             }
 
-            // If the .viosym is inside a subdirectory, use that directory name as category
-            const QString parentDir = QFileInfo(filePath).absolutePath();
-            if (parentDir != path) {
-                sym.setCategory(QFileInfo(parentDir).fileName());
+            const QFileInfo fileInfo(filePath);
+            QList<SymbolLibrary::SymbolInfo> cachedInfos = metadataCache.symbolInfosForFile(fileInfo);
+            SymbolLibrary::SymbolInfo info;
+
+            if (!cachedInfos.isEmpty()) {
+                info = cachedInfos.first();
+            } else {
+                QFile file(filePath);
+                if (file.open(QIODevice::ReadOnly)) {
+                    QJsonDocument doc = QJsonDocument::fromJson(file.readAll());
+                    if (doc.isObject()) {
+                        QJsonObject obj = doc.object();
+                        if (!obj.contains("library")) {
+                            info.name = obj.value("name").toString().trimmed();
+                            if (info.name.isEmpty()) info.name = fileInfo.completeBaseName();
+                            info.category = obj.value("category").toString().trimmed();
+                            info.description = obj.value("description").toString().trimmed();
+                            info.tags = obj.value("customFields").toObject().value("__searchTags").toString().trimmed();
+                            metadataCache.storeSymbolInfos(fileInfo, {info});
+                        }
+                    }
+                }
+            }
+
+            if (info.name.isEmpty()) continue;
+
+            SymbolDefinition stub(info.name);
+            stub.setStub(true);
+            stub.setLibraryPath(filePath);
+            stub.setDescription(info.description);
+            if (!info.tags.isEmpty()) stub.setCustomField("__searchTags", info.tags);
+
+            const QString parentDir = fileInfo.absolutePath();
+            if (info.category.isEmpty() && parentDir != path) {
+                stub.setCategory(QFileInfo(parentDir).fileName());
+            } else {
+                stub.setCategory(info.category);
             }
 
             SymbolLibrary* lib = nullptr;
@@ -1222,37 +1324,25 @@ void SymbolLibraryManager::loadUserLibraries(const QString& userLibPath, bool as
             if (looseLibs.contains(libKey)) {
                 lib = looseLibs.value(libKey);
             } else {
-                // Use directory name as library name (no "Symbols:" prefix for subdirs)
                 const QString dirName = QFileInfo(libKey).fileName();
-                const QString libName = dirName;
-                lib = new SymbolLibrary(libName, false);
+                lib = new SymbolLibrary(dirName, false);
                 lib->setPath(libKey);
                 addLibrary(lib);
                 didChangeLibraries = true;
                 looseLibs.insert(libKey, lib);
             }
-            lib->addSymbol(sym);
+            lib->addSymbol(stub);
         }
 
+        // --- Pass 3: KiCad Libraries ---
         if (!skipKicad) {
-            QDirIterator countIt(path, QStringList() << "*.kicad_sym", QDir::Files, QDirIterator::Subdirectories);
-            int totalKicad = 0;
-            while (countIt.hasNext()) { countIt.next(); totalKicad++; }
-
             QDirIterator kicadIt(path, QStringList() << "*.kicad_sym", QDir::Files, QDirIterator::Subdirectories);
-            int currentKicad = 0;
             while (kicadIt.hasNext()) {
                 QString filePath = kicadIt.next();
-                if (isBundledKicadPath(filePath)) {
-                    continue;
-                }
-                currentKicad++;
+                if (isBundledKicadPath(filePath)) continue;
                 
                 const QString libName = QFileInfo(filePath).completeBaseName();
-
                 if (!shouldIncludeBasicsLibrary(libName)) continue;
-
-                Q_EMIT progressUpdated(QString("Loading KiCad library: %1").arg(libName), currentKicad, totalKicad);
 
                 // Check if already loaded...
                 bool alreadyLoaded = false;
@@ -1260,9 +1350,6 @@ void SymbolLibraryManager::loadUserLibraries(const QString& userLibPath, bool as
                     if (lib->path() == filePath) { alreadyLoaded = true; break; }
                 }
                 if (alreadyLoaded) continue;
-
-                SymbolLibrary* lib = new SymbolLibrary(libName, false);
-                lib->setPath(filePath);
 
                 const QFileInfo fileInfo(filePath);
                 QList<SymbolLibrary::SymbolInfo> symbolInfos = metadataCache.symbolInfosForFile(fileInfo);
@@ -1286,10 +1373,13 @@ void SymbolLibraryManager::loadUserLibraries(const QString& userLibPath, bool as
                         metadataCache.storeSymbolInfos(fileInfo, symbolInfos);
                     }
                 }
+
+                SymbolLibrary* lib = new SymbolLibrary(libName, false);
+                lib->setPath(filePath);
                 for (const SymbolLibrary::SymbolInfo& info : symbolInfos) {
                     SymbolDefinition stub(info.name);
                     stub.setStub(true);
-                    stub.setCategory(libName); // Default category is library name
+                    stub.setCategory(libName);
                     if (!info.description.isEmpty()) stub.setDescription(info.description);
                     if (!info.tags.isEmpty()) stub.setCustomField("__searchTags", info.tags);
                     lib->addSymbol(stub);
@@ -1297,7 +1387,6 @@ void SymbolLibraryManager::loadUserLibraries(const QString& userLibPath, bool as
                 if (lib->symbolCount() > 0) {
                     addLibrary(lib);
                     didChangeLibraries = true;
-                    qDebug() << "Loaded KiCad library:" << filePath << "with" << lib->symbolCount() << "symbols";
                 } else {
                     delete lib;
                 }
@@ -1307,16 +1396,87 @@ void SymbolLibraryManager::loadUserLibraries(const QString& userLibPath, bool as
 
     metadataCache.saveIfDirty();
     if (didChangeLibraries) Q_EMIT librariesChanged();
-    if (deferredKicadFiles.isEmpty()) {
+    if (deferredKicadFiles.isEmpty() && deferredViosymFiles.isEmpty()) {
         Q_EMIT loadingFinished();
         return;
     }
 
-    [[maybe_unused]] auto future = QtConcurrent::run([this, deferredKicadFiles, loadGeneration]() {
+    [[maybe_unused]] auto future = QtConcurrent::run([this, deferredKicadFiles, deferredViosymFiles, loadGeneration, paths]() {
         SymbolMetadataCache asyncCache;
         QList<SymbolLibrary*> loadedLibraries;
-        loadedLibraries.reserve(deferredKicadFiles.size());
+        
+        // --- 1. Index Individual .viosym Files ---
+        if (!deferredViosymFiles.isEmpty()) {
+            QMap<QString, SymbolLibrary*> asyncLooseLibs;
+            
+            for (int i = 0; i < deferredViosymFiles.size(); ++i) {
+                if (!isLoadGenerationCurrent(loadGeneration)) {
+                    qDeleteAll(loadedLibraries);
+                    qDeleteAll(asyncLooseLibs);
+                    return;
+                }
 
+                if (i % 100 == 0 || i == deferredViosymFiles.size() - 1) {
+                    Q_EMIT progressUpdated(QString("Indexing Symbol: %1").arg(QFileInfo(deferredViosymFiles[i]).fileName()), i + 1, deferredViosymFiles.size());
+                }
+
+                const QString filePath = deferredViosymFiles.at(i);
+                const QFileInfo fileInfo(filePath);
+                
+                QList<SymbolLibrary::SymbolInfo> cachedInfos = asyncCache.symbolInfosForFile(fileInfo);
+                SymbolLibrary::SymbolInfo info;
+
+                if (!cachedInfos.isEmpty()) {
+                    info = cachedInfos.first();
+                } else {
+                    QFile file(filePath);
+                    if (file.open(QIODevice::ReadOnly)) {
+                        QJsonDocument doc = QJsonDocument::fromJson(file.readAll());
+                        if (doc.isObject()) {
+                            QJsonObject obj = doc.object();
+                            if (!obj.contains("library")) {
+                                info.name = obj.value("name").toString().trimmed();
+                                if (info.name.isEmpty()) info.name = fileInfo.completeBaseName();
+                                info.category = obj.value("category").toString().trimmed();
+                                info.description = obj.value("description").toString().trimmed();
+                                info.tags = obj.value("customFields").toObject().value("__searchTags").toString().trimmed();
+                                asyncCache.storeSymbolInfos(fileInfo, {info});
+                            }
+                        }
+                    }
+                }
+
+                if (info.name.isEmpty()) continue;
+
+                SymbolDefinition stub(info.name);
+                stub.setStub(true);
+                stub.setLibraryPath(filePath);
+                stub.setDescription(info.description);
+                if (!info.tags.isEmpty()) stub.setCustomField("__searchTags", info.tags);
+
+                const QString parentDir = fileInfo.absolutePath();
+                bool isRoot = false;
+                for(const QString& p : paths) if(parentDir == p) { isRoot = true; break; }
+
+                if (info.category.isEmpty() && !isRoot) {
+                    stub.setCategory(QFileInfo(parentDir).fileName());
+                } else {
+                    stub.setCategory(info.category);
+                }
+
+                const QString libKey = parentDir;
+                SymbolLibrary* lib = asyncLooseLibs.value(libKey);
+                if (!lib) {
+                    lib = new SymbolLibrary(QFileInfo(libKey).fileName(), false);
+                    lib->setPath(libKey);
+                    asyncLooseLibs.insert(libKey, lib);
+                    loadedLibraries.append(lib);
+                }
+                lib->addSymbol(stub);
+            }
+        }
+
+        // --- 2. Index KiCad Libraries ---
         for (int i = 0; i < deferredKicadFiles.size(); ++i) {
             if (!isLoadGenerationCurrent(loadGeneration)) {
                 qDeleteAll(loadedLibraries);
