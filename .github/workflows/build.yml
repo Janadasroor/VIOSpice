@@ -190,22 +190,24 @@ jobs:
           # Also check with objdump -p on the exe and all copied DLLs for recursive deps
           echo "=== file info ==="
           file build/VioraEDA.exe 2>&1 || true
-          # Smoke test using CLI (viora.exe) to verify DLLs resolve correctly.
-          # VioraEDA.exe is a GUI subsystem binary; MSYS2 returns exit code 127
-          # when GUI apps run in background, so we test the CLI instead.
+          # Launch VioraEDA.exe (GUI). Use Windows tasklist to verify it runs.
           set +e
-          echo "=== launching viora.exe (CLI) ==="
-          QT_QPA_PLATFORM=windows \
-            ./build/viora.exe --help 2>&1
-          rc=$?
-          set -e
-          echo "=== exit code: $rc ==="
-          if [ $rc -eq 0 ] || [ $rc -ge 128 ]; then
-            echo "PASS: viora CLI started (exit code $rc)"
+          echo "=== launching VioraEDA.exe ==="
+          QT_DEBUG_PLUGINS=1 QT_QPA_PLATFORM=windows \
+            ./build/VioraEDA.exe &
+          pid=$!
+          sleep 5
+          if tasklist.exe 2>/dev/null | grep -iq "VioraEDA"; then
+            echo "=== process confirmed alive via tasklist ==="
+            taskkill.exe /F /IM VioraEDA.exe 2>/dev/null || true
+            echo "PASS: VioraEDA GUI launched and ran"
           else
-            echo "FAIL: viora CLI crashed (exit code $rc)"
-            exit $rc
+            wait $pid 2>/dev/null
+            rc=$?
+            echo "FAIL: VioraEDA GUI exited early (code $rc)"
+            exit 1
           fi
+          set -e
 
       - name: Unit tests (Linux / macOS)
         if: runner.os != 'Windows'
