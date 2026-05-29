@@ -2,6 +2,7 @@
 #include <QPainter>
 #include <QJsonObject>
 #include <QJsonArray>
+#include <QStyleOptionGraphicsItem>
 #include <algorithm>
 
 SystemVerilogBlockItem::SystemVerilogBlockItem(QPointF pos, QGraphicsItem* parent)
@@ -35,7 +36,7 @@ void SystemVerilogBlockItem::setPins(const QStringList& inputs, const QStringLis
 
 void SystemVerilogBlockItem::updateSize() {
     int maxPins = std::max(m_inputPins.size(), m_outputPins.size());
-    qreal height = std::max(60.0, maxPins * 20.0 + 20.0);
+    qreal height = std::max(80.0, maxPins * 20.0 + 30.0); // Increased min height and padding
     const QSizeF newSize(120, height);
     if (m_size == newSize) return;
     prepareGeometryChange();
@@ -43,8 +44,8 @@ void SystemVerilogBlockItem::updateSize() {
 }
 
 QRectF SystemVerilogBlockItem::boundingRect() const {
-    return QRectF(-m_size.width() / 2 - 10, -m_size.height() / 2,
-                  m_size.width() + 20, m_size.height());
+    return QRectF(-m_size.width() / 2 - 20, -m_size.height() / 2,
+                  m_size.width() + 40, m_size.height());
 }
 
 void SystemVerilogBlockItem::paint(QPainter* painter, const QStyleOptionGraphicsItem*, QWidget*) {
@@ -53,36 +54,71 @@ void SystemVerilogBlockItem::paint(QPainter* painter, const QStyleOptionGraphics
     QRectF rect(-m_size.width() / 2, -m_size.height() / 2,
                 m_size.width(), m_size.height());
 
-    QPen bodyPen(Qt::white, 2);
-    if (isSelected()) bodyPen.setColor(QColor(99, 102, 241));
-    painter->setPen(bodyPen);
-    painter->setBrush(QColor(30, 30, 35));
+    constexpr qreal PIN_TAIL = 20;
+
+    // Background Gradient (Industrial Slate)
+    QLinearGradient bgGrad(rect.topLeft(), rect.bottomLeft());
+    bgGrad.setColorAt(0, QColor(45, 45, 50));
+    bgGrad.setColorAt(1, QColor(30, 30, 35));
+    
+    if (isSelected()) {
+        bgGrad.setColorAt(0, QColor(90, 70, 120)); // Purple-tinted selection
+        bgGrad.setColorAt(1, QColor(40, 30, 70));
+    }
+    
+    painter->setBrush(bgGrad);
+    painter->setPen(QPen(Qt::white, 1.5));
     painter->drawRoundedRect(rect, 4, 4);
 
-    painter->setPen(QColor(16, 185, 129));
-    QFont titleFont("Inter", 7, QFont::Bold);
-    painter->setFont(titleFont);
-    QString label = "SV";
-    if (!m_moduleName.isEmpty()) label += ": " + m_moduleName;
-    painter->drawText(rect.adjusted(5, 5, -5, -m_size.height() + 15),
-                      Qt::AlignCenter, label);
+    // Header Accent (Purple - distinguishes SV from Blue XSPICE)
+    painter->setBrush(QColor(139, 92, 246));
+    painter->setPen(Qt::NoPen);
+    painter->drawRoundedRect(QRectF(rect.left(), rect.top(), rect.width(), 12), 4, 4);
+    painter->fillRect(QRectF(rect.left(), rect.top() + 8, rect.width(), 4), QColor(139, 92, 246));
 
-    QFont pinFont("Inter", 7);
+    // Center "OLED" Display Area
+    QRectF displayRect = QRectF(-m_size.width()/2 + 10, -12, m_size.width() - 20, 24);
+    painter->setBrush(QColor(12, 10, 15));
+    painter->setPen(QPen(QColor(167, 139, 250, 80), 1)); // Faint purple border
+    painter->drawRect(displayRect);
+
+    // Subtle Glow
+    QRadialGradient glow(0, 0, 40);
+    glow.setColorAt(0, QColor(167, 139, 250, 30));
+    glow.setColorAt(1, Qt::transparent);
+    painter->setBrush(glow);
+    painter->setPen(Qt::NoPen);
+    painter->drawRect(displayRect);
+
+    // Module name in Display
+    QString displayName = m_moduleName.isEmpty() ? "SYSTEMVERILOG" : m_moduleName;
+    painter->setPen(QColor(167, 139, 250));
+    QFont f("Monospace", 8, QFont::Bold);
+    painter->setFont(f);
+    painter->drawText(displayRect, Qt::AlignCenter, displayName.toUpper());
+
+    // Pins and Labels
+    QFont pinFont("Inter", 6);
     painter->setFont(pinFont);
-    painter->setPen(QPen(Qt::white, 1.5));
-
-    qreal startY = -m_size.height() / 2 + 20;
+    
+    qreal startY = -m_size.height() / 2 + 25;
     for (int i = 0; i < m_inputPins.size(); ++i) {
         qreal y = startY + i * 20;
-        painter->drawLine(-m_size.width() / 2 - 10, y, -m_size.width() / 2, y);
-        painter->drawText(QRectF(-m_size.width() / 2 + 5, y - 8, 50, 16),
+        painter->setPen(QPen(QColor(100, 100, 105), 1));
+        painter->drawLine(-m_size.width() / 2 - PIN_TAIL, y, -m_size.width() / 2, y);
+        
+        painter->setPen(Qt::white);
+        painter->drawText(QRectF(-m_size.width() / 2 + 4, y - 8, 50, 16),
                           Qt::AlignLeft | Qt::AlignVCenter, m_inputPins[i]);
     }
 
     for (int i = 0; i < m_outputPins.size(); ++i) {
         qreal y = startY + i * 20;
-        painter->drawLine(m_size.width() / 2, y, m_size.width() / 2 + 10, y);
-        painter->drawText(QRectF(m_size.width() / 2 - 55, y - 8, 50, 16),
+        painter->setPen(QPen(QColor(100, 100, 105), 1));
+        painter->drawLine(m_size.width() / 2, y, m_size.width() / 2 + PIN_TAIL, y);
+        
+        painter->setPen(Qt::white);
+        painter->drawText(QRectF(m_size.width() / 2 - 54, y - 8, 50, 16),
                           Qt::AlignRight | Qt::AlignVCenter, m_outputPins[i]);
     }
 
@@ -91,11 +127,11 @@ void SystemVerilogBlockItem::paint(QPainter* painter, const QStyleOptionGraphics
 
 QList<QPointF> SystemVerilogBlockItem::connectionPoints() const {
     QList<QPointF> pts;
-    qreal startY = -m_size.height() / 2 + 20;
+    qreal startY = -m_size.height() / 2 + 25;
     for (int i = 0; i < m_inputPins.size(); ++i)
-        pts << QPointF(-m_size.width() / 2 - 10, startY + i * 20);
+        pts << QPointF(-m_size.width() / 2 - 20, startY + i * 20);
     for (int i = 0; i < m_outputPins.size(); ++i)
-        pts << QPointF(m_size.width() / 2 + 10, startY + i * 20);
+        pts << QPointF(m_size.width() / 2 + 20, startY + i * 20);
     return pts;
 }
 
