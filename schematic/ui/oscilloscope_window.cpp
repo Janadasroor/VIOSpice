@@ -53,9 +53,12 @@ void OscilloscopeWindow::setupUI() {
     m_scopeDisplay = new MiniScopeWidget(this);
     mainLayout->addWidget(m_scopeDisplay, 3);
     
-    // 2. Control Panel
-    QVBoxLayout* controlLayout = new QVBoxLayout();
-    mainLayout->addLayout(controlLayout, 1);
+    // 2. Control Panel (Fixed Width to prevent window growth)
+    QWidget* controlPanel = new QWidget(this);
+    controlPanel->setFixedWidth(220);
+    QVBoxLayout* controlLayout = new QVBoxLayout(controlPanel);
+    controlLayout->setContentsMargins(5, 5, 5, 5);
+    mainLayout->addWidget(controlPanel);
     
     // Channel Groups
     for (int i = 0; i < 4; ++i) {

@@ -33,7 +33,18 @@ def pcb_render(file: str, out: str, timeout: int = 60) -> Dict[str, Any]:
     return run_viora_command(["render", file, out], timeout=timeout)
 
 def schematic_render(file: str, out: str, transparent: bool = False, scale: float = 4.0, timeout: int = 60) -> Dict[str, Any]:
-    """Render a Viora .flxsch schematic to a PNG image."""
+    """Render a Viora .flxsch schematic to a PNG image.
+    If given a .cir netlist, it is auto-converted to .flxsch first.
+    """
+    file_path = _resolve_path(file)
+    if str(file_path).lower().endswith(".cir"):
+        flxsch = file_path.with_suffix(".flxsch")
+        conv = netlist_to_schematic(str(file_path), out=str(flxsch))
+        if not conv.get("ok"):
+            return conv
+        file = str(flxsch)
+    else:
+        file = str(file_path)
     args = ["schematic-render", file, out]
     if transparent: args.append("--transparent")
     if scale: args.extend(["--scale", str(scale)])
@@ -46,19 +57,25 @@ def symbol_render(file: str, out: str, transparent: bool = False, scale: float =
     if scale: args.extend(["--scale", str(scale)])
     return run_viora_command(args, timeout=timeout)
 
-def launch_viewer(file: str) -> Dict[str, Any]:
-    """Launch the standalone Waveform Viewer for a .raw file (non-blocking)."""
+def launch_viewer(file: str, type: str = "plot") -> Dict[str, Any]:
+    """Launch the standalone Waveform Viewer or Oscilloscope for a .raw file (non-blocking)."""
+    if sys.platform == "linux" and not os.environ.get("DISPLAY"):
+        return {"ok": False, "error": "DISPLAY is not set — cannot open GUI window on this system"}
     exe = get_viora_executable()
     try:
-        # Start as a detached process
-        subprocess.Popen(
-            [exe, "view", file],
+        args = [exe, "view", str(_resolve_path(file)), "--type", type]
+        proc = subprocess.Popen(
+            args,
             cwd=ROOT,
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
-            start_new_session=True # Detach from parent
+            start_new_session=True,
         )
-        return {"ok": True, "message": f"Launched Waveform Viewer for {file}"}
+        import time
+        time.sleep(1)
+        if proc.poll() is not None:
+            return {"ok": False, "error": f"Viewer exited immediately (code {proc.returncode}). Check DISPLAY and that '{exe}' supports the view command."}
+        return {"ok": True, "message": f"Launched {type} viewer for {file}", "pid": proc.pid}
     except Exception as e:
         return {"ok": False, "error": str(e)}
 
@@ -76,18 +93,24 @@ LOG_DIR = ROOT / ".viospice"
 LOG_FILE = LOG_DIR / "mcp-ml-api.log"
 
 def get_viora_executable() -> str:
-    """Locate the viora CLI binary."""
+    """Locate the viora CLI binary across Linux, Windows, and Mac."""
+    is_windows = sys.platform == "win32"
+    ext = ".exe" if is_windows else ""
+    
     candidates = [
-        ROOT / "build" / "viora",
-        ROOT / "build-debug" / "viora",
-        ROOT / "build-asan" / "viora",
-        ROOT / "build" / "vio-cmd",
-        ROOT / "build-debug" / "vio-cmd",
+        ROOT / "build" / f"viora{ext}",
+        ROOT / "build-debug" / f"viora{ext}",
+        ROOT / "build-asan" / f"viora{ext}",
+        ROOT / "build-release" / f"viora{ext}",
+        ROOT / "build" / f"vio-cmd{ext}",
+        ROOT / "build-debug" / f"vio-cmd{ext}",
     ]
     for item in candidates:
         if item.exists():
             return str(item)
-    return "viora"
+            
+    # Fallback to system path
+    return f"viora{ext}"
 
 def run_viora_command(args: List[str], timeout: int = 120, json_out: bool = False, retries: int = 2) -> Dict[str, Any]:
     """Execute a viora CLI command with automatic retries for transient failures."""
@@ -353,6 +376,7 @@ def netlist_run(
     compat: bool = True,
     smart_signals: Optional[List[Dict[str, Any]]] = None,
     verilog_blocks: Optional[List[Dict[str, Any]]] = None,
+    xspice_blocks: Optional[List[Dict[str, Any]]] = None,
     options: Optional[str] = None,
     temperature: Optional[float] = None,
 ) -> Dict[str, Any]:
@@ -362,10 +386,21 @@ def netlist_run(
     temp_file = None
     temp_sv_files = []
 
-    # Handle Smart Signals and Verilog Blocks by wrapping in a .flxsch
-    if smart_signals or verilog_blocks:
+    # Handle Smart Signals, Verilog Blocks, and XSPICE Blocks by wrapping in a .flxsch
+    if smart_signals or verilog_blocks or xspice_blocks:
         items = []
         hybrid_netlist = cir or ""
+        if not hybrid_netlist and file:
+            try:
+                fpath = _resolve_path(file)
+                ext = fpath.suffix.lower()
+                if ext in (".cir", ".net", ".sp"):
+                    hybrid_netlist = fpath.read_text(encoding="utf-8")
+                elif ext == ".flxsch":
+                    orig = json.loads(fpath.read_text(encoding="utf-8"))
+                    items = orig.get("items", [])
+            except Exception:
+                pass
         
         # 1. FluxScript blocks (Smart Signals)
         if smart_signals:
@@ -380,7 +415,7 @@ def netlist_run(
                     "outputs": ss.get("outputs", []),
                     "excludeFromSim": True
                 })
-                # Binding logic... (same as before)
+                # Binding logic
                 if "inputs" in ss and "outputs" in ss:
                     in_nets = " ".join(ss["inputs"]) if ss["inputs"] else "0"
                     out_nets = " ".join(ss["outputs"])
@@ -393,6 +428,7 @@ def netlist_run(
 
         # 2. Verilog Blocks
         if verilog_blocks:
+            # ... (unchanged)
             for vb in verilog_blocks:
                 ref = vb["ref"]
                 sv_path = vb.get("file")
@@ -417,42 +453,116 @@ def netlist_run(
                     "excludeFromSim": True
                 })
                 
-                # 2b. Manually bind to netlist via A-devices
+                # 2b. Manually bind to netlist via A-devices (supports multi-bit)
                 inspect_res = verilog_inspect(sv_path, module=module_name)
                 ports = []
                 if inspect_res.get("ok") and "data" in inspect_res:
                     ports = inspect_res["data"].get("ports", [])
                 
                 if ports:
-                    in_ports = [p["name"] for p in ports if p["direction"] == "input"]
-                    out_ports = [p["name"] for p in ports if p["direction"] == "output"]
+                    in_ports = [(p["name"], p.get("width", 1)) for p in ports if p["direction"] == "input"]
+                    out_ports = [(p["name"], p.get("width", 1)) for p in ports if p["direction"] == "output"]
                     
                     user_inputs = vb.get("inputs", [])
                     user_outputs = vb.get("outputs", [])
                     
-                    # Map positional inputs to nets
+                    # Expand multi-bit inputs into per-bit nets, LSB-first for each port
                     in_nets = []
-                    for i in range(len(in_ports)):
-                        net = user_inputs[i] if i < len(user_inputs) else "0"
-                        in_nets.append(net)
+                    ui_idx = 0
+                    for pname, pwidth in in_ports:
+                        for b in range(pwidth):
+                            net = user_inputs[ui_idx] if ui_idx < len(user_inputs) else "0"
+                            in_nets.append(net)
+                            ui_idx += 1
                     in_vector = "[" + " ".join(in_nets) + "]" if in_nets else "0"
                     
-                    # Generate one A-device per output pin
+                    # Generate one A-device per output bit
                     hybrid_netlist += f"\n* Verilog Block: {ref} ({module_name})\n"
-                    for i, out_pin in enumerate(out_ports):
-                        out_net = user_outputs[i] if i < len(user_outputs) else "0"
-                        jit_id = f"{ref}_{out_pin.upper()}"
-                        hybrid_netlist += f"A_{jit_id} {in_vector} {out_net} viospice_jit_model_{jit_id}\n"
-                        hybrid_netlist += f".model viospice_jit_model_{jit_id} viospice_jit (jit_id=\"{jit_id}\")\n"
+                    uo_idx = 0
+                    for pname, pwidth in out_ports:
+                        for b in range(pwidth):
+                            out_net = user_outputs[uo_idx] if uo_idx < len(user_outputs) else "0"
+                            # Use bare pin name for 1-bit ports (matching compileFluxScripts registration),
+                            # or _b suffix for multi-bit ports
+                            pin_key = pname.upper() if pwidth == 1 else f"{pname.upper()}_{b}"
+                            jit_id = f"{ref}_{pin_key}"
+                            hybrid_netlist += f"A_{jit_id} {in_vector} {out_net} viospice_jit_model_{jit_id}\n"
+                            hybrid_netlist += f".model viospice_jit_model_{jit_id} viospice_jit (jit_id=\"{jit_id}\")\n"
+                            uo_idx += 1
 
-        # 3. Combined netlist
+        # 3. XSPICE Blocks
+        if xspice_blocks:
+            for xb in xspice_blocks:
+                ref = xb["ref"]
+                model_type = xb["model"]
+                inputs = xb.get("inputs", [])
+                outputs = xb.get("outputs", [])
+                params = xb.get("params", {})
+                
+                # Heuristics for vector ports (brackets)
+                is_logic = model_type.startswith("d_")
+                is_bridge = "bridge" in model_type.lower()
+                
+                # Default logic gates: inputs are vector, outputs are scalar
+                # EXCEPT bridges: both are vector
+                # EXCEPT inverter/buffer: both are scalar
+                default_in_vec = False
+                default_out_vec = False
+                
+                if is_bridge:
+                    default_in_vec = True
+                    default_out_vec = True
+                elif is_logic:
+                    if model_type in ["d_inverter", "d_buffer", "d_tristate"]:
+                        default_in_vec = False
+                        default_out_vec = False
+                    else:
+                        default_in_vec = True
+                        default_out_vec = False
+                
+                in_vec = xb.get("input_vector", default_in_vec)
+                out_vec = xb.get("output_vector", default_out_vec)
+                
+                # Metadata for GUI
+                # ... (rest of logic unchanged)
+                items.append({
+                    "type": "XspiceBlock",
+                    "reference": ref,
+                    "xspice_modelType": model_type,
+                    "xspice_params": json.dumps(params),
+                    "excludeFromSim": True
+                })
+                
+                # Netlist emission
+                model_name = f"m_{ref}_{model_type}"
+                param_str = " ".join([f"{k}={v}" for k, v in params.items()])
+                
+                in_str = "[" + " ".join(inputs) + "]" if in_vec else " ".join(inputs)
+                if not inputs and not in_vec: in_str = "0"
+                elif not inputs and in_vec: in_str = "[0]"
+                
+                out_str = "[" + " ".join(outputs) + "]" if out_vec else " ".join(outputs)
+                if not outputs and not out_vec: out_str = "0"
+                elif not outputs and out_vec: out_str = "[0]"
+
+                hybrid_netlist += f"\n* XSPICE Block: {ref} ({model_type})\n"
+                hybrid_netlist += f"A_{ref} {in_str} {out_str} {model_name}\n"
+                hybrid_netlist += f".model {model_name} {model_type}({param_str})\n"
+
+        # 4. Combined netlist
         hybrid_netlist += "\n.save all\n"
         if analysis:
-            # If analysis starts with '.', it's a directive, otherwise it's a command
+            # Build analysis line with optional step/stop
             if not analysis.startswith("."):
-                hybrid_netlist += f".{analysis}\n"
+                analysis_line = f".{analysis}"
             else:
-                hybrid_netlist += f"{analysis}\n"
+                analysis_line = analysis
+            if analysis.lower().replace(".", "") == "tran":
+                if step:
+                    analysis_line += f" {step}"
+                if stop:
+                    analysis_line += f" {stop}"
+            hybrid_netlist += analysis_line + "\n"
         
         items.append({
             "type": "Spice Directive",
@@ -536,6 +646,17 @@ def netlist_run(
                 os.remove(svf)
 
 
+def netlist_to_schematic(file: str, out: Optional[str] = None) -> Dict[str, Any]:
+    """Convert a SPICE netlist (.cir) into a Viora schematic (.flxsch).
+    AI agents should use this after verifying a circuit works via netlist_run.
+    """
+    args = ["netlist-to-schematic", str(_resolve_path(file))]
+    if out:
+        args.extend(["--out", out])
+    
+    return run_viora_command(args, json_out=True)
+
+
 def open_schematic(path: str, convert: bool = False) -> Dict[str, Any]:
     """Open a schematic or netlist file in the running VioSpice GUI."""
     abs_path = os.path.abspath(path)
@@ -558,6 +679,31 @@ def open_schematic(path: str, convert: bool = False) -> Dict[str, Any]:
         return {"ok": result.get("ok", False), "error": result.get("error", "")}
     except Exception as e:
         return {"ok": False, "error": f"VioSpice GUI not detected on localhost:18790 ({e})."}
+
+
+def open_project(path: str) -> Dict[str, Any]:
+    """Open a project file or directory in the running VioSpice GUI."""
+    abs_path = os.path.abspath(path)
+    try:
+        from vspice import ui
+        proxy = ui.connect()
+        result = proxy.open_project(abs_path)
+        return {"ok": result.get("ok", False), "error": result.get("error", "")}
+    except Exception as e:
+        return {"ok": False, "error": f"VioSpice GUI not detected on localhost:18790 ({e})."}
+
+
+def load_simulation_results(path: str) -> Dict[str, Any]:
+    """Load a .raw simulation results file into the running VioSpice GUI (Analog Oscilloscope)."""
+    abs_path = os.path.abspath(path)
+    try:
+        from vspice import ui
+        proxy = ui.connect()
+        result = proxy.load_simulation_results(abs_path)
+        return {"ok": result.get("ok", False), "error": result.get("error", "")}
+    except Exception as e:
+        return {"ok": False, "error": f"VioSpice GUI not detected on localhost:18790 ({e})."}
+
 
 def get_current_tab() -> Dict[str, Any]:
 
@@ -596,6 +742,8 @@ def netlist_run_async(
     robust: bool = False,
     compat: bool = True,
     smart_signals: Optional[List[Dict[str, Any]]] = None,
+    verilog_blocks: Optional[List[Dict[str, Any]]] = None,
+    xspice_blocks: Optional[List[Dict[str, Any]]] = None,
     options: Optional[str] = None,
     temperature: Optional[float] = None,
 ) -> Dict[str, Any]:
@@ -621,6 +769,8 @@ def netlist_run_async(
                 signals=signals, json_out=True,
                 robust=robust, compat=compat,
                 smart_signals=smart_signals,
+                verilog_blocks=verilog_blocks,
+                xspice_blocks=xspice_blocks,
                 options=options, temperature=temperature,
             )
             with _job_lock:

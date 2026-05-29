@@ -40,11 +40,11 @@ PropertyEditor::PropertyEditor(QWidget *parent)
         " color: #d4d4d4;"
         " border: none;"
         " gridline-color: #333333;"
-        " selection-background-color: #264f78;"
+        " selection-background-color: #3f3f46;"
         " selection-color: #ffffff;"
         "}"
         "QTableWidget::item { background: transparent; color: #d4d4d4; padding: 4px; border: none; }"
-        "QTableWidget::item:selected { background-color: #264f78; color: #ffffff; }"
+        "QTableWidget::item:selected { background-color: #3f3f46; color: #ffffff; }"
         "QHeaderView::section { background-color: #2d2d2d; color: #888888; border: 1px solid #333333; padding: 4px; }"
     );
 
@@ -73,12 +73,6 @@ void PropertyEditor::beginUpdate() {
 void PropertyEditor::endUpdate() {
     m_table->blockSignals(false);
     m_blockSignals = false;
-}
-
-void PropertyEditor::onBoolToggled(bool checked) {
-    if (m_blockSignals) return;
-    // Implementation depends on how we want to handle generic bool toggles
-    // For now, it's a placeholder for the signal-slot connection
 }
 
 void PropertyEditor::setSchematicItems(const QList<SchematicItem*>& items) {
@@ -210,7 +204,7 @@ void PropertyEditor::addSectionHeader(const QString &title) {
     m_table->insertRow(row);
     auto *item = new QTableWidgetItem(title);
     item->setBackground(QColor("#2d2d2d"));
-    item->setForeground(QColor("#569cd6"));
+    item->setForeground(QColor("#71717a"));
     item->setFont(QFont("Inter", 10, QFont::Bold));
     item->setFlags(item->flags() & ~Qt::ItemIsEditable);
     m_table->setItem(row, 0, item);
@@ -243,7 +237,7 @@ void PropertyEditor::addProperty(const QString &name, const QVariant &value, con
             "QComboBox QAbstractItemView {"
             " background-color: #1e1e1e;"
             " color: #d4d4d4;"
-            " selection-background-color: #264f78;"
+            " selection-background-color: #3f3f46;"
             "}"
         );
         connect(combo, &QComboBox::currentTextChanged, this, [this, name](const QString &text) {
@@ -255,8 +249,8 @@ void PropertyEditor::addProperty(const QString &name, const QVariant &value, con
         check->setChecked(value.toBool() || value.toString() == "True");
         check->setStyleSheet(
             "QCheckBox::indicator { width: 14px; height: 14px; border: 1px solid #8a8a8a; border-radius: 2px; background: #1f1f1f; }"
-            "QCheckBox::indicator:hover { border-color: #569cd6; }"
-            "QCheckBox::indicator:checked { border-color: #569cd6; background: #569cd6; image: url(:/icons/check.svg); }"
+            "QCheckBox::indicator:hover { border-color: #71717a; }"
+            "QCheckBox::indicator:checked { background-color: #52525b; border-color: #636363; image: url(:/icons/check.svg); }"
         );
         connect(check, &QCheckBox::checkStateChanged, this, [this, name](Qt::CheckState state) {
             if (!m_blockSignals) Q_EMIT propertyChanged(name, state == Qt::Checked);

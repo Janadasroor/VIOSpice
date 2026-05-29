@@ -32,11 +32,13 @@
 #include "ui/ai_datasheet_import_dialog.h"
 #include "../schematic/dialogs/spice_subcircuit_import_dialog.h"
 #include "../schematic/dialogs/subcircuit_picker_dialog.h"
+#include "../schematic/editor/schematic_editor.h"
 #include "../core/visuals/text_resolver.h"
 #include "../simulator/bridge/model_library_manager.h"
 #include "ui/text_properties_dialog.h"
 
 #include <QGraphicsDropShadowEffect>
+#include <QPlainTextEdit>
 #include <QFileDialog>
 #include <QFile>
 #include <QStyleOptionGraphicsItem>
@@ -999,6 +1001,8 @@ SymbolEditor::SymbolEditor(QWidget* parent)
     , m_undoStack(new QUndoStack(this)) {
     setObjectName("SymbolEditor");
     setupUI();
+    m_symbol.setReferencePrefix(m_prefixEdit->text());
+    m_undoStack->setClean();
     setProjectKey(QString());
     applyTheme();
     connect(&ThemeManager::instance(), &ThemeManager::themeChanged, this, &SymbolEditor::applyTheme);
@@ -1035,18 +1039,28 @@ void SymbolEditor::applyTheme() {
     
     theme->applyToWidget(this);
 
+    // Override the palette Highlight to neutral so dialogs (QInputDialog, QMessageBox)
+    // don't get blue buttons inherited from m_accentColor.
+    {
+        QPalette p = palette();
+        p.setColor(QPalette::Highlight, QColor("#52525b"));
+        p.setColor(QPalette::HighlightedText, Qt::white);
+        setPalette(p);
+    }
+
     QString bg = theme->windowBackground().name();
     QString panelBg = theme->panelBackground().name();
     QString fg = theme->textColor().name();
     QString textSec = theme->textSecondary().name();
     QString border = theme->panelBorder().name();
     QString accent = theme->accentColor().name();
+    QString focusColor = "#52525b";
     QString inputBg = (theme->type() == PCBTheme::Light) ? "#ffffff" : "#121212";
     QString btnBg = (theme->type() == PCBTheme::Light) ? "#f8fafc" : "#2d2d30";
     QString btnHover = (theme->type() == PCBTheme::Light) ? "#e2e8f0" : "#3c3c3c";
     QString selBg = (theme->type() == PCBTheme::Light) ? "#e2e8f0" : "#3c3c3c";
     QString selText = (theme->type() == PCBTheme::Light) ? "#111111" : "#ffffff";
-    QString btnPressed = (theme->type() == PCBTheme::Light) ? "#e2e8f0" : accent;
+    QString btnPressed = (theme->type() == PCBTheme::Light) ? "#e2e8f0" : "#3f3f46";
 
     if (theme->type() == PCBTheme::Light) {
         QPalette pal = palette();
@@ -1110,19 +1124,19 @@ void SymbolEditor::applyTheme() {
         "QMainWindow { background-color: %1; }"
         "QDockWidget { color: %3; font-weight: bold; }"
         "QDockWidget::title { background-color: %2; padding: 6px; border-bottom: 1px solid %5; }"
-        "QGroupBox { border: 1px solid %5; margin-top: 15px; padding-top: 15px; color: %6; font-size: 12px; font-weight: bold; border-radius: 4px; }"
+        "QGroupBox { border: 1px solid %5; margin-top: 15px; padding-top: 15px; color: %13; font-size: 12px; font-weight: bold; border-radius: 4px; }"
         "QGroupBox::title { subcontrol-origin: margin; left: 10px; padding: 0 5px; }"
         "QLineEdit, QComboBox, QSpinBox, QDoubleSpinBox { background-color: %7; border: 1px solid %5; padding: 4px 8px; color: %3; border-radius: 3px; }"
-        "QLineEdit:focus, QComboBox:focus { border-color: %6; }"
+        "QLineEdit:focus, QComboBox:focus { border-color: %13; }"
         "QLineEdit::selection, QComboBox::selection, QSpinBox::selection, QDoubleSpinBox::selection { background: %10; color: %11; }"
         "QComboBox QAbstractItemView { background: %7; selection-background-color: %10; selection-color: %11; }"
         "QPushButton { background-color: %8; border: 1px solid %5; padding: 6px 12px; color: %3; border-radius: 4px; }"
-        "QPushButton:hover { background-color: %9; border-color: %6; }"
+        "QPushButton:hover { background-color: %9; border-color: %13; }"
         "QPushButton:pressed { background-color: %12; color: %3; border-color: %5; }"
         "QPushButton:default { background-color: %8; border-color: %5; }"
         "QPushButton:default:pressed { background-color: %12; border-color: %5; }"
         "QScrollArea { border: none; background-color: %1; }"
-    ).arg(bg, panelBg, fg, textSec, border, accent, inputBg, btnBg, btnHover, selBg, selText, btnPressed));
+    ).arg(bg, panelBg, fg, textSec, border, accent, inputBg, btnBg, btnHover, selBg, selText, btnPressed, focusColor));
 
     QString toolbarStyle = theme->toolbarStylesheet();
     if (theme->type() == PCBTheme::Light) {
@@ -1165,24 +1179,46 @@ void SymbolEditor::applyTheme() {
             "   selection-color: %7;"
             "}"
         ).arg(bg, border, toolBtnHover, toolBtnChecked, inputBg, fg, textSec);
+    } else {
+        toolbarStyle += QString(
+            "QToolBar#TopToolbar QToolButton:checked, QToolBar#TopToolbar QToolButton:pressed, "
+            "QToolBar#LeftToolBar QToolButton:checked {"
+            "  border: 1px solid %1;"
+            "}"
+        ).arg(focusColor);
     }
     toolbarStyle += QString("QToolButton { color: %1; } QToolButton:checked { color: %1; }")
                         .arg(theme->type() == PCBTheme::Light ? textSec : fg);
     if (m_toolbar) m_toolbar->setStyleSheet(toolbarStyle);
     if (m_leftToolbar) m_leftToolbar->setStyleSheet(toolbarStyle);
-    if (m_leftToolbar) {
-        for (QAction* action : m_leftToolbar->actions()) {
+    auto retintActions = [this](QToolBar* toolbar) {
+        if (!toolbar) return;
+        for (QAction* action : toolbar->actions()) {
             const QString iconPath = action ? action->property("iconPath").toString() : QString();
             if (!iconPath.isEmpty()) {
                 action->setIcon(getThemeIcon(iconPath));
             }
         }
-    }
+    };
+    retintActions(m_toolbar);
+    retintActions(m_leftToolbar);
     
     if (m_statusBar) m_statusBar->setStyleSheet(theme->statusBarStylesheet());
     
-    for (auto dock : findChildren<QDockWidget*>()) {
-        dock->setStyleSheet(theme->dockStylesheet());
+    {
+        // Dock stylesheet must include QPushButton rules because setting
+        // a stylesheet on a QDockWidget blocks inheritance from parent.
+        QString dockBase = theme->dockStylesheet();
+        QString dockSS = dockBase + QString(
+            "QPushButton { background-color: %1; border: 1px solid %2; padding: 6px 12px; color: %3; border-radius: 4px; }"
+            "QPushButton:hover { background-color: %4; border-color: %5; }"
+            "QPushButton:pressed { background-color: %6; color: %3; border-color: %2; }"
+            "QPushButton:default { background-color: %1; border-color: %2; }"
+            "QPushButton:default:pressed { background-color: %6; border-color: %2; }"
+        ).arg(btnBg, border, fg, btnHover, focusColor, btnPressed);
+        for (auto dock : findChildren<QDockWidget*>()) {
+            dock->setStyleSheet(dockSS);
+        }
     }
 
     if (m_libraryTree) {
@@ -1190,7 +1226,7 @@ void SymbolEditor::applyTheme() {
             "QTreeWidget { background-color: %1; border: 1px solid %2; border-radius: 4px; color: %3; }"
             "QTreeWidget::item { padding: 4px; }"
             "QTreeWidget::item:selected { background-color: %4; color: white; }"
-        ).arg(inputBg, border, fg, accent));
+        ).arg(inputBg, border, fg, focusColor));
     }
     
     if (m_libSearchEdit) {
@@ -1226,6 +1262,10 @@ void SymbolEditor::applyTheme() {
     }
 
     if (m_view) {
+        QPalette vp = m_view->palette();
+        vp.setColor(QPalette::Highlight, QColor("#90caf9"));
+        m_view->setPalette(vp);
+        m_view->viewport()->setPalette(vp);
         m_view->viewport()->update();
     }
 }
@@ -1921,6 +1961,7 @@ void SymbolEditor::applySymbolDefinition(const SymbolDefinition& def) {
     m_footprintEdit->blockSignals(true);
     m_modelPathEdit->blockSignals(true);
     m_modelNameEdit->blockSignals(true);
+    if (m_spiceSubcircuitEdit) m_spiceSubcircuitEdit->blockSignals(true);
     m_nameEdit->setText(def.name());
     m_descriptionEdit->setText(def.description());
     m_categoryCombo->setCurrentText(def.category());
@@ -1934,12 +1975,15 @@ void SymbolEditor::applySymbolDefinition(const SymbolDefinition& def) {
     }
     m_modelPathEdit->setText(def.modelPath());
     m_modelNameEdit->setText(def.modelName());
+    if (m_spiceSubcircuitEdit)
+        m_spiceSubcircuitEdit->setPlainText(def.spiceSubcircuitCode());
     m_nameEdit->blockSignals(false);
     m_descriptionEdit->blockSignals(false);
     m_prefixEdit->blockSignals(false);
     m_footprintEdit->blockSignals(false);
     m_modelPathEdit->blockSignals(false);
     m_modelNameEdit->blockSignals(false);
+    if (m_spiceSubcircuitEdit) m_spiceSubcircuitEdit->blockSignals(false);
 
     // Update Unit Selector if needed
     if (m_unitCombo) {
@@ -2010,6 +2054,8 @@ SymbolDefinition SymbolEditor::symbolDefinition() const {
     def.setModelSource(m_modelSourceCombo->currentData().toString());
     def.setModelPath(m_modelPathEdit->text());
     def.setModelName(m_modelNameEdit->text());
+    if (m_spiceSubcircuitEdit)
+        def.setSpiceSubcircuitCode(m_spiceSubcircuitEdit->toPlainText().trimmed());
     if (m_subcktMappingTable) {
         QMap<int, QString> mapping;
         for (int row = 0; row < m_subcktMappingTable->rowCount(); ++row) {
@@ -2322,17 +2368,29 @@ void SymbolEditor::setupUI() {
     auto* modelForm = new QFormLayout(modelGroup);
     modelForm->addRow("Source:", m_modelSourceCombo);
 
-    QHBoxLayout* modelPathLayout = new QHBoxLayout();
+    auto* modelFileRow = new QWidget(modelGroup);
+    QHBoxLayout* modelPathLayout = new QHBoxLayout(modelFileRow);
+    modelPathLayout->setContentsMargins(0, 0, 0, 0);
     QPushButton* modelBrowse = new QPushButton("...");
     modelBrowse->setFixedWidth(30);
     modelPathLayout->addWidget(m_modelPathEdit);
     modelPathLayout->addWidget(modelBrowse);
-    modelForm->addRow("Model File:", modelPathLayout);
-    QHBoxLayout* modelNameLayout = new QHBoxLayout();
+    modelForm->addRow("Model File:", modelFileRow);
+
+    auto* modelNameRow = new QWidget(modelGroup);
+    QHBoxLayout* modelNameLayout = new QHBoxLayout(modelNameRow);
+    modelNameLayout->setContentsMargins(0, 0, 0, 0);
     QPushButton* pickSubckt = new QPushButton("Pick...");
     modelNameLayout->addWidget(m_modelNameEdit);
     modelNameLayout->addWidget(pickSubckt);
-    modelForm->addRow("Model Name:", modelNameLayout);
+    modelForm->addRow("Model Name:", modelNameRow);
+
+    m_embeddedCodeWidget = new QWidget();
+    auto* embeddedLayout = new QVBoxLayout(m_embeddedCodeWidget);
+    embeddedLayout->setContentsMargins(0, 0, 0, 0);
+    embeddedLayout->addWidget(m_spiceSubcircuitEdit);
+    modelForm->addRow("Subcircuit Code:", m_embeddedCodeWidget);
+
     infoLayout->addWidget(modelGroup);
 
     connect(modelBrowse, &QPushButton::clicked, this, [this]() {
@@ -2345,10 +2403,14 @@ void SymbolEditor::setupUI() {
 
     connect(pickSubckt, &QPushButton::clicked, this, &SymbolEditor::openSubcircuitPicker);
 
-    auto updateModelPathState = [this]() {
+    auto updateModelPathState = [this, modelFileRow, modelNameRow]() {
         const QString src = m_modelSourceCombo->currentData().toString();
-        const bool enablePath = (src != "none");
-        m_modelPathEdit->setEnabled(enablePath);
+        const bool isEmbedded = (src == "embedded");
+        const bool isNone = (src == "none");
+        modelFileRow->setVisible(!isEmbedded && !isNone);
+        modelNameRow->setVisible(!isEmbedded);
+        m_embeddedCodeWidget->setVisible(isEmbedded);
+        m_modelPathEdit->setEnabled(!isNone && !isEmbedded);
     };
     connect(m_modelSourceCombo, &QComboBox::currentIndexChanged, this, updateModelPathState);
     updateModelPathState();
@@ -2500,6 +2562,10 @@ void SymbolEditor::setupUI() {
     auto* applyTplBtn = new QPushButton("Apply Template");
     connect(applyTplBtn, &QPushButton::clicked, this, &SymbolEditor::onWizardApplyTemplate);
     wizLayout->addWidget(applyTplBtn);
+    auto* importSubcktBtn2 = new QPushButton("Import SPICE Subcircuit");
+    connect(importSubcktBtn2, &QPushButton::clicked, this, &SymbolEditor::onImportSpiceSubcircuit);
+    wizLayout->addWidget(importSubcktBtn2);
+    wizLayout->addWidget(new QLabel("--- or ---", this));
     auto* wizBtn = new QPushButton("Generate Symbol");
     connect(wizBtn, &QPushButton::clicked, this, &SymbolEditor::onWizardGenerate);
     wizLayout->addWidget(wizBtn);
@@ -2512,9 +2578,6 @@ void SymbolEditor::setupUI() {
     auto* importLtBtn = new QPushButton("Import LTspice Symbol");
     connect(importLtBtn, &QPushButton::clicked, this, &SymbolEditor::onImportLtspiceSymbol);
     wizLayout->addWidget(importLtBtn);
-    auto* importSubcktBtn2 = new QPushButton("Import SPICE Subcircuit");
-    connect(importSubcktBtn2, &QPushButton::clicked, this, &SymbolEditor::onImportSpiceSubcircuit);
-    wizLayout->addWidget(importSubcktBtn2);
     wizLayout->addStretch();
     wizDock->setWidget(wizContainer);
     addDockWidget(Qt::LeftDockWidgetArea, wizDock);
@@ -2687,15 +2750,18 @@ void SymbolEditor::onPlaceInSchematic() {
     }
     Q_EMIT placeInSchematicRequested(def);
 
-    // Find and raise SchematicEditor window
+    // Find SchematicEditor, call place method directly
     for (QWidget* widget : QApplication::topLevelWidgets()) {
-        if (widget->inherits("SchematicEditor")) {
-            widget->show();
-            widget->raise();
-            widget->activateWindow();
-            break;
+        if (auto* sch = qobject_cast<SchematicEditor*>(widget)) {
+            sch->onPlaceSymbolInSchematic(def);
+            sch->show();
+            sch->raise();
+            sch->activateWindow();
+            return;
         }
     }
+    QMessageBox::information(this, "Place in Schematic",
+        "Open a schematic editor first, then use this button to place the symbol.");
 }
 
 void SymbolEditor::connectViewSignals() {
@@ -2732,6 +2798,29 @@ void SymbolEditor::connectViewSignals() {
     connect(m_view, &SymbolEditorView::flipVRequested,     this, &SymbolEditor::onFlipV);
     connect(m_view, &SymbolEditorView::coordinatesChanged, this, &SymbolEditor::updateCoordinates);
     connect(m_view, &SymbolEditorView::itemErased,         this, &SymbolEditor::onItemErased);
+    connect(m_view, &SymbolEditorView::pinRotateRequested, this, [this]() {
+        // R/Ctrl+R while placing a pin: cycle orientation Right->Down->Left->Up
+        // Handled here (in view signal) to bypass parent QAction shortcut conflicts.
+        if (m_currentTool != Pin) return;
+        if (m_previewOrientation == "Right") m_previewOrientation = "Down";
+        else if (m_previewOrientation == "Down") m_previewOrientation = "Left";
+        else if (m_previewOrientation == "Left") m_previewOrientation = "Up";
+        else m_previewOrientation = "Right";
+        if (m_view) {
+            updatePinPreview(m_view->snapToGrid(m_view->mapToScene(m_view->mapFromGlobal(QCursor::pos()))));
+        }
+        statusBar()->showMessage("Pin orientation: " + m_previewOrientation, 1200);
+    });
+    connect(m_view, &SymbolEditorView::pinFlipHRequested, this, [this]() {
+        // H while placing a pin: flip horizontal (toggle Right<->Left)
+        if (m_currentTool != Pin) return;
+        if (m_previewOrientation == "Right") m_previewOrientation = "Left";
+        else if (m_previewOrientation == "Left") m_previewOrientation = "Right";
+        if (m_view) {
+            updatePinPreview(m_view->snapToGrid(m_view->mapToScene(m_view->mapFromGlobal(QCursor::pos()))));
+        }
+        statusBar()->showMessage("Pin orientation: " + m_previewOrientation, 1200);
+    });
     
      // Pen tool signals
      connect(m_view, &SymbolEditorView::penPointAdded, this, &SymbolEditor::onPenPointAdded);
@@ -3225,7 +3314,7 @@ void SymbolEditor::createToolBar() {
         "  border: 1px solid #555;"
         "}"
         "QToolBar#TopToolbar QToolButton:checked, QToolBar#TopToolbar QToolButton:pressed {"
-        "  background: #094771;"
+        "  background: #3f3f46;"
         "}"
         "QToolBar#TopToolbar QLabel {"
         "  color: #888;"
@@ -3268,8 +3357,8 @@ void SymbolEditor::createToolBar() {
         "  background-color: #3c3c3c;"
         "}"
         "QToolBar#LeftToolBar QToolButton:checked {"
-        "  background-color: #094771;"
-        "  border-color: #094771;"
+        "  background-color: #3f3f46;"
+        "  border-color: #3f3f46;"
         "  color: white;"
         "}"
     );
@@ -3317,34 +3406,39 @@ void SymbolEditor::createToolBar() {
 
     // ── Top toolbar ──────────────────────────────────────────────────────────
 
-    QAction* newSym = m_toolbar->addAction(getThemeIcon(":/icons/tool_new.svg", false), "New Symbol");
+    auto addTopAction = [&](const QString& name, const QString& iconPath, bool tinted = true) -> QAction* {
+        QAction* act = m_toolbar->addAction(getThemeIcon(iconPath, tinted), name);
+        act->setProperty("iconPath", iconPath);
+        return act;
+    };
+
+    QAction* newSym = addTopAction("New Symbol", ":/icons/tool_new.svg");
     newSym->setShortcut(QKeySequence::New);
     newSym->setToolTip("New Symbol (Ctrl+N)");
     connect(newSym, &QAction::triggered, this, &SymbolEditor::onNewSymbol);
 
-    QAction* saveAction = m_toolbar->addAction(getThemeIcon(":/icons/tool_save.svg", false), "Save");
+    QAction* saveAction = addTopAction("Save", ":/icons/tool_save.svg");
     saveAction->setShortcut(QKeySequence::Save);
     saveAction->setToolTip("Save (Ctrl+S)");
     connect(saveAction, &QAction::triggered, this, &SymbolEditor::onSave);
 
-    QAction* exportAction = m_toolbar->addAction(getThemeIcon(":/icons/tool_save_as.svg", false), "Save As...");
+    QAction* exportAction = addTopAction("Save As...", ":/icons/tool_save_as.svg");
     exportAction->setToolTip("Save symbol to a .viosym file");
     connect(exportAction, &QAction::triggered, this, &SymbolEditor::onExportVioSym);
 
-    QAction* saveTplAction = m_toolbar->addAction(getThemeIcon(":/icons/tool_gear.svg", false), "Save Wizard Template");
+    QAction* saveTplAction = addTopAction("Save Wizard Template", ":/icons/tool_gear.svg");
     saveTplAction->setToolTip("Save current symbol as IC Wizard template");
     connect(saveTplAction, &QAction::triggered, this, &SymbolEditor::onWizardSaveTemplate);
 
-    QAction* runAction = m_toolbar->addAction(getThemeIcon(":/icons/tool_run.png", false), "Run Simulation");
+    QAction* runAction = addTopAction("Run Simulation", ":/icons/tool_run.png");
     runAction->setToolTip("Run spice simulation on current symbol (F5)");
     runAction->setShortcut(QKeySequence("F5"));
-    // connect(runAction, &QAction::triggered, this, &SomeAction);
 
-    auto* openSchAct = m_toolbar->addAction(getThemeIcon(":/icons/nav_schematic.svg", false), "Open in Schematic");
+    auto* openSchAct = addTopAction("Open in Schematic", ":/icons/nav_schematic.svg");
     openSchAct->setToolTip("Place this symbol in the current schematic");
     connect(openSchAct, &QAction::triggered, this, &SymbolEditor::onPlaceInSchematic);
 
-    auto* importImgAct = m_toolbar->addAction(getThemeIcon(":/icons/tool_image.svg", false), "Import Image");
+    auto* importImgAct = addTopAction("Import Image", ":/icons/tool_image.svg");
     importImgAct->setToolTip("Import a bitmap image into the symbol");
     connect(importImgAct, &QAction::triggered, this, &SymbolEditor::onImportImage);
 
@@ -3352,55 +3446,58 @@ void SymbolEditor::createToolBar() {
 
     m_undoAction = m_undoStack->createUndoAction(this, "Undo");
     m_undoAction->setIcon(getThemeIcon(":/icons/undo.svg"));
+    m_undoAction->setProperty("iconPath", ":/icons/undo.svg");
     m_undoAction->setShortcut(QKeySequence::Undo);
     m_undoAction->setShortcutContext(Qt::WidgetWithChildrenShortcut);
     m_toolbar->addAction(m_undoAction);
 
     m_redoAction = m_undoStack->createRedoAction(this, "Redo");
     m_redoAction->setIcon(getThemeIcon(":/icons/redo.svg"));
+    m_redoAction->setProperty("iconPath", ":/icons/redo.svg");
     m_redoAction->setShortcut(QKeySequence::Redo);
     m_redoAction->setShortcutContext(Qt::WidgetWithChildrenShortcut);
     m_toolbar->addAction(m_redoAction);
 
-    m_deleteAction = new QAction(getThemeIcon(":/icons/tool_delete.svg", false), "Delete", this);
+    m_deleteAction = new QAction(getThemeIcon(":/icons/tool_delete.svg"), "Delete", this);
+    m_deleteAction->setProperty("iconPath", ":/icons/tool_delete.svg");
     m_deleteAction->setShortcut(QKeySequence::Delete);
     connect(m_deleteAction, &QAction::triggered, this, &SymbolEditor::onDelete);
     m_toolbar->addAction(m_deleteAction);
 
     m_toolbar->addSeparator();
 
-    auto* zoomIn  = m_toolbar->addAction(getThemeIcon(":/icons/view_zoom_in.svg"),  "Zoom In");
-    auto* zoomOut = m_toolbar->addAction(getThemeIcon(":/icons/view_zoom_out.svg"), "Zoom Out");
-    auto* zoomFit = m_toolbar->addAction(getThemeIcon(":/icons/view_fit.svg"),      "Zoom Fit");
+    auto* zoomIn  = addTopAction("Zoom In",  ":/icons/view_zoom_in.svg");
+    auto* zoomOut = addTopAction("Zoom Out", ":/icons/view_zoom_out.svg");
+    auto* zoomFit = addTopAction("Zoom Fit", ":/icons/view_fit.svg");
     connect(zoomIn,  &QAction::triggered, this, &SymbolEditor::onZoomIn);
     connect(zoomOut, &QAction::triggered, this, &SymbolEditor::onZoomOut);
     connect(zoomFit, &QAction::triggered, this, &SymbolEditor::onZoomFit);
 
     m_toolbar->addSeparator();
 
-    auto* rotateCWAct = m_toolbar->addAction(getThemeIcon(":/icons/tool_rotate.svg"), "Rotate 90° CW");
-    rotateCWAct->setShortcut(QKeySequence("Ctrl+R"));
-    rotateCWAct->setShortcutContext(Qt::WidgetWithChildrenShortcut);
-    connect(rotateCWAct, &QAction::triggered, this, &SymbolEditor::onRotateCW);
-    this->addAction(rotateCWAct);
+    m_rotateCWAct = addTopAction("Rotate 90° CW", ":/icons/tool_rotate.svg");
+    m_rotateCWAct->setShortcut(QKeySequence("Ctrl+R"));
+    m_rotateCWAct->setShortcutContext(Qt::WidgetWithChildrenShortcut);
+    connect(m_rotateCWAct, &QAction::triggered, this, &SymbolEditor::onRotateCW);
+    this->addAction(m_rotateCWAct);
 
-    auto* rotateCCWAct = m_toolbar->addAction(getThemeIcon(":/icons/tool_rotate_ccw.svg"), "Rotate 90° CCW");
+    auto* rotateCCWAct = addTopAction("Rotate 90° CCW", ":/icons/tool_rotate_ccw.svg");
     rotateCCWAct->setShortcut(QKeySequence("Ctrl+Shift+R"));
     rotateCCWAct->setShortcutContext(Qt::WidgetWithChildrenShortcut);
     connect(rotateCCWAct, &QAction::triggered, this, &SymbolEditor::onRotateCCW);
     this->addAction(rotateCCWAct);
 
-    auto* flipH = m_toolbar->addAction(getThemeIcon(":/icons/flip_h.svg"), "Flip Horizontal");
+    auto* flipH = addTopAction("Flip Horizontal", ":/icons/flip_h.svg");
     flipH->setShortcut(QKeySequence("X"));
     connect(flipH, &QAction::triggered, this, &SymbolEditor::onFlipH);
     this->addAction(flipH);
 
-    auto* flipV = m_toolbar->addAction(getThemeIcon(":/icons/flip_v.svg"), "Flip Vertical");
+    auto* flipV = addTopAction("Flip Vertical", ":/icons/flip_v.svg");
     flipV->setShortcut(QKeySequence("Y"));
     connect(flipV, &QAction::triggered, this, &SymbolEditor::onFlipV);
     this->addAction(flipV);
 
-    auto* srcAct = m_toolbar->addAction(getThemeIcon(":/icons/tool_src.png", false), "Run SRC");
+    auto* srcAct = addTopAction("Run SRC", ":/icons/tool_src.png");
     srcAct->setToolTip("Run Symbol Rule Checker (F7)");
     srcAct->setShortcut(QKeySequence("F7"));
     connect(srcAct, &QAction::triggered, this, &SymbolEditor::onRunSRC);
@@ -3410,7 +3507,7 @@ void SymbolEditor::createToolBar() {
 void SymbolEditor::createStatusBar() {
     m_statusBar->setStyleSheet(
         "QStatusBar {"
-        "  background-color: #007acc;"
+        "  background-color: #3f3f46;"
         "  color: white;"
         "  font-size: 11px;"
         "  padding: 0px 8px;"
@@ -3547,6 +3644,18 @@ void SymbolEditor::createSymbolInfoPanel() {
     m_modelSourceCombo->addItem("Library Root (sym/sub/cmp/lib)", "library");
     m_modelSourceCombo->addItem("Project Relative", "project");
     m_modelSourceCombo->addItem("Absolute File", "absolute");
+    m_modelSourceCombo->addItem("Embedded Subcircuit", "embedded");
+
+    m_spiceSubcircuitEdit = new QPlainTextEdit();
+    m_spiceSubcircuitEdit->setPlaceholderText(
+        "Paste SPICE .subckt definition here...\n\n"
+        "Example:\n"
+        ".subckt MY_AMP IN OUT VCC VEE\n"
+        "Q1 OUT IN VCC NPN\n"
+        "Q2 VEE OUT VEE PNP\n"
+        ".ends MY_AMP");
+    m_spiceSubcircuitEdit->setMinimumHeight(160);
+    connect(m_spiceSubcircuitEdit, &QPlainTextEdit::textChanged, this, &SymbolEditor::onSpiceSubcircuitCodeChanged);
 
     // Live updates for canvas labels when sidebar edits change
     connect(m_nameEdit, &QLineEdit::textChanged, this, &SymbolEditor::updateOverlayLabels);
@@ -3577,7 +3686,7 @@ QWidget* SymbolEditor::createSymbolMetadataWidget() {
             QLabel[objectName="metaName"] { font-weight: bold; color: #059669; }
             QTableWidget { background-color: #ffffff; alternate-background-color: #f1f5f9; gridline-color: #e2e8f0; border: 1px solid #cbd5e1; border-radius: 4px; }
             QTableWidget::item { color: #1f2937; }
-            QTableWidget::item:selected { background-color: #dbeafe; color: #1e40af; }
+            QTableWidget::item:selected { background-color: #e2e8f0; color: #334155; }
             QHeaderView::section { background-color: #f1f5f9; color: #475569; border: none; border-right: 1px solid #e2e8f0; border-bottom: 1px solid #e2e8f0; padding: 4px; font-weight: bold; }
             QScrollArea { background-color: transparent; border: none; }
             QScrollBar:vertical { background: #f1f5f9; width: 8px; }
@@ -4344,6 +4453,17 @@ void SymbolEditor::onToolSelected() {
         delete m_previewItem;
         m_previewItem = nullptr;
     }
+
+    // When Pin tool is active, disable conflicting shortcuts so they don't
+    // consume keys used for pin orientation: "R" (Rect), "H" (Anchor),
+    // "Ctrl+R" (rotateCW), "X" (flipH), "Y" (flipV).
+    const bool isPin = (m_currentTool == Pin);
+    if (auto* r = m_toolActions.value("Rect"))
+        r->setShortcut(isPin ? QKeySequence() : QKeySequence("R"));
+    if (auto* a = m_toolActions.value("Anchor"))
+        a->setShortcut(isPin ? QKeySequence() : QKeySequence("H"));
+    if (m_rotateCWAct)
+        m_rotateCWAct->setShortcut(isPin ? QKeySequence() : QKeySequence("Ctrl+R"));
 }
 
 void SymbolEditor::onItemErased(QGraphicsItem* item) {
@@ -6531,7 +6651,7 @@ void SymbolEditor::onSelectionChanged() {
                     auto* glow = new QGraphicsDropShadowEffect();
                     glow->setBlurRadius(15);
                     glow->setOffset(0);
-                    glow->setColor(QColor("#3b82f6")); // Professional Tech Blue
+                    glow->setColor(QColor("#71717a"));
                     item->setGraphicsEffect(glow);
                 }
             } else {
@@ -6609,20 +6729,16 @@ void SymbolEditor::populatePropertiesFor(int index) {
         m_propertyEditor->addProperty("Width",      dbl("width","w"));
         m_propertyEditor->addProperty("Height",     dbl("height","h"));
         m_propertyEditor->addProperty("Filled",     prim.data.value("filled").toBool());
-        m_propertyEditor->addProperty("Fill Color", str("fillColor","#007acc33"));
+        m_propertyEditor->addProperty("Fill Color", str("fillColor","#52525b33"));
         m_propertyEditor->addProperty("Line Width",  dbl("lineWidth") > 0 ? dbl("lineWidth") : 1.5);
-        m_propertyEditor->addProperty("Line Style",  str("lineStyle","Solid"),
-                                      "enum|Solid,Dash,Dot,DashDot");
         break;
     case SymbolPrimitive::Circle:
         m_propertyEditor->addProperty("Center X",   dbl("centerX","cx"));
         m_propertyEditor->addProperty("Center Y",   dbl("centerY","cy"));
         m_propertyEditor->addProperty("Radius",     dbl("radius","r"));
         m_propertyEditor->addProperty("Filled",     prim.data.value("filled").toBool());
-        m_propertyEditor->addProperty("Fill Color", str("fillColor","#007acc33"));
+        m_propertyEditor->addProperty("Fill Color", str("fillColor","#52525b33"));
         m_propertyEditor->addProperty("Line Width",  dbl("lineWidth") > 0 ? dbl("lineWidth") : 1.5);
-        m_propertyEditor->addProperty("Line Style",  str("lineStyle","Solid"),
-                                      "enum|Solid,Dash,Dot,DashDot");
         break;
     case SymbolPrimitive::Arc:
         m_propertyEditor->addProperty("X",          dbl("x"));
@@ -6636,7 +6752,7 @@ void SymbolEditor::populatePropertiesFor(int index) {
     case SymbolPrimitive::Polygon:
         m_propertyEditor->addProperty("Points",     prim.data.value("points").toArray().size());
         m_propertyEditor->addProperty("Filled",     prim.data.value("filled").toBool());
-        m_propertyEditor->addProperty("Fill Color", str("fillColor","#007acc33"));
+        m_propertyEditor->addProperty("Fill Color", str("fillColor","#52525b33"));
         break;
     case SymbolPrimitive::Bezier:
         m_propertyEditor->addProperty("X1", dbl("x1"));
@@ -6929,8 +7045,19 @@ void SymbolEditor::keyPressEvent(QKeyEvent* event) {
         onDelete();
         event->accept();
         return;
+    } else if (event->key() == Qt::Key_Return && m_currentTool == Pen) {
+        // Enter key: finalize pen path
+        finalizePenPath();
+        event->accept();
+        return;
+    } else if (event->key() == Qt::Key_Backspace && m_currentTool == Pen && !m_penPoints.isEmpty()) {
+        // Backspace: remove last point
+        m_penPoints.removeLast();
+        updatePenPreview();
+        event->accept();
+        return;
     } else if (event->key() == Qt::Key_R && m_currentTool == Pin) {
-        // R or Ctrl+R: rotate orientation: Right -> Down -> Left -> Up
+        // R or Ctrl+R: rotate orientation Right->Down->Left->Up
         if (m_previewOrientation == "Right") m_previewOrientation = "Down";
         else if (m_previewOrientation == "Down") m_previewOrientation = "Left";
         else if (m_previewOrientation == "Left") m_previewOrientation = "Up";
@@ -6943,25 +7070,13 @@ void SymbolEditor::keyPressEvent(QKeyEvent* event) {
         return;
     } else if (event->key() == Qt::Key_H && m_currentTool == Pin
                && !(event->modifiers() & (Qt::ControlModifier | Qt::AltModifier | Qt::MetaModifier))) {
-        // H: flip horizontal (toggle Right <-> Left) — useful for IC opposite-side pins
+        // H: flip horizontal (toggle Right <-> Left)
         if (m_previewOrientation == "Right") m_previewOrientation = "Left";
         else if (m_previewOrientation == "Left") m_previewOrientation = "Right";
-        // Up and Down stay unchanged (mirror is a no-op for vertical pins)
         if (m_view) {
             updatePinPreview(m_view->snapToGrid(m_view->mapToScene(m_view->mapFromGlobal(QCursor::pos()))));
         }
         statusBar()->showMessage("Pin orientation: " + m_previewOrientation, 1200);
-        event->accept();
-        return;
-    } else if (event->key() == Qt::Key_Return && m_currentTool == Pen) {
-        // Enter key: finalize pen path
-        finalizePenPath();
-        event->accept();
-        return;
-    } else if (event->key() == Qt::Key_Backspace && m_currentTool == Pen && !m_penPoints.isEmpty()) {
-        // Backspace: remove last point
-        m_penPoints.removeLast();
-        updatePenPreview();
         event->accept();
         return;
     }
@@ -7005,6 +7120,13 @@ void SymbolEditor::setProjectKey(const QString& key) {
 }
 
 void SymbolEditor::closeEvent(QCloseEvent* event) {
+    auto* theme = ThemeManager::theme();
+    const bool isDark = theme && theme->type() != PCBTheme::Light;
+    const QString btnBg = isDark ? "#27272a" : "#ffffff";
+    const QString btnHover = isDark ? "#3f3f46" : "#f8fafc";
+    const QString btnPressed = isDark ? "#52525b" : "#e2e8f0";
+    const QString border = isDark ? "#52525b" : "#cbd5e1";
+    const QString fg = isDark ? "#e4e4e7" : "#1e293b";
     const bool metadataDirty =
         (m_symbol.name() != m_nameEdit->text()) ||
         (m_symbol.description() != m_descriptionEdit->text()) ||
@@ -7023,6 +7145,11 @@ void SymbolEditor::closeEvent(QCloseEvent* event) {
         QPushButton* discardBtn = msg.addButton("Discard", QMessageBox::DestructiveRole);
         msg.addButton("Cancel", QMessageBox::RejectRole);
         msg.setDefaultButton(saveAsBtn);
+        msg.setStyleSheet(QString(
+            "QPushButton { background-color: %1; border: 1px solid %2; padding: 6px 16px; color: %3; border-radius: 4px; }"
+            "QPushButton:hover { background-color: %4; border-color: %2; }"
+            "QPushButton:pressed { background-color: %5; }"
+        ).arg(btnBg, border, fg, btnHover, btnPressed));
 
         msg.exec();
         QAbstractButton* clicked = msg.clickedButton();
@@ -7262,6 +7389,22 @@ void SymbolEditor::tryAutoDetectModelName() {
     const QString detected = detectModelNameFromFile(resolved, prefix);
     if (!detected.isEmpty()) {
         m_modelNameEdit->setText(detected);
+    }
+}
+
+void SymbolEditor::onSpiceSubcircuitCodeChanged() {
+    if (!m_spiceSubcircuitEdit || !m_modelNameEdit || !m_modelSourceCombo) return;
+    // Only auto-extract when source is "embedded"
+    if (m_modelSourceCombo->currentData().toString() != "embedded") return;
+
+    const QString code = m_spiceSubcircuitEdit->toPlainText();
+    static const QRegularExpression re(R"(\.subckt\s+(\S+))",
+        QRegularExpression::CaseInsensitiveOption);
+    QRegularExpressionMatch match = re.match(code);
+    if (match.hasMatch()) {
+        m_modelNameEdit->setText(match.captured(1).trimmed());
+    } else {
+        m_modelNameEdit->clear();
     }
 }
 

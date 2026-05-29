@@ -5,9 +5,13 @@
 #include "../items/schematic_item.h"
 #include "../items/generic_component_item.h"
 #include "../items/power_item.h"
+#include "../items/bus_item.h"
+#include "../items/capacitor_item.h"
 #include <QGraphicsScene>
 #include <QSet>
 #include <QMap>
+#include <QRegularExpression>
+#include <algorithm>
 
 // ────────────────────────────────────────────────────────────────────────────
 // Main Entry Point
@@ -425,7 +429,50 @@ QList<DesignRuleViolation> SchematicERCAdvanced::checkBusWidthMismatch(
     DesignRule* rule
 ) {
     QList<DesignRuleViolation> violations;
-    // TODO: Implement bus width checking
+    if (!scene || !netManager || !rule) return violations;
+
+    static const QRegularExpression busWidthRe(R"(\[(\d+)\s*[:.\-]\s*(\d+)\])");
+
+    for (auto* item : scene->items()) {
+        auto* bus = dynamic_cast<BusItem*>(item);
+        if (!bus) continue;
+
+        QString busName = bus->netName();
+        auto match = busWidthRe.match(busName);
+        if (!match.hasMatch()) continue;
+
+        int hi = match.captured(1).toInt();
+        int lo = match.captured(2).toInt();
+        int declaredWidth = std::abs(hi - lo) + 1;
+
+        // Get all items connected to this bus net
+        auto connected = netManager->getItemsForNet(busName);
+        if (connected.isEmpty()) continue;
+
+        // Calculate total connected pins across all connected components
+        int totalConnectedPins = 0;
+        for (auto* comp : connected) {
+            if (auto* si = dynamic_cast<SchematicItem*>(comp)) {
+                totalConnectedPins += si->connectionPoints().size();
+            }
+        }
+
+        if (totalConnectedPins != 0 && totalConnectedPins != declaredWidth) {
+            DesignRuleViolation v;
+            v.ruleId = rule->id();
+            v.ruleName = rule->name();
+            v.severity = rule->defaultSeverity();
+            v.message = QString("Bus '%1' declares width %2 but has %3 connected pin(s)")
+                .arg(busName).arg(declaredWidth).arg(totalConnectedPins);
+            v.objectRef = busName;
+            v.position = bus->scenePos();
+            v.netName = busName;
+            v.context["declaredWidth"] = declaredWidth;
+            v.context["connectedPins"] = totalConnectedPins;
+            violations.append(v);
+        }
+    }
+
     return violations;
 }
 
@@ -435,7 +482,46 @@ QList<DesignRuleViolation> SchematicERCAdvanced::checkDifferentVoltageDomains(
     DesignRule* rule
 ) {
     QList<DesignRuleViolation> violations;
-    // TODO: Implement voltage domain checking
+    if (!scene || !netManager || !rule) return violations;
+
+    for (auto* item : scene->items()) {
+        auto* comp = dynamic_cast<SchematicItem*>(item);
+        if (!comp || comp->itemType() == SchematicItem::WireType ||
+            comp->itemType() == SchematicItem::BusType ||
+            comp->itemType() == SchematicItem::JunctionType ||
+            comp->itemType() == SchematicItem::LabelType) {
+            continue;
+        }
+
+        // Collect unique voltage domains across all nets this component connects to
+        QSet<QString> domains;
+        auto connPts = comp->connectionPoints();
+        for (int i = 0; i < connPts.size(); ++i) {
+            QPointF pt = comp->mapToScene(connPts[i]);
+            QString netName = netManager->findNetAtPoint(pt);
+            if (netName.isEmpty()) continue;
+
+            QString domain = getNetVoltageDomain(netName);
+            if (domain != "Unknown") {
+                domains.insert(domain);
+            }
+        }
+
+        if (domains.size() > 1) {
+            QStringList domainList = domains.values();
+            DesignRuleViolation v;
+            v.ruleId = rule->id();
+            v.ruleName = rule->name();
+            v.severity = rule->defaultSeverity();
+            v.message = QString("%1 connects multiple voltage domains: %2")
+                .arg(comp->reference(), domainList.join(", "));
+            v.objectRef = comp->reference();
+            v.position = comp->scenePos();
+            v.context["domains"] = domainList;
+            violations.append(v);
+        }
+    }
+
     return violations;
 }
 
@@ -540,7 +626,14 @@ QList<SchematicItem*> SchematicERCAdvanced::getComponentsConnectedToNet(
     const QString& netName
 ) {
     QList<SchematicItem*> result;
-    // TODO: Implement using netManager connectivity info
+    if (!netManager || netName.isEmpty()) return result;
+
+    auto items = netManager->getItemsForNet(netName);
+    for (auto* item : items) {
+        if (auto* si = dynamic_cast<SchematicItem*>(item)) {
+            result.append(si);
+        }
+    }
     return result;
 }
 
@@ -549,9 +642,101 @@ bool SchematicERCAdvanced::hasDecouplingCapacitor(
     SchematicItem* ic,
     double minCapacitance
 ) {
-    // Get VCC and GND nets for this IC
-    // TODO: Implement proper net tracing
-    // For now, return true to avoid false positives
+    if (!netManager || !ic) return true;
+
+    // Collect all nets connected to this IC's power pins
+    QSet<QString> powerNets;
+    auto pinTypes = ic->pinElectricalTypes();
+    auto connPts = ic->connectionPoints();
+
+    for (int i = 0; i < pinTypes.size() && i < connPts.size(); ++i) {
+        if (pinTypes[i] == SchematicItem::PowerInputPin ||
+            pinTypes[i] == SchematicItem::PowerOutputPin) {
+            QPointF pt = ic->mapToScene(connPts[i]);
+            QString netName = netManager->findNetAtPoint(pt);
+            if (!netName.isEmpty()) {
+                powerNets.insert(netName);
+            }
+        }
+    }
+
+    if (powerNets.isEmpty()) return true;
+
+    // Check each power net for nearby decoupling capacitors
+    for (const QString& netName : powerNets) {
+        auto itemsOnNet = netManager->getItemsForNet(netName);
+        bool hasCapOnNet = false;
+
+        for (auto* item : itemsOnNet) {
+            if (item == ic) continue;
+            // Check if item is a capacitor
+            if (dynamic_cast<CapacitorItem*>(item)) {
+                QString valStr = item->property("value").toString();
+                if (valStr.isEmpty()) {
+                    if (auto* si = dynamic_cast<SchematicItem*>(item)) {
+                        valStr = si->value();
+                    }
+                }
+                // Parse capacitance: strip units, compare in Farads
+                double capVal = 0;
+                QString num;
+                for (QChar ch : valStr) {
+                    if (ch.isDigit() || ch == '.' || ch == 'e' || ch == 'E' || ch == '+' || ch == '-') {
+                        num.append(ch);
+                    } else {
+                        break;
+                    }
+                }
+                if (!num.isEmpty()) {
+                    capVal = num.toDouble();
+                    QString upper = valStr.toUpper();
+                    if (upper.contains('N') || upper.contains("NANO")) capVal *= 1e-9;
+                    else if (upper.contains('P') || upper.contains("PICO")) capVal *= 1e-12;
+                    else if (upper.contains('U') || upper.contains("MICRO") || upper.contains(QChar(0x00B5))) capVal *= 1e-6;
+                    else if (upper.contains('M') && !upper.contains("MEGA")) capVal *= 1e-3;
+                    else if (upper.contains("MEGA") || upper.contains("MEG")) capVal *= 1e6;
+                }
+                if (capVal >= minCapacitance) {
+                    hasCapOnNet = true;
+                    break;
+                }
+            }
+            // Also check generic components with CapacitorType
+            if (auto* si = dynamic_cast<SchematicItem*>(item)) {
+                if (si->itemType() == SchematicItem::CapacitorType) {
+                    QString valStr = si->value();
+                    // Parse similarly (simplified)
+                    double capVal = 0;
+                    QString num;
+                    for (QChar ch : valStr) {
+                        if (ch.isDigit() || ch == '.' || ch == 'e' || ch == 'E' || ch == '+' || ch == '-') {
+                            num.append(ch);
+                        } else {
+                            break;
+                        }
+                    }
+                    if (!num.isEmpty()) {
+                        capVal = num.toDouble();
+                        QString upper = valStr.toUpper();
+                        if (upper.contains('N') || upper.contains("NANO")) capVal *= 1e-9;
+                        else if (upper.contains('P') || upper.contains("PICO")) capVal *= 1e-12;
+                        else if (upper.contains('U') || upper.contains("MICRO") || upper.contains(QChar(0x00B5))) capVal *= 1e-6;
+                        else if (upper.contains('M') && !upper.contains("MEGA")) capVal *= 1e-3;
+                        else if (upper.contains("MEGA") || upper.contains("MEG")) capVal *= 1e6;
+                    }
+                    if (capVal >= minCapacitance) {
+                        hasCapOnNet = true;
+                        break;
+                    }
+                }
+            }
+        }
+
+        if (!hasCapOnNet) {
+            return false;
+        }
+    }
+
     return true;
 }
 

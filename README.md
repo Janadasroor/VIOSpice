@@ -187,6 +187,21 @@ Documentation: [docs/developer/ML_DATASET_API.md](docs/developer/ML_DATASET_API.
 ML engineer guide: [docs/developer/ML_ENGINEER_GUIDE.md](docs/developer/ML_ENGINEER_GUIDE.md)
 Examples: [examples/ml_api/README.md](examples/ml_api/README.md)
 
+## AI Integration (MCP)
+
+**VioraEDA-MCP** is the official high-performance Model Context Protocol (MCP) server for VioraEDA. it provides AI assistants (like Claude, Gemini, and Cursor) with direct access to circuit design tools, simulation engines, and visual rendering.
+
+- **Fast & Portable**: Built using FastMCP for sub-millisecond response times.
+- **Self-Configuring**: One-command setup for all major AI ecosystem.
+- **Deep Integration**: Launch simulations, render schematics, and control the VioraEDA GUI via AI.
+
+Repository: [Janadasroor/vioraeda-mcp](https://github.com/Janadasroor/vioraeda-mcp)
+
+```bash
+pipx install vioraeda-mcp
+vioraeda-mcp init
+```
+
 ## File System Layout
 
 | What | Linux | macOS | Windows |

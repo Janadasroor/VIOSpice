@@ -26,9 +26,9 @@ void ICItem::buildPrimitives() {
     
     // Calculate IC body size based on pin count
     int pinsPerSide = m_pinCount / 2;
-    qreal pinSpacing = 30.0; // Increased from 20.0
-    qreal bodyHeight = pinsPerSide * pinSpacing + 15; // Increased from 10
-    qreal bodyWidth = 90.0; // Increased from 60.0
+    qreal pinSpacing = 30.0;
+    qreal bodyHeight = pinsPerSide * pinSpacing;
+    qreal bodyWidth = 90.0;
     qreal halfH = bodyHeight / 2;
     qreal halfW = bodyWidth / 2;
     
@@ -36,45 +36,35 @@ void ICItem::buildPrimitives() {
     m_primitives.push_back(std::make_unique<RectPrimitive>(
         QRectF(-halfW, -halfH, bodyWidth, bodyHeight), false));
     
-    // Notch at top (half circle indicator)
+    // Notch at top (facing up for vertical IC)
     m_primitives.push_back(std::make_unique<ArcPrimitive>(
-        QRectF(-12, -halfH - 6, 24, 12), 0, 180));
+        QRectF(-11.25, -halfH - 5.625, 22.5, 11.25), 0, 180 * 16));
     
     // Pin 1 dot indicator
     m_primitives.push_back(std::make_unique<CirclePrimitive>(
-        QPointF(-halfW + 15, -halfH + 15), 4.5, true));
+        QPointF(-halfW + 11.25, -halfH + 11.25), 3.75, true));
     
     // Left side pins
     for (int i = 0; i < pinsPerSide; ++i) {
-        qreal y = -halfH + 22.5 + i * pinSpacing;
-        // Pin lead
+        qreal y = -halfH + 15.0 + i * pinSpacing;
+        // Pin lead (15 units)
         m_primitives.push_back(std::make_unique<LinePrimitive>(
             QPointF(-halfW, y), QPointF(-halfW - 15.0, y)));
         // Connection dot
         m_primitives.push_back(std::make_unique<CirclePrimitive>(
             QPointF(-halfW - 15.0, y), 3.75, true));
-        // Pin number text
-        m_primitives.push_back(std::make_unique<TextPrimitive>(
-            QString::number(i + 1), QPointF(-halfW + 4.5, y + 6), 10));
     }
     
     // Right side pins (numbered from bottom up)
     for (int i = 0; i < pinsPerSide; ++i) {
-        qreal y = halfH - 22.5 - i * pinSpacing;
-        // Pin lead
+        qreal y = halfH - 15.0 - i * pinSpacing;
+        // Pin lead (15 units)
         m_primitives.push_back(std::make_unique<LinePrimitive>(
             QPointF(halfW, y), QPointF(halfW + 15.0, y)));
         // Connection dot
         m_primitives.push_back(std::make_unique<CirclePrimitive>(
             QPointF(halfW + 15.0, y), 3.75, true));
-        // Pin number text
-        m_primitives.push_back(std::make_unique<TextPrimitive>(
-            QString::number(pinsPerSide + i + 1), QPointF(halfW - 15.0, y + 6), 10));
     }
-    
-    // IC name/value in center (we'll keep this one static as it's the component title)
-    m_primitives.push_back(std::make_unique<TextPrimitive>(
-        m_value, QPointF(-30, 7.5), 15));
 }
 
 void ICItem::setValue(const QString& value) {
@@ -186,26 +176,24 @@ SchematicItem* ICItem::clone() const {
 
 QList<QPointF> ICItem::connectionPoints() const {
     QList<QPointF> points;
-
     int pinsPerSide = m_pinCount / 2;
     qreal pinSpacing = 30.0;
-    qreal bodyHeight = pinsPerSide * pinSpacing + 15;
+    qreal bodyHeight = pinsPerSide * pinSpacing;
     qreal bodyWidth = 90.0;
     qreal halfH = bodyHeight / 2;
     qreal halfW = bodyWidth / 2;
 
     // Left side pins
     for (int i = 0; i < pinsPerSide; ++i) {
-        qreal y = -halfH + 22.5 + i * pinSpacing;
+        qreal y = -halfH + 15.0 + i * pinSpacing;
         points.append(QPointF(-halfW - 15.0, y));
     }
 
     // Right side pins (numbered from bottom up)
     for (int i = 0; i < pinsPerSide; ++i) {
-        qreal y = halfH - 22.5 - i * pinSpacing;
+        qreal y = halfH - 15.0 - i * pinSpacing;
         points.append(QPointF(halfW + 15.0, y));
     }
-
     return points;
 }
 

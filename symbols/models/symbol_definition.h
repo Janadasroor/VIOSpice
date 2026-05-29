@@ -71,6 +71,10 @@ public:
     QString modelName() const { return m_modelName; } // .model or .subckt name
     void setModelName(const QString& name) { m_modelName = name; }
 
+    // Embedded subcircuit code (inline .subckt ... .ends block)
+    QString spiceSubcircuitCode() const { return m_spiceSubcircuitCode; }
+    void setSpiceSubcircuitCode(const QString& code) { m_spiceSubcircuitCode = code; }
+
     QStringList footprintFilters() const { return m_footprintFilters; }
     void setFootprintFilters(const QStringList& filters) { m_footprintFilters = filters; }
 
@@ -146,6 +150,7 @@ private:
     QString m_modelSource;
     QString m_modelPath;
     QString m_modelName;
+    QString m_spiceSubcircuitCode;
     QStringList m_footprintFilters;
     int m_unitCount = 1;
     bool m_unitsInterchangeable = true;

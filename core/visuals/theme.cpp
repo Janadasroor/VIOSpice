@@ -192,7 +192,7 @@ QString PCBTheme::widgetStylesheet() const {
     QString inputBg = isDark ? "#18181b" : "#ffffff";
     QString inputText = isDark ? m_textColor.name() : "#1e293b"; // Ensure dark text in light theme
     QString itemHover = isDark ? "#3f3f46" : "#f1f5f9";
-    QString itemSelected = isDark ? m_accentColor.name() : "#dbeafe";
+    QString itemSelected = isDark ? m_accentColor.name() : "#e2e8f0";
     QString headerBg = isDark ? "#27272a" : "#f8fafc";
     QString menuBg = isDark ? "#18181b" : "#ffffff";
     QString btnBg = isDark ? "#27272a" : "#ffffff";
@@ -203,6 +203,7 @@ QString PCBTheme::widgetStylesheet() const {
     QString indicatorHover = m_accentColor.name();
     QString indicatorDisabledBg = isDark ? "#27272a" : "#e2e8f0";
     QString indicatorDisabledBorder = isDark ? "#52525b" : "#cbd5e1";
+    QString indicatorCheckedBg = isDark ? "#52525b" : "#cbd5e1";
 
     return QString(
         "QWidget {"
@@ -299,8 +300,9 @@ QString PCBTheme::widgetStylesheet() const {
         "   border-color: %19;"
         "}"
         "QCheckBox::indicator:checked {"
+        "   background-color: %24;"
+        "   border-color: %24;"
         "   image: url(:/icons/check.svg);"
-        "   border-color: %5;"
         "}"
         "QRadioButton::indicator:checked {"
         "   background-color: %5;"
@@ -374,7 +376,8 @@ QString PCBTheme::widgetStylesheet() const {
      .arg(indicatorDisabledBg)            // 20
      .arg(indicatorDisabledBorder)        // 21
      .arg(itemSelected)                   // 22
-     .arg(isDark ? "#ffffff" : "#1e40af"); // 23
+      .arg(isDark ? "#ffffff" : "#334155")  // 23
+      .arg(indicatorCheckedBg);              // 24
 }
 
 QString PCBTheme::toolbarStylesheet() const {

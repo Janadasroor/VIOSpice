@@ -45,6 +45,10 @@ VioraEDA
 # Simulation Artifacts
 *.raw
 *.cir
+*.png
+*.jpeg
+*.jpg
+*.sv
 *.flxsch.bak
 test_netlist.cir
 test_schematic.sch
