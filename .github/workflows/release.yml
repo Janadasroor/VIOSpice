@@ -195,24 +195,14 @@ jobs:
         shell: msys2 {0}
         run: |
           set -x
-          echo "=== Copying dependency DLLs ==="
-          # Python DLL alias (VioraEDA links python314.dll, MSYS2 has libpython3.14.dll)
-          cp -vn /mingw64/bin/libpython3.14.dll build/python314.dll 2>&1 || true
-          # All Qt6 + GCC runtime DLLs from /mingw64/bin
-          dll_list=$(objdump -p build/VioraEDA.exe 2>&1 | grep "DLL Name" | sed 's/.*DLL Name: *//' | \
-            grep -ivE '^(ADVAPI32|KERNEL32|msvcrt|ntdll|ole32|SHELL32)\.dll$' | sort -u)
-          for dll in $dll_list; do
-            found=""
-            for dir in /mingw64/bin /mingw64/lib build/viomatrixc-prebuilt/bin; do
-              if [ -f "$dir/$dll" ]; then found="$dir/$dll"; break; fi
-            done
-            if [ -n "$found" ]; then
-              cp -v "$found" "build/$dll" 2>&1 || true
-            else
-              echo "  NOT FOUND: $dll"
-            fi
-          done
-          # Qt platform plugin
+          echo "=== Copying all DLLs ==="
+          # Copy ALL DLLs from MSYS2 mingw64 bin to ensure transitive dependencies resolve
+          cp -av /mingw64/bin/*.dll build/ 2>/dev/null || true
+          # Create python314.dll alias (VioraEDA imports python314.dll, MSYS2 has libpython3.14.dll)
+          cp -v /mingw64/bin/libpython3.14.dll build/python314.dll 2>&1 || true
+          # Copy ngspice DLL from prebuilt
+          cp -v build/viomatrixc-prebuilt/bin/libngspice-0.dll build/ 2>&1 || true
+          # Copy Qt platform plugin
           for pdir in /mingw64/share/qt6/plugins /mingw64/plugins /mingw64/lib/qt6/plugins; do
             plugin="$pdir/platforms/qwindows.dll"
             if [ -f "$plugin" ]; then
@@ -221,8 +211,9 @@ jobs:
               break
             fi
           done
-          echo "=== Build DLLs ==="
-          ls -la build/*.dll 2>&1
+          echo "=== DLL count ==="
+          ls build/*.dll 2>&1 | wc -l
+          echo "=== platforms ==="
           ls -la build/platforms/ 2>&1 || echo "(no platforms dir)"
           set +e
           ./build/VioraEDA.exe > /tmp/viora_stdout.log 2> /tmp/viora_stderr.log &
