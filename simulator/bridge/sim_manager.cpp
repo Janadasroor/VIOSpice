@@ -785,9 +785,33 @@ SimManager& SimManager::instance() {
 
 SimManager::~SimManager() = default;
 
+static void ensureSpiceinitCodemodels() {
+#ifdef Q_OS_WIN
+    QString path = QDir::homePath() + "/AppData/Roaming/ngspice/spiceinit";
+#else
+    QString path = QDir::homePath() + "/.spiceinit";
+#endif
+    QDir().mkpath(QFileInfo(path).absolutePath());
+    QFile f(path);
+    if (!f.open(QIODevice::ReadWrite | QIODevice::Append))
+        return;
+    QString content = QString::fromUtf8(f.readAll());
+    if (content.contains("digital.cm"))
+        return;
+    f.write(QString("\n* Auto-added by viospice\n").toUtf8());
+    QString cm_dir = QString(VIOSPICE_CM_DIR);
+    QStringList exts = { "analog", "digital", "spice2poly", "tlines", "xtradev", "xtraevt" };
+    for (const auto& e : exts) {
+        QString cm_path = cm_dir + "/" + e + ".cm";
+        if (QFile::exists(cm_path))
+            f.write(QString("codemodel %1\n").arg(cm_path).toUtf8());
+    }
+}
+
 SimManager::SimManager(QObject* parent) : QObject(parent) {
     qRegisterMetaType<std::vector<double>>("std::vector<double>");
     qRegisterMetaType<std::vector<std::vector<double>>>("std::vector<std::vector<double>>");
+    ensureSpiceinitCodemodels();
 
     m_rtTimer = new QTimer(this);
     connect(m_rtTimer, &QTimer::timeout, this, &SimManager::onRealTimeTick);

@@ -207,11 +207,11 @@ jobs:
           fi
           cp -v /mingw64/bin/python3.dll build/ 2>/dev/null || true
 
-          # Copy Qt Windows platform plugin
+          # Copy Qt Windows platform plugins (including minimal/offscreen for headless CTest)
           for pdir in /mingw64/share/qt6/plugins /mingw64/plugins /mingw64/lib/qt6/plugins; do
-            if [ -f "$pdir/platforms/qwindows.dll" ]; then
+            if [ -d "$pdir/platforms" ]; then
               mkdir -p build/platforms
-              cp -v "$pdir/platforms/qwindows.dll" build/platforms/ 2>&1 || true
+              cp -v "$pdir/platforms/"*.dll build/platforms/ 2>&1 || true
               break
             fi
           done
@@ -275,7 +275,8 @@ jobs:
         shell: msys2 {0}
         run: |
           export PATH="$PWD/build:/mingw64/bin:$PATH"
-          export QT_QPA_PLATFORM=minimal
+          export QT_PLUGIN_PATH="$PWD/build"
+          export QT_QPA_PLATFORM=offscreen
           ctest --test-dir build --output-on-failure -R "^(schematic|core|simulator|rpi|unit_|regression|integration)\."
 
       - name: Package (Linux)
