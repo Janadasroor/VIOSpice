@@ -4,6 +4,7 @@
 #include <cctype>
 #include <string>
 #include <cmath>
+#include <charconv>
 
 namespace {
 
@@ -160,11 +161,9 @@ bool parseSpiceNumber(const std::string& text, double& outValue) {
         }
     }
 
-    std::string numStr = normalized.substr(start, pos - start);
-    double base;
-    try {
-        base = std::stod(numStr);
-    } catch (...) {
+    double base = 0.0;
+    auto [ptr, ec] = std::from_chars(normalized.data() + start, normalized.data() + pos, base);
+    if (ec != std::errc()) {
         return false;
     }
 
