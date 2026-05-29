@@ -29,9 +29,12 @@
 #include "../analysis/schematic_erc_rules.h"
 #include "../items/schematic_page_item.h"
 #include "../ui/oscilloscope_window.h"
+#include "../ui/virtual_terminal_window.h"
 #include "../items/oscilloscope_item.h"
+#include "../items/virtual_terminal_item.h"
 class SchematicView;
 class SchematicPageItem;
+class SimResults;
 class SchematicSpiceDirectiveItem;
 class SymbolEditor;
 class SpiceModelArchitect;
@@ -70,6 +73,7 @@ public:
     void addModelArchitectTab();
     void addImageTab(const QString& filePath);
     void openOscilloscopeWindow(class SchematicItem* item);
+    void openVirtualTerminalWindow(class SchematicItem* item);
     void closeTab(int index);
 
     /** Called when VioCode remotely updates this file's content. */
@@ -175,6 +179,10 @@ private Q_SLOTS:
     void onEditTitleBlock();
     void onSimulationResultsReady(const class SimResults& results);
     void onOscilloscopeWindowClosing(const QUuid& id);
+    void onVirtualTerminalWindowClosing(const QUuid& id);
+    void onVirtualTerminalConfigChanged(const QUuid& id, const VirtualTerminalItem::Config& cfg);
+    void onVirtualTerminalTxDataReady(const QUuid& id, const QVector<QPair<double, double>>& waveform);
+    void onVirtualTerminalPropertiesRequested(const QUuid& id);
     void onOscilloscopeConfigChanged(const QUuid& id, const OscilloscopeItem::Config& cfg);
     void onOscilloscopePropertiesRequested(const QUuid& id);
     void onSimulationPaused(bool paused);
@@ -245,6 +253,7 @@ private:
     void updateSimulationOverlays(const QMap<QString, double>& nodeVoltages, const QMap<QString, double>& currents);
     void refreshOscilloscopeDockContent();
     void runLiveERC(const QList<class SchematicItem*>& items);
+    void updateVirtualTerminals(const class SimResults& results, const QMap<QUuid, QStringList>* vtNets = nullptr);
     QStringList resolveConnectedInstrumentNets(class SchematicItem* instrument) const;
     void appendSimulationIssue(const QString& message);
     void navigateToSimulationTarget(const QString& targetType, const QString& targetId);
@@ -321,7 +330,8 @@ private:
     QString m_mouseFollowActionLabel;
     QMap<QString, class LogicAnalyzerWindow*> m_laWindows;
     QMap<QUuid, class OscilloscopeWindow*> m_oscilloscopeWindows;
-
+    QMap<QUuid, class VirtualTerminalWindow*> m_terminalWindows;
+    SimResults* m_lastSimResults = nullptr;
     QDockWidget *m_geminiDock;
     class GeminiPanel* m_geminiPanel = nullptr;
     bool m_allowGeminiDockInit = false;

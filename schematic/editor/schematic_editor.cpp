@@ -83,6 +83,9 @@ static SymbolLibrary* ensureDefaultUserSymbolLibrary() {
 #include "ws_server.h"
 #include "schematic_item.h"
 #include "schematic/dialogs/oscilloscope_properties_dialog.h"
+#include "../items/virtual_terminal_item.h"
+#include "../ui/virtual_terminal_window.h"
+#include "../dialogs/virtual_terminal_properties_dialog.h"
 #include "schematic_menu_registry.h"
 #include "../../core/flux/bridges/flux_workspace_bridge.h"
 
@@ -319,6 +322,7 @@ SchematicEditor::~SchematicEditor() {
         m_undoStack->clear(); // Ensure commands are deleted while scene and NetManager are still alive
     }
     for (auto* win : m_laWindows) delete win;
+    delete m_lastSimResults;
 }
 
 void SchematicEditor::closeEvent(QCloseEvent* event) {
@@ -1560,6 +1564,41 @@ QStringList SchematicEditor::resolveConnectedInstrumentNets(SchematicItem* instr
     return nets;
 }
 
+void SchematicEditor::updateVirtualTerminals(const SimResults& results, const QMap<QUuid, QStringList>* vtNets) {
+    for (auto it = m_terminalWindows.begin(); it != m_terminalWindows.end(); ++it) {
+        QUuid id = it.key();
+        VirtualTerminalWindow* win = it.value();
+
+        QString rxNet, txNet;
+        if (vtNets) {
+            const QStringList savedNets = vtNets->value(id);
+            rxNet = savedNets.size() > 0 ? savedNets[0] : QString();
+            txNet = savedNets.size() > 1 ? savedNets[1] : QString();
+        } else {
+            for (auto* item : m_scene->items()) {
+                if (auto* term = dynamic_cast<VirtualTerminalItem*>(item)) {
+                    if (term->id() == id && m_netManager) {
+                        rxNet = m_netManager->findNetAtPoint(term->mapToScene(term->connectionPoints()[0]));
+                        txNet = m_netManager->findNetAtPoint(term->mapToScene(term->connectionPoints()[1]));
+                        break;
+                    }
+                }
+            }
+        }
+
+        VirtualTerminalItem::Config cfg;
+        for (auto* item : m_scene->items()) {
+            if (auto* term = dynamic_cast<VirtualTerminalItem*>(item)) {
+                if (term->id() == id) {
+                    cfg = term->config();
+                    break;
+                }
+            }
+        }
+        win->updateData(results, rxNet, txNet, cfg);
+    }
+}
+
 void SchematicEditor::onSimulationResultsReady(const SimResults& results) {
     if (!m_scene) return;
 
@@ -1579,7 +1618,34 @@ void SchematicEditor::onSimulationResultsReady(const SimResults& results) {
         
         // Show only volatile overlays (no history)
         showSimulationResults(results);
+
+        // Update VT windows with real-time waveform data
+        updateVirtualTerminals(results);
         return;
+    }
+
+    // Store for replay to new windows
+    if (m_lastSimResults) *m_lastSimResults = results;
+    else m_lastSimResults = new SimResults(results);
+
+    // Save VT net names BEFORE updateNets clears them (net names after rebuild
+    // may differ from the SPICE netlist names used in the simulation output).
+    QMap<QUuid, QStringList> vtNets;
+    if (m_netManager) {
+        for (auto it = m_terminalWindows.begin(); it != m_terminalWindows.end(); ++it) {
+            const QUuid id = it.key();
+            for (auto* item : m_scene->items()) {
+                if (auto* term = dynamic_cast<VirtualTerminalItem*>(item)) {
+                    if (term->id() == id) {
+                        QStringList nets;
+                        nets << m_netManager->findNetAtPoint(term->mapToScene(term->connectionPoints()[0]));
+                        nets << m_netManager->findNetAtPoint(term->mapToScene(term->connectionPoints()[1]));
+                        vtNets[id] = nets;
+                        break;
+                    }
+                }
+            }
+        }
     }
 
     if (m_netManager) m_netManager->updateNets(m_scene);
@@ -1683,6 +1749,8 @@ void SchematicEditor::onSimulationResultsReady(const SimResults& results) {
         win->updateResults(results, m_netManager);
     }
 
+    updateVirtualTerminals(results, &vtNets);
+
     if (m_view) {
         const bool showByDock = (m_oscilloscopeDock && m_oscilloscopeDock->isVisible());
         m_view->setProbingEnabled(showByDock);
@@ -1728,10 +1796,74 @@ void SchematicEditor::onRealTimeDataBatchReceived(const std::vector<double>& tim
             }
         }
     }
+
+    // Update VT windows with real-time streaming data
+    if (!m_terminalWindows.isEmpty() && !values.empty()) {
+        SimResults rtResults;
+        rtResults.analysisType = SimAnalysisType::Transient;
+        size_t nSamples = std::min(times.size(), values.size());
+        for (int sig = 0; sig < names.size(); ++sig) {
+            SimWaveform wave;
+            wave.name = names[sig].toStdString();
+            std::vector<double> x, y;
+            x.reserve(nSamples);
+            y.reserve(nSamples);
+            for (size_t t = 0; t < nSamples; ++t) {
+                if (sig >= (int)values[t].size()) continue;
+                x.push_back(times[t]);
+                y.push_back(values[t][sig]);
+            }
+            wave.xData = std::move(x);
+            wave.yData = std::move(y);
+            rtResults.waveforms.push_back(std::move(wave));
+        }
+        updateVirtualTerminals(rtResults);
+    }
 }
 
 void SchematicEditor::onOscilloscopeWindowClosing(const QUuid& id) {
     m_oscilloscopeWindows.remove(id);
+}
+
+void SchematicEditor::onVirtualTerminalWindowClosing(const QUuid& id) {
+    m_terminalWindows.remove(id);
+}
+
+void SchematicEditor::onVirtualTerminalConfigChanged(const QUuid& id, const VirtualTerminalItem::Config& cfg) {
+    if (!m_scene) return;
+    for (auto* item : m_scene->items()) {
+        if (auto* term = dynamic_cast<VirtualTerminalItem*>(item)) {
+            if (term->id() == id) {
+                term->setConfig(cfg);
+                break;
+            }
+        }
+    }
+}
+
+void SchematicEditor::onVirtualTerminalTxDataReady(const QUuid& id, const QVector<QPair<double, double>>& waveform) {
+    if (!m_scene) return;
+    for (auto* item : m_scene->items()) {
+        if (auto* term = dynamic_cast<VirtualTerminalItem*>(item)) {
+            if (term->id() == id) {
+                term->setPendingTxWaveform(waveform);
+                break;
+            }
+        }
+    }
+}
+
+void SchematicEditor::onVirtualTerminalPropertiesRequested(const QUuid& id) {
+    if (!m_scene) return;
+    for (auto* it : m_scene->items()) {
+        if (auto* term = dynamic_cast<VirtualTerminalItem*>(it)) {
+            if (term->id() == id) {
+                VirtualTerminalPropertiesDialog dlg(term, m_undoStack, m_scene, this);
+                dlg.exec();
+                break;
+            }
+        }
+    }
 }
 
 void SchematicEditor::onOscilloscopeConfigChanged(const QUuid& id, const OscilloscopeItem::Config& cfg) {
@@ -1785,6 +1917,36 @@ void SchematicEditor::openOscilloscopeWindow(SchematicItem* item) {
     connect(item, &QObject::destroyed, win, &QWidget::close);
 
     win->show();
+}
+
+void SchematicEditor::openVirtualTerminalWindow(SchematicItem* item) {
+    if (!item) return;
+    QUuid id = item->id();
+    if (m_terminalWindows.contains(id)) {
+        m_terminalWindows[id]->show();
+        m_terminalWindows[id]->raise();
+        return;
+    }
+
+    auto* win = new VirtualTerminalWindow(id, "Terminal - " + item->reference(), this);
+    m_terminalWindows[id] = win;
+
+    connect(win, &VirtualTerminalWindow::windowClosing, this, &SchematicEditor::onVirtualTerminalWindowClosing);
+    connect(win, &VirtualTerminalWindow::configChanged, this, &SchematicEditor::onVirtualTerminalConfigChanged);
+    connect(win, &VirtualTerminalWindow::propertiesRequested, this, &SchematicEditor::onVirtualTerminalPropertiesRequested);
+    connect(win, &VirtualTerminalWindow::txDataReady, this, &SchematicEditor::onVirtualTerminalTxDataReady);
+    connect(item, &QObject::destroyed, win, &QWidget::close);
+
+    if (auto* term = dynamic_cast<VirtualTerminalItem*>(item)) {
+        win->setConfig(term->config());
+    }
+
+    win->show();
+
+    // Replay last simulation results to the new window
+    if (m_lastSimResults) {
+        updateVirtualTerminals(*m_lastSimResults);
+    }
 }
 
 void SchematicEditor::onTimeTravelSnapshot(double t, const QMap<QString, double>& nodeVoltages, const QMap<QString, double>& currents) {
