@@ -260,17 +260,12 @@ jobs:
         if: runner.os == 'Windows'
         shell: msys2 {0}
         run: |
-          rm -f build/*.dll 2>/dev/null || true
-          # Use windeployqt to gather all Qt DLLs and their transitive deps cleanly.
-          windeployqt --no-compiler-runtime --no-opengl-sw --release \
-            build/VioraEDA.exe 2>&1 || true
-          # Copy GCC runtime DLLs (windeployqt doesn't bundle these on MSYS2)
-          for d in libgcc_s_seh-1 libstdc++-6 libwinpthread-1; do
-            cp -v /mingw64/bin/$d.dll build/ 2>/dev/null || true
-          done
+          export PATH="/mingw64/bin:$PATH"
+          echo "=== PATH ==="
+          echo "$PATH"
+          echo "=== ldd check on test exe ==="
+          ldd build/test_sim_rf_math.exe 2>&1 | grep -i "not found" || echo "(no unresolved deps)"
+          echo "=== launching ctest ==="
           export QT_QPA_PLATFORM=offscreen
-          # model_parser and parser_fuzz have known heap corruption on Windows (STATUS_HEAP_CORRUPTION 0xc0000374).
-          # These are genuine memory bugs in the parser that only manifest on Windows.
           ctest --test-dir build --output-on-failure \
-            -E "simulator.model_parser|simulator.parser_fuzz" \
             -R "^(schematic|core|simulator|rpi|unit_|regression|integration)\."
