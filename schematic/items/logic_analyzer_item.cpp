@@ -2,50 +2,53 @@
 #include <QPainter>
 #include <QJsonObject>
 
-LogicAnalyzerItem::LogicAnalyzerItem(QPointF pos, QGraphicsItem *parent)
-    : SchematicItem(parent), m_channelCount(8) {
-    setExcludeFromPcb(true); // Instruments are excluded from PCB by default
+LogicAnalyzerItem::LogicAnalyzerItem(QPointF pos, QGraphicsItem* parent)
+    : SchematicItem(parent)
+    , m_channelCount(8) {
+    setExcludeFromPcb(true);
     setPos(pos);
     setFlags(QGraphicsItem::ItemIsSelectable | QGraphicsItem::ItemIsMovable | QGraphicsItem::ItemSendsGeometryChanges);
-    setReference("LA1");
+    setReference("LOGIC1");
     setValue("8-Channel");
 }
 
 QRectF LogicAnalyzerItem::boundingRect() const {
-    double height = (m_channelCount + 2) * 15.0;
-    return QRectF(-30, -15, 60, height);
+    double height = (m_channelCount + 1) * 20.0 + 20.0;
+    return QRectF(-60, -20, 105, height);
 }
 
 void LogicAnalyzerItem::paint(QPainter *painter, const QStyleOptionGraphicsItem* option, QWidget* widget) {
     Q_UNUSED(option)
     Q_UNUSED(widget)
-
     painter->setRenderHint(QPainter::Antialiasing);
-    
-    QRectF rect = boundingRect().adjusted(5, 5, -5, -5);
-    
-    // Body
-    QPen pen(Qt::white, 2);
-    if (isSelected()) pen.setColor(QColor(0, 120, 255));
-    painter->setPen(pen);
-    painter->setBrush(QColor(45, 45, 50));
-    painter->drawRect(rect);
 
-    // Header Accent
-    painter->fillRect(rect.left(), rect.top(), rect.width(), 15, QColor(0, 80, 200));
-    painter->setPen(Qt::white);
-    painter->setFont(QFont("Inter", 7, QFont::Bold));
-    painter->drawText(QRectF(rect.left(), rect.top(), rect.width(), 15), Qt::AlignCenter, "LOGIC");
+    QRectF r = QRectF(-45, -20, 90, (m_channelCount + 1) * 20.0 + 20.0).adjusted(2, 2, -2, -2);
+    
+    // Body (Professional Slate Gray)
+    painter->setBrush(QColor(45, 45, 55));
+    painter->setPen(QPen(Qt::white, 2));
+    painter->drawRoundedRect(r, 5, 5);
+
+    // Title
+    painter->setPen(QColor(0, 255, 100));
+    QFont titleFont = painter->font();
+    titleFont.setBold(true);
+    titleFont.setPointSize(8);
+    painter->setFont(titleFont);
+    painter->drawText(QRectF(r.left(), r.top() + 5, r.width(), 16), Qt::AlignCenter, "LOGIC ANALYZER");
 
     // Channels
-    painter->setFont(QFont("Inter", 6));
+    painter->setFont(QFont("Inter", 7));
+    painter->setPen(QPen(QColor(100, 100, 105), 1.5));
     for (int i = 0; i < m_channelCount; ++i) {
-        double y = (i + 1) * 15.0;
-        painter->setPen(QPen(QColor(100, 100, 105), 1));
-        painter->drawLine(-30, y, -20, y);
+        double y = (i + 1) * 20.0;
+        
+        // Pin connection line (Standardized to 50)
+        painter->setPen(QPen(QColor(100, 100, 105), 1.5));
+        painter->drawLine(-50, y, -30, y);
         
         painter->setPen(Qt::white);
-        painter->drawText(QRectF(-18, y - 7.5, 20, 15), Qt::AlignVCenter, QString("D%1").arg(i));
+        painter->drawText(QRectF(-28, y - 7.5, 20, 15), Qt::AlignVCenter, QString("D%1").arg(i));
     }
 
     drawConnectionPointHighlights(painter);
@@ -54,7 +57,7 @@ void LogicAnalyzerItem::paint(QPainter *painter, const QStyleOptionGraphicsItem*
 QList<QPointF> LogicAnalyzerItem::connectionPoints() const {
     QList<QPointF> pts;
     for (int i = 0; i < m_channelCount; ++i) {
-        pts << QPointF(-30, (i + 1) * 15.0);
+        pts << QPointF(-50, (i + 1) * 20.0);
     }
     return pts;
 }

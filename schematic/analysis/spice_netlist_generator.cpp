@@ -5474,7 +5474,18 @@ SpiceNetlistGenerator::GeneratedNetlist SpiceNetlistGenerator::generate(QGraphic
     } else if (!hasExplicitAnalysisCard) {
         switch (params.type) {
             case Transient:
-                netlist += QString(".tran %1 %2").arg(params.step, params.stop);
+                {
+                    auto safeNumber = [](const QString& text, double fallback) {
+                        double parsed = 0.0;
+                        if (SimValueParser::parseSpiceNumber(text, parsed) && parsed > 0.0) {
+                            return text.trimmed();
+                        }
+                        return QString::number(fallback, 'g', 12);
+                    };
+                    const QString tstep = safeNumber(params.step, 1e-6); // Default 1us
+                    const QString tstop = params.stop.isEmpty() ? "1m" : params.stop;
+                    netlist += QString(".tran %1 %2").arg(tstep, tstop);
+                }
                 if (!params.start.trimmed().isEmpty() && params.start.trimmed() != "0") {
                     netlist += QString(" %1").arg(params.start.trimmed());
                 }

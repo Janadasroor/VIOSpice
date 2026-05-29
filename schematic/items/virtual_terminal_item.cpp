@@ -12,7 +12,7 @@ VirtualTerminalItem::VirtualTerminalItem(QPointF pos, QGraphicsItem* parent)
 }
 
 QRectF VirtualTerminalItem::boundingRect() const {
-    return QRectF(-45, -35, 90, 70);
+    return QRectF(-45, -35, 90, 100);
 }
 
 void VirtualTerminalItem::paint(QPainter* painter, const QStyleOptionGraphicsItem* option, QWidget* widget) {
@@ -22,7 +22,7 @@ void VirtualTerminalItem::paint(QPainter* painter, const QStyleOptionGraphicsIte
     painter->setRenderHint(QPainter::Antialiasing);
     
     // Main body box (leave room for pins on left)
-    QRectF bodyRect = QRectF(-30, -30, 70, 60);
+    QRectF bodyRect = QRectF(-30, -30, 70, 90);
 
     QPen pen(Qt::white, 2);
     if (isSelected()) pen.setColor(QColor(0, 120, 255));
@@ -31,7 +31,7 @@ void VirtualTerminalItem::paint(QPainter* painter, const QStyleOptionGraphicsIte
     painter->drawRect(bodyRect);
 
     // Terminal Screen Area (smaller, centered inside body)
-    QRectF screenRect = bodyRect.adjusted(8, 8, -8, -20);
+    QRectF screenRect = bodyRect.adjusted(8, 8, -8, -40);
     painter->setBrush(QColor(10, 10, 12));
     painter->drawRect(screenRect);
 
