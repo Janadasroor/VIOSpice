@@ -173,36 +173,34 @@ jobs:
         shell: msys2 {0}
         run: |
           set -x
-          echo "=== Copying all DLLs ==="
-          # Copy ALL DLLs from MSYS2 mingw64 bin to ensure transitive dependencies resolve
+          # Copy DLLs into build/ so Windows loader finds them
           cp -av /mingw64/bin/*.dll build/ 2>/dev/null || true
-          # Create python314.dll alias (VioraEDA imports python314.dll, MSYS2 has libpython3.14.dll)
           cp -v /mingw64/bin/libpython3.14.dll build/python314.dll 2>&1 || true
-          # Copy ngspice DLL from prebuilt
           cp -v build/viomatrixc-prebuilt/bin/libngspice-0.dll build/ 2>&1 || true
-          # Copy Qt platform plugin
           for pdir in /mingw64/share/qt6/plugins /mingw64/plugins /mingw64/lib/qt6/plugins; do
-            plugin="$pdir/platforms/qwindows.dll"
-            if [ -f "$plugin" ]; then
+            if [ -f "$pdir/platforms/qwindows.dll" ]; then
               mkdir -p build/platforms
-              cp -v "$plugin" build/platforms/ 2>&1 || true
+              cp -v "$pdir/platforms/qwindows.dll" build/platforms/ 2>&1 || true
               break
             fi
           done
-          echo "=== DLL count ==="
-          ls build/*.dll 2>&1 | wc -l
-          echo "=== platforms ==="
-          ls -la build/platforms/ 2>&1 || echo "(no platforms dir)"
+          echo "=== DLL dependency check ==="
+          # Check for unresolved DLLs using ldd
+          which ldd 2>/dev/null && ldd build/VioraEDA.exe 2>&1 | grep -i "not found" || echo "(ldd not available or no unresolved)"
+          # Also check with objdump -p on the exe and all copied DLLs for recursive deps
+          echo "=== file info ==="
+          file build/VioraEDA.exe 2>&1 || true
           set +e
-          ./build/VioraEDA.exe > /tmp/viora_stdout.log 2> /tmp/viora_stderr.log &
+          echo "=== launching VioraEDA ==="
+          QT_DEBUG_PLUGINS=1 QT_QPA_PLATFORM=windows \
+            ./build/VioraEDA.exe 2>&1 &
           pid=$!
           sleep 8
-          kill $pid 2>/dev/null
-          wait $pid
+          kill $pid 2>/dev/null || true
+          wait $pid 2>/dev/null
           rc=$?
           set -e
-          echo "=== stderr ==="
-          cat /tmp/viora_stderr.log 2>/dev/null || echo "(empty)"
+          echo "=== exit code: $rc ==="
           if [ $rc -eq 0 ] || [ $rc -ge 128 ]; then
             echo "PASS: VioraEDA started without crashing (exit code $rc)"
           else
