@@ -6,7 +6,6 @@
 #include <algorithm>
 #include <cctype>
 #include <map>
-#include <regex>
 
 namespace {
 
@@ -120,21 +119,85 @@ std::string trimStr(const std::string& s) {
 
 bool convertMeanToMeasLine(const std::string& meanLine, int lineNo, std::string& outMeasLine) {
     const std::string trimmed = trimStr(meanLine);
-    const std::regex re(
-        "^\\.mean\\s+(?:(avg|max|min|rms)\\s+)?([^\\s]+)(?:\\s+from\\s*=\\s*([^\\s]+))?(?:\\s+to\\s*=\\s*([^\\s]+))?\\s*$",
-        std::regex_constants::icase);
-    std::smatch m;
-    if (!std::regex_match(trimmed, m, re)) return false;
+    if (trimmed.size() < 6) return false;
 
-    std::string mode = m[1].matched ? m[1].str() : "avg";
-    std::string signal = trimStr(m[2].str());
-    std::string from = m[3].matched ? trimStr(m[3].str()) : "";
-    std::string to = m[4].matched ? trimStr(m[4].str()) : "";
+    // Must start with .mean case-insensitively
+    if (!startsWithNoCase(trimmed, ".mean")) return false;
+
+    // Normalize spacing around '='
+    std::string norm;
+    norm.reserve(trimmed.size());
+    for (size_t i = 0; i < trimmed.size(); ++i) {
+        if (trimmed[i] == '=') {
+            while (!norm.empty() && (norm.back() == ' ' || norm.back() == '\t')) {
+                norm.pop_back();
+            }
+            norm.push_back('=');
+            while (i + 1 < trimmed.size() && (trimmed[i + 1] == ' ' || trimmed[i + 1] == '\t')) {
+                ++i;
+            }
+        } else {
+            norm.push_back(trimmed[i]);
+        }
+    }
+
+    // Split into tokens
+    std::vector<std::string> tokens;
+    {
+        std::string current;
+        for (char c : norm) {
+            if (c == ' ' || c == '\t') {
+                if (!current.empty()) {
+                    tokens.push_back(current);
+                    current.clear();
+                }
+            } else {
+                current.push_back(c);
+            }
+        }
+        if (!current.empty()) {
+            tokens.push_back(current);
+        }
+    }
+
+    if (tokens.size() < 2) return false;
+    if (!tokenEqualsNoCase(tokens[0], ".mean")) return false;
+
+    std::string mode = "avg";
+    std::string signal;
+    size_t nextIdx = 1;
+
+    std::string firstArg = tokens[1];
+    std::string firstArgLower = firstArg;
+    std::transform(firstArgLower.begin(), firstArgLower.end(), firstArgLower.begin(),
+                   [](unsigned char c) { return std::tolower(c); });
+
+    if (firstArgLower == "avg" || firstArgLower == "max" || firstArgLower == "min" || firstArgLower == "rms") {
+        mode = firstArgLower;
+        if (tokens.size() < 3) return false;
+        signal = tokens[2];
+        nextIdx = 3;
+    } else {
+        signal = tokens[1];
+        nextIdx = 2;
+    }
+
     if (signal.empty()) return false;
 
-    // Lowercase mode
-    std::transform(mode.begin(), mode.end(), mode.begin(),
-                   [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+    std::string fromVal;
+    std::string toVal;
+    for (size_t i = nextIdx; i < tokens.size(); ++i) {
+        const std::string& tok = tokens[i];
+        if (startsWithNoCase(tok, "from=")) {
+            fromVal = tok.substr(5);
+            if (fromVal.empty()) return false;
+        } else if (startsWithNoCase(tok, "to=")) {
+            toVal = tok.substr(3);
+            if (toVal.empty()) return false;
+        } else {
+            return false;
+        }
+    }
 
     std::string sanitizedName = sanitizeMeasName(signal);
     char buf[256];
@@ -143,8 +206,8 @@ bool convertMeanToMeasLine(const std::string& meanLine, int lineNo, std::string&
 
     std::ostringstream oss;
     oss << ".meas tran " << name << " " << mode << " " << signal;
-    if (!from.empty()) oss << " from=" << from;
-    if (!to.empty()) oss << " to=" << to;
+    if (!fromVal.empty()) oss << " from=" << fromVal;
+    if (!toVal.empty()) oss << " to=" << toVal;
     outMeasLine = oss.str();
     return true;
 }
