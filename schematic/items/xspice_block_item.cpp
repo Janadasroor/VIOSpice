@@ -1018,11 +1018,11 @@ const XspiceModelDef* XspiceBlockItem::modelDef() const {
 
 static constexpr qreal WIDTH = 80;
 static constexpr qreal PIN_SPACING = 20;
-static constexpr qreal MARGIN = 10;
+static constexpr qreal MARGIN = 15; // Increased margin for header
 
 QRectF XspiceBlockItem::boundingRect() const {
-    qreal h = qMax(qreal(40), (qreal)qMax(m_inputPinCount, m_outputPinCount) * PIN_SPACING + MARGIN * 2);
-    constexpr qreal PIN_TAIL = 10;
+    qreal h = qMax(qreal(60), (qreal)qMax(m_inputPinCount, m_outputPinCount) * PIN_SPACING + MARGIN * 2);
+    constexpr qreal PIN_TAIL = 20;
     return QRectF(-WIDTH / 2 - PIN_TAIL, -h / 2, WIDTH + PIN_TAIL * 2, h);
 }
 
@@ -1030,40 +1030,67 @@ void XspiceBlockItem::paint(QPainter* painter, const QStyleOptionGraphicsItem* o
     painter->setRenderHint(QPainter::Antialiasing);
     QRectF r = boundingRect();
     qreal h = r.height();
+    constexpr qreal PIN_TAIL = 20;
 
     // Body rect (core box, excluding pin tails)
     QRectF body(-WIDTH / 2, -h / 2, WIDTH, h);
 
-    // Background
-    QColor bg(30, 30, 40);
+    // Background Gradient (Industrial Slate)
+    QLinearGradient bgGrad(body.topLeft(), body.bottomLeft());
+    bgGrad.setColorAt(0, QColor(45, 45, 50));
+    bgGrad.setColorAt(1, QColor(30, 30, 35));
+    
     if (option->state & QStyle::State_Selected) {
-        bg = QColor(40, 50, 80);
+        bgGrad.setColorAt(0, QColor(50, 70, 100));
+        bgGrad.setColorAt(1, QColor(30, 40, 70));
     }
-    painter->setBrush(bg);
-    painter->setPen(QPen(QColor(100, 140, 255), 1.5));
-    painter->drawRoundedRect(body.adjusted(1, 1, -1, -1), 4, 4);
+    
+    painter->setBrush(bgGrad);
+    painter->setPen(QPen(Qt::white, 1.5));
+    painter->drawRoundedRect(body, 4, 4);
 
-    // Model name
+    // Header Accent (Blue)
+    painter->setBrush(QColor(0, 120, 255));
+    painter->setPen(Qt::NoPen);
+    painter->drawPath(painter->clipPath()); // Placeholder for rounded top clip
+    painter->drawRoundedRect(QRectF(body.left(), body.top(), body.width(), 12), 4, 4);
+    painter->fillRect(QRectF(body.left(), body.top() + 8, body.width(), 4), QColor(0, 120, 255));
+
+    // Center "OLED" Display Area
+    QRectF displayRect = QRectF(-WIDTH/2 + 8, -12, WIDTH - 16, 24);
+    painter->setBrush(QColor(10, 12, 10));
+    painter->setPen(QPen(QColor(0, 255, 100, 80), 1));
+    painter->drawRect(displayRect);
+
+    // Subtle Glow
+    QRadialGradient glow(0, 0, 30);
+    glow.setColorAt(0, QColor(0, 255, 100, 30));
+    glow.setColorAt(1, Qt::transparent);
+    painter->setBrush(glow);
+    painter->setPen(Qt::NoPen);
+    painter->drawRect(displayRect);
+
+    // Model name in Display
     QString displayName = m_modelType;
     const XspiceModelDef* def = modelDef();
     if (def) displayName = def->name;
 
-    painter->setPen(Qt::white);
+    painter->setPen(QColor(0, 255, 100));
     QFont f = painter->font();
+    f.setFamily("Monospace");
     f.setPointSize(8);
     f.setBold(true);
     painter->setFont(f);
-    painter->drawText(body, Qt::AlignCenter, displayName);
+    painter->drawText(displayRect, Qt::AlignCenter, displayName.toUpper());
 
     // Pin name labels
     if (def) {
+        f.setFamily("Inter");
         f.setPointSize(6);
         f.setBold(false);
         painter->setFont(f);
         QPen pinPen(QColor(180, 200, 255));
         painter->setPen(pinPen);
-
-        static constexpr qreal PIN_TAIL = 10;
 
         // Input pins on left
         int inIdx = 0;
@@ -1071,8 +1098,13 @@ void XspiceBlockItem::paint(QPainter* painter, const QStyleOptionGraphicsItem* o
             if (def->pins[i].type == XspicePinDef::Digital || def->pins[i].type == XspicePinDef::VoltageIn
                 || def->pins[i].type == XspicePinDef::VoltageDiff || def->pins[i].type == XspicePinDef::CurrentSense) {
                 qreal y = -h / 2 + MARGIN + inIdx * PIN_SPACING + PIN_SPACING / 2;
+                // Pin line
+                painter->setPen(QPen(QColor(100, 100, 105), 1));
                 painter->drawLine(QPointF(-WIDTH / 2 - PIN_TAIL, y), QPointF(-WIDTH / 2, y));
-                painter->drawText(QRectF(-WIDTH / 2 - PIN_TAIL + 2, y - 8, WIDTH / 2 - 4, 16),
+                
+                // Label
+                painter->setPen(Qt::white);
+                painter->drawText(QRectF(-WIDTH / 2 + 4, y - 8, WIDTH / 2 - 8, 16),
                                   Qt::AlignLeft | Qt::AlignVCenter, def->pins[i].name);
                 ++inIdx;
             }
@@ -1083,8 +1115,13 @@ void XspiceBlockItem::paint(QPainter* painter, const QStyleOptionGraphicsItem* o
         for (int i = 0; i < def->pins.size(); ++i) {
             if (def->pins[i].type == XspicePinDef::Conductance) {
                 qreal y = -h / 2 + MARGIN + outIdx * PIN_SPACING + PIN_SPACING / 2;
+                // Pin line
+                painter->setPen(QPen(QColor(100, 100, 105), 1));
                 painter->drawLine(QPointF(WIDTH / 2, y), QPointF(WIDTH / 2 + PIN_TAIL, y));
-                painter->drawText(QRectF(2, y - 8, WIDTH / 2 - 4, 16),
+                
+                // Label
+                painter->setPen(Qt::white);
+                painter->drawText(QRectF(4, y - 8, WIDTH / 2 - 8, 16),
                                   Qt::AlignRight | Qt::AlignVCenter, def->pins[i].name);
                 ++outIdx;
             }
@@ -1097,7 +1134,7 @@ void XspiceBlockItem::paint(QPainter* painter, const QStyleOptionGraphicsItem* o
 QList<QPointF> XspiceBlockItem::connectionPoints() const {
     QList<QPointF> pts;
     qreal h = boundingRect().height();
-    static constexpr qreal PIN_TAIL = 10;
+    constexpr qreal PIN_TAIL = 20;
 
     // Input pins on left — at end of tail
     for (int i = 0; i < m_inputPinCount; ++i) {
