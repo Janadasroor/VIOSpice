@@ -338,6 +338,8 @@ set(SCHEMATIC_SOURCES
     schematic/items/voltage_source_item.h
     schematic/items/hierarchical_port_item.cpp
     schematic/items/hierarchical_port_item.h
+    schematic/items/controlled_source_item.cpp
+    schematic/items/controlled_source_item.h
     schematic/items/erc_marker_item.cpp
     schematic/items/erc_marker_item.h
     schematic/items/schematic_sheet_item.cpp

@@ -48,6 +48,8 @@ SchematicItem* SchematicItemFactory::createItem(const QString& typeName, QPointF
                             typeName.compare("pmos", Qt::CaseInsensitive) == 0 ||
                             typeName.compare("pmos4", Qt::CaseInsensitive) == 0;
     const bool isMesfet = typeName.compare("mesfet", Qt::CaseInsensitive) == 0;
+    const bool isControlledSource = (typeName == "E" || typeName == "G" || typeName == "F" || typeName == "H" ||
+                                     typeName == "VCVS" || typeName == "VCCS" || typeName == "CCCS" || typeName == "CCVS");
     const bool isSpecializedItem = (typeName == "Tuning Slider" || 
                                     typeName == "Oscilloscope Instrument" ||
                                     typeName == "Logic Analyzer" ||
@@ -55,7 +57,16 @@ SchematicItem* SchematicItemFactory::createItem(const QString& typeName, QPointF
                                     typeName == "7-Segment Display" ||
                                     typeName == "Dual 7-Segment Display" ||
                                     typeName == "14-Segment Display" ||
-                                    typeName == "16-Segment Display");
+                                    typeName == "16-Segment Display" ||
+                                    typeName == "XspiceBlock" ||
+                                    typeName == "SystemVerilogBlock" ||
+                                    typeName == "Voltmeter (DC)" ||
+                                    typeName == "Voltmeter (AC)" ||
+                                    typeName == "Ammeter (DC)" ||
+                                    typeName == "Ammeter (AC)" ||
+                                    typeName == "Wattmeter" ||
+                                    typeName == "Virtual Terminal" ||
+                                    isControlledSource);
 
     if (!isPowerItem && !isVoltageSource && !isCurrentSource && !isJfet && !isBjtAlias && !isMosAlias && !isMesfet && !isSpecializedItem) {
         if (SymbolDefinition* def = SymbolLibraryManager::instance().findSymbol(typeName)) {
