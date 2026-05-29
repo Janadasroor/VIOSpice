@@ -1827,6 +1827,7 @@ void SchematicEditor::onOscilloscopeWindowClosing(const QUuid& id) {
 }
 
 void SchematicEditor::onVirtualTerminalWindowClosing(const QUuid& id) {
+    qDebug() << "VT window closing:" << id;
     m_terminalWindows.remove(id);
 }
 
@@ -1924,14 +1925,21 @@ void SchematicEditor::openVirtualTerminalWindow(SchematicItem* item) {
     if (!item) return;
     QUuid id = item->id();
     if (m_terminalWindows.contains(id)) {
-        m_terminalWindows[id]->show();
-        m_terminalWindows[id]->raise();
-        m_terminalWindows[id]->activateWindow();
+        VirtualTerminalWindow* w = m_terminalWindows[id];
+        w->setWindowFlags(w->windowFlags() | Qt::WindowStaysOnTopHint);
+        w->show();
+        w->raise();
+        w->activateWindow();
+        QTimer::singleShot(200, w, [w]() {
+            w->setWindowFlags(w->windowFlags() & ~Qt::WindowStaysOnTopHint);
+            w->show();
+        });
         return;
     }
 
     auto* win = new VirtualTerminalWindow(id, "Terminal - " + item->reference());
     win->setAttribute(Qt::WA_DeleteOnClose);
+    win->setWindowFlags(Qt::Window | Qt::WindowTitleHint | Qt::WindowSystemMenuHint | Qt::WindowMinMaxButtonsHint | Qt::WindowCloseButtonHint);
     m_terminalWindows[id] = win;
 
     connect(win, &VirtualTerminalWindow::windowClosing, this, &SchematicEditor::onVirtualTerminalWindowClosing);
@@ -1952,9 +1960,14 @@ void SchematicEditor::openVirtualTerminalWindow(SchematicItem* item) {
         }
     }
 
+    win->setWindowFlags(win->windowFlags() | Qt::WindowStaysOnTopHint);
     win->show();
     win->raise();
     win->activateWindow();
+    QTimer::singleShot(200, win, [win]() {
+        win->setWindowFlags(win->windowFlags() & ~Qt::WindowStaysOnTopHint);
+        win->show();
+    });
 }
 
 void SchematicEditor::onTimeTravelSnapshot(double t, const QMap<QString, double>& nodeVoltages, const QMap<QString, double>& currents) {
