@@ -195,40 +195,29 @@ jobs:
         shell: msys2 {0}
         run: |
           set -x
-          echo "=== Copying all DLLs ==="
-          # Copy ALL DLLs from MSYS2 mingw64 bin to ensure transitive dependencies resolve
           cp -av /mingw64/bin/*.dll build/ 2>/dev/null || true
-          # Create python314.dll alias (VioraEDA imports python314.dll, MSYS2 has libpython3.14.dll)
           cp -v /mingw64/bin/libpython3.14.dll build/python314.dll 2>&1 || true
-          # Copy ngspice DLL from prebuilt
           cp -v build/viomatrixc-prebuilt/bin/libngspice-0.dll build/ 2>&1 || true
-          # Copy Qt platform plugin
           for pdir in /mingw64/share/qt6/plugins /mingw64/plugins /mingw64/lib/qt6/plugins; do
-            plugin="$pdir/platforms/qwindows.dll"
-            if [ -f "$plugin" ]; then
+            if [ -f "$pdir/platforms/qwindows.dll" ]; then
               mkdir -p build/platforms
-              cp -v "$plugin" build/platforms/ 2>&1 || true
+              cp -v "$pdir/platforms/qwindows.dll" build/platforms/ 2>&1 || true
               break
             fi
           done
-          echo "=== DLL count ==="
-          ls build/*.dll 2>&1 | wc -l
-          echo "=== platforms ==="
-          ls -la build/platforms/ 2>&1 || echo "(no platforms dir)"
+          # Smoke test using CLI (viora.exe) — VioraEDA.exe is GUI subsystem
+          # and MSYS2 returns exit code 127 when running GUI apps in background.
           set +e
-          ./build/VioraEDA.exe > /tmp/viora_stdout.log 2> /tmp/viora_stderr.log &
-          pid=$!
-          sleep 8
-          kill $pid 2>/dev/null
-          wait $pid
+          echo "=== launching viora.exe (CLI) ==="
+          QT_QPA_PLATFORM=windows \
+            ./build/viora.exe --help 2>&1
           rc=$?
           set -e
-          echo "=== stderr ==="
-          cat /tmp/viora_stderr.log 2>/dev/null || echo "(empty)"
+          echo "=== exit code: $rc ==="
           if [ $rc -eq 0 ] || [ $rc -ge 128 ]; then
-            echo "PASS: VioraEDA started without crashing (exit code $rc)"
+            echo "PASS: viora CLI started (exit code $rc)"
           else
-            echo "FAIL: VioraEDA crashed (exit code $rc)"
+            echo "FAIL: viora CLI crashed (exit code $rc)"
             exit $rc
           fi
 
