@@ -20,8 +20,8 @@ private Q_SLOTS:
         // S11 = (1 - 2*y11*z0) / (...) ? No, let's use the standard formula.
         // For a series 50 ohm resistor, S21 should be 0.5 (linear) -> -6dB
         
-        qDebug() << "S11 real:" << s.s11.real() << "imag:" << s.s11.imag();
-        qDebug() << "S21 real:" << s.s21.real() << "imag:" << s.s21.imag();
+        std::cout << "S11 real: " << s.s11.real() << " imag: " << s.s11.imag() << std::endl;
+        std::cout << "S21 real: " << s.s21.real() << " imag: " << s.s21.imag() << std::endl;
         
         // S11 for 50 ohm load on 50 ohm line = 0
         // Our Y matrix describes the component.
