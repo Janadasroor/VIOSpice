@@ -130,6 +130,13 @@ jobs:
           cmake -B build -DCMAKE_BUILD_TYPE=Release \
             -DLLVM_DIR="$(brew --prefix llvm)/lib/cmake/llvm" -DMI_OVERRIDE=OFF
 
+      - name: Install and link dependencies (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          brew install zstd
+          mkdir -p build/fluxscript-prebuilt/lib
+          cp -v $(brew --prefix zstd)/lib/libzstd*.dylib build/fluxscript-prebuilt/lib/ 2>/dev/null || true
+
       - name: Configure (Windows)
         if: runner.os == 'Windows'
         shell: msys2 {0}
