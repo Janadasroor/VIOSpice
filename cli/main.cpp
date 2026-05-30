@@ -1273,8 +1273,8 @@ static int generateSymbolsForLibrary(const QString& inputPath, const QString& ou
             QMap<int, QString> mapping;
             if (pinCount >= 1) def.addPrimitive(SymbolPrimitive::createPin(QPointF(-30, -52.5), 1, "A", "Down", 0));
             if (pinCount >= 2) def.addPrimitive(SymbolPrimitive::createPin(QPointF(-30, 52.5), 2, "K", "Up", 0));
-            if (pinCount >= 3) def.addPrimitive(SymbolPrimitive::createPin(QPointF(30, 52.5), 3, "E", "Up", 0));
-            if (pinCount >= 4) def.addPrimitive(SymbolPrimitive::createPin(QPointF(30, -52.5), 4, "C", "Down", 0));
+            if (pinCount >= 3) def.addPrimitive(SymbolPrimitive::createPin(QPointF(30, -52.5), 3, "C", "Down", 0));
+            if (pinCount >= 4) def.addPrimitive(SymbolPrimitive::createPin(QPointF(30, 52.5), 4, "E", "Up", 0));
             for(int i=0; i<qMin(pinCount, 4); ++i) mapping.insert(i+1, getPinName(i));
             def.setSpiceNodeMapping(mapping);
 
@@ -1324,26 +1324,53 @@ static int generateSymbolsForLibrary(const QString& inputPath, const QString& ou
         } else if (typeToUse == "op") {
             def.setCategory("Amplifiers");
             def.setReferencePrefix("U");
+            QStringList nodes = sub.pins;
+            auto findPin = [&](const QStringList& names, const QString& pattern) -> int {
+                QRegularExpression re(pattern, QRegularExpression::CaseInsensitiveOption);
+                for (int i = 0; i < names.size(); ++i) {
+                    if (re.match(names[i]).hasMatch()) return i + 1;
+                }
+                return -1;
+            };
+            int idxINP = findPin(nodes, "in\\+|\\+in|inp");
+            int idxINN = findPin(nodes, "in\\-|\\-in|inn");
+            int idxOUT = findPin(nodes, "out");
+            int idxVCC = findPin(nodes, "vcc|v\\+|vdd|vp");
+            int idxVEE = findPin(nodes, "vss|v\\-|vee|vn");
+
+            // Fallback for standard OpAmp order: IN+, IN-, V+, V-, OUT
+            if (idxINP == -1 && nodes.size() >= 1) idxINP = 1;
+            if (idxINN == -1 && nodes.size() >= 2) idxINN = 2;
+            if (idxVCC == -1 && nodes.size() >= 3) idxVCC = 3;
+            if (idxVEE == -1 && nodes.size() >= 4) idxVEE = 4;
+            if (idxOUT == -1 && nodes.size() >= 5) idxOUT = 5;
+
             if (pinCount <= 5) {
                 // Single OpAmp (Traditional Triangle)
                 QList<QPointF> tri; tri << QPointF(-20, -25) << QPointF(-20, 25) << QPointF(20, 0);
                 def.addPrimitive(SymbolPrimitive::createPolygon(tri, false));
                 def.addPrimitive(SymbolPrimitive::createText("+", QPointF(-17, 10), 8));
                 def.addPrimitive(SymbolPrimitive::createText("-", QPointF(-17, -15), 10));
-                // Leads
-                def.addPrimitive(SymbolPrimitive::createLine(QPointF(-20, -12.5), QPointF(-40, -12.5)));
-                def.addPrimitive(SymbolPrimitive::createPin(QPointF(-40, -12.5), 1, "IN-", "Right", 0));
-                def.addPrimitive(SymbolPrimitive::createLine(QPointF(-20, 12.5), QPointF(-40, 12.5)));
-                def.addPrimitive(SymbolPrimitive::createPin(QPointF(-40, 12.5), 2, "IN+", "Right", 0));
-                def.addPrimitive(SymbolPrimitive::createLine(QPointF(20, 0), QPointF(40, 0)));
-                def.addPrimitive(SymbolPrimitive::createPin(QPointF(40, 0), 3, "OUT", "Left", 0));
-                if (pinCount >= 4) {
-                    def.addPrimitive(SymbolPrimitive::createLine(QPointF(0, -12.5), QPointF(0, -30)));
-                    def.addPrimitive(SymbolPrimitive::createPin(QPointF(0, -30), 4, "V+", "Down", 0));
+                
+                if (idxINN != -1) {
+                    def.addPrimitive(SymbolPrimitive::createLine(QPointF(-20, -12.5), QPointF(-40, -12.5)));
+                    def.addPrimitive(SymbolPrimitive::createPin(QPointF(-40, -12.5), idxINN, "IN-", "Right", 0));
                 }
-                if (pinCount >= 5) {
+                if (idxINP != -1) {
+                    def.addPrimitive(SymbolPrimitive::createLine(QPointF(-20, 12.5), QPointF(-40, 12.5)));
+                    def.addPrimitive(SymbolPrimitive::createPin(QPointF(-40, 12.5), idxINP, "IN+", "Right", 0));
+                }
+                if (idxOUT != -1) {
+                    def.addPrimitive(SymbolPrimitive::createLine(QPointF(20, 0), QPointF(40, 0)));
+                    def.addPrimitive(SymbolPrimitive::createPin(QPointF(40, 0), idxOUT, "OUT", "Left", 0));
+                }
+                if (idxVCC != -1) {
+                    def.addPrimitive(SymbolPrimitive::createLine(QPointF(0, -12.5), QPointF(0, -30)));
+                    def.addPrimitive(SymbolPrimitive::createPin(QPointF(0, -30), idxVCC, "V+", "Down", 0));
+                }
+                if (idxVEE != -1) {
                     def.addPrimitive(SymbolPrimitive::createLine(QPointF(0, 12.5), QPointF(0, 30)));
-                    def.addPrimitive(SymbolPrimitive::createPin(QPointF(0, 30), 5, "V-", "Up", 0));
+                    def.addPrimitive(SymbolPrimitive::createPin(QPointF(0, 30), idxVEE, "V-", "Up", 0));
                 }
             } else {
                 // Multi-OpAmp package (Dual/Quad)
@@ -1498,8 +1525,8 @@ static int generateSymbolsForLibrary(const QString& inputPath, const QString& ou
             def.addPrimitive(SymbolPrimitive::createLine(QPointF(0, 15), QPointF(0, 30)));
             QMap<int, QString> mapping;
             if (pinCount >= 1) def.addPrimitive(SymbolPrimitive::createPin(QPointF(0, -30), 1, "MT2", "Down", 0));
-            if (pinCount >= 2) def.addPrimitive(SymbolPrimitive::createPin(QPointF(0, 30), 2, "MT1", "Up", 0));
-            if (pinCount >= 3) def.addPrimitive(SymbolPrimitive::createPin(QPointF(45, 22.5), 3, "G", "Left", 0));
+            if (pinCount >= 2) def.addPrimitive(SymbolPrimitive::createPin(QPointF(45, 22.5), 2, "G", "Left", 0));
+            if (pinCount >= 3) def.addPrimitive(SymbolPrimitive::createPin(QPointF(0, 30), 3, "MT1", "Up", 0));
             for(int i=0; i<qMin(pinCount, 3); ++i) mapping.insert(i+1, getPinName(i));
             def.setSpiceNodeMapping(mapping);
 
@@ -1517,8 +1544,8 @@ static int generateSymbolsForLibrary(const QString& inputPath, const QString& ou
             def.addPrimitive(SymbolPrimitive::createLine(QPointF(0, 11.25), QPointF(0, 30)));
             QMap<int, QString> mapping;
             if (pinCount >= 1) def.addPrimitive(SymbolPrimitive::createPin(QPointF(0, -30), 1, "A", "Down", 0));
-            if (pinCount >= 2) def.addPrimitive(SymbolPrimitive::createPin(QPointF(0, 30), 2, "K", "Up", 0));
-            if (pinCount >= 3) def.addPrimitive(SymbolPrimitive::createPin(QPointF(45, 22.5), 3, "G", "Left", 0));
+            if (pinCount >= 2) def.addPrimitive(SymbolPrimitive::createPin(QPointF(45, 22.5), 2, "G", "Left", 0));
+            if (pinCount >= 3) def.addPrimitive(SymbolPrimitive::createPin(QPointF(0, 30), 3, "K", "Up", 0));
             for(int i=0; i<qMin(pinCount, 3); ++i) mapping.insert(i+1, getPinName(i));
             def.setSpiceNodeMapping(mapping);
 
@@ -2068,35 +2095,74 @@ static int generateSymbolsForLibrary(const QString& inputPath, const QString& ou
             // Clock triangle
             def.addPrimitive(SymbolPrimitive::createLine(QPointF(-30, 5), QPointF(-20, 15)));
             def.addPrimitive(SymbolPrimitive::createLine(QPointF(-20, 15), QPointF(-30, 25)));
-            
-            QMap<int, QString> mapping;
-            // Standard SPICE order: 1:CLR, 2:D, 3:CLK, 4:PRE, 5:Q, 6:QN
-            if (pinCount >= 1) { // CLR (Bottom)
-                def.addPrimitive(SymbolPrimitive::createLine(QPointF(0, 43.75), QPointF(0, 55)));
-                def.addPrimitive(SymbolPrimitive::createCircle(QPointF(0, 41.875), 1.875, false)); // Bubble
-                def.addPrimitive(SymbolPrimitive::createPin(QPointF(0, 55), 1, "CLR", "Up", 0));
-            }
-            if (pinCount >= 2) { // D (Left)
+
+            QStringList nodes = sub.pins;
+            auto findPin = [&](const QStringList& names, const QString& pattern) -> int {
+                QRegularExpression re(pattern, QRegularExpression::CaseInsensitiveOption);
+                for (int i = 0; i < names.size(); ++i) {
+                    if (re.match(names[i]).hasMatch()) return i + 1;
+                }
+                return -1;
+            };
+
+            int idxD = findPin(nodes, "^d$|^data$");
+            int idxCLK = findPin(nodes, "clk|clock|cp");
+            int idxQ = findPin(nodes, "^q$|^out$");
+            int idxQN = findPin(nodes, "qbar|qn|q\\\\");
+            int idxPRE = findPin(nodes, "pre|set");
+            int idxCLR = findPin(nodes, "clr|clear|res|reset");
+
+            // Fallback to indices if names didn't match (for 74HC74: CLR, D, CLK, PRE, Q, QN)
+            if (idxCLR == -1 && nodes.size() >= 1) idxCLR = 1;
+            if (idxD == -1 && nodes.size() >= 2) idxD = 2;
+            if (idxCLK == -1 && nodes.size() >= 3) idxCLK = 3;
+            if (idxPRE == -1 && nodes.size() >= 4) idxPRE = 4;
+            if (idxQ == -1 && nodes.size() >= 5) idxQ = 5;
+            if (idxQN == -1 && nodes.size() >= 6) idxQN = 6;
+
+            if (idxD != -1) {
                 def.addPrimitive(SymbolPrimitive::createLine(QPointF(-30, -15), QPointF(-45, -15)));
-                def.addPrimitive(SymbolPrimitive::createPin(QPointF(-45, -15), 2, "D", "Right", 0));
+                def.addPrimitive(SymbolPrimitive::createPin(QPointF(-45, -15), idxD, "D", "Right", 0));
             }
-            if (pinCount >= 3) { // CLK (Left)
+            if (idxCLK != -1) {
                 def.addPrimitive(SymbolPrimitive::createLine(QPointF(-30, 15), QPointF(-45, 15)));
-                def.addPrimitive(SymbolPrimitive::createPin(QPointF(-45, 15), 3, "CLK", "Right", 0));
+                def.addPrimitive(SymbolPrimitive::createPin(QPointF(-45, 15), idxCLK, "CLK", "Right", 0));
             }
-            if (pinCount >= 4) { // PRE (Top)
-                def.addPrimitive(SymbolPrimitive::createLine(QPointF(0, -43.75), QPointF(0, -55)));
-                def.addPrimitive(SymbolPrimitive::createCircle(QPointF(0, -41.875), 1.875, false)); // Bubble
-                def.addPrimitive(SymbolPrimitive::createPin(QPointF(0, -55), 4, "PRE", "Down", 0));
-            }
-            if (pinCount >= 5) { // Q (Right)
+            if (idxQ != -1) {
                 def.addPrimitive(SymbolPrimitive::createLine(QPointF(30, -15), QPointF(45, -15)));
-                def.addPrimitive(SymbolPrimitive::createPin(QPointF(45, -15), 5, "Q", "Left", 0));
+                def.addPrimitive(SymbolPrimitive::createPin(QPointF(45, -15), idxQ, "Q", "Left", 0));
             }
-            if (pinCount >= 6) { // QN (Right)
+            if (idxQN != -1) {
                 def.addPrimitive(SymbolPrimitive::createLine(QPointF(30, 15), QPointF(45, 15)));
-                def.addPrimitive(SymbolPrimitive::createPin(QPointF(45, 15), 6, "Q\\", "Left", 0));
+                def.addPrimitive(SymbolPrimitive::createPin(QPointF(45, 15), idxQN, "Q\\", "Left", 0));
             }
+            
+            if (idxPRE != -1) {
+                bool activeLow = nodes[idxPRE-1].contains("bar", Qt::CaseInsensitive) || 
+                               nodes[idxPRE-1].contains('n', Qt::CaseInsensitive) ||
+                               nodes[idxPRE-1].contains('\\');
+                if (activeLow) {
+                    def.addPrimitive(SymbolPrimitive::createCircle(QPointF(0, -41.875), 1.875, false));
+                    def.addPrimitive(SymbolPrimitive::createLine(QPointF(0, -43.75), QPointF(0, -55)));
+                } else {
+                    def.addPrimitive(SymbolPrimitive::createLine(QPointF(0, -40), QPointF(0, -55)));
+                }
+                def.addPrimitive(SymbolPrimitive::createPin(QPointF(0, -55), idxPRE, "PRE", "Down", 0));
+            }
+            if (idxCLR != -1) {
+                bool activeLow = nodes[idxCLR-1].contains("bar", Qt::CaseInsensitive) || 
+                               nodes[idxCLR-1].contains('n', Qt::CaseInsensitive) ||
+                               nodes[idxCLR-1].contains('\\');
+                if (activeLow) {
+                    def.addPrimitive(SymbolPrimitive::createCircle(QPointF(0, 41.875), 1.875, false));
+                    def.addPrimitive(SymbolPrimitive::createLine(QPointF(0, 43.75), QPointF(0, 55)));
+                } else {
+                    def.addPrimitive(SymbolPrimitive::createLine(QPointF(0, 40), QPointF(0, 55)));
+                }
+                def.addPrimitive(SymbolPrimitive::createPin(QPointF(0, 55), idxCLR, "CLR", "Up", 0));
+            }
+
+            QMap<int, QString> mapping;
             for(int i=0; i<pinCount; ++i) mapping.insert(i+1, getPinName(i));
             def.setSpiceNodeMapping(mapping);
 
@@ -2108,39 +2174,80 @@ static int generateSymbolsForLibrary(const QString& inputPath, const QString& ou
             // Clock triangle
             def.addPrimitive(SymbolPrimitive::createLine(QPointF(-30, -10), QPointF(-20, 0)));
             def.addPrimitive(SymbolPrimitive::createLine(QPointF(-20, 0), QPointF(-30, 10)));
-            
-            QMap<int, QString> mapping;
-            // Common JK order: 1:CLK, 2:J, 3:K, 4:PRE, 5:CLR, 6:Q, 7:QN
-            if (pinCount >= 1) { // CLK (Left)
-                def.addPrimitive(SymbolPrimitive::createLine(QPointF(-30, 0), QPointF(-45, 0)));
-                def.addPrimitive(SymbolPrimitive::createPin(QPointF(-45, 0), 1, "CLK", "Right", 0));
-            }
-            if (pinCount >= 2) { // J (Left)
+
+            QStringList nodes = sub.pins;
+            auto findPin = [&](const QStringList& names, const QString& pattern) -> int {
+                QRegularExpression re(pattern, QRegularExpression::CaseInsensitiveOption);
+                for (int i = 0; i < names.size(); ++i) {
+                    if (re.match(names[i]).hasMatch()) return i + 1;
+                }
+                return -1;
+            };
+
+            int idxJ = findPin(nodes, "^j$");
+            int idxK = findPin(nodes, "^k$");
+            int idxCLK = findPin(nodes, "clk|clock|cp");
+            int idxQ = findPin(nodes, "^q$");
+            int idxQN = findPin(nodes, "qbar|qn|q\\\\");
+            int idxPRE = findPin(nodes, "pre|set");
+            int idxCLR = findPin(nodes, "clr|clear|res|reset");
+
+            // Fallback for common JKFF order (74LS76: CLK, PRE, CLR, J, K, Q, QN)
+            if (idxCLK == -1 && nodes.size() >= 1) idxCLK = 1;
+            if (idxPRE == -1 && nodes.size() >= 2) idxPRE = 2;
+            if (idxCLR == -1 && nodes.size() >= 3) idxCLR = 3;
+            if (idxJ == -1 && nodes.size() >= 4) idxJ = 4;
+            if (idxK == -1 && nodes.size() >= 5) idxK = 5;
+            if (idxQ == -1 && nodes.size() >= 6) idxQ = 6;
+            if (idxQN == -1 && nodes.size() >= 7) idxQN = 7;
+
+            if (idxJ != -1) {
                 def.addPrimitive(SymbolPrimitive::createLine(QPointF(-30, -30), QPointF(-45, -30)));
-                def.addPrimitive(SymbolPrimitive::createPin(QPointF(-45, -30), 2, "J", "Right", 0));
+                def.addPrimitive(SymbolPrimitive::createPin(QPointF(-45, -30), idxJ, "J", "Right", 0));
             }
-            if (pinCount >= 3) { // K (Left)
+            if (idxCLK != -1) {
+                def.addPrimitive(SymbolPrimitive::createLine(QPointF(-30, 0), QPointF(-45, 0)));
+                def.addPrimitive(SymbolPrimitive::createPin(QPointF(-45, 0), idxCLK, "CLK", "Right", 0));
+            }
+            if (idxK != -1) {
                 def.addPrimitive(SymbolPrimitive::createLine(QPointF(-30, 30), QPointF(-45, 30)));
-                def.addPrimitive(SymbolPrimitive::createPin(QPointF(-45, 30), 3, "K", "Right", 0));
+                def.addPrimitive(SymbolPrimitive::createPin(QPointF(-45, 30), idxK, "K", "Right", 0));
             }
-            if (pinCount >= 4) { // PRE (Top)
-                def.addPrimitive(SymbolPrimitive::createLine(QPointF(0, -53.75), QPointF(0, -65)));
-                def.addPrimitive(SymbolPrimitive::createCircle(QPointF(0, -51.875), 1.875, false)); // Bubble
-                def.addPrimitive(SymbolPrimitive::createPin(QPointF(0, -65), 4, "PRE", "Down", 0));
-            }
-            if (pinCount >= 5) { // CLR (Bottom)
-                def.addPrimitive(SymbolPrimitive::createLine(QPointF(0, 53.75), QPointF(0, 65)));
-                def.addPrimitive(SymbolPrimitive::createCircle(QPointF(0, 51.875), 1.875, false)); // Bubble
-                def.addPrimitive(SymbolPrimitive::createPin(QPointF(0, 65), 5, "CLR", "Up", 0));
-            }
-            if (pinCount >= 6) { // Q (Right)
+            if (idxQ != -1) {
                 def.addPrimitive(SymbolPrimitive::createLine(QPointF(30, -30), QPointF(45, -30)));
-                def.addPrimitive(SymbolPrimitive::createPin(QPointF(45, -30), 6, "Q", "Left", 0));
+                def.addPrimitive(SymbolPrimitive::createPin(QPointF(45, -30), idxQ, "Q", "Left", 0));
             }
-            if (pinCount >= 7) { // QN (Right)
+            if (idxQN != -1) {
                 def.addPrimitive(SymbolPrimitive::createLine(QPointF(30, 30), QPointF(45, 30)));
-                def.addPrimitive(SymbolPrimitive::createPin(QPointF(45, 30), 7, "Q\\", "Left", 0));
+                def.addPrimitive(SymbolPrimitive::createPin(QPointF(45, 30), idxQN, "Q\\", "Left", 0));
             }
+
+            if (idxPRE != -1) {
+                bool activeLow = nodes[idxPRE-1].contains("bar", Qt::CaseInsensitive) || 
+                               nodes[idxPRE-1].contains('n', Qt::CaseInsensitive) ||
+                               nodes[idxPRE-1].contains('\\');
+                if (activeLow) {
+                    def.addPrimitive(SymbolPrimitive::createCircle(QPointF(0, -51.875), 1.875, false));
+                    def.addPrimitive(SymbolPrimitive::createLine(QPointF(0, -53.75), QPointF(0, -65)));
+                } else {
+                    def.addPrimitive(SymbolPrimitive::createLine(QPointF(0, -50), QPointF(0, -65)));
+                }
+                def.addPrimitive(SymbolPrimitive::createPin(QPointF(0, -65), idxPRE, "PRE", "Down", 0));
+            }
+            if (idxCLR != -1) {
+                bool activeLow = nodes[idxCLR-1].contains("bar", Qt::CaseInsensitive) || 
+                               nodes[idxCLR-1].contains('n', Qt::CaseInsensitive) ||
+                               nodes[idxCLR-1].contains('\\');
+                if (activeLow) {
+                    def.addPrimitive(SymbolPrimitive::createCircle(QPointF(0, 51.875), 1.875, false));
+                    def.addPrimitive(SymbolPrimitive::createLine(QPointF(0, 53.75), QPointF(0, 65)));
+                } else {
+                    def.addPrimitive(SymbolPrimitive::createLine(QPointF(0, 50), QPointF(0, 65)));
+                }
+                def.addPrimitive(SymbolPrimitive::createPin(QPointF(0, 65), idxCLR, "CLR", "Up", 0));
+            }
+
+            QMap<int, QString> mapping;
             for(int i=0; i<pinCount; ++i) mapping.insert(i+1, getPinName(i));
             def.setSpiceNodeMapping(mapping);
 
@@ -5962,6 +6069,7 @@ int main(int argc, char *argv[]) {
     parser.addPositionalArgument("script", "JSON script file for 'process' command", "");
 
     parser.process(app);
+    g_debug = parser.isSet("debug");
     g_quiet = parser.isSet("quiet");
     g_exitOnWarning = parser.isSet("exit-on-warning");
     g_noColor = parser.isSet("no-color");
