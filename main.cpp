@@ -33,6 +33,8 @@
 #include <QTimer>
 #include <QFuture>
 #include <QMessageBox>
+#include <QQuickWindow>
+#include <QSGRendererInterface>
 
 extern void initEmbeddedPython();
 extern void shutdownEmbeddedPython();
@@ -75,6 +77,7 @@ int main(int argc, char *argv[])
     qputenv("QT_OPENGL", "desktop");
     qputenv("QT_RHI_BACKEND", "opengl");
     qputenv("QSG_RHI_BACKEND", "opengl");
+    QQuickWindow::setGraphicsApi(QSGRendererInterface::OpenGL);
 #endif
 
     QApplication a(argc, argv);
