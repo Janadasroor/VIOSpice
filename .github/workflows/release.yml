@@ -137,7 +137,7 @@ jobs:
           PYPATH=$(cygpath -w /mingw64/bin/python.exe)
           cmake -B build -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON -DVIOSPICE_BUILD_FLUXSCRIPT=ON \
             -DPython3_EXECUTABLE="$PYPATH" -DPython_EXECUTABLE="$PYPATH" \
-            -G "MSYS Makefiles" -DMI_OVERRIDE=OFF
+            -G "MSYS Makefiles" -DMI_OVERRIDE=OFF -DSLANG_USE_MIMALLOC=OFF
 
       - name: Build (Linux)
         if: runner.os == 'Linux'
