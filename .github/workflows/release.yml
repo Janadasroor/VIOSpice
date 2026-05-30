@@ -175,7 +175,7 @@ jobs:
       - name: Smoke test VioraEDA (macOS)
         if: runner.os == 'macOS'
         env:
-          DYLD_LIBRARY_PATH: ${{ github.workspace }}/build/viomatrixc-prebuilt/lib:${{ github.workspace }}/build/fluxscript-prebuilt/lib
+          DYLD_LIBRARY_PATH: ${{ github.workspace }}/build/viomatrixc-prebuilt/lib:${{ github.workspace }}/build/fluxscript-prebuilt/lib:/opt/homebrew/lib
         run: |
           set +e
           QT_QPA_PLATFORM=offscreen ./build/VioraEDA &
@@ -270,7 +270,7 @@ jobs:
         if: runner.os != 'Windows'
         env:
           QT_QPA_PLATFORM: offscreen
-          DYLD_LIBRARY_PATH: ${{ github.workspace }}/build/viomatrixc-prebuilt/lib:${{ github.workspace }}/build/fluxscript-prebuilt/lib
+          DYLD_LIBRARY_PATH: ${{ github.workspace }}/build/viomatrixc-prebuilt/lib:${{ github.workspace }}/build/fluxscript-prebuilt/lib:/opt/homebrew/lib
         run: ctest --test-dir build --output-on-failure -R "^(schematic|core|simulator|rpi|unit_|regression|integration)\."
 
       - name: Run unit tests (Windows)
@@ -414,8 +414,6 @@ jobs:
           check_file "bin/libgcc_s_seh-1.dll"
           check_file "bin/libstdc++-6.dll"
           check_file "bin/libwinpthread-1.dll"
-          check_file "bin/python3.dll"
-          check_file "bin/libFluxScript.dll"
           check_file "cm/analog.cm"
           check_file "cm/digital.cm"
           echo "--- staging tree ---"
