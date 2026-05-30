@@ -70,6 +70,11 @@ int main(int argc, char *argv[])
     // Enable ASan-friendly exit behavior
     qputenv("ASAN_OPTIONS", "detect_leaks=1");
 
+#if defined(_WIN32) || defined(_WIN64)
+    // Force native desktop OpenGL composition to prevent DXGI/D3D11 composition conflicts with QOpenGLWidget (causing black lines and empty waveforms)
+    qputenv("QT_OPENGL", "desktop");
+#endif
+
     QApplication a(argc, argv);
 
     // MANDATORY: Setup custom simulation engine environment BEFORE any engine code is loaded
