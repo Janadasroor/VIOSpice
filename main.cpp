@@ -73,6 +73,8 @@ int main(int argc, char *argv[])
 #if defined(_WIN32) || defined(_WIN64)
     // Force native desktop OpenGL composition to prevent DXGI/D3D11 composition conflicts with QOpenGLWidget (causing black lines and empty waveforms)
     qputenv("QT_OPENGL", "desktop");
+    qputenv("QT_RHI_BACKEND", "opengl");
+    qputenv("QSG_RHI_BACKEND", "opengl");
 #endif
 
     QApplication a(argc, argv);
