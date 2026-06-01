@@ -1326,8 +1326,11 @@ class SimulationDatasetService:
 
     def run_voltage_divider_classification_dataset(self, request: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         payload = dict(request or {})
-        output_path = Path(str(payload.get("output_path") or "/tmp/viospice-datasets/voltage_divider_classifier.jsonl"))
-        netlist_dir = Path(str(payload.get("netlist_dir") or "/tmp/viospice-netlists/voltage_divider_classifier"))
+        import tempfile
+        import os
+        base_tmp = tempfile.gettempdir()
+        output_path = Path(str(payload.get("output_path") or os.path.join(base_tmp, "viospice-datasets", "voltage_divider_classifier.jsonl")))
+        netlist_dir = Path(str(payload.get("netlist_dir") or os.path.join(base_tmp, "viospice-netlists", "voltage_divider_classifier")))
         vin_values = [float(item) for item in list(payload.get("vin_values") or [1.8, 3.3, 5.0, 12.0])]
         r1_values = [int(item) for item in list(payload.get("r1_values") or [470, 1000, 2200, 4700, 10000])]
         r2_values = [int(item) for item in list(payload.get("r2_values") or [470, 1000, 2200, 4700, 10000])]

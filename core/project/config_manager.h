@@ -120,6 +120,8 @@ public:
     bool aiErcEnabled() const;
     void setAiErcEnabled(bool enabled);
 
+    static QString defaultLibraryPath();
+
 Q_SIGNALS:
     void requestModelRefresh();
 
