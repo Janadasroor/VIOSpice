@@ -1,9 +1,19 @@
 #include "config_manager.h"
 #include <QDir>
+#include <QStandardPaths>
+#include <QSysInfo>
 
 ConfigManager& ConfigManager::instance() {
     static ConfigManager instance;
     return instance;
+}
+
+QString ConfigManager::defaultLibraryPath() {
+#ifdef Q_OS_WIN
+    return QStandardPaths::writableLocation(QStandardPaths::AppDataLocation) + "/ViospiceLib";
+#else
+    return QDir::homePath() + "/ViospiceLib";
+#endif
 }
 
 ConfigManager::~ConfigManager() = default;
@@ -287,7 +297,7 @@ void ConfigManager::load() {
 
     // Seed default library root on first run if none are configured.
     if (m_libraryRoots.isEmpty() && m_symbolPaths.isEmpty() && m_modelPaths.isEmpty()) {
-        const QString base = QDir::homePath() + "/ViospiceLib";
+        const QString base = ConfigManager::defaultLibraryPath();
         QDir().mkpath(QDir(base).filePath("sym"));
         QDir().mkpath(QDir(base).filePath("sub"));
         QDir().mkpath(QDir(base).filePath("cmp"));

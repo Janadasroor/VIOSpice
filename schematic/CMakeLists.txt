@@ -41,6 +41,14 @@ target_sources(VioSchematic PRIVATE
     ui/manifest_editor.h
     items/virtual_terminal_item.cpp
     items/virtual_terminal_item.h
+    items/logic_toggle_item.cpp
+    items/logic_toggle_item.h
+    items/logic_probe_item.cpp
+    items/logic_probe_item.h
+    items/rotary_knob_item.cpp
+    items/rotary_knob_item.h
+    items/joystick_item.cpp
+    items/joystick_item.h
     ui/virtual_terminal_window.cpp
     ui/virtual_terminal_window.h
     dialogs/virtual_terminal_properties_dialog.cpp

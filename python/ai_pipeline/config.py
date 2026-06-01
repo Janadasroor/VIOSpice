@@ -94,4 +94,7 @@ ENV_ML_RATE_WINDOW: str = "VIOSPICE_ML_RATE_WINDOW_SECONDS"
 ENV_GEMINI_API_KEY: str = "GEMINI_API_KEY"
 ENV_OCTOPART_API_KEY: str = "OCTOPART_API_KEY"
 
-LOG_FILE_PATH: str = "/tmp/viospice_ai.log"
+import tempfile
+import os
+
+LOG_FILE_PATH: str = os.path.join(tempfile.gettempdir(), "viospice_ai.log")

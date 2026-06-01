@@ -68,15 +68,10 @@ bool SpiceBackend::isPaused() const {
 void* SpiceBackend::resolveSymbol(const char* symbolName) {
     if (!symbolName || !*symbolName) return nullptr;
 
-#ifndef Q_OS_WIN
-    if (void* sym = dlsym(RTLD_DEFAULT, symbolName)) {
-        return sym;
-    }
-#endif
-
     // Try to resolve from the ngspice library using QLibrary.
     // Qt handles platform-specific extensions (.so, .dll, .dylib) automatically.
-    QStringList libNames = {"ngspice", "libngspice", "libngspice-0"};
+    // Also check for 'viospice' which is often the target name in CMake.
+    QStringList libNames = {"ngspice", "libngspice", "libngspice-0", "viospice"};
     for (const QString& lib : libNames) {
         if (QFunctionPointer sym = QLibrary::resolve(lib, symbolName)) {
             return reinterpret_cast<void*>(sym);

@@ -96,7 +96,9 @@ void SchematicToolRegistryBuiltIn::registerBuiltInTools() {
     registry.registerTool("14-Segment Display", []() { return new SchematicComponentTool("14-Segment Display"); });
     registry.registerTool("16-Segment Display", []() { return new SchematicComponentTool("16-Segment Display"); });
     registry.registerTool("Signal Generator", []() { return new SchematicComponentTool("Signal Generator"); });
-    registry.registerTool("Logic Analyzer", []() { return new SchematicComponentTool("Logic Analyzer"); });
+    registry.registerTool("Logic Analyzer", []() { return new SchematicComponentTool("LogicAnalyzer"); });
+    registry.registerTool("Logic Toggle", []() { return new SchematicComponentTool("LogicToggle"); });
+    registry.registerTool("Logic Probe", []() { return new SchematicComponentTool("LogicProbe"); });
     registry.registerTool("Virtual Terminal", []() { return new SchematicComponentTool("VirtualTerminalInstrument"); });
     registry.registerTool("Oscilloscope Instrument", []() { return new SchematicComponentTool("Oscilloscope Instrument"); });
     registry.registerTool("Smart Signal Block", []() { return new SchematicComponentTool("SmartSignalBlock"); });
@@ -122,7 +124,6 @@ void SchematicToolRegistryBuiltIn::registerBuiltInTools() {
     registry.registerTool("Wattmeter", []() { return new SchematicComponentTool("Wattmeter"); });
     registry.registerTool("Power Meter", []() { return new SchematicComponentTool("Wattmeter"); }); // alias
     registry.registerTool("Frequency Counter", []() { return new SchematicComponentTool("Frequency Counter"); });
-    registry.registerTool("Logic Probe", []() { return new SchematicComponentTool("Logic Probe"); });
     
     // Power components
     registry.registerTool("GND", []() { return new SchematicComponentTool("GND"); });

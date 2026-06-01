@@ -16,6 +16,7 @@
 #include <QDateTime>
 #include <QRegularExpression>
 #include <QFile>
+#include <QStandardPaths>
 #include <QTextStream>
 #include <QFileInfo>
 #include <QDir>
@@ -2697,7 +2698,7 @@ QString resolveModelPath(const QString& modelPath, const QString& projectDir) {
 
     // Fallback: default Viospice subcircuit library
     {
-        const QString libRoot = QDir::homePath() + "/ViospiceLib";
+        const QString libRoot = ConfigManager::defaultLibraryPath();
         
         // If path starts with "sub/" try it relative to ViospiceLib root (correct path)
         if (source.startsWith("sub/", Qt::CaseInsensitive)) {
@@ -3865,6 +3866,12 @@ SpiceNetlistGenerator::GeneratedNetlist SpiceNetlistGenerator::generate(QGraphic
         else if (type == SchematicItem::SmartSignalType) {
             line = ensurePrefix(ref, "V"); // Controlled by FluxScript JIT
             value = "0"; // Initial value
+        }
+        else if (typeName == "LogicToggle") {
+            line = ensurePrefix(ref, "V"); // Acts as a Voltage Source
+            if (!pins.contains("2")) {
+                pins.insert("2", "0"); // Inject explicit GND pin
+            }
         }
         else if (typeName == "XspiceBlock") {
             line = ensurePrefix(ref, "A"); // XSPICE A-device block

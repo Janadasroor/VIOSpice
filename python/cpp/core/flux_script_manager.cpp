@@ -44,22 +44,34 @@ QString FluxScriptManager::getFluxExecutable() {
 
 QString FluxScriptManager::getPythonExecutable() {
     const QString appDir = QCoreApplication::applicationDirPath();
-    const QStringList candidates = {
-        QDir(appDir).absoluteFilePath("../python/qml/venv/bin/python"),
-        QDir(appDir).absoluteFilePath("python/qml/venv/bin/python"),
-        QStringLiteral("python3"),
-        QStringLiteral("python")
-    };
+    QStringList candidates;
+    
+#ifdef Q_OS_WIN
+    candidates << QDir(appDir).absoluteFilePath("../python/qml/venv/Scripts/python.exe");
+    candidates << QDir(appDir).absoluteFilePath("python/qml/venv/Scripts/python.exe");
+    candidates << QStringLiteral("python.exe");
+    candidates << QStringLiteral("python");
+#else
+    candidates << QDir(appDir).absoluteFilePath("../python/qml/venv/bin/python");
+    candidates << QDir(appDir).absoluteFilePath("python/qml/venv/bin/python");
+    candidates << QStringLiteral("python3");
+    candidates << QStringLiteral("python");
+#endif
 
     for (const QString& candidate : candidates) {
-        if (candidate == QLatin1String("python3") || candidate == QLatin1String("python")) {
+        if (!candidate.contains(QDir::separator())) {
+            // It's a command name, not a path
             return candidate;
         }
         if (QFile::exists(candidate)) {
             return candidate;
         }
     }
+#ifdef Q_OS_WIN
+    return QStringLiteral("python.exe");
+#else
     return QStringLiteral("python3");
+#endif
 }
 
 QString FluxScriptManager::getPythonRoot() {
