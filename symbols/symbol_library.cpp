@@ -1,4 +1,6 @@
 #include "symbol_library.h"
+#include "../core/project/config_manager.h"
+#include <QStandardPaths>
 #include "kicad_symbol_importer.h"
 #include <QFile>
 #include <QJsonDocument>
@@ -124,7 +126,7 @@ QString normalizeLookupKey(const QString& raw) {
 class SymbolMetadataCache {
 public:
     SymbolMetadataCache() {
-        const QString baseDir = QDir::homePath() + "/ViospiceLib";
+        const QString baseDir = ConfigManager::defaultLibraryPath();
         QDir().mkpath(baseDir);
         m_path = baseDir + "/symbol_metadata_cache.json";
         load();

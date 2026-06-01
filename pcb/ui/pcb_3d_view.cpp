@@ -552,16 +552,29 @@ bool PCB3DView::setSpaceMouseEnabled(bool enabled) {
 
     if (!m_spaceMouseConnected) {
         if (!m_spaceMouseLib.isLoaded()) {
+#ifdef Q_OS_WIN
+            m_spaceMouseLib.setFileName("siapp.dll");
+            if (!m_spaceMouseLib.load()) {
+                m_spaceMouseLib.setFileName("siapp");
+                m_spaceMouseLib.load();
+            }
+#else
             m_spaceMouseLib.setFileName("libspnav.so.0");
             if (!m_spaceMouseLib.load()) {
                 m_spaceMouseLib.setFileName("libspnav.so");
-                if (!m_spaceMouseLib.load()) return false;
+                m_spaceMouseLib.load();
             }
+#endif
         }
+
+        if (!m_spaceMouseLib.isLoaded()) return false;
 
         m_spnavOpen = reinterpret_cast<int (*)()>(m_spaceMouseLib.resolve("spnav_open"));
         m_spnavClose = reinterpret_cast<int (*)()>(m_spaceMouseLib.resolve("spnav_close"));
         m_spnavPollEvent = reinterpret_cast<int (*)(void*)>(m_spaceMouseLib.resolve("spnav_poll_event"));
+        
+        // On Windows, the entry points might have different names or require the official 3DxWare SDK.
+        // For now, we assume a libspnav-compatible wrapper if found.
         if (!m_spnavOpen || !m_spnavClose || !m_spnavPollEvent) return false;
         if (m_spnavOpen() == -1) return false;
         m_spaceMouseConnected = true;

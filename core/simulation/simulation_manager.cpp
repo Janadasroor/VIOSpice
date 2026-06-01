@@ -823,7 +823,7 @@ void SimulationManager::handleEngineStateChange(bool finished, int id) {
         rawPath = fi.absolutePath() + "/" + fi.completeBaseName() + ".raw";
     } else {
         // Default for temporary netlists
-        rawPath = "/tmp/viospice.raw";
+        rawPath = QDir::tempPath() + "/viospice.raw";
     }
 
     if (finished && (isPaused || m_haltRequested.load())) {

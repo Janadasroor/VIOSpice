@@ -50,10 +50,14 @@ SchematicItem* SchematicItemFactory::createItem(const QString& typeName, QPointF
     const bool isMesfet = typeName.compare("mesfet", Qt::CaseInsensitive) == 0;
     const bool isControlledSource = (typeName == "E" || typeName == "G" || typeName == "F" || typeName == "H" ||
                                      typeName == "VCVS" || typeName == "VCCS" || typeName == "CCCS" || typeName == "CCVS");
-    const bool isSpecializedItem = (typeName == "Tuning Slider" || 
-                                    typeName == "Oscilloscope Instrument" ||
-                                    typeName == "Logic Analyzer" ||
-                                    typeName == "Signal Generator" ||
+    const bool isSpecializedItem = (typeName == "TuningSlider" || 
+                                    typeName == "RotaryKnob" ||
+                                    typeName == "Joystick" ||
+                                    typeName == "OscilloscopeInstrument" ||
+                                    typeName == "LogicAnalyzer" ||
+                                    typeName == "LogicToggle" ||
+                                    typeName == "LogicProbe" ||
+                                    typeName == "SignalGenerator" ||
                                     typeName == "7-Segment Display" ||
                                     typeName == "Dual 7-Segment Display" ||
                                     typeName == "14-Segment Display" ||
@@ -65,7 +69,8 @@ SchematicItem* SchematicItemFactory::createItem(const QString& typeName, QPointF
                                     typeName == "Ammeter (DC)" ||
                                     typeName == "Ammeter (AC)" ||
                                     typeName == "Wattmeter" ||
-                                    typeName == "Virtual Terminal" ||
+                                    typeName == "VirtualTerminalInstrument" ||
+                                    typeName == "Flux Measurement Probe" ||
                                     isControlledSource);
 
     if (!isPowerItem && !isVoltageSource && !isCurrentSource && !isJfet && !isBjtAlias && !isMosAlias && !isMesfet && !isSpecializedItem) {

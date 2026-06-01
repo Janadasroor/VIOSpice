@@ -1,3 +1,4 @@
+#include "config_manager.h"
 #include "library_index.h"
 #include <QSqlError>
 #include <QStandardPaths>
@@ -10,9 +11,12 @@ LibraryIndex& LibraryIndex::instance() {
     return inst;
 }
 
+#include <QStandardPaths>
+
 LibraryIndex::LibraryIndex(QObject* parent) : QObject(parent) {
-    m_dbPath = QDir::homePath() + "/ViospiceLib/library_index.db";
-    QDir().mkpath(QDir::homePath() + "/ViospiceLib");
+    QString basePath = ConfigManager::defaultLibraryPath();
+    m_dbPath = basePath + "/library_index.db";
+    QDir().mkpath(basePath);
 }
 
 LibraryIndex::~LibraryIndex() {

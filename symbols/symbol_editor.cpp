@@ -19,6 +19,7 @@
 //  10.  QPointer<SymbolEditorView> used in lambdas to prevent dangling captures.
 
 #include "symbol_editor.h"
+#include "../core/project/config_manager.h"
 #include "symbol_library.h"
 #include "kicad_symbol_importer.h"
 #include "ltspice_symbol_importer.h"
