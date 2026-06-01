@@ -80,25 +80,17 @@ ERCDiagnosticsPanel::ERCDiagnosticsPanel(QWidget* parent) : QWidget(parent) {
 void ERCDiagnosticsPanel::updateLibraryInfo() {
     if (!m_libraryInfoLabel) return;
 
-    // Check which ngspice library is loaded
-#ifndef _WIN32
-    Dl_info info;
-#endif
     QString libPath;
     bool isVioMatrix = false;
     
-    // Try to find the path to ngSpice_Init or ngSpice_Circ
-#ifndef _WIN32
-    if (dladdr((void*)ngSpice_Init, &info) && info.dli_fname) {
-        libPath = QString::fromLatin1(info.dli_fname);
-    } else if (dladdr((void*)ngSpice_Command, &info) && info.dli_fname) {
-        libPath = QString::fromLatin1(info.dli_fname);
-    }
+    // In a future update, this should use a portable simulation manager API 
+    // to retrieve engine metadata.
+#ifdef VIOSPICE_ENGINE_BUILTIN
+    isVioMatrix = true;
+    libPath = "Built-in VioMATRIXC";
+#else
+    libPath = "Dynamic Link (System)";
 #endif
-
-    // Determine if it's VioMATRIXC
-    isVioMatrix = libPath.contains("VioMATRIXC", Qt::CaseInsensitive) || 
-                  libPath.contains("releasesh", Qt::CaseInsensitive);
 
     QString icon = isVioMatrix ? "🔧" : "⚙️";
     QString type = isVioMatrix ? "VioMATRIXC (Custom Fork)" : "System ngspice";

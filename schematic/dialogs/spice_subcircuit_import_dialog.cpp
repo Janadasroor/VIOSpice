@@ -1,3 +1,4 @@
+#include "../../core/project/config_manager.h"
 #include "spice_subcircuit_import_dialog.h"
 #include "theme_manager.h"
 
@@ -7,6 +8,7 @@
 #include <QCheckBox>
 #include <QDialogButtonBox>
 #include <QDir>
+#include <QStandardPaths>
 #include <QFile>
 #include <QFileInfo>
 #include <QGridLayout>
@@ -228,7 +230,7 @@ void SpiceSubcircuitImportDialog::setupUi() {
 }
 
 QString SpiceSubcircuitImportDialog::baseDirectory() const {
-    return QDir::homePath() + "/ViospiceLib";
+    return ConfigManager::defaultLibraryPath();
 }
 
 QString SpiceSubcircuitImportDialog::suggestedFileName(const QString& subcktName) const {

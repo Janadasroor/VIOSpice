@@ -28,6 +28,10 @@
 #include "signal_generator_item.h"
 #include "behavioral_current_source_item.h"
 #include "logic_analyzer_item.h"
+#include "logic_toggle_item.h"
+#include "logic_probe_item.h"
+#include "rotary_knob_item.h"
+#include "joystick_item.h"
 #include "oscilloscope_item.h"
 #include "virtual_terminal_item.h"
 #include "smart_signal_item.h"
@@ -582,6 +586,18 @@ void SchematicItemRegistry::registerBuiltInItems() {
         return item;
     });
 
+    factory.registerItemType("Rotary Knob", [](QPointF pos, const QJsonObject& properties, QGraphicsItem* parent) -> SchematicItem* {
+        auto* item = new RotaryKnobItem(pos, parent);
+        if (!properties.isEmpty()) item->fromJson(properties);
+        return item;
+    });
+
+    factory.registerItemType("Joystick", [](QPointF pos, const QJsonObject& properties, QGraphicsItem* parent) -> SchematicItem* {
+        auto* item = new JoystickItem(pos, parent);
+        if (!properties.isEmpty()) item->fromJson(properties);
+        return item;
+    });
+
     factory.registerItemType("Switch", [](QPointF pos, const QJsonObject&, QGraphicsItem* parent) -> SchematicItem* {
         return new SwitchItem(pos, parent);
     });
@@ -634,8 +650,20 @@ void SchematicItemRegistry::registerBuiltInItems() {
         return new SignalGeneratorItem(pos, parent);
     });
 
-    factory.registerItemType("Logic Analyzer", [](QPointF pos, const QJsonObject&, QGraphicsItem* parent) -> SchematicItem* {
+    factory.registerItemType("LogicAnalyzer", [](QPointF pos, const QJsonObject&, QGraphicsItem* parent) -> SchematicItem* {
         return new LogicAnalyzerItem(pos, parent);
+    });
+
+    factory.registerItemType("LogicToggle", [](QPointF pos, const QJsonObject& properties, QGraphicsItem* parent) -> SchematicItem* {
+        auto* item = new LogicToggleItem(pos, parent);
+        if (!properties.isEmpty()) item->fromJson(properties);
+        return item;
+    });
+
+    factory.registerItemType("LogicProbe", [](QPointF pos, const QJsonObject& properties, QGraphicsItem* parent) -> SchematicItem* {
+        auto* item = new LogicProbeItem(pos, parent);
+        if (!properties.isEmpty()) item->fromJson(properties);
+        return item;
     });
 
     factory.registerItemType("VirtualTerminalInstrument", [](QPointF pos, const QJsonObject& properties, QGraphicsItem* parent) -> SchematicItem* {
@@ -676,10 +704,6 @@ void SchematicItemRegistry::registerBuiltInItems() {
 
     factory.registerItemType("Frequency Counter", [](QPointF pos, const QJsonObject&, QGraphicsItem* parent) -> SchematicItem* {
         return new InstrumentProbeItem(InstrumentProbeItem::Kind::FrequencyCounter, pos, parent);
-    });
-
-    factory.registerItemType("Logic Probe", [](QPointF pos, const QJsonObject&, QGraphicsItem* parent) -> SchematicItem* {
-        return new InstrumentProbeItem(InstrumentProbeItem::Kind::LogicProbe, pos, parent);
     });
 
     factory.registerItemType("SmartSignalBlock", [](QPointF pos, const QJsonObject& properties, QGraphicsItem* parent) -> SchematicItem* {
@@ -825,3 +849,4 @@ void SchematicItemRegistry::registerBuiltInItems() {
         return nullptr;
     });
 }
+

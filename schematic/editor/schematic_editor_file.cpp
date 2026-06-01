@@ -2011,7 +2011,7 @@ void SchematicEditor::onCreateSymbolFromSchematic() {
     if (!roots.isEmpty()) {
         libSubDir = QDir(roots.first()).filePath("sub");
     } else {
-        libSubDir = QDir::homePath() + "/ViospiceLib/sub";
+        libSubDir = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation) + "/ViospiceLib/sub";
     }
     QDir().mkpath(libSubDir);
 
