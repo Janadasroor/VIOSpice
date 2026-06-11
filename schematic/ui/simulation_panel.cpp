@@ -4,7 +4,7 @@
 #include "../items/schematic_page_item.h"
 #include "../items/simulation_net_table_item.h"
 #include "../items/wire_item.h"
-#include "../../simulator/core/sim_value_parser.h"
+#include "../../core/simulation/sim_value_parser.h"
 #include "simulator/core/raw_data_parser.h"
 #include "waveform_viewer.h"
 #include "simulation_log_dialog.h"
@@ -75,7 +75,7 @@
 #include "virtual_instruments.h"
 #include "si_formatter.h"
 #include "../../simulator/core/sim_math.h"
-#include "../../simulator/core/sim_value_parser.h"
+#include "../../core/simulation/sim_value_parser.h"
 #include "../../simulator/bridge/sim_schematic_bridge.h"
 
 namespace {
@@ -132,6 +132,22 @@ QStringList waveformNetAliases(const QString& netName) {
     if (trimmed.startsWith("I(", Qt::CaseInsensitive) && trimmed.endsWith(")")) {
         QString comp = trimmed.mid(2, trimmed.size() - 3).trimmed();
         aliases << QString("@%1[i]").arg(comp) << QString("@%1[I]").arg(comp);
+        aliases << QString("%1#branch").arg(comp) << QString("%1#BRANCH").arg(comp);
+        
+        // Handle transistor terminals (C, B, E, D, G, S) with both parentheses and colons
+        aliases << QString("I(%1(C))").arg(comp) << QString("I(%1(B))").arg(comp) << QString("I(%1(E))").arg(comp);
+        aliases << QString("I(%1(D))").arg(comp) << QString("I(%1(G))").arg(comp) << QString("I(%1(S))").arg(comp);
+        aliases << QString("I(%1:C)").arg(comp) << QString("I(%1:B)").arg(comp) << QString("I(%1:E)").arg(comp);
+        aliases << QString("I(%1:D)").arg(comp) << QString("I(%1:G)").arg(comp) << QString("I(%1:S)").arg(comp);
+        
+        aliases << QString("@%1[ic]").arg(comp) << QString("@%1[ib]").arg(comp) << QString("@%1[ie]").arg(comp);
+        aliases << QString("@%1[id]").arg(comp) << QString("@%1[ig]").arg(comp) << QString("@%1[is]").arg(comp);
+
+        // Handle nested internal probes like I(V(MN1))
+        aliases << QString("I(V(%1))").arg(comp);
+        
+        // Match base name if user probes "V1" but simulator returns "I(V1)"
+        aliases << comp;
     } else if (trimmed.startsWith("P(", Qt::CaseInsensitive) && trimmed.endsWith(")")) {
         QString comp = trimmed.mid(2, trimmed.size() - 3).trimmed();
         aliases << QString("@%1[p]").arg(comp) << QString("@%1[P]").arg(comp);
@@ -1305,7 +1321,7 @@ void SimulationPanel::addProbe(const QString& signalName) {
         for (const auto& w : m_lastResults.waveforms) {
             QString wName = QString::fromStdString(w.name);
             if (signalMatches(wName, matchedName)) {
-                addWaveform(&w, wName);
+                addWaveform(&w, matchedName);
                 found = true;
             }
         }
@@ -1333,23 +1349,44 @@ void SimulationPanel::addProbe(const QString& signalName) {
                 const SimWaveform* pWave = findW(pNet);
                 const SimWaveform* nWave = findW(nNet);
                 
-                if (pWave && nWave) {
+                // Synthetic zero waveforms for GND/0 (not present in raw file)
+                SimWaveform zeroWave;
+                bool pIsZero = false, nIsZero = false;
+                if (!pWave && (pNet == "0" || pNet.compare("GND", Qt::CaseInsensitive) == 0)) {
+                    pIsZero = true;
+                }
+                if (!nWave && (nNet == "0" || nNet.compare("GND", Qt::CaseInsensitive) == 0)) {
+                    nIsZero = true;
+                }
+                
+                if ((pWave || pIsZero) && (nWave || nIsZero)) {
+                    if (pIsZero && nWave) {
+                        zeroWave.xData = nWave->xData;
+                        zeroWave.yData.assign(nWave->yData.size(), 0.0);
+                        pWave = &zeroWave;
+                    } else if (nIsZero && pWave) {
+                        zeroWave.xData = pWave->xData;
+                        zeroWave.yData.assign(pWave->yData.size(), 0.0);
+                        nWave = &zeroWave;
+                    }
                     // Calculate V(p) - V(n)
                     // Note: assume same time axis for simplistic implementation
-                    size_t count = std::min(pWave->yData.size(), nWave->yData.size());
-                    if (count > 0) {
-                        QVector<double> time;
-                        QVector<double> values;
-                        time.reserve(count);
-                        values.reserve(count);
-                        
-                        for (size_t i = 0; i < count; ++i) {
-                            time.append(pWave->xData[i]);
-                            values.append(pWave->yData[i] - nWave->yData[i]);
+                    if (pWave && nWave) {
+                        size_t count = std::min(pWave->yData.size(), nWave->yData.size());
+                        if (count > 0) {
+                            QVector<double> time;
+                            QVector<double> values;
+                            time.reserve(count);
+                            values.reserve(count);
+                            
+                            for (size_t i = 0; i < count; ++i) {
+                                time.append(pWave->xData[i]);
+                                values.append(pWave->yData[i] - nWave->yData[i]);
+                            }
+                            
+                            m_waveformViewer->addSignal(matchedName, time, values);
+                            found = true;
                         }
-                        
-                        m_waveformViewer->addSignal(matchedName, time, values);
-                        found = true;
                     }
                 }
             }
@@ -1473,7 +1510,15 @@ void SimulationPanel::addProbe(const QString& signalName) {
                             minY = std::min(minY, p.y());
                             maxY = std::max(maxY, p.y());
                         }
-                        double pad = (std::abs(maxY - minY) < 1e-15) ? 0.5 : (maxY - minY) * 0.1;
+                        double pad;
+                        double sigRange = std::abs(maxY - minY);
+                        if (sigRange < 1e-15) {
+                            // DC / near-flat: use 10% of signal magnitude, or at least 1e-6
+                            double center = (maxY + minY) * 0.5;
+                            pad = std::max(std::abs(center) * 0.1, 1e-6);
+                        } else {
+                            pad = sigRange * 0.1;
+                        }
                         axesY[0]->setRange(minY - pad, maxY + pad);
                     }
                 }
@@ -1924,6 +1969,13 @@ void SimulationPanel::updateSchematicDirective() {
         cmdParams.rfPort1Source = m_param4 ? m_param4->text().trimmed() : "V1";
         cmdParams.rfPort2Node = m_param5 ? m_param5->text().trimmed() : "OUT";
         cmdParams.rfZ0 = m_param6 ? m_param6->text().trimmed() : "50";
+    } else if (idx == 9) { // Interactive
+        QString cmdText = QString(".interactive %1 %2 %3").arg(
+            m_param1 ? m_param1->text().trimmed() : "100",
+            m_param2 ? m_param2->text().trimmed() : "10",
+            m_param3 ? m_param3->text().trimmed() : "50000");
+        updateSchematicDirectiveFromCommand(cmdText);
+        return;
     } else {
         cmdParams.type = SpiceNetlistGenerator::OP;
     }
@@ -1943,7 +1995,7 @@ void SimulationPanel::updateSchematicDirective() {
                 if (tl.startsWith(".tran") || tl.startsWith(".ac") || tl.startsWith(".dc") ||
                     tl.startsWith(".op") || tl.startsWith(".net") || tl.startsWith(".noise") ||
                     tl.startsWith(".disto") || tl.startsWith(".four") || tl.startsWith(".tf") ||
-                    tl.startsWith(".sens") || tl.startsWith(".sp")) {
+                    tl.startsWith(".sens") || tl.startsWith(".sp") || tl.startsWith(".interactive")) {
                     isAnalysis = true;
                     break;
                 }
@@ -2001,7 +2053,9 @@ void SimulationPanel::syncFromSchematic() {
         if (auto* directive = dynamic_cast<SchematicSpiceDirectiveItem*>(item)) {
             QString text = directive->text().trimmed();
             if (text.startsWith(".") && !text.contains(".model") && !text.contains(".subckt") && !text.contains(".include") && !text.contains(".options")) {
-                if (text.startsWith(".tran") || text.startsWith(".ac") || text.startsWith(".sp") || text.startsWith(".dc") || text.startsWith(".op") || text.startsWith(".net")) {
+                if (text.startsWith(".tran") || text.startsWith(".ac") || text.startsWith(".sp") || 
+                    text.startsWith(".dc") || text.startsWith(".op") || text.startsWith(".net") ||
+                    text.startsWith(".interactive")) {
                     cmd = text;
                     break;
                 }
@@ -2010,10 +2064,12 @@ void SimulationPanel::syncFromSchematic() {
     }
 
     if (cmd.isEmpty()) {
-        m_commandLine->setText("No directive found.");
+        m_commandLine->setPlaceholderText("No directive found.");
+        m_commandLine->setText("");
         return;
     }
 
+    m_commandLine->setPlaceholderText("Schematic directive will be used...");
     m_commandLine->setText(cmd);
     
     // Auto-switch view tabs based on directive (using shifted indices: 1=Tran, 2=OP, 3=DC, 4=AC, 5=RF)
@@ -2072,6 +2128,13 @@ void SimulationPanel::updateCommandDisplay() {
         cmdParams.rfPort1Source = m_param4 ? m_param4->text() : QString("V1");
         cmdParams.rfPort2Node = m_param5 ? m_param5->text() : QString("OUT");
         cmdParams.rfZ0 = m_param6 ? m_param6->text().trimmed() : "50";
+    } else if (idx == 9) { // Interactive (Live)
+        m_commandLine->setText(QString(".interactive %1 %2 %3").arg(
+            m_param1 ? m_param1->text() : "100",
+            m_param2 ? m_param2->text() : "10",
+            m_param3 ? m_param3->text() : "50000"
+        ));
+        return; // Don't use SpiceNetlistGenerator for this pseudo-directive
     } else {
         cmdParams.type = SpiceNetlistGenerator::OP;
     }
@@ -2189,13 +2252,31 @@ void SimulationPanel::parseCommandText(const QString& command, bool skipTypeOver
             m_analysisType->setCurrentIndex(2); // Shifting from 1 to 2
             m_analysisType->blockSignals(false);
         }
+    } else if (cmd.startsWith(".interactive")) {
+        if (!skipTypeOverride) {
+            m_analysisType->blockSignals(true);
+            m_analysisType->setCurrentIndex(9);
+            m_analysisType->blockSignals(false);
+        }
+        QStringList parts = cmd.split(QRegularExpression("\\s+"), Qt::SkipEmptyParts);
+        if (parts.size() >= 4) {
+            m_param1->blockSignals(true);
+            m_param2->blockSignals(true);
+            m_param3->blockSignals(true);
+            m_param1->setText(parts[1]);
+            m_param2->setText(parts[2]);
+            m_param3->setText(parts[3]);
+            m_param1->blockSignals(false);
+            m_param2->blockSignals(false);
+            m_param3->blockSignals(false);
+        }
     }
 
     updateSchematicDirective();
 }
 
 void SimulationPanel::updateSchematicDirectiveFromCommand(const QString& commandText) {
-    if (!m_scene) return;
+    if (!m_scene || commandText.isEmpty() || commandText.toLower().contains("no directive found") || commandText.toLower().contains("no spice directive")) return;
 
     // Parse command and update form fields
     parseCommandText(commandText);
@@ -2204,11 +2285,11 @@ void SimulationPanel::updateSchematicDirectiveFromCommand(const QString& command
     SchematicSpiceDirectiveItem* found = nullptr;
     for (auto* gi : m_scene->items()) {
         if (auto* existing = dynamic_cast<SchematicSpiceDirectiveItem*>(gi)) {
-            if (existing->text().startsWith('.') &&
-                (existing->text().startsWith(".tran", Qt::CaseInsensitive) ||
-                 existing->text().startsWith(".ac", Qt::CaseInsensitive) ||
-                 existing->text().startsWith(".dc", Qt::CaseInsensitive) ||
-                 existing->text().startsWith(".op", Qt::CaseInsensitive))) {
+            QString txt = existing->text().trimmed().toLower();
+            if (txt.startsWith('.') &&
+                (txt.startsWith(".tran") || txt.startsWith(".ac") || txt.startsWith(".dc") ||
+                 txt.startsWith(".op") || txt.startsWith(".interactive") || txt.startsWith(".sp") ||
+                 txt.startsWith(".net"))) {
                 found = existing;
                 break;
             }
@@ -2550,13 +2631,21 @@ void SimulationPanel::onRunSimulation() {
     if (idx == 9) { // Real-time
         int interval = m_param1->text().toInt();
         if (interval < 10) interval = 10;
+        double winTime = m_param2->text().toDouble();
+        if (winTime < 0.1) winTime = 10.0;
+        int maxPts = m_param3->text().toInt();
+        if (maxPts < 1000) maxPts = 50000;
         m_isSimInitiator = true;
         m_acceptRealTimeStream = true;
         g_liveStreamOwner = this;
         if (m_viewTabs) {
             m_viewTabs->setCurrentIndex(0); // Switch to Waves tab
         }
-        SimManager::instance().runRealTime(m_scene, m_netManager, interval);
+        if (m_waveformViewer) {
+            m_waveformViewer->setWindowTime(winTime);
+            m_waveformViewer->setMaxDataSize(maxPts);
+        }
+        SimManager::instance().runRealTime(m_scene, m_netManager, interval, winTime, maxPts);
         return;
     }
 
@@ -2864,6 +2953,11 @@ void SimulationPanel::appendIssueItem(const QString& msg) {
         msg.contains("[Preflight]", Qt::CaseInsensitive);
 
     if (!isIssue && targetType.isEmpty()) return;
+
+    // Cap issue list to prevent memory leak during long runs
+    while (m_issueList->count() >= 500) {
+        delete m_issueList->takeItem(0);
+    }
 
     QListWidgetItem* item = new QListWidgetItem(msg);
     if (!targetType.isEmpty() && !target.id.trimmed().isEmpty()) {
@@ -3700,8 +3794,7 @@ void SimulationPanel::onRealTimeDataBatchReceived(const std::vector<double>& tim
         }
 
         m_waveformViewer->appendPoints(uiName, times, signalValues);
-        m_waveformViewer->setSignalChecked(uiName, isChecked);
-        Q_EMIT realTimeBatchReady(times, values, names);
+        // m_waveformViewer->setSignalChecked(uiName, isChecked); // Removed: Toggling the checkbox in the sidebar now handles this explicitly via signal-slot
 
         // Update preview chart
         if (m_chart && isChecked && !isTime) {
@@ -3757,6 +3850,8 @@ void SimulationPanel::onRealTimeDataBatchReceived(const std::vector<double>& tim
             }
         }
     }
+
+    Q_EMIT realTimeBatchReady(times, values, names);
 
     if (m_waveformViewer) {
         m_waveformViewer->updatePlot(false); // fast refresh
@@ -3991,8 +4086,10 @@ void SimulationPanel::plotBuiltinResults(const SimResults& results) {
         auto* axis = new QCategoryAxis();
         axis->setTitleText(title);
         if (minVal == maxVal) {
-            minVal -= 1.0;
-            maxVal += 1.0;
+            // DC flat signal: use 10% of its magnitude, or 1e-6 as absolute floor
+            double halfSpan = std::max(std::abs(minVal) * 0.1, 1e-6);
+            minVal -= halfSpan;
+            maxVal += halfSpan;
         }
         axis->setRange(minVal, maxVal);
 
@@ -4074,7 +4171,8 @@ void SimulationPanel::plotBuiltinResults(const SimResults& results) {
     int colorIdx = 0;
     
     for (const auto& wave : results.waveforms) {
-        const QString waveName = QString::fromStdString(wave.name);
+        const QString rawWaveName = QString::fromStdString(wave.name);
+        const QString waveName = resolveLiveSignalName(m_signalList, rawWaveName);
         const QColor waveColor = colors[colorIdx % colors.size()];
 
         QLineSeries* series = new QLineSeries();
