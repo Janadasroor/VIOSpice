@@ -4,7 +4,7 @@
 #include "../items/schematic_page_item.h"
 #include "../items/simulation_net_table_item.h"
 #include "../items/wire_item.h"
-#include "../../simulator/core/sim_value_parser.h"
+#include "../../core/simulation/sim_value_parser.h"
 #include "simulator/core/raw_data_parser.h"
 #include "waveform_viewer.h"
 #include "simulation_log_dialog.h"
@@ -189,7 +189,7 @@ void SimulationPanel::createSidebar(QSplitter* splitter) {
     QString bg = theme ? theme->windowBackground().name() : "#1e1e1e";
 
     QWidget* sidebar = new QWidget();
-    sidebar->setMinimumWidth(240);
+    sidebar->setMinimumWidth(180);
     sidebar->setStyleSheet(QString("QWidget { background-color: %1; }").arg(panelBg));
     QVBoxLayout* sidebarLayout = new QVBoxLayout(sidebar);
     sidebarLayout->setContentsMargins(8, 8, 8, 8);
@@ -207,6 +207,7 @@ void SimulationPanel::createSidebar(QSplitter* splitter) {
     m_logOutput = new QTextEdit();
     m_logOutput->setReadOnly(true);
     m_logOutput->setMaximumHeight(80);
+    m_logOutput->document()->setMaximumBlockCount(1000); // Cap log history
     m_logOutput->setStyleSheet(QString("QTextEdit { background: %1; border: 1px solid %2; font-family: monospace; font-size: 9px; color: #eee; }").arg(bg, borderColor));
     sidebarLayout->addWidget(m_logOutput);
 
@@ -249,7 +250,7 @@ QWidget* SimulationPanel::createAnalysisSetupWidget() {
 
     // m_analysisType is now internal-only to avoid conflicting with schematic settings
     m_analysisType = new QComboBox();
-    m_analysisType->addItems({"Auto-Detect", "Transient", "DC OP", "DC Sweep", "AC Sweep", "RF S-Parameter", "Monte Carlo", "Parametric Sweep", "Sensitivity", "Real-time Mode"});
+    m_analysisType->addItems({"Auto-Detect", "Transient", "DC OP", "DC Sweep", "AC Sweep", "RF S-Parameter", "Monte Carlo", "Parametric Sweep", "Sensitivity", "Interactive (Live)"});
     m_analysisType->setStyleSheet(inputStyle);
     // layout->addRow("Mode:", m_analysisType); // Removed manual override
     
@@ -347,6 +348,26 @@ QWidget* SimulationPanel::createMonitorWidget() {
     connect(m_signalList, &QListWidget::itemChanged, this, [this](QListWidgetItem* item) {
         QString seriesName = item->text();
         bool isVisible = (item->checkState() == Qt::Checked);
+        
+        // Update persistent set so real-time loop stays in sync
+        if (isVisible) {
+            m_persistentCheckedSignals.insert(seriesName);
+        } else {
+            // Remove all case-insensitive matches to ensure it's truly stopped
+            QMutableSetIterator<QString> it(m_persistentCheckedSignals);
+            while (it.hasNext()) {
+                if (it.next().compare(seriesName, Qt::CaseInsensitive) == 0) {
+                    it.remove();
+                }
+            }
+            
+            // Also remove from preview chart if active
+            if (m_realTimeSeries.contains(seriesName)) {
+                if (m_chart) m_chart->removeSeries(m_realTimeSeries[seriesName]);
+                delete m_realTimeSeries.take(seriesName);
+            }
+        }
+
         if (m_waveformViewer) {
             m_waveformViewer->setSignalChecked(seriesName, isVisible);
             m_waveformViewer->updatePlot(false);
@@ -677,12 +698,16 @@ void SimulationPanel::onAnalysisChanged(int index) {
         m_steadyCheck->setVisible(false); m_steadyTolEdit->setVisible(false); m_steadyDelayEdit->setVisible(false);
         m_param4->setVisible(false); m_param5->setVisible(false); m_param6->setVisible(false);
         m_param1->setText("V(Out)");
-    } else if (index == 8) { // Real-time
+    } else if (index == 9) { // Real-time
         setLabel(m_param1, "Update (ms):");
-        m_param1->setVisible(true); m_param2->setVisible(false); m_param3->setVisible(false);
+        setLabel(m_param2, "Time Win (s):");
+        setLabel(m_param3, "Max Points:");
+        m_param1->setVisible(true); m_param2->setVisible(true); m_param3->setVisible(true);
         m_steadyCheck->setVisible(false); m_steadyTolEdit->setVisible(false); m_steadyDelayEdit->setVisible(false);
         m_param4->setVisible(false); m_param5->setVisible(false); m_param6->setVisible(false);
         m_param1->setText("100");
+        m_param2->setText("10");
+        m_param3->setText("50000");
     }
 }
 
