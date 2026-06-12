@@ -1,3 +1,6 @@
+# Copyright 2026 Janada Sroor
+# SPDX-License-Identifier: Apache-2.0
+
 # Component Value Calculator
 # Adjust parameters with sliders/spinboxes, see results update live.
 # Uses string-based signal binding (_by_name functions).

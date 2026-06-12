@@ -1,3 +1,8 @@
+/*
+ * Copyright 2026 Janada Sroor
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #ifndef FOOTPRINT_PREVIEW_VIEW_H
 #define FOOTPRINT_PREVIEW_VIEW_H
 

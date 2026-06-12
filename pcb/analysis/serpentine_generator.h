@@ -1,3 +1,8 @@
+/*
+ * Copyright 2026 Janada Sroor
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #ifndef SERPENTINE_GENERATOR_H
 #define SERPENTINE_GENERATOR_H
 

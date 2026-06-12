@@ -1,3 +1,8 @@
+/*
+ * Copyright 2026 Janada Sroor
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #ifndef MANUFACTURING_EXPORTER_H
 #define MANUFACTURING_EXPORTER_H
 

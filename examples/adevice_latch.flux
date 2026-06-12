@@ -1,3 +1,6 @@
+# Copyright 2026 Janada Sroor
+# SPDX-License-Identifier: Apache-2.0
+
 adevice L1 [d, en, q] q {
     d_val = inputs[0] > 2.5;
     en_val = inputs[1] > 2.5;

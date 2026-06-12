@@ -1,3 +1,8 @@
+/*
+ * Copyright 2026 Janada Sroor
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #include "pcb_pour_tool.h"
 #include "pcb_view.h"
 #include "copper_pour_item.h"

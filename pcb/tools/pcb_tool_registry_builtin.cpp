@@ -1,3 +1,8 @@
+/*
+ * Copyright 2026 Janada Sroor
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #include "pcb_tool_registry_builtin.h"
 #include "pcb_component_tool.h"
 #include "pcb_trace_tool.h"

@@ -1,3 +1,8 @@
+/*
+ * Copyright 2026 Janada Sroor
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #include "footprint_browser_dialog.h"
 #include "../../footprints/footprint_library.h"
 #include "theme_manager.h"
