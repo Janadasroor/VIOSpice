@@ -1,3 +1,8 @@
+/*
+ * Copyright 2026 Janada Sroor
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #include "schematic_view.h"
 #include "config_manager.h"
 #include "schematic_tool_registry.h"

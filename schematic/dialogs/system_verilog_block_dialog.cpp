@@ -1,3 +1,8 @@
+/*
+ * Copyright 2026 Janada Sroor
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #include "system_verilog_block_dialog.h"
 #include "system_verilog_block_item.h"
 #include "simulator/bridge/slang_manager.h"

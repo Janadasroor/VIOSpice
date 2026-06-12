@@ -1,3 +1,8 @@
+/*
+ * Copyright 2026 Janada Sroor
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #ifndef SCHEMATIC_NET_LABEL_TOOL_H
 #define SCHEMATIC_NET_LABEL_TOOL_H
 

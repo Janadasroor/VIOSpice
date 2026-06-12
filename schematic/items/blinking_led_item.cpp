@@ -1,3 +1,8 @@
+/*
+ * Copyright 2026 Janada Sroor
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #include "blinking_led_item.h"
 #include <QPainter>
 #include <QJsonObject>

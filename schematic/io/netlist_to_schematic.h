@@ -1,3 +1,8 @@
+/*
+ * Copyright 2026 Janada Sroor
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #ifndef NETLIST_TO_SCHEMATIC_H
 #define NETLIST_TO_SCHEMATIC_H
 

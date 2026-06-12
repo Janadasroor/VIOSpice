@@ -1,3 +1,8 @@
+/*
+ * Copyright 2026 Janada Sroor
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #include "flux_workspace_bridge.h"
 #include "../simulation/jit_context_manager.h"
 #include "flux_design_rule_bridge.h"

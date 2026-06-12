@@ -1,3 +1,8 @@
+/*
+ * Copyright 2026 Janada Sroor
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #include "current_source_properties_dialog.h"
 #include "../items/current_source_item.h"
 #include "../../simulator/core/sim_value_parser.h"

@@ -1,3 +1,8 @@
+/*
+ * Copyright 2026 Janada Sroor
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #include "behavioral_current_source_dialog.h"
 #include "../items/behavioral_current_source_item.h"
 #include "theme_manager.h"

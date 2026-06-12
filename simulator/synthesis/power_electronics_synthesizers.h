@@ -1,3 +1,8 @@
+/*
+ * Copyright 2026 Janada Sroor
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #ifndef POWER_ELECTRONICS_SYNTHESIZERS_H
 #define POWER_ELECTRONICS_SYNTHESIZERS_H
 

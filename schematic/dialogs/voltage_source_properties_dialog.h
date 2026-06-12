@@ -1,3 +1,8 @@
+/*
+ * Copyright 2026 Janada Sroor
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #ifndef VOLTAGE_SOURCE_PROPERTIES_DIALOG_H
 #define VOLTAGE_SOURCE_PROPERTIES_DIALOG_H
 

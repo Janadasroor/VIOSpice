@@ -1,3 +1,8 @@
+/*
+ * Copyright 2026 Janada Sroor
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #include "flux_script_editor_tab.h"
 #include "flux_completer.h"
 #include "../../core/flux/bridges/flux_workspace_bridge.h"

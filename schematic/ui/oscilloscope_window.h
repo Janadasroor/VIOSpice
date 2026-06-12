@@ -1,3 +1,8 @@
+/*
+ * Copyright 2026 Janada Sroor
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #ifndef OSCILLOSCOPE_WINDOW_H
 #define OSCILLOSCOPE_WINDOW_H
 

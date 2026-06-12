@@ -1,3 +1,8 @@
+/*
+ * Copyright 2026 Janada Sroor
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #ifndef VIOSPICE_CORE_FLUX_PYTHON_COMPAT_H
 #define VIOSPICE_CORE_FLUX_PYTHON_COMPAT_H
 

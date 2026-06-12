@@ -1,3 +1,6 @@
+# Copyright 2026 Janada Sroor
+# SPDX-License-Identifier: Apache-2.0
+
 """
 Gemini Terminal — bridges the AI assistant (Gemini) with the VioSpice Python API.
 

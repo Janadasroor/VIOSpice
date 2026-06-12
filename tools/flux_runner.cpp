@@ -1,3 +1,8 @@
+/*
+ * Copyright 2026 Janada Sroor
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 // flux_runner — standalone FluxScript runner with Qt GUI support.
 // Compiles and executes a .flux file, then enters the Qt event loop
 // so that Qt widgets created by the script remain interactive.

@@ -1,3 +1,8 @@
+/*
+ * Copyright 2026 Janada Sroor
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #ifndef SHEET_PROPERTIES_DIALOG_H
 #define SHEET_PROPERTIES_DIALOG_H
 

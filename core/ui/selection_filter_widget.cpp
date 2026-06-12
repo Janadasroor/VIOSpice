@@ -1,3 +1,8 @@
+/*
+ * Copyright 2026 Janada Sroor
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #include "selection_filter_widget.h"
 #include <QLabel>
 #include <QHBoxLayout>

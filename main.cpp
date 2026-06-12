@@ -1,3 +1,8 @@
+/*
+ * Copyright 2026 Janada Sroor
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #include "ui/splash_screen.h"
 #include "theme_manager.h"
 #include "recent_projects.h"

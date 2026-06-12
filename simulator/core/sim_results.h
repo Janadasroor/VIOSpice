@@ -1,3 +1,8 @@
+/*
+ * Copyright 2026 Janada Sroor
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #ifndef SIM_RESULTS_H
 #define SIM_RESULTS_H
 
@@ -85,6 +90,9 @@ struct SimAnalysisConfig {
     // Real-time settings
     int rtIntervalMs = 50;       // UI Update interval
     double rtTimeStep = 1e-3;    // Simulated time per update
+    double rtWindowTime = 10.0;
+    int rtMaxDataSize = 50000;
+    bool rtSyncWallClock = true;
 
     // Optional report output path (JSON-like text emitted by analyses that support it).
     std::string reportFile;

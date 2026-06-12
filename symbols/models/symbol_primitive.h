@@ -1,3 +1,8 @@
+/*
+ * Copyright 2026 Janada Sroor
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #ifndef SYMBOL_PRIMITIVE_MODEL_H
 #define SYMBOL_PRIMITIVE_MODEL_H
 

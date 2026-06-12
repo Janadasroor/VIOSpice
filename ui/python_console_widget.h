@@ -1,3 +1,8 @@
+/*
+ * Copyright 2026 Janada Sroor
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #ifndef PYTHON_CONSOLE_WIDGET_H
 #define PYTHON_CONSOLE_WIDGET_H
 

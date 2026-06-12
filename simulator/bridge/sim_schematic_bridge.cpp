@@ -1,3 +1,8 @@
+/*
+ * Copyright 2026 Janada Sroor
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #include "sim_schematic_bridge.h"
 #include "model_library_manager.h"
 #include "slang_manager.h"

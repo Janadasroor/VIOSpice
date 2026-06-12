@@ -1,3 +1,8 @@
+/*
+ * Copyright 2026 Janada Sroor
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #include "core_dialog.h"
 #include "../items/core_item.h"
 #include <QVBoxLayout>

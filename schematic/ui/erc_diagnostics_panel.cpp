@@ -1,3 +1,8 @@
+/*
+ * Copyright 2026 Janada Sroor
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #include "erc_diagnostics_panel.h"
 #include "../items/schematic_item.h"
 #include <QHBoxLayout>

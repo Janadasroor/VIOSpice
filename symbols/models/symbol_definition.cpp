@@ -1,3 +1,8 @@
+/*
+ * Copyright 2026 Janada Sroor
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #include "symbol_definition.h"
 #include "../symbol_library.h"
 #include <QJsonDocument>

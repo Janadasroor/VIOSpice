@@ -1,3 +1,8 @@
+/*
+ * Copyright 2026 Janada Sroor
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #include "led_properties_dialog.h"
 #include "../items/led_item.h"
 #include "../items/blinking_led_item.h"

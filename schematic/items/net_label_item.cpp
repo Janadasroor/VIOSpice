@@ -1,3 +1,8 @@
+/*
+ * Copyright 2026 Janada Sroor
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #include "net_label_item.h"
 #include "theme_manager.h"
 #include <QPainter>

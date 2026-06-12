@@ -1,3 +1,8 @@
+/*
+ * Copyright 2026 Janada Sroor
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #ifndef NET_LABEL_ITEM_H
 #define NET_LABEL_ITEM_H
 

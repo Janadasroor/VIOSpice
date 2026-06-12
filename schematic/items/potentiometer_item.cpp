@@ -1,3 +1,8 @@
+/*
+ * Copyright 2026 Janada Sroor
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #include "potentiometer_item.h"
 #include "../editor/schematic_editor.h"
 #include "../ui/simulation_panel.h"

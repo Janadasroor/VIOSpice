@@ -1,3 +1,8 @@
+/*
+ * Copyright 2026 Janada Sroor
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 // quick_open_dialog.cpp
 // VS Code-style quick open dialog for searching and opening recent files
 

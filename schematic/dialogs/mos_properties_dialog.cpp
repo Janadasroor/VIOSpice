@@ -1,3 +1,8 @@
+/*
+ * Copyright 2026 Janada Sroor
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #include "mos_properties_dialog.h"
 #include "mos_model_picker_dialog.h"
 #include "../../pcb/dialogs/footprint_browser_dialog.h"

@@ -1,3 +1,8 @@
+/*
+ * Copyright 2026 Janada Sroor
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #ifndef SI_AXIS_FORMATTER_H
 #define SI_AXIS_FORMATTER_H
 

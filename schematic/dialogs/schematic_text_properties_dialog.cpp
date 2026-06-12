@@ -1,3 +1,8 @@
+/*
+ * Copyright 2026 Janada Sroor
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #include "schematic_text_properties_dialog.h"
 #include "../editor/schematic_commands.h"
 #include "../../simulator/bridge/model_library_manager.h"

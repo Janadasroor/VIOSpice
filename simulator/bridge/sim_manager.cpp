@@ -1,3 +1,8 @@
+/*
+ * Copyright 2026 Janada Sroor
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #include "sim_manager.h"
 #include "slang_manager.h"
 #include "sim_schematic_bridge.h"
@@ -1319,7 +1324,7 @@ void SimManager::cleanupSimulation() {
     SimulationManager::instance().clearFluxScriptTargets();
 }
 
-void SimManager::runRealTime(QGraphicsScene* scene, NetManager* netMgr, int intervalMs) {
+void SimManager::runRealTime(QGraphicsScene* scene, NetManager* netMgr, int intervalMs, double winTime, int maxPts) {
     if (m_control || m_ngspiceProcess) {
         Q_EMIT logMessage("A simulation is already running.");
         return;
@@ -1329,6 +1334,8 @@ void SimManager::runRealTime(QGraphicsScene* scene, NetManager* netMgr, int inte
     config.type = SimAnalysisType::RealTime;
     config.rtIntervalMs = std::max(10, intervalMs);
     config.rtTimeStep = std::max(1e-6, static_cast<double>(config.rtIntervalMs) / 1000.0);
+    config.rtWindowTime = winTime;
+    config.rtMaxDataSize = maxPts;
     config.tStep = std::max(1e-6, config.rtTimeStep / 10.0);
     config.tStop = std::max(config.rtTimeStep * 200.0, 0.1);
 

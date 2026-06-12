@@ -1,3 +1,8 @@
+/*
+ * Copyright 2026 Janada Sroor
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #include "plugin_manager.h"
 #include "../interfaces/plugin_sdk_version.h"
 #include "../project/config_manager.h"

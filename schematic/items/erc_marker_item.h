@@ -1,3 +1,8 @@
+/*
+ * Copyright 2026 Janada Sroor
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #ifndef ERC_MARKER_ITEM_H
 #define ERC_MARKER_ITEM_H
 

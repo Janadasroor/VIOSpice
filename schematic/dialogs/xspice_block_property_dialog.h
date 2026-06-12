@@ -1,3 +1,8 @@
+/*
+ * Copyright 2026 Janada Sroor
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #ifndef XSPICE_BLOCK_PROPERTY_DIALOG_H
 #define XSPICE_BLOCK_PROPERTY_DIALOG_H
 

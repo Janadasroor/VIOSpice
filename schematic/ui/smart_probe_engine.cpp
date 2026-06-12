@@ -1,3 +1,8 @@
+/*
+ * Copyright 2026 Janada Sroor
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #include "smart_probe_engine.h"
 #include "config_manager.h"
 #include "../../python/cpp/gemini/gemini_panel.h"

@@ -1,3 +1,8 @@
+/*
+ * Copyright 2026 Janada Sroor
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #include "spice_netlist_generator.h"
 #include "../items/schematic_item.h"
 #include "../items/smart_signal_item.h"

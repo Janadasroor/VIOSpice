@@ -1,3 +1,8 @@
+/*
+ * Copyright 2026 Janada Sroor
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #ifndef SPICE_DIRECTIVE_CLASSIFIER_H
 #define SPICE_DIRECTIVE_CLASSIFIER_H
 

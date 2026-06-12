@@ -1,3 +1,8 @@
+/*
+ * Copyright 2026 Janada Sroor
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #ifndef SIMULATION_SETUP_DIALOG_H
 #define SIMULATION_SETUP_DIALOG_H
 

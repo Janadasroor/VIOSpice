@@ -1,3 +1,8 @@
+/*
+ * Copyright 2026 Janada Sroor
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #include "visual_pin_pad_mapper_dialog.h"
 
 #include "../items/schematic_item.h"

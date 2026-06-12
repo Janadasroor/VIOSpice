@@ -1,3 +1,8 @@
+/*
+ * Copyright 2026 Janada Sroor
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #ifndef SIM_AUDIO_ENGINE_H
 #define SIM_AUDIO_ENGINE_H
 

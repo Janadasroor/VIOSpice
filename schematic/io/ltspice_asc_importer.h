@@ -1,3 +1,8 @@
+/*
+ * Copyright 2026 Janada Sroor
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #ifndef LTSPICE_ASC_IMPORTER_H
 #define LTSPICE_ASC_IMPORTER_H
 
