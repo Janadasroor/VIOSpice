@@ -106,3 +106,26 @@ TESTING.md
 docs/developer/ui-map/*
 *.AppImage
 simulator/TODO.md
+
+# Tool-generated and Temporary Folders
+.antigravitycli/
+.viospice/
+.flux_cache/
+.pytest_cache/
+.qtcreator/
+nanobanana-output/
+final_smoke_tests/
+final_smoke_tests_v2/
+gen_syms/
+gen_syms_clean/
+gen_syms_kicad/
+rpi_sim/
+test_build_dir/
+test_out/
+reference_designs/
+
+# Generated Artifacts
+*.out
+*.viosym
+*fixed.cpp
+*fixed.h
