@@ -1,3 +1,8 @@
+/*
+ * Copyright 2026 Janada Sroor
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #ifndef SCHEMATIC_MENU_REGISTRY_H
 #define SCHEMATIC_MENU_REGISTRY_H
 

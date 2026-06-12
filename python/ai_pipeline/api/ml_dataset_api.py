@@ -1,3 +1,6 @@
+# Copyright 2026 Janada Sroor
+# SPDX-License-Identifier: Apache-2.0
+
 """
 VioSpice ML Dataset API — stdlib HTTP server + service layer.
 

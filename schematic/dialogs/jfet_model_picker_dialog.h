@@ -1,3 +1,8 @@
+/*
+ * Copyright 2026 Janada Sroor
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #ifndef JFET_MODEL_PICKER_DIALOG_H
 #define JFET_MODEL_PICKER_DIALOG_H
 

@@ -1,3 +1,8 @@
+/*
+ * Copyright 2026 Janada Sroor
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #include "schematic_timeline_view.h"
 
 #include "../schematic/io/schematic_file_io.h"

@@ -1,3 +1,8 @@
+/*
+ * Copyright 2026 Janada Sroor
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #ifndef ERC_RULES_DIALOG_H
 #define ERC_RULES_DIALOG_H
 

@@ -1,3 +1,8 @@
+/*
+ * Copyright 2026 Janada Sroor
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #include "simulation_manager.h"
 #include "netlist_processor.h"
 #include "spice_backend.h"

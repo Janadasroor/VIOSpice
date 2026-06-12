@@ -1,3 +1,8 @@
+/*
+ * Copyright 2026 Janada Sroor
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #ifndef BATCH_EDIT_DIALOG_H
 #define BATCH_EDIT_DIALOG_H
 

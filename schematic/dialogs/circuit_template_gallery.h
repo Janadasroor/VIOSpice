@@ -1,3 +1,8 @@
+/*
+ * Copyright 2026 Janada Sroor
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #ifndef CIRCUIT_TEMPLATE_GALLERY_H
 #define CIRCUIT_TEMPLATE_GALLERY_H
 

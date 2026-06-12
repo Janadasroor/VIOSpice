@@ -1,3 +1,8 @@
+/*
+ * Copyright 2026 Janada Sroor
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #ifndef SPICE_NETLIST_GENERATOR_H
 #define SPICE_NETLIST_GENERATOR_H
 

@@ -1,3 +1,8 @@
+/*
+ * Copyright 2026 Janada Sroor
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #include "visual_pin_mapper.h"
 #include <QPainter>
 #include <QMouseEvent>

@@ -1,3 +1,8 @@
+/*
+ * Copyright 2026 Janada Sroor
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 // batch_edit_dialog.cpp
 // Dialog for batch editing component values and properties
 

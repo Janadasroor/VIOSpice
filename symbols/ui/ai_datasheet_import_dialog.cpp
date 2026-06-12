@@ -1,3 +1,8 @@
+/*
+ * Copyright 2026 Janada Sroor
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #include "ai_datasheet_import_dialog.h"
 #include "../../python/cpp/core/flux_script_manager.h"
 #include "../models/symbol_primitive.h"

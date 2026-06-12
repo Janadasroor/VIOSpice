@@ -1,3 +1,8 @@
+/*
+ * Copyright 2026 Janada Sroor
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #include "gemini_panel.h"
 #include "../dialogs/gemini_instructions_dialog.h"
 #include "../core/flux_script_manager.h"

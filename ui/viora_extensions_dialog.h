@@ -1,0 +1,149 @@
+/*
+ * Copyright 2026 Janada Sroor
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+#ifndef VIORA_EXTENSIONS_DIALOG_H
+#define VIORA_EXTENSIONS_DIALOG_H
+
+#include <QDialog>
+#include <QJsonArray>
+#include <QJsonObject>
+#include <QList>
+#include <QListWidget>
+#include <QPair>
+#include <QPushButton>
+#include <QLabel>
+#include <QLineEdit>
+#include <QUrl>
+#include <QTabWidget>
+#include <QVBoxLayout>
+#include <QVersionNumber>
+#include "../core/flux/extensions/native/plugin_manager.h"
+#include "../core/flux/extensions/native/plugin_catalog_client.h"
+#include "../core/flux/extensions/extension_manager.h"
+
+class QNetworkAccessManager;
+class QNetworkReply;
+class QProgressDialog;
+class QFile;
+
+class VioraExtensionsDialog : public QDialog {
+    // Q_OBJECT removed for debugging
+
+public:
+    explicit VioraExtensionsDialog(QWidget* parent = nullptr);
+    virtual ~VioraExtensionsDialog();
+    virtual void forceVTable();
+
+private:
+    void refreshPluginList();
+    void onPluginSelected(QListWidgetItem* item);
+    void onToggleSelectedPluginEnabled();
+    void onUninstallSelectedPlugin();
+    void refreshOnlinePluginList();
+    void onOnlinePluginSelected(QListWidgetItem* item);
+    void refreshUpdatesList();
+    void onUpdateSelectedPlugin();
+    void onUpdateAllPlugins();
+    void onUpdateItemSelected(QListWidgetItem* item);
+    void onDownloadSelectedPlugin();
+    void onRetryDownload();
+    void onDownloadProgress(qint64 bytesReceived, qint64 bytesTotal);
+    void onDownloadFinished();
+    void onDownloadCanceled();
+
+private:
+    void setupUI();
+    void setupInstalledTab();
+    void setupOnlineTab();
+    void setupUpdatesTab();
+    void updateOnlineStatus(const QString& text);
+    void updateUpdatesStatus(const QString& text);
+    QString formatOnlinePluginDetails(const QJsonObject& plugin) const;
+    QString formatUpdateDetails(const QJsonObject& update) const;
+    QString compatibilitySummary(const QJsonObject& versionObj) const;
+    QString verificationSummary(const QJsonObject& versionObj) const;
+    void startDownloadFromSelection(const QJsonObject& plugin, bool isRetry);
+    bool startDownloadForPluginVersion(const QString& pluginId,
+                                       const QString& version,
+                                       bool isRetry,
+                                       const QString& expectedChecksum = QString(),
+                                       const QString& downloadUrl = QString());
+    QString detectedPlatformTag() const;
+    QString detectedAppVersion() const;
+    QStringList installedPluginIdCandidates() const;
+    void processNextQueuedUpdate();
+    void resetDownloadState();
+    QString defaultDownloadPath(const QString& pluginId, const QString& version) const;
+
+    QTabWidget* m_tabs;
+    QWidget* m_installedTab;
+    QWidget* m_onlineTab;
+    QWidget* m_updatesTab;
+
+    // Installed tab
+    struct UnifiedEntry {
+        enum Type { Native, Script };
+        Type type;
+        // Native plugin fields
+        PluginManager::PluginLoadResult nativeResult;
+        // Script extension fields
+        ExtensionManager::ExtensionInfo scriptInfo;
+    };
+    QVector<UnifiedEntry> m_unifiedEntries;
+
+    QListWidget* m_pluginList;
+    QLabel* m_detailsLabel;
+    QPushButton* m_refreshBtn;
+    QPushButton* m_reloadScriptsBtn;
+    QPushButton* m_toggleEnabledBtn;
+    QPushButton* m_uninstallBtn;
+    QList<PluginManager::PluginLoadResult> m_results;
+
+    // Online tab
+    QLineEdit* m_backendUrlEdit;
+    QLineEdit* m_onlineSearchEdit;
+    QPushButton* m_onlineRefreshBtn;
+    QPushButton* m_onlineDownloadBtn;
+    QPushButton* m_onlineRetryBtn;
+    QListWidget* m_onlinePluginList;
+    QLabel* m_onlineDetailsLabel;
+    QLabel* m_onlineStatusLabel;
+    PluginCatalogClient m_catalogClient;
+    QJsonArray m_onlineResults;
+
+    // Updates tab
+    QPushButton* m_updatesRefreshBtn;
+    QPushButton* m_updateSelectedBtn;
+    QPushButton* m_updateAllBtn;
+    QListWidget* m_updatesList;
+    QLabel* m_updatesDetailsLabel;
+    QLabel* m_updatesStatusLabel;
+    QJsonArray m_updatesResults;
+
+    QNetworkAccessManager* m_downloadNetwork;
+    QNetworkReply* m_activeDownloadReply;
+    QProgressDialog* m_downloadProgressDialog;
+    QFile* m_activeDownloadFile;
+    QUrl m_lastDownloadUrl;
+    QString m_lastDownloadPath;
+    QList<QJsonObject> m_pendingUpdates;
+    QString m_lastExpectedChecksum;
+    bool m_processingUpdateQueue = false;
+};
+
+#endif // PLUGIN_MANAGER_DIALOG_H

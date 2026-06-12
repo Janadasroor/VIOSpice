@@ -1,4 +1,8 @@
 #!/usr/bin/env python3
+
+# Copyright 2026 Janada Sroor
+# SPDX-License-Identifier: Apache-2.0
+
 """
 Production-Level Validation Suite: 200+ Autonomous Simulation Tests.
 Verifies the absolute reliability of the VioSpice Engine and MCP bridge.

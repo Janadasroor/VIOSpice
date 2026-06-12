@@ -1,3 +1,8 @@
+/*
+ * Copyright 2026 Janada Sroor
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #include "flux_measurement_item.h"
 #include "../ui/flux_code_editor.h"
 #include <QPainter>

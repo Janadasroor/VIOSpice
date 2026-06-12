@@ -1,3 +1,8 @@
+/*
+ * Copyright 2026 Janada Sroor
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #include "tuning_slider_item.h"
 #include "../../core/flux/bridges/flux_workspace_bridge.h"
 #include "../core/simulation/jit_context_manager.h"

@@ -1,3 +1,6 @@
+# Copyright 2026 Janada Sroor
+# SPDX-License-Identifier: Apache-2.0
+
 """
 vspice.session — GUI Session Introspection and Awareness
 This module provides utilities for querying the active state of the VioSpice GUI.

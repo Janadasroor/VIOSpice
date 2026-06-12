@@ -1,3 +1,8 @@
+/*
+ * Copyright 2026 Janada Sroor
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #include "analog_function_dialog.h"
 #include "../items/analog_function_item.h"
 #include <QVBoxLayout>

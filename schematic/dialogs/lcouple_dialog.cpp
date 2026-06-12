@@ -1,3 +1,8 @@
+/*
+ * Copyright 2026 Janada Sroor
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #include "lcouple_dialog.h"
 #include "../items/lcouple_item.h"
 #include <QVBoxLayout>

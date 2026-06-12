@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: LGPL-3.0-or-later
+// SPDX-License-Identifier: Apache-2.0
 // Copyright (C) 2026 Janada Sroor
 
 #include "waveform_viewer.h"
@@ -981,6 +981,20 @@ void WaveformViewer::appendPoint(const QString& name, double x, double y) {
     auto& sig = m_signals[name];
     sig.time.append(x);
     sig.values.append(y);
+
+    if (m_windowTime > 0) {
+        const double cutoff = x - m_windowTime;
+        while (!sig.time.isEmpty() && sig.time.first() < cutoff) {
+            sig.time.removeFirst();
+            sig.values.removeFirst();
+        }
+    }
+
+    if (sig.time.size() > m_maxDataSize) {
+        const int removeCount = sig.time.size() - m_maxDataSize;
+        sig.time.remove(0, removeCount);
+        sig.values.remove(0, removeCount);
+    }
     
     if (m_blockUpdates) return;
 
@@ -1024,13 +1038,18 @@ void WaveformViewer::appendPoints(const QString& name, const std::vector<double>
         std::copy(times.begin(), times.end(), sig.time.begin() + oldSize);
         std::copy(values.begin(), values.end(), sig.values.begin() + oldSize);
 
-        // Prune old points to prevent OOM and UI freeze during long real-time streams
-        const int maxPoints = 500000;
-        if (sig.time.size() > maxPoints) {
-            const int keepCount = 300000;
-            const int removeCount = sig.time.size() - keepCount;
-            sig.time.erase(sig.time.begin(), sig.time.begin() + removeCount);
-            sig.values.erase(sig.values.begin(), sig.values.begin() + removeCount);
+        if (m_windowTime > 0) {
+            const double cutoff = times.back() - m_windowTime;
+            while (!sig.time.isEmpty() && sig.time.first() < cutoff) {
+                sig.time.removeFirst();
+                sig.values.removeFirst();
+            }
+        }
+
+        if (sig.time.size() > m_maxDataSize) {
+            const int removeCount = sig.time.size() - m_maxDataSize;
+            sig.time.remove(0, removeCount);
+            sig.values.remove(0, removeCount);
         }
     }
     

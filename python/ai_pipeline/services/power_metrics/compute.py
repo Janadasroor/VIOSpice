@@ -1,3 +1,6 @@
+# Copyright 2026 Janada Sroor
+# SPDX-License-Identifier: Apache-2.0
+
 import numpy as np
 
 def compute_average_power(time_array, voltage_array, current_array, t_start=None, t_end=None):

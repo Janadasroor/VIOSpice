@@ -1,3 +1,6 @@
+# Copyright 2026 Janada Sroor
+# SPDX-License-Identifier: Apache-2.0
+
 """
 Model Context Protocol (MCP) server integration for VioSpice.
 This module provides the core tool definitions and execution logic.

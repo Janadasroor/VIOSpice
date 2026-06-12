@@ -1,3 +1,8 @@
+/*
+ * Copyright 2026 Janada Sroor
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #ifndef PIN_TABLE_DIALOG_H
 #define PIN_TABLE_DIALOG_H
 

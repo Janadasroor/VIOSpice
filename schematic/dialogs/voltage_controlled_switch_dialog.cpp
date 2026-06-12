@@ -1,3 +1,8 @@
+/*
+ * Copyright 2026 Janada Sroor
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #include "voltage_controlled_switch_dialog.h"
 #include "../items/voltage_controlled_switch_item.h"
 #include "theme_manager.h"

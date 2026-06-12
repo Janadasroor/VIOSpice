@@ -1,3 +1,8 @@
+/*
+ * Copyright 2026 Janada Sroor
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #include "erc_rules_dialog.h"
 #include "design_rule_editor.h"
 #include <QVBoxLayout>

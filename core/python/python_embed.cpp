@@ -1,3 +1,8 @@
+/*
+ * Copyright 2026 Janada Sroor
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 /**
  * @file python_embed.cpp
  * @brief Embedded Python initialization for VioSpice.

@@ -1,3 +1,8 @@
+/*
+ * Copyright 2026 Janada Sroor
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 // schematic_editor_ui.cpp
 // Menu bar, toolbar, dock widgets, status bar creation for SchematicEditor
 

@@ -1,3 +1,8 @@
+/*
+ * Copyright 2026 Janada Sroor
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #ifndef SELECTION_FILTER_WIDGET_H
 #define SELECTION_FILTER_WIDGET_H
 

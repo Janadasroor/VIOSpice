@@ -1,3 +1,8 @@
+/*
+ * Copyright 2026 Janada Sroor
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #ifndef SYMBOL_FIELD_EDITOR_DIALOG_H
 #define SYMBOL_FIELD_EDITOR_DIALOG_H
 

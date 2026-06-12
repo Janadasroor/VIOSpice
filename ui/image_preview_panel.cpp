@@ -1,3 +1,8 @@
+/*
+ * Copyright 2026 Janada Sroor
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #include "image_preview_panel.h"
 #include <QVBoxLayout>
 #include <QWheelEvent>

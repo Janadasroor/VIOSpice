@@ -1,3 +1,8 @@
+/*
+ * Copyright 2026 Janada Sroor
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #ifndef TEMPLATE_GALLERY_WIDGET_H
 #define TEMPLATE_GALLERY_WIDGET_H
 

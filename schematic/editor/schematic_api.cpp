@@ -1,3 +1,8 @@
+/*
+ * Copyright 2026 Janada Sroor
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #include "schematic_api.h"
 #include "schematic_commands.h"
 #include "../factories/schematic_item_factory.h"

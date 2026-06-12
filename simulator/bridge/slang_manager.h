@@ -1,3 +1,8 @@
+/*
+ * Copyright 2026 Janada Sroor
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #ifndef VIOSPICE_SIMULATOR_BRIDGE_SLANG_MANAGER_H
 #define VIOSPICE_SIMULATOR_BRIDGE_SLANG_MANAGER_H
 

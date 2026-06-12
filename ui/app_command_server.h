@@ -1,3 +1,8 @@
+/*
+ * Copyright 2026 Janada Sroor
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #ifndef UI_COMMAND_SERVER_H
 #define UI_COMMAND_SERVER_H
 

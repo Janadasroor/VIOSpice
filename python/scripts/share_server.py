@@ -1,4 +1,8 @@
 #!/usr/bin/env python3
+
+# Copyright 2026 Janada Sroor
+# SPDX-License-Identifier: Apache-2.0
+
 """
 VioSpice Share Server
 Lightweight backend for sharing schematics via short URLs.

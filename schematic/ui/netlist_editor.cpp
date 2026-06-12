@@ -1,3 +1,8 @@
+/*
+ * Copyright 2026 Janada Sroor
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #include "netlist_editor.h"
 #include "simulation_manager.h"
 #include "theme_manager.h"
