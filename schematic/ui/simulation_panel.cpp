@@ -1,3 +1,8 @@
+/*
+ * Copyright 2026 Janada Sroor
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #include "simulation_panel.h"
 #include "../items/voltage_source_item.h"
 #include "../items/schematic_spice_directive_item.h"

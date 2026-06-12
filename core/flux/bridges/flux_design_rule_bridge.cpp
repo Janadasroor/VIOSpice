@@ -1,3 +1,8 @@
+/*
+ * Copyright 2026 Janada Sroor
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #include "flux_design_rule_bridge.h"
 #include "../schematic/items/schematic_item.h"
 #include "../schematic/analysis/net_manager.h"

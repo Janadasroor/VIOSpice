@@ -1,3 +1,8 @@
+/*
+ * Copyright 2026 Janada Sroor
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #ifndef TUNING_SLIDER_PROPERTIES_DIALOG_H
 #define TUNING_SLIDER_PROPERTIES_DIALOG_H
 

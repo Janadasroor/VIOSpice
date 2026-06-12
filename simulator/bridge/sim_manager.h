@@ -1,3 +1,8 @@
+/*
+ * Copyright 2026 Janada Sroor
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #ifndef SIM_MANAGER_QT_H
 #define SIM_MANAGER_QT_H
 
@@ -48,7 +53,7 @@ public:
     QStringList preflightCheck(QGraphicsScene* scene, NetManager* netMgr, SimNetlist& outNetlist);
     void runWithNetlist(const SimNetlist& netlist);
     
-    void runRealTime(QGraphicsScene* scene, NetManager* netMgr, int intervalMs = 100);
+    void runRealTime(QGraphicsScene* scene, NetManager* netMgr, int intervalMs = 100, double winTime = 10.0, int maxPts = 50000);
     void stopRealTime();
     void updateParameterLive(const QString& name, double value);
 

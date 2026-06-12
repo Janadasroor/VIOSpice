@@ -1,3 +1,6 @@
+# Copyright 2026 Janada Sroor
+# SPDX-License-Identifier: Apache-2.0
+
 # To run this code you need to install the following dependencies:
 # pip install google-genai numpy
 

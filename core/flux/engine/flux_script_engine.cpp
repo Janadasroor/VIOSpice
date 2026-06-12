@@ -1,3 +1,8 @@
+/*
+ * Copyright 2026 Janada Sroor
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #include "flux_script_engine.h"
 #include "../bridges/flux_qt_bridge.h"
 #include <flux/jit_engine.h>

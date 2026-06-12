@@ -1,3 +1,8 @@
+/*
+ * Copyright 2026 Janada Sroor
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 // schematic_page_item.cpp
 // Professional IEEE/IEC-style schematic page frame with interactive title block.
 // Supports: logo image, company, designer, project name, sheet name, revision,

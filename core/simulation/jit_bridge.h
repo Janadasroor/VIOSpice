@@ -1,3 +1,8 @@
+/*
+ * Copyright 2026 Janada Sroor
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #ifndef JIT_BRIDGE_H
 #define JIT_BRIDGE_H
 

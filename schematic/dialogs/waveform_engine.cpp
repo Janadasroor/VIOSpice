@@ -1,3 +1,8 @@
+/*
+ * Copyright 2026 Janada Sroor
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #include "waveform_engine.h"
 #include "../items/voltage_source_item.h"
 #include "../core/sim_value_parser.h"

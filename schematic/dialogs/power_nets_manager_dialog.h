@@ -1,3 +1,8 @@
+/*
+ * Copyright 2026 Janada Sroor
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #ifndef POWER_NETS_MANAGER_DIALOG_H
 #define POWER_NETS_MANAGER_DIALOG_H
 

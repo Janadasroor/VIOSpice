@@ -1,3 +1,8 @@
+/*
+ * Copyright 2026 Janada Sroor
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #include "tuning_slider_properties_dialog.h"
 #include "../items/tuning_slider_symbol_item.h"
 #include <QFormLayout>

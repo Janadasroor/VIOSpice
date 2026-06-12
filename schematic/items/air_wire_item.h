@@ -1,3 +1,8 @@
+/*
+ * Copyright 2026 Janada Sroor
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #ifndef AIR_WIRE_ITEM_H
 #define AIR_WIRE_ITEM_H
 

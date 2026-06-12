@@ -1,3 +1,8 @@
+/*
+ * Copyright 2026 Janada Sroor
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #include "schematic_commands.h"
 #include "schematic_item.h"
 #include "../analysis/schematic_connectivity.h"

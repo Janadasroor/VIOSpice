@@ -1,3 +1,8 @@
+/*
+ * Copyright 2026 Janada Sroor
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #ifndef SOURCE_CONTROL_PANEL_H
 #define SOURCE_CONTROL_PANEL_H
 

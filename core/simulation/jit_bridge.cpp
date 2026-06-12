@@ -1,3 +1,8 @@
+/*
+ * Copyright 2026 Janada Sroor
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #include "jit_bridge.h"
 #include "spice_backend.h"
 #include "jit_context_manager.h"

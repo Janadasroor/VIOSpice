@@ -1,3 +1,8 @@
+/*
+ * Copyright 2026 Janada Sroor
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #include "command_palette.h"
 #include "../visuals/theme.h"
 #include "../visuals/theme_manager.h"

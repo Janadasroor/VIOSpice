@@ -1,3 +1,8 @@
+/*
+ * Copyright 2026 Janada Sroor
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #include "joystick_item.h"
 #include "../core/simulation/simulation_manager.h"
 #include "../editor/schematic_editor.h"

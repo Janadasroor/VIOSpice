@@ -1,3 +1,8 @@
+/*
+ * Copyright 2026 Janada Sroor
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 // schematic_editor_theme.cpp
 // Theme, grid, and page frame rendering for SchematicEditor
 

@@ -1,3 +1,8 @@
+/*
+ * Copyright 2026 Janada Sroor
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #include "diode_properties_dialog.h"
 #include "diode_model_picker_dialog.h"
 #include "../items/schematic_item.h"

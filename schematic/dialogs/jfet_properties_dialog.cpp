@@ -1,3 +1,8 @@
+/*
+ * Copyright 2026 Janada Sroor
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #include "jfet_properties_dialog.h"
 #include "jfet_model_picker_dialog.h"
 

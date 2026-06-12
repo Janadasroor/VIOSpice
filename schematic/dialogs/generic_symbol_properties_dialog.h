@@ -1,3 +1,8 @@
+/*
+ * Copyright 2026 Janada Sroor
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #ifndef GENERIC_SYMBOL_PROPERTIES_DIALOG_H
 #define GENERIC_SYMBOL_PROPERTIES_DIALOG_H
 

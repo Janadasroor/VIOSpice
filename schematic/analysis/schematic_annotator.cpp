@@ -1,3 +1,8 @@
+/*
+ * Copyright 2026 Janada Sroor
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #include "schematic_annotator.h"
 #include "schematic_item.h"
 #include "../items/generic_component_item.h"

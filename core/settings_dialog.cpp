@@ -1,3 +1,8 @@
+/*
+ * Copyright 2026 Janada Sroor
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #include "settings_dialog.h"
 #include "config_manager.h"
 #include "theme_manager.h"

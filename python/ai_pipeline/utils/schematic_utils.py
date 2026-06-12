@@ -1,3 +1,6 @@
+# Copyright 2026 Janada Sroor
+# SPDX-License-Identifier: Apache-2.0
+
 """Schematic JSON manipulation: path traversal, item matching, value application."""
 
 from __future__ import annotations

@@ -1,3 +1,8 @@
+/*
+ * Copyright 2026 Janada Sroor
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #include "spice_model_list_model.h"
 #include <QFileInfo>
 #include <QSettings>

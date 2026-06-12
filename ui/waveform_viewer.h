@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: LGPL-3.0-or-later
+// SPDX-License-Identifier: Apache-2.0
 // Copyright (C) 2026 Janada Sroor
 
 #pragma once
@@ -100,6 +100,8 @@ public:
     void setPlotQuality(PlotQuality quality);
     PlotQuality plotQuality() const { return m_plotQuality; }
     void setSourceSchematicName(const QString& name);
+    void setWindowTime(double seconds) { m_windowTime = seconds; }
+    void setMaxDataSize(int points) { m_maxDataSize = points; }
 
     struct SignalExport {
         QString name;
@@ -251,6 +253,8 @@ private:
     bool m_rebuildQueued = false;
     QPointF m_lastMouseValue;
     bool m_hasLastMouseValue = false;
+    double m_windowTime = 0.0;
+    int m_maxDataSize = 1000000;
 
     struct ZoomState {
         double xMin, xMax;

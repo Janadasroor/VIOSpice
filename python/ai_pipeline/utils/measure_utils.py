@@ -1,3 +1,6 @@
+# Copyright 2026 Janada Sroor
+# SPDX-License-Identifier: Apache-2.0
+
 """Measure evaluation, constraint filtering, derived labels, and result filters."""
 
 from __future__ import annotations

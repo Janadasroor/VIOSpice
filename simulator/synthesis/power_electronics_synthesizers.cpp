@@ -1,3 +1,8 @@
+/*
+ * Copyright 2026 Janada Sroor
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #include "power_electronics_synthesizers.h"
 #include "../core/sim_value_parser.h"
 #include <QTextStream>

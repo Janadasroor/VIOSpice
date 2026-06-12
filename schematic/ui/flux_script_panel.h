@@ -1,3 +1,8 @@
+/*
+ * Copyright 2026 Janada Sroor
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #ifndef FLUX_SCRIPT_PANEL_H
 #define FLUX_SCRIPT_PANEL_H
 

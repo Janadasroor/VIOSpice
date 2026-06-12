@@ -1,3 +1,8 @@
+/*
+ * Copyright 2026 Janada Sroor
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #ifndef LOGIC_ANALYZER_PROPERTIES_DIALOG_H
 #define LOGIC_ANALYZER_PROPERTIES_DIALOG_H
 

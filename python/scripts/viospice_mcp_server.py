@@ -1,4 +1,8 @@
 #!/usr/bin/env python3
+
+# Copyright 2026 Janada Sroor
+# SPDX-License-Identifier: Apache-2.0
+
 """FastMCP server for VioraEDA — provides AI agents with circuit design tools."""
 
 import importlib.util

@@ -1,3 +1,8 @@
+/*
+ * Copyright 2026 Janada Sroor
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #include "ws_server.h"
 
 #if VIOSPICE_HAS_QT_WEBSOCKETS

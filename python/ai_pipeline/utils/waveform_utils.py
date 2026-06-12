@@ -1,3 +1,6 @@
+# Copyright 2026 Janada Sroor
+# SPDX-License-Identifier: Apache-2.0
+
 """Waveform collection, cropping, decimation, and statistics."""
 
 from __future__ import annotations

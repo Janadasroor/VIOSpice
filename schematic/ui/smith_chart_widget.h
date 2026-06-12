@@ -1,3 +1,8 @@
+/*
+ * Copyright 2026 Janada Sroor
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #ifndef SMITH_CHART_WIDGET_H
 #define SMITH_CHART_WIDGET_H
 

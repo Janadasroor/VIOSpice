@@ -1,3 +1,8 @@
+/*
+ * Copyright 2026 Janada Sroor
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 // schematic_editor_export.cpp
 // Export and app-level informational handlers for SchematicEditor
 

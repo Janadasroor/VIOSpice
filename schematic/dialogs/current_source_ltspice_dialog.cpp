@@ -1,3 +1,8 @@
+/*
+ * Copyright 2026 Janada Sroor
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #include "current_source_ltspice_dialog.h"
 #include "voltage_source_custom_waveform_dialog.h"
 #include <QVBoxLayout>

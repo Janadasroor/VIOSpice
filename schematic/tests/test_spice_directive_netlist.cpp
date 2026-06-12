@@ -1,3 +1,8 @@
+/*
+ * Copyright 2026 Janada Sroor
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #include <QtTest/QtTest>
 
 #include "../analysis/spice_netlist_generator.h"

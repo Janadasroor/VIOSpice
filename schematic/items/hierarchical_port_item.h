@@ -1,3 +1,8 @@
+/*
+ * Copyright 2026 Janada Sroor
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #ifndef HIERARCHICAL_PORT_ITEM_H
 #define HIERARCHICAL_PORT_ITEM_H
 

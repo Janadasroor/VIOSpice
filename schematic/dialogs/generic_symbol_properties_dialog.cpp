@@ -1,3 +1,8 @@
+/*
+ * Copyright 2026 Janada Sroor
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #include "generic_symbol_properties_dialog.h"
 #include "../editor/schematic_commands.h"
 #include "../items/generic_component_item.h"

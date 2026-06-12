@@ -1,3 +1,8 @@
+/*
+ * Copyright 2026 Janada Sroor
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #include "bjt_model_picker_dialog.h"
 #include "../../simulator/bridge/model_library_manager.h"
 #include "../../simulator/bridge/spice_model_search.h"

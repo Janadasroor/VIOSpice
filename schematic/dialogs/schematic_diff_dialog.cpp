@@ -1,3 +1,8 @@
+/*
+ * Copyright 2026 Janada Sroor
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #include "schematic_diff_dialog.h"
 #include "../ui/schematic_diff_viewer.h"
 #include "../analysis/schematic_diff_engine.h"

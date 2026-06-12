@@ -1,3 +1,8 @@
+/*
+ * Copyright 2026 Janada Sroor
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #ifndef REMOTE_DISPLAY_SERVER_H
 #define REMOTE_DISPLAY_SERVER_H
 

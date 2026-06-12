@@ -1,3 +1,6 @@
+# Copyright 2026 Janada Sroor
+# SPDX-License-Identifier: Apache-2.0
+
 """Supply-chain lookup for component pricing and availability.
 
 Currently returns simulated data.  To enable real Octopart API calls,

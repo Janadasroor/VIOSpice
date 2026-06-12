@@ -1,3 +1,8 @@
+/*
+ * Copyright 2026 Janada Sroor
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #include "netlist_to_schematic.h"
 #include "spice_netlist_parser.h"
 #include "schematic_file_io.h"
