@@ -1,3 +1,8 @@
+/*
+ * Copyright 2026 Janada Sroor
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #ifndef SEMANTIC_MERGE_ENGINE_H
 #define SEMANTIC_MERGE_ENGINE_H
 

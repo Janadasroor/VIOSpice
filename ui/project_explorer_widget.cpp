@@ -1,3 +1,8 @@
+/*
+ * Copyright 2026 Janada Sroor
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #include "project_explorer_widget.h"
 #include "../schematic/io/netlist_to_schematic.h"
 #include "../core/visuals/theme_manager.h"

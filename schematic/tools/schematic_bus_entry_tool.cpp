@@ -1,3 +1,8 @@
+/*
+ * Copyright 2026 Janada Sroor
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #include "schematic_bus_entry_tool.h"
 #include "bus_entry_item.h"
 #include "bus_item.h"

@@ -1,3 +1,8 @@
+/*
+ * Copyright 2026 Janada Sroor
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #include "mini_scope_widget.h"
 #include <QPainter>
 #include <QPainterPath>

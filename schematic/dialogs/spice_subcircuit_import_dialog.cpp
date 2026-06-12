@@ -1,3 +1,8 @@
+/*
+ * Copyright 2026 Janada Sroor
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #include "../../core/project/config_manager.h"
 #include "spice_subcircuit_import_dialog.h"
 #include "theme_manager.h"

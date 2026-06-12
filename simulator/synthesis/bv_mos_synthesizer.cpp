@@ -1,3 +1,8 @@
+/*
+ * Copyright 2026 Janada Sroor
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #include "bv_mos_synthesizer.h"
 #include <QStringList>
 #include <QTextStream>

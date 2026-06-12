@@ -1,3 +1,8 @@
+/*
+ * Copyright 2026 Janada Sroor
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #include "mos_circuit_architect.h"
 #include <QVBoxLayout>
 #include <QHBoxLayout>

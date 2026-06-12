@@ -1,3 +1,8 @@
+/*
+ * Copyright 2026 Janada Sroor
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #ifndef PASSIVE_MODEL_PICKER_DIALOG_H
 #define PASSIVE_MODEL_PICKER_DIALOG_H
 

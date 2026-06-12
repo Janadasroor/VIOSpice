@@ -1,3 +1,8 @@
+/*
+ * Copyright 2026 Janada Sroor
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #include "power_stage_properties_dialog.h"
 #include "../items/generic_component_item.h"
 #include "../items/schematic_spice_directive_item.h"

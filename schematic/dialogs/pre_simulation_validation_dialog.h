@@ -1,3 +1,8 @@
+/*
+ * Copyright 2026 Janada Sroor
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #ifndef PRE_SIMULATION_VALIDATION_DIALOG_H
 #define PRE_SIMULATION_VALIDATION_DIALOG_H
 

@@ -1,3 +1,8 @@
+/*
+ * Copyright 2026 Janada Sroor
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #ifndef VIOSPICE_MIXEDMODE_LOGICCOMPONENT_H
 #define VIOSPICE_MIXEDMODE_LOGICCOMPONENT_H
 

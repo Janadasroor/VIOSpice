@@ -1,3 +1,8 @@
+/*
+ * Copyright 2026 Janada Sroor
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #include "wire_router.h"
 #include "diagnostics/runtime_diagnostics.h"
 #include <QGraphicsItem>

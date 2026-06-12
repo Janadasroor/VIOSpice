@@ -1,3 +1,8 @@
+/*
+ * Copyright 2026 Janada Sroor
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #include "gemini_bridge.h"
 #include "../core/visuals/theme_manager.h"
 #include "../core/project/config_manager.h"

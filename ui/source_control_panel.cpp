@@ -1,3 +1,8 @@
+/*
+ * Copyright 2026 Janada Sroor
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #include "source_control_panel.h"
 #include "schematic/dialogs/schematic_diff_dialog.h"
 #include "schematic_timeline_view.h"

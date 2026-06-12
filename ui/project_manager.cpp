@@ -1,3 +1,8 @@
+/*
+ * Copyright 2026 Janada Sroor
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #include "project_manager.h"
 #include "help_window.h"
 #include "developer_help_window.h"

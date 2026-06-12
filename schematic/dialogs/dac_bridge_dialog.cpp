@@ -1,3 +1,8 @@
+/*
+ * Copyright 2026 Janada Sroor
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #include "dac_bridge_dialog.h"
 #include "../items/dac_bridge_item.h"
 #include <QVBoxLayout>

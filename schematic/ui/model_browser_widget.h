@@ -1,3 +1,8 @@
+/*
+ * Copyright 2026 Janada Sroor
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #ifndef MODEL_BROWSER_WIDGET_H
 #define MODEL_BROWSER_WIDGET_H
 

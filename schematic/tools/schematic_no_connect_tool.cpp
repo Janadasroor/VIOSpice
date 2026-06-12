@@ -1,3 +1,8 @@
+/*
+ * Copyright 2026 Janada Sroor
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #include "schematic_no_connect_tool.h"
 #include "schematic_view.h"
 #include "schematic_commands.h"

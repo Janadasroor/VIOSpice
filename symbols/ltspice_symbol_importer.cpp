@@ -1,3 +1,8 @@
+/*
+ * Copyright 2026 Janada Sroor
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #include "ltspice_symbol_importer.h"
 #include <QFile>
 #include <QFileInfo>

@@ -1,3 +1,8 @@
+/*
+ * Copyright 2026 Janada Sroor
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #ifndef TEXT_RESOLVER_H
 #define TEXT_RESOLVER_H
 

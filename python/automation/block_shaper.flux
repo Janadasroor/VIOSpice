@@ -1,3 +1,6 @@
+# Copyright 2026 Janada Sroor
+# SPDX-License-Identifier: Apache-2.0
+
 # Smart Signal Block Shaper Automation (Clean)
 # Use this in the Script Editor Tab
 

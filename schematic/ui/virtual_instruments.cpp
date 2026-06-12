@@ -1,3 +1,8 @@
+/*
+ * Copyright 2026 Janada Sroor
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #include "virtual_instruments.h"
 #include "../analysis/fft_analyzer.h"
 #include <QPainterPath>

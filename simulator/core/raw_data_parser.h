@@ -1,3 +1,8 @@
+/*
+ * Copyright 2026 Janada Sroor
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #ifndef RAW_DATA_PARSER_H
 #define RAW_DATA_PARSER_H
 

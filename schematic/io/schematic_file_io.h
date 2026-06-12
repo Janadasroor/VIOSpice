@@ -1,3 +1,8 @@
+/*
+ * Copyright 2026 Janada Sroor
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #ifndef SCHEMATIC_FILE_IO_H
 #define SCHEMATIC_FILE_IO_H
 

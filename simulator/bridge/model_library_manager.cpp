@@ -1,3 +1,8 @@
+/*
+ * Copyright 2026 Janada Sroor
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #include "model_library_manager.h"
 #include "../core/sim_model_parser.h"
 #include "config_manager.h"

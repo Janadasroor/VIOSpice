@@ -1,3 +1,8 @@
+/*
+ * Copyright 2026 Janada Sroor
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #include "net_manager.h"
 #include "wire_item.h"
 #include "schematic_item.h"

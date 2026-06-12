@@ -1,3 +1,8 @@
+/*
+ * Copyright 2026 Janada Sroor
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #include "csv_viewer.h"
 #include "../core/visuals/theme_manager.h"
 #include <QFile>

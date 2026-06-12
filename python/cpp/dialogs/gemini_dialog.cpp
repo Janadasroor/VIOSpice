@@ -1,3 +1,8 @@
+/*
+ * Copyright 2026 Janada Sroor
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #include "gemini_dialog.h"
 #include "../gemini/gemini_panel.h"
 #include <QVBoxLayout>

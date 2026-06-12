@@ -1,3 +1,8 @@
+/*
+ * Copyright 2026 Janada Sroor
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #ifndef SCHEMATIC_ITEM_SELECTION_UTILS_H
 #define SCHEMATIC_ITEM_SELECTION_UTILS_H
 

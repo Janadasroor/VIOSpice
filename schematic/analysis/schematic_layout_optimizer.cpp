@@ -1,3 +1,8 @@
+/*
+ * Copyright 2026 Janada Sroor
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #include "schematic_layout_optimizer.h"
 #include "wire_item.h"
 #include "schematic_item.h"

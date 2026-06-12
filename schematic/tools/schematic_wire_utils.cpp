@@ -1,3 +1,8 @@
+/*
+ * Copyright 2026 Janada Sroor
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #include "schematic_wire_utils.h"
 #include "../items/wire_item.h"
 #include "../items/schematic_item.h"

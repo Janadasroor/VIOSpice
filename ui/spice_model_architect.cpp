@@ -1,3 +1,8 @@
+/*
+ * Copyright 2026 Janada Sroor
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #include "spice_model_architect.h"
 #include "python/cpp/core/flux_script_manager.h"
 #include "../core/visuals/theme_manager.h"

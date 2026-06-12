@@ -1,3 +1,8 @@
+/*
+ * Copyright 2026 Janada Sroor
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #include <QtTest>
 #include "../../../schematic/editor/schematic_menu_registry.h"
 #include "../../../schematic/editor/schematic_view.h"

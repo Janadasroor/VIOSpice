@@ -1,3 +1,8 @@
+/*
+ * Copyright 2026 Janada Sroor
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #ifndef BEHAVIORAL_CURRENT_SOURCE_DIALOG_H
 #define BEHAVIORAL_CURRENT_SOURCE_DIALOG_H
 

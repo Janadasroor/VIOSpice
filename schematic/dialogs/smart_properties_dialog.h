@@ -1,3 +1,8 @@
+/*
+ * Copyright 2026 Janada Sroor
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #ifndef SMART_PROPERTIES_DIALOG_H
 #define SMART_PROPERTIES_DIALOG_H
 

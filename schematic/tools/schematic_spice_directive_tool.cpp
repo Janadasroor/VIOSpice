@@ -1,3 +1,8 @@
+/*
+ * Copyright 2026 Janada Sroor
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #include "schematic_spice_directive_tool.h"
 #include "../dialogs/spice_directive_dialog.h"
 #include "../items/schematic_spice_directive_item.h"

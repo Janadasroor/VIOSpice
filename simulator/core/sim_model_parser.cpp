@@ -1,3 +1,8 @@
+/*
+ * Copyright 2026 Janada Sroor
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #include "sim_model_parser.h"
 #include "sim_value_parser.h"
 #include "sim_meas_evaluator.h"

@@ -1,3 +1,8 @@
+/*
+ * Copyright 2026 Janada Sroor
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 // extension_command.cpp — CLI subcommand for managing FluxScript extensions
 // Usage: viora extension init <id> [--name NAME] [--desc DESC] [--author AUTHOR] [--template TYPE]
 //        viora extension validate <dir>   — check manifest + compile

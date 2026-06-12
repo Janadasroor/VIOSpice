@@ -1,3 +1,8 @@
+/*
+ * Copyright 2026 Janada Sroor
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #include "extensions_dialog.h"
 #include "../core/interfaces/plugin_sdk_version.h"
 #include "../core/flux/extensions/native/plugin_package_installer.h"

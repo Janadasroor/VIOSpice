@@ -1,3 +1,8 @@
+/*
+ * Copyright 2026 Janada Sroor
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #ifndef SEVEN_SEGMENT_PROPERTIES_DIALOG_H
 #define SEVEN_SEGMENT_PROPERTIES_DIALOG_H
 

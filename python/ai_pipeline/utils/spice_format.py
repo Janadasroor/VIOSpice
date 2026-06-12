@@ -1,3 +1,6 @@
+# Copyright 2026 Janada Sroor
+# SPDX-License-Identifier: Apache-2.0
+
 """SPICE number formatting and parsing utilities."""
 
 from __future__ import annotations

@@ -1,3 +1,8 @@
+/*
+ * Copyright 2026 Janada Sroor
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #include "flux/runtime/flux_sim_service.h"
 #include "simulation_manager.h"
 #include <QString>

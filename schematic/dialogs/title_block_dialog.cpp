@@ -1,3 +1,8 @@
+/*
+ * Copyright 2026 Janada Sroor
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 // title_block_dialog.cpp
 // Professional dialog for editing all schematic title block metadata fields.
 

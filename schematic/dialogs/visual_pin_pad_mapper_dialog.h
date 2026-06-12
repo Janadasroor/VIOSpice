@@ -1,3 +1,8 @@
+/*
+ * Copyright 2026 Janada Sroor
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #ifndef VISUAL_PIN_PAD_MAPPER_DIALOG_H
 #define VISUAL_PIN_PAD_MAPPER_DIALOG_H
 
