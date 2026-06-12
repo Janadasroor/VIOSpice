@@ -1,3 +1,8 @@
+/*
+ * Copyright 2026 Janada Sroor
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #include "gerber_viewer_window.h"
 #include "gerber_parser.h"
 #include "config_manager.h"

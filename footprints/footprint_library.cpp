@@ -1,3 +1,8 @@
+/*
+ * Copyright 2026 Janada Sroor
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #include "footprint_library.h"
 #include "../core/project/library_index.h"
 #include <QDir>

@@ -1,3 +1,8 @@
+/*
+ * Copyright 2026 Janada Sroor
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #include "pcb_components_widget.h"
 #include "footprint_preview_view.h"
 #include "../dialogs/footprint_browser_dialog.h"

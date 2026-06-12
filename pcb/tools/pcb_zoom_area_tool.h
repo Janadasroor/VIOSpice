@@ -1,3 +1,8 @@
+/*
+ * Copyright 2026 Janada Sroor
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #ifndef PCB_ZOOM_AREA_TOOL_H
 #define PCB_ZOOM_AREA_TOOL_H
 

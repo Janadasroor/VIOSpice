@@ -1,3 +1,8 @@
+/*
+ * Copyright 2026 Janada Sroor
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #include "length_match_manager.h"
 #include "length_measurement_engine.h"
 #include "serpentine_generator.h"

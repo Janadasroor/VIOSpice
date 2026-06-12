@@ -1,3 +1,8 @@
+/*
+ * Copyright 2026 Janada Sroor
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #ifndef PCB_COMPONENT_TOOL_H
 #define PCB_COMPONENT_TOOL_H
 

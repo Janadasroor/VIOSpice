@@ -1,3 +1,8 @@
+/*
+ * Copyright 2026 Janada Sroor
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #ifndef PCBPLUGINMANAGER_H
 #define PCBPLUGINMANAGER_H
 

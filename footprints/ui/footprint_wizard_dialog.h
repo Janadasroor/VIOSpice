@@ -1,3 +1,8 @@
+/*
+ * Copyright 2026 Janada Sroor
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #ifndef FOOTPRINT_WIZARD_DIALOG_H
 #define FOOTPRINT_WIZARD_DIALOG_H
 

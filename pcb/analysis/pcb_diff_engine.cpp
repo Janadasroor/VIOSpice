@@ -1,3 +1,8 @@
+/*
+ * Copyright 2026 Janada Sroor
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #include "pcb_diff_engine.h"
 #include "../models/board_model.h"
 #include "../models/component_model.h"
