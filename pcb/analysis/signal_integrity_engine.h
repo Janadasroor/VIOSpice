@@ -1,3 +1,8 @@
+/*
+ * Copyright 2026 Janada Sroor
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #ifndef SIGNAL_INTEGRITY_ENGINE_H
 #define SIGNAL_INTEGRITY_ENGINE_H
 

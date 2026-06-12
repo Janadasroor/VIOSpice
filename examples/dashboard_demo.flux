@@ -1,3 +1,6 @@
+# Copyright 2026 Janada Sroor
+# SPDX-License-Identifier: Apache-2.0
+
 # test_fluxqt_dashboard.flux
 # A demonstration of FluxQt integration with VioSpice simulation.
 # Corrected for FluxScript syntax and handle scoping.

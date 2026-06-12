@@ -1,3 +1,8 @@
+/*
+ * Copyright 2026 Janada Sroor
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #ifndef GERBER_VIEWER_WINDOW_H
 #define GERBER_VIEWER_WINDOW_H
 

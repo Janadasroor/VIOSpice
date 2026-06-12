@@ -1,3 +1,6 @@
+# Copyright 2026 Janada Sroor
+# SPDX-License-Identifier: Apache-2.0
+
 # JIT-Compiled Digital PWM Controller
 # This FluxScript implements a basic constant-frequency PWM generator
 # that can be used as a "Smart Signal" block in a SPICE simulation.

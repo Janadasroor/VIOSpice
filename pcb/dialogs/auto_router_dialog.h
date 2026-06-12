@@ -1,3 +1,8 @@
+/*
+ * Copyright 2026 Janada Sroor
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #ifndef AUTO_ROUTER_DIALOG_H
 #define AUTO_ROUTER_DIALOG_H
 

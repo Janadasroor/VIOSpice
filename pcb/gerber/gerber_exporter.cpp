@@ -1,3 +1,8 @@
+/*
+ * Copyright 2026 Janada Sroor
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #include "gerber_exporter.h"
 #include "nc_drill_exporter.h"
 #include "../items/pcb_item.h"

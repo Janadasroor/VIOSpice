@@ -1,3 +1,8 @@
+/*
+ * Copyright 2026 Janada Sroor
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #include "fanout_engine.h"
 #include "../items/pad_item.h"
 #include "../items/trace_item.h"
