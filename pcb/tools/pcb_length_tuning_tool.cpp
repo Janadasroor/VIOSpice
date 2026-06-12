@@ -1,3 +1,8 @@
+/*
+ * Copyright 2026 Janada Sroor
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #include "pcb_length_tuning_tool.h"
 #include "pcb_view.h"
 #include "trace_item.h"

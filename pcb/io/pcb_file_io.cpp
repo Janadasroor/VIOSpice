@@ -1,3 +1,8 @@
+/*
+ * Copyright 2026 Janada Sroor
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #include "pcb_file_io.h"
 #include "diagnostics/runtime_diagnostics.h"
 #include "../factories/pcb_item_factory.h"

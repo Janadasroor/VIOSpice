@@ -1,3 +1,8 @@
+/*
+ * Copyright 2026 Janada Sroor
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #ifndef PCB_AUTO_ROUTER_H
 #define PCB_AUTO_ROUTER_H
 

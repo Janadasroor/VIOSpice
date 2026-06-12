@@ -1,3 +1,8 @@
+/*
+ * Copyright 2026 Janada Sroor
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #include "board_setup_dialog.h"
 #include "net_class.h"
 #include "net_manager.h"

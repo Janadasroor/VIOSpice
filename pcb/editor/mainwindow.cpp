@@ -1,3 +1,8 @@
+/*
+ * Copyright 2026 Janada Sroor
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 // mainwindow.cpp
 #include "mainwindow.h"
 #include "pcb_api.h"

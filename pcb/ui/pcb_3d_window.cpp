@@ -1,3 +1,8 @@
+/*
+ * Copyright 2026 Janada Sroor
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #include "pcb_3d_window.h"
 #include "../mcad/mcad_exporter.h"
 #include "config_manager.h"

@@ -1,3 +1,8 @@
+/*
+ * Copyright 2026 Janada Sroor
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #ifndef PCB_SHAPE_ITEM_H
 #define PCB_SHAPE_ITEM_H
 

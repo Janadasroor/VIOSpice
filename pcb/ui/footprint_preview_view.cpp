@@ -1,3 +1,8 @@
+/*
+ * Copyright 2026 Janada Sroor
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #include "footprint_preview_view.h"
 #include "theme_manager.h"
 #include "../../pcb/items/pad_item.h"

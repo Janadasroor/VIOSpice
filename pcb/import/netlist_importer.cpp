@@ -1,3 +1,8 @@
+/*
+ * Copyright 2026 Janada Sroor
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #include "netlist_importer.h"
 #include "eco_types.h"
 #include "library_index.h"
