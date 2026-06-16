@@ -112,6 +112,7 @@ private:
     QString m_lastErrorTitle;
     QString m_lastErrorDetails;
     bool m_isWorking = false;
+    bool m_fluxCodeEmitted = false;
     bool m_isDestroying = false;
     QString m_mode = "schematic";
     QString m_projectFilePath;
