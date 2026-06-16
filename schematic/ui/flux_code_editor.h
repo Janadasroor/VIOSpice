@@ -10,6 +10,9 @@
 #include <QSyntaxHighlighter>
 #include <QRegularExpression>
 #include <QMap>
+#include <QSet>
+#include <QPair>
+#include <QVector>
 
 class QGraphicsScene;
 class NetManager;
@@ -40,6 +43,12 @@ private:
     QTextCharFormat spiceSuffixFormat;
 };
 
+struct DiffLine {
+    enum Type { Unchanged, Added, Deleted };
+    Type type;
+    QString text;
+};
+
 /**
  * @brief VioSpice-specific FluxScript editor.
  */
@@ -53,8 +62,13 @@ public:
     void setErrorLines(const QMap<int, QString>& errors);
     void setActiveDebugLine(int line);
 
+    void setDiffHighlights(const QSet<int>& addedLines, const QSet<int>& deletedLines);
+    void clearDiffHighlights();
+
     void setCompleter(QCompleter* completer);
     QCompleter* completer() const;
+
+    static QVector<DiffLine> computeDiff(const QString& oldText, const QString& newText);
 
 public Q_SLOTS:
     virtual void onRunRequested();
@@ -80,6 +94,8 @@ private:
     FluxHighlighter* m_highlighter;
     QMap<int, QString> m_errorLines;
     int m_activeDebugLine = -1;
+    QSet<int> m_diffAddedLines;
+    QSet<int> m_diffDeletedLines;
 };
 
 } // namespace Flux
