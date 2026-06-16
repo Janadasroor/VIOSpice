@@ -55,6 +55,9 @@ private Q_SLOTS:
     void onExplorerItemClicked(class QListWidgetItem* item);
     void onTemplateDoubleClicked(class QListWidgetItem* item);
     void onPythonGenerated(const QString& code);
+    void onFluxScriptGenerated(const QString& code);
+    void onAcceptDiff();
+    void onRejectDiff();
     void onBakeClicked();
     
     // Debugger Slots
@@ -124,6 +127,13 @@ private:
     class QTextEdit* m_console;
     class QTimer* m_previewTimer;
     
+    // Diff bar for AI-generated code review
+    QFrame* m_diffBar = nullptr;
+    QPushButton* m_acceptDiffBtn = nullptr;
+    QPushButton* m_rejectDiffBtn = nullptr;
+    QString m_originalCode;
+    QString m_pendingAiCode;
+
     GeminiPanel* m_geminiPanel;
     class QDockWidget* m_aiDock;
     

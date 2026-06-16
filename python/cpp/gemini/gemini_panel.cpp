@@ -552,6 +552,7 @@ void GeminiPanel::askPrompt(const QString& text, bool includeContext, const QStr
     m_thinkingBuffer.clear();
     m_leftover.clear();
     m_lastProcessedTagPos = 0;
+    m_fluxCodeEmitted = false;
 
     connect(m_process, &QProcess::readyReadStandardOutput, this, &GeminiPanel::onProcessReadyRead);
     connect(m_process, &QProcess::readyReadStandardError, this, [this]() {
@@ -767,6 +768,20 @@ void GeminiPanel::processAgentStdoutChunk(const QString& chunk) {
         m_lastProcessedTagPos = match.capturedEnd(0);
     }
 
+    // Handle FLUX_CODE tags (FluxScript generation)
+    if (chunk.contains("<FLUX_CODE>")) {
+        static QRegularExpression fluxRe("<FLUX_CODE>(.*?)</FLUX_CODE>", QRegularExpression::DotMatchesEverythingOption);
+        auto fluxIter = fluxRe.globalMatch(m_responseBuffer, m_lastProcessedTagPos);
+        while (fluxIter.hasNext()) {
+            auto match = fluxIter.next();
+            QString code = match.captured(1).trimmed();
+            if (!code.isEmpty()) {
+                Q_EMIT fluxScriptGenerated(code);
+                m_lastProcessedTagPos = match.capturedEnd(0);
+            }
+        }
+    }
+
     // Handle SUGGESTION tags (Buttons)
     if (chunk.contains("<SUGGESTION>")) {
         static QRegularExpression sugRe("<SUGGESTION>(.*?)</SUGGESTION>");
@@ -802,6 +817,20 @@ void GeminiPanel::processAgentStdoutChunk(const QString& chunk) {
                 }
             }
             m_lastProcessedTagPos = match.capturedEnd(0);
+        }
+    }
+
+    // Extract FluxScript code blocks (```flux ... ```)
+    static QRegularExpression fluxBlockRe(R"(```flux\s*\n(.*?)```)",
+        QRegularExpression::DotMatchesEverythingOption | QRegularExpression::CaseInsensitiveOption);
+    if (!m_fluxCodeEmitted) {
+        auto fluxBlockMatch = fluxBlockRe.match(m_responseBuffer);
+        if (fluxBlockMatch.hasMatch()) {
+            QString code = fluxBlockMatch.captured(1).trimmed();
+            if (!code.isEmpty()) {
+                Q_EMIT fluxScriptGenerated(code);
+                m_fluxCodeEmitted = true;
+            }
         }
     }
 
