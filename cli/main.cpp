@@ -5956,6 +5956,15 @@ int main(int argc, char *argv[]) {
     QCommandLineOption stepOption(QStringList() << "s" << "step", "Step size for transient", "time", "100u");
     parser.addOption(stepOption);
 
+    QCommandLineOption maxStepOption("max-step", "Maximum timestep for interactive/live mode (seconds)", "time", "1e-3");
+    parser.addOption(maxStepOption);
+
+    QCommandLineOption maxTimeOption("max-time", "Maximum simulation time for interactive/live mode (seconds, 0=unlimited)", "time", "0");
+    parser.addOption(maxTimeOption);
+
+    QCommandLineOption maxPtsOption("max-pts", "Maximum data points for interactive/live mode", "count", "100000");
+    parser.addOption(maxPtsOption);
+
     QCommandLineOption jsonOption("json", "Output results in JSON format");
     QCommandLineOption transparentOption("transparent", "Render PNG with transparent background (schematic-render, symbol-render)");
     QCommandLineOption includeCommentsOption("include-comments", "Parse commented .model/.subckt lines (library-index)");
@@ -6263,7 +6272,63 @@ int main(int argc, char *argv[]) {
         SpiceNetlistGenerator::SimulationParams spiceParams;
         SimAnalysisType t = SimAnalysisType::OP;
 
-        if (analysisType == "tran") {
+        if (analysisType == "live") {
+            t = SimAnalysisType::RealTime;
+
+            if (!g_quiet) std::cerr << "  - Type: Interactive Live (MaxStep=" << parser.value("max-step").toStdString()
+                      << "s, MaxTime=" << parser.value("max-time").toStdString()
+                      << "s, MaxPts=" << parser.value("max-pts").toStdString() << ")" << std::endl;
+
+            double maxStep = 1e-3;
+            SimValueParser::parseSpiceNumber(parser.value("max-step"), maxStep);
+            double maxTime = 0.0;
+            SimValueParser::parseSpiceNumber(parser.value("max-time"), maxTime);
+            int maxPts = parser.value("max-pts").toInt();
+            if (maxStep <= 0) maxStep = 1e-3;
+            if (maxPts < 1000) maxPts = 100000;
+
+            // Use SimManager for the interactive live stream
+            auto &sm = SimManager::instance();
+            bool finished = false;
+            QString lastError;
+            SimResults collected;
+
+            // Wire up signals
+            QObject::connect(&sm, &SimManager::simulationStopped, [&]() { finished = true; });
+            QObject::connect(&sm, &SimManager::errorOccurred, [&](const QString &err) {
+                lastError = err;
+                finished = true;
+            });
+            QObject::connect(&sm, &SimManager::realTimeDataBatchReceived, [&](const std::vector<double> &,
+                                                                               const std::vector<std::vector<double>> &,
+                                                                               const QStringList &) {
+                // Data is streaming; we just track that it's alive
+            });
+
+            sm.runRealTime(&scene, nullptr, maxStep, maxTime, maxPts);
+
+            QElapsedTimer wallClock;
+            wallClock.start();
+            const qint64 maxWallMs = (maxTime > 0) ? static_cast<qint64>(maxTime * 1000 * 1.5 + 60000) : 24LL * 3600 * 1000;
+
+            while (!finished && wallClock.elapsed() < maxWallMs) {
+                QCoreApplication::processEvents(QEventLoop::AllEvents, 100);
+                QThread::msleep(10);
+                if (!sm.isRunning() && !finished) {
+                    QCoreApplication::processEvents();
+                    finished = true;
+                }
+            }
+
+            sm.stopRealTime();
+            if (!lastError.isEmpty()) {
+                std::cerr << "Interactive simulation failed: " << lastError.toStdString() << std::endl;
+                return 1;
+            }
+            if (!g_quiet) std::cerr << "\nInteractive simulation completed." << std::endl;
+            std::_Exit(0);
+
+        } else if (analysisType == "tran") {
             t = SimAnalysisType::Transient;
             spiceParams.type = SpiceNetlistGenerator::Transient;
             spiceParams.stop = parser.value("stop");

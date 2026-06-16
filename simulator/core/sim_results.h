@@ -92,6 +92,7 @@ struct SimAnalysisConfig {
     double rtTimeStep = 1e-3;    // Simulated time per update
     double rtWindowTime = 10.0;
     int rtMaxDataSize = 50000;
+    double rtMaxTime = 0.0;      // 0 => unlimited (seconds of simulated time before auto-pause)
     bool rtSyncWallClock = true;
 
     // Optional report output path (JSON-like text emitted by analyses that support it).
