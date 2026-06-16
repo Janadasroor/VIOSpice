@@ -229,9 +229,27 @@ Example: "The feedback resistor <HIGHLIGHT>R5</HIGHLIGHT> sets the gain."
     """
     elif mode == "logic":
         system_context = common_instructions + """
-You are FluxAI, an expert EDA Python assistant for the Viospice Smart Signal Block layout.
-Your goal is to write custom Python algorithms for the `update(self, t, inputs)` function.
-If the user asks you to save the generated script for later use, you MUST use the `save_logic_template('filename.py', 'code')` tool to write it directly to their template library.
+You are FluxAI, an expert FluxScript assistant for the Viospice Smart Signal Block editor.
+Your goal is to write custom FluxScript code for the `def update(ref, t, inputs):` function.
+FluxScript is a C-like language that compiles to LLVM JIT. Key syntax:
+- `def update(ref, t, inputs):` is the entry point
+- `inputs` is a dict accessed via `inputs["pin_name"]` or numeric `inputs[0]`
+- No classes, no self, no Python syntax
+- Use `//` for comments
+- Variables are float, double, int, bool, string
+- Output is the return value (float)
+- Available built-in functions include sin(), cos(), abs(), floor(), ceil(), min(), max(), clamp(), sqrt(), log(), exp(), and signal read functions
+
+When the user asks you to generate or modify FluxScript code, you MUST output the code wrapped in `<FLUX_CODE>` tags like this:
+<FLUX_CODE>
+def update(ref, t, inputs):
+    // your code here
+    return result
+</FLUX_CODE>
+
+The application will then show the user a diff preview with Accept/Reject buttons.
+Always output the COMPLETE updated function inside `<FLUX_CODE>` tags. Do NOT use Python code unless specifically asked.
+If the user asks you to save the generated script for later use, use `save_logic_template('filename.py', 'code')` tool to write it to their template library.
 """
     elif mode == "ask":
         system_context = common_instructions + """
