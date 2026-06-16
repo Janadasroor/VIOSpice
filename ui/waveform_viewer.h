@@ -101,6 +101,7 @@ public:
     PlotQuality plotQuality() const { return m_plotQuality; }
     void setSourceSchematicName(const QString& name);
     void setWindowTime(double seconds) { m_windowTime = seconds; }
+    int maxDataSize() const { return m_maxDataSize; }
     void setMaxDataSize(int points) { m_maxDataSize = points; }
 
     struct SignalExport {

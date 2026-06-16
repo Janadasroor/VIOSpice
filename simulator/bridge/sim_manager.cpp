@@ -839,8 +839,8 @@ SimManager::SimManager(QObject* parent) : QObject(parent) {
         Q_EMIT errorOccurred(error);
     });
     connect(&liveSim, &SimulationManager::realTimeDataBatchReceived, this, [this](const std::vector<double>& times,
-                                                                                  const std::vector<std::vector<double>>& values,
-                                                                                  const QStringList& names) {
+                                                                                   const std::vector<std::vector<double>>& values,
+                                                                                   const QStringList& names) {
         // PERMISSIVE FIX:
         // During shared library simulations, m_lastConfig.type might be desynced or 
         // initialized to AC (1) while a Transient run is actually active.
@@ -851,6 +851,17 @@ SimManager::SimManager(QObject* parent) : QObject(parent) {
                                     
         if (isLiveCapable) {
             Q_EMIT realTimeDataBatchReceived(times, values, names);
+        }
+
+        // Auto-pause when max simulation time is reached
+        if (m_lastConfig.type == SimAnalysisType::RealTime && m_lastConfig.rtMaxTime > 0.0 && !times.empty()) {
+            m_rtCurrentTime = times.back();
+            if (m_rtCurrentTime >= m_lastConfig.rtMaxTime) {
+                if (!m_paused && !m_stopRequested) {
+                    Q_EMIT logMessage(QString("Auto-pause: reached max simulation time of %1 s").arg(m_lastConfig.rtMaxTime));
+                    stopRealTime();
+                }
+            }
         }
     });
     connect(&liveSim, &SimulationManager::rawResultsReady, this, [this](const QString& rawPath) {
@@ -1324,20 +1335,24 @@ void SimManager::cleanupSimulation() {
     SimulationManager::instance().clearFluxScriptTargets();
 }
 
-void SimManager::runRealTime(QGraphicsScene* scene, NetManager* netMgr, int intervalMs, double winTime, int maxPts) {
+void SimManager::runRealTime(QGraphicsScene* scene, NetManager* netMgr, double maxStep, double maxTime, int maxPts) {
     if (m_control || m_ngspiceProcess) {
         Q_EMIT logMessage("A simulation is already running.");
         return;
     }
 
+    const int intervalMs = 50;
+
     SimAnalysisConfig config;
     config.type = SimAnalysisType::RealTime;
-    config.rtIntervalMs = std::max(10, intervalMs);
-    config.rtTimeStep = std::max(1e-6, static_cast<double>(config.rtIntervalMs) / 1000.0);
-    config.rtWindowTime = winTime;
-    config.rtMaxDataSize = maxPts;
-    config.tStep = std::max(1e-6, config.rtTimeStep / 10.0);
-    config.tStop = std::max(config.rtTimeStep * 200.0, 0.1);
+    config.rtIntervalMs = intervalMs;
+    config.transientMaxStep = std::max(1e-9, maxStep);
+    config.rtTimeStep = std::max(1e-9, maxStep);
+    config.rtWindowTime = (maxTime > 0.0) ? std::min(maxTime, 10.0) : 10.0;
+    config.rtMaxDataSize = std::max(1000, maxPts);
+    config.rtMaxTime = std::max(0.0, maxTime);
+    config.tStep = std::max(1e-9, config.rtTimeStep);
+    config.tStop = (maxTime > 0.0) ? maxTime : 3600.0; // 1h window if unlimited
 
     QString netlist = generateNetlist(scene, netMgr, config);
     if (netlist.isEmpty() || netlist.startsWith("* Missing scene")) {
@@ -1366,7 +1381,8 @@ void SimManager::runRealTime(QGraphicsScene* scene, NetManager* netMgr, int inte
 
     m_rtTimer->start(config.rtIntervalMs);
 
-    if (!startSharedSimulation(netlist, QString("Starting real-time transient stream (%1 ms update interval)...").arg(config.rtIntervalMs))) {
+    if (!startSharedSimulation(netlist, QString("Starting interactive live stream (maxStep=%1s, maxTime=%2s, maxPts=%3)...")
+        .arg(config.transientMaxStep).arg(config.rtMaxTime > 0 ? QString::number(config.rtMaxTime) : "unlimited").arg(config.rtMaxDataSize))) {
         return;
     }
 }

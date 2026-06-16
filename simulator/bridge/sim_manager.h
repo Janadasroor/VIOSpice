@@ -53,7 +53,7 @@ public:
     QStringList preflightCheck(QGraphicsScene* scene, NetManager* netMgr, SimNetlist& outNetlist);
     void runWithNetlist(const SimNetlist& netlist);
     
-    void runRealTime(QGraphicsScene* scene, NetManager* netMgr, int intervalMs = 100, double winTime = 10.0, int maxPts = 50000);
+    void runRealTime(QGraphicsScene* scene, NetManager* netMgr, double maxStep = 1e-3, double maxTime = 0.0, int maxPts = 100000);
     void stopRealTime();
     void updateParameterLive(const QString& name, double value);
 

@@ -2637,13 +2637,13 @@ void SimulationPanel::onRunSimulation() {
     }
 
     const int idx = m_analysisType->currentIndex();
-    if (idx == 9) { // Real-time
-        int interval = m_param1->text().toInt();
-        if (interval < 10) interval = 10;
-        double winTime = m_param2->text().toDouble();
-        if (winTime < 0.1) winTime = 10.0;
-        int maxPts = m_param3->text().toInt();
-        if (maxPts < 1000) maxPts = 50000;
+    if (idx == 9) { // Real-time / Interactive Live
+        double maxStep = m_param1->text().toDouble();
+        if (maxStep < 1e-9) maxStep = 1e-3;
+        double maxTime = m_param2->text().toDouble();
+        if (maxTime < 0.0) maxTime = 0.0;
+        int maxPts = static_cast<int>(m_param3->text().toDouble());
+        if (maxPts < 1000) maxPts = 100000;
         m_isSimInitiator = true;
         m_acceptRealTimeStream = true;
         g_liveStreamOwner = this;
@@ -2651,10 +2651,10 @@ void SimulationPanel::onRunSimulation() {
             m_viewTabs->setCurrentIndex(0); // Switch to Waves tab
         }
         if (m_waveformViewer) {
-            m_waveformViewer->setWindowTime(winTime);
+            m_waveformViewer->setWindowTime(0.0); // auto-scroll
             m_waveformViewer->setMaxDataSize(maxPts);
         }
-        SimManager::instance().runRealTime(m_scene, m_netManager, interval, winTime, maxPts);
+        SimManager::instance().runRealTime(m_scene, m_netManager, maxStep, maxTime, maxPts);
         return;
     }
 
@@ -3833,10 +3833,11 @@ void SimulationPanel::onRealTimeDataBatchReceived(const std::vector<double>& tim
                 // but we should be extremely careful.
                 series->append(points);
 
-                // Prune old points to keep live performance high (prevents UI freeze and memory exhaustion)
-                // Use a larger limit for modern charts
-                if (series->count() > 100000) {
-                    series->removePoints(0, series->count() - 50000);
+                // Ring buffer: prune oldest points to stay within maxDataSize
+                int maxChartPoints = m_waveformViewer ? m_waveformViewer->maxDataSize() : 100000;
+                if (maxChartPoints < 1000) maxChartPoints = 100000;
+                if (series->count() > maxChartPoints) {
+                    series->removePoints(0, series->count() - maxChartPoints / 2);
                 }
                 
                 // Update axes
