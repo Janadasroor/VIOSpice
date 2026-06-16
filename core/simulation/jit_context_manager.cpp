@@ -148,8 +148,10 @@ bool JITContextManager::compileAndLoad(const QString& id, const QString& source,
             wrapped = QString("def %1() {\n%2\n}").arg(uniqueFuncName, transformedSource);
         }
     } else {
-        static const QRegularExpression updateDefRe(R"(^\s*(def\s+)?update\s*[\({])");
-        if (!updateDefRe.match(transformedSource).hasMatch()) {
+        // Search for def update(... anywhere in the source (may be preceded by comments/blank lines).
+        // Use \b anchor instead of ^ so leading comments don't defeat the check.
+        static const QRegularExpression updateDefRe(R"(\bdef\s+update\s*[\({])");
+        if (!transformedSource.contains(updateDefRe)) {
             wrapped = QString("def %1(t, inputs) {\n%2\n}").arg(uniqueFuncName, transformedSource);
         } else {
             // Rename 'update' to uniqueFuncName
@@ -263,6 +265,11 @@ void JITContextManager::setInputPinMapping(const QString& id, const QStringList&
     Q_UNUSED(id);
     Q_UNUSED(pins);
 #endif
+}
+
+QStringList JITContextManager::getInputPinMapping(const QString& id) {
+    std::lock_guard<std::mutex> lock(m_funcMutex);
+    return m_blockInputs.value(cleanId(id));
 }
 
 void JITContextManager::setSimulationResults(const SimResults* results) {

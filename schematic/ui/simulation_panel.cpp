@@ -1980,9 +1980,9 @@ void SimulationPanel::updateSchematicDirective() {
         cmdParams.rfZ0 = m_param6 ? m_param6->text().trimmed() : "50";
     } else if (idx == 9) { // Interactive
         QString cmdText = QString(".interactive %1 %2 %3").arg(
-            m_param1 ? m_param1->text().trimmed() : "100",
-            m_param2 ? m_param2->text().trimmed() : "10",
-            m_param3 ? m_param3->text().trimmed() : "50000");
+            m_param1 ? m_param1->text().trimmed() : "1e-3",
+            m_param2 ? m_param2->text().trimmed() : "0",
+            m_param3 ? m_param3->text().trimmed() : "100000");
         updateSchematicDirectiveFromCommand(cmdText);
         return;
     } else {
@@ -2081,7 +2081,7 @@ void SimulationPanel::syncFromSchematic() {
     m_commandLine->setPlaceholderText("Schematic directive will be used...");
     m_commandLine->setText(cmd);
     
-    // Auto-switch view tabs based on directive (using shifted indices: 1=Tran, 2=OP, 3=DC, 4=AC, 5=RF)
+    // Auto-switch view tabs based on directive (using shifted indices: 1=Tran, 2=OP, 3=DC, 4=AC, 5=RF, 9=Interactive)
     if (cmd.startsWith(".tran", Qt::CaseInsensitive)) {
         onAnalysisChanged(1); 
     } else if (cmd.startsWith(".ac", Qt::CaseInsensitive)) {
@@ -2092,6 +2092,9 @@ void SimulationPanel::syncFromSchematic() {
         onAnalysisChanged(3); 
     } else if (cmd.startsWith(".op", Qt::CaseInsensitive)) {
         onAnalysisChanged(2); 
+    } else if (cmd.startsWith(".interactive", Qt::CaseInsensitive)) {
+        onAnalysisChanged(9);
+        parseCommandText(cmd);
     }
 }
 
@@ -2139,9 +2142,9 @@ void SimulationPanel::updateCommandDisplay() {
         cmdParams.rfZ0 = m_param6 ? m_param6->text().trimmed() : "50";
     } else if (idx == 9) { // Interactive (Live)
         m_commandLine->setText(QString(".interactive %1 %2 %3").arg(
-            m_param1 ? m_param1->text() : "100",
-            m_param2 ? m_param2->text() : "10",
-            m_param3 ? m_param3->text() : "50000"
+            m_param1 ? m_param1->text() : "1e-3",
+            m_param2 ? m_param2->text() : "0",
+            m_param3 ? m_param3->text() : "100000"
         ));
         return; // Don't use SpiceNetlistGenerator for this pseudo-directive
     } else {
@@ -2286,6 +2289,8 @@ void SimulationPanel::parseCommandText(const QString& command, bool skipTypeOver
 
 void SimulationPanel::updateSchematicDirectiveFromCommand(const QString& commandText) {
     if (!m_scene || commandText.isEmpty() || commandText.toLower().contains("no directive found") || commandText.toLower().contains("no spice directive")) return;
+    if (m_updatingDirective) return;
+    m_updatingDirective = true;
 
     // Parse command and update form fields
     parseCommandText(commandText);
@@ -2330,6 +2335,7 @@ void SimulationPanel::updateSchematicDirectiveFromCommand(const QString& command
         auto* cmdItem = new SchematicSpiceDirectiveItem(commandText, cmdPos);
         m_scene->addItem(cmdItem);
     }
+    m_updatingDirective = false;
 }
 
 QString SimulationPanel::tabStateKey(QGraphicsScene* scene) {
@@ -2747,7 +2753,7 @@ void SimulationPanel::onRunSimulation() {
         switch (idx) {
         case 0: // Auto-Detect: default to Transient (schematic directive overrides)
             config.type = SimAnalysisType::Transient;
-            config.tStop = tStop;
+            config.tStop = (tStop > 0.0) ? tStop : 10e-3;
             config.tStep = tStep;
             config.transientStopAtSteadyState = steadyEnabled;
             config.transientSteadyStateTol = steadyTolText.isEmpty() ? 0.0 : parseValue(steadyTolText, 0.0);
@@ -2755,7 +2761,7 @@ void SimulationPanel::onRunSimulation() {
             break;
         case 1: // Transient
             config.type = SimAnalysisType::Transient;
-            config.tStop = tStop;
+            config.tStop = (tStop > 0.0) ? tStop : 10e-3;
             config.tStep = tStep;
             config.transientStopAtSteadyState = steadyEnabled;
             config.transientSteadyStateTol = steadyTolText.isEmpty() ? 0.0 : parseValue(steadyTolText, 0.0);
@@ -3697,6 +3703,9 @@ void SimulationPanel::onRealTimeDataBatchReceived(const std::vector<double>& tim
     if (!m_waveformViewer) return;
     if (values.empty() || names.empty()) return;
 
+    // Throttle full chart rebuild to every 10 batches during live streaming
+    const bool doFullUpdate = (batchCount % 10 == 0);
+
     // 1. Update Probes / Schematic Labels (Live)
     const bool shouldEmitLiveSnapshot =
         !m_liveSnapshotTimer.isValid() || m_liveSnapshotTimer.elapsed() >= m_liveSnapshotIntervalMs;
@@ -3863,8 +3872,8 @@ void SimulationPanel::onRealTimeDataBatchReceived(const std::vector<double>& tim
 
     Q_EMIT realTimeBatchReady(times, values, names);
 
-    if (m_waveformViewer) {
-        m_waveformViewer->updatePlot(false); // fast refresh
+    if (m_waveformViewer && doFullUpdate) {
+        m_waveformViewer->updatePlot(false);
     }
 }
 

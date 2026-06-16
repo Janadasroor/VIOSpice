@@ -321,6 +321,7 @@ private:
     SimResults m_previousResults;
     bool m_hasLastResults = false;
     bool m_buildInProgress = false;
+    bool m_updatingDirective = false;
     quint64 m_runRequestSerial = 0;
     bool m_hasPreviousResults = false;
     QDateTime m_lastRunTimestampUtc;
