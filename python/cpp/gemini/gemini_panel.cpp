@@ -23,6 +23,7 @@
 #include <QDateTime>
 #include <QGraphicsItem>
 #include <QGraphicsView>
+#include "../schematic/items/smart_signal_item.h"
 #include <QRegularExpression>
 #include <QDir>
 #include <QFile>
@@ -1036,6 +1037,15 @@ QString GeminiPanel::gatherInstructions() const {
         combined += schematicContext;
     }
 
+    if (m_contextProvider) {
+        QString providerContext = m_contextProvider();
+        if (!providerContext.isEmpty()) {
+            if (!combined.isEmpty()) combined += "\n\n";
+            combined += "CURRENT LOGIC EDITOR CONTEXT (FluxScript):\n";
+            combined += providerContext;
+        }
+    }
+
     return combined;
 }
 
@@ -1051,9 +1061,27 @@ QString GeminiPanel::gatherSchematicContext() const {
     
     if (netlist.trimmed().isEmpty()) return QString();
     
-    QString context = "CURRENT SCHEMATIC CONTEXT (SPICE NETLIST):\n";
+    QString context = "CURRENT SCHEMATIC CONTEXT:\n";
     context += "This is a netlist representation of the user's active schematic tab.\n";
     context += netlist;
+
+    // Collect all FluxScript smart signal block code
+    QStringList fluxBlocks;
+    for (auto* item : m_scene->items()) {
+        auto* ss = dynamic_cast<SmartSignalItem*>(item);
+        if (ss) {
+            QString code = ss->fluxCode().trimmed();
+            if (!code.isEmpty()) {
+                fluxBlocks << QString("--- Smart Signal Block '%1' (Ref: %2) ---\n%3")
+                              .arg(ss->itemTypeName(), ss->reference(), code);
+            }
+        }
+    }
+    if (!fluxBlocks.isEmpty()) {
+        context += "\n\nSMART SIGNAL BLOCKS (FluxScript):\n";
+        context += fluxBlocks.join("\n\n");
+    }
+
     return context;
 }
 
