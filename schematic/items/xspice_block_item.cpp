@@ -46,7 +46,6 @@ static QVector<XspiceModelDef> buildModelDB() {
         db.append(d);
     }
 
-    // summer (vector input)
     {
         XspiceModelDef d;
         d.name = "summer"; d.category = "Analog Behavioral"; d.spiceType = "summer";
@@ -81,7 +80,6 @@ static QVector<XspiceModelDef> buildModelDB() {
         db.append(d);
     }
 
-    // int (integrator)
     {
         auto d = addAnalog("integrator", "int", "Integrator: V(out) = integral(gain * V(in)) + IC");
         addParam(d, "gain", 1.0, "Integrator gain");
@@ -91,7 +89,6 @@ static QVector<XspiceModelDef> buildModelDB() {
         db.append(d);
     }
 
-    // d_dt (differentiator)
     {
         auto d = addAnalog("differentiator", "d_dt", "Differentiator: V(out) = gain * dV(in)/dt");
         addParam(d, "gain", 1.0, "Derivative gain");
@@ -109,7 +106,6 @@ static QVector<XspiceModelDef> buildModelDB() {
         db.append(d);
     }
 
-    // slew (slew rate limiter)
     {
         auto d = addAnalog("slew_limiter", "slew", "Slew-rate limiter: limits dV/dt of output");
         addParam(d, "rise_slope", 1e-6, "Maximum rising slope (V/s)");
@@ -117,7 +113,6 @@ static QVector<XspiceModelDef> buildModelDB() {
         db.append(d);
     }
 
-    // s_xfer (s-domain transfer function)
     {
         auto d = addAnalog("s_domain_filter", "s_xfer", "S-domain transfer function: H(s) = gain * N(s)/D(s)");
         addParam(d, "num_coeff", "1.0", "Numerator coefficients (space-separated)", XspiceParamDef::LineEdit);
@@ -127,7 +122,6 @@ static QVector<XspiceModelDef> buildModelDB() {
         db.append(d);
     }
 
-    // hyst (hysteresis / Schmitt trigger)
     {
         auto d = addAnalog("hysteresis", "hyst", "Schmitt trigger / hysteresis comparator");
         addParam(d, "in_low", 0.0, "Input low threshold");
@@ -149,7 +143,6 @@ static QVector<XspiceModelDef> buildModelDB() {
         db.append(d);
     }
 
-    // square (VCO)
     {
         auto d = addAnalog("vco_square", "square", "Voltage-controlled square wave oscillator");
         d.pins = {{"CTRL", XspicePinDef::VoltageIn}, {"OUT", XspicePinDef::Conductance}};
@@ -161,7 +154,6 @@ static QVector<XspiceModelDef> buildModelDB() {
         db.append(d);
     }
 
-    // triangle (VCO)
     {
         auto d = addAnalog("vco_triangle", "triangle", "Voltage-controlled triangle wave oscillator");
         d.pins = {{"CTRL", XspicePinDef::VoltageIn}, {"OUT", XspicePinDef::Conductance}};
@@ -172,7 +164,6 @@ static QVector<XspiceModelDef> buildModelDB() {
         db.append(d);
     }
 
-    // pwl (piecewise-linear transfer)
     {
         auto d = addAnalog("pwl_transfer", "pwl", "Piecewise-linear transfer function y = f(x)");
         addParam(d, "x_values", "0 1", "X breakpoints (space-separated)", XspiceParamDef::LineEdit);
@@ -181,7 +172,6 @@ static QVector<XspiceModelDef> buildModelDB() {
         db.append(d);
     }
 
-    // delay (analog delay line)
     {
         auto d = addAnalog("delay_line", "delay", "Analog delay line with circular buffer");
         addParam(d, "delay", 1e-6, "Delay time (seconds)", XspiceParamDef::SpinboxDouble, 0, 1);
@@ -433,7 +423,6 @@ static QVector<XspiceModelDef> buildModelDB() {
         db.append(d);
     }
 
-    // xfer (simpler transfer function than s_xfer)
     {
         auto d = addAnalog("Transfer Function", "xfer", "Simple gain/phase transfer block");
         addParam(d, "gain", 1.0, "Gain");

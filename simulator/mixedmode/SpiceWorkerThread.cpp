@@ -41,7 +41,8 @@ void SpiceWorkerThread::submitNetlist(const QString& netlistText) {
 void SpiceWorkerThread::stopSimulation() {
     m_stopRequested.store(true);
 #ifdef HAVE_NGSPICE
-    ngSpice_Command(const_cast<char*>("bg_halt"));
+    QByteArray cmd = "bg_halt";
+    ngSpice_Command(cmd.data());
 #endif
     m_commandReady.wakeOne();
 }
@@ -49,7 +50,8 @@ void SpiceWorkerThread::stopSimulation() {
 void SpiceWorkerThread::run() {
 #ifdef HAVE_NGSPICE
     SimulationManager::instance().initialize();
-    ngSpice_Command(const_cast<char*>("set filetype=ascii"));
+    QByteArray cmd = "set filetype=ascii";
+    ngSpice_Command(cmd.data());
 
     while (!isInterruptionRequested()) {
         QString netlistText;
@@ -82,7 +84,8 @@ void SpiceWorkerThread::run() {
 
         m_ngspiceRunning.store(true);
         m_wallStartMs = QDateTime::currentMSecsSinceEpoch();
-        ngSpice_Command(const_cast<char*>("bg_run"));
+        QByteArray cmd = "bg_run";
+        ngSpice_Command(cmd.data());
 
         while (m_ngspiceRunning.load() && !m_stopRequested.load()) {
             flushLogs();
@@ -152,7 +155,8 @@ void SpiceWorkerThread::flushLogs() {
 
 bool SpiceWorkerThread::loadCircuit(const QString& netlistText) {
 #ifdef HAVE_NGSPICE
-    ngSpice_Command(const_cast<char*>("reset"));
+    QByteArray cmd = "reset";
+    ngSpice_Command(cmd.data());
 
     // ngSpice_Circ expects a char** where each entry is a single line,
     // and the last entry is NULL.

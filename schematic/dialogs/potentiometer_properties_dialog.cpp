@@ -146,7 +146,6 @@ void PotentiometerPropertiesDialog::updateCommandPreview() {
 
     QString logStr = isLogarithmic() ? "TRUE" : "FALSE";
     
-    // A_REF [r0 wiper r1] MODEL_REF
     // .model MODEL_REF potentiometer(r=RES position=POS log=LOG log_multiplier=MULT)
     
     m_commandPreview->setText(QString("A_%1 [1 2 3] pot_mod_%1").arg(ref));

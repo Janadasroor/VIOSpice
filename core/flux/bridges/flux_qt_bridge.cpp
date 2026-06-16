@@ -9,6 +9,8 @@
 #include <QMetaProperty>
 #include <QDebug>
 #include <cstring>
+#include <string>
+#include <vector>
 
 // SPICE runtime functions (defined in fluxscript spice_runtime.cpp / flux_runtime.cpp)
 extern "C" void flux_set_parameter(double, double);
@@ -88,9 +90,9 @@ double FluxQtBridge::getProperty(double handle, const char* name) {
     } else if (val.userType() == QMetaType::QString) {
         // FluxScript strings are also double-handles to const char*
         QString s = val.toString();
-        // In a full implementation, we would pool this string. 
-        // For the prototype, we assume it's a static or managed buffer.
-        return bit_cast<double>(strdup(s.toUtf8().constData())); 
+        static thread_local std::vector<std::string> s_propertyPool;
+        s_propertyPool.push_back(s.toStdString());
+        return bit_cast<double>(s_propertyPool.back().c_str()); 
     }
     return 0.0;
 }
@@ -125,7 +127,7 @@ void FluxQtBridge::connectSignalByName(double handle, const char* signal, const 
     QObject* obj = resolveHandle(handle);
     if (!obj || !functionName) return;
 
-    m_signalNameMap[obj] = QString::fromUtf8(functionName);
+    m_signalNameMap[QPointer<QObject>(obj)] = QString::fromUtf8(functionName);
     QObject::connect(obj, signal, this, SLOT(onBridgeEvent()));
 }
 
@@ -134,7 +136,7 @@ void FluxQtBridge::onBridgeEvent() {
     if (!sdr) return;
 
     // Prefer named function lookup
-    auto it = m_signalNameMap.find(sdr);
+    auto it = m_signalNameMap.find(QPointer<QObject>(sdr));
     if (it != m_signalNameMap.end()) {
         QString error;
         FluxScriptEngine::instance().callFunction(
@@ -197,6 +199,13 @@ extern "C" {
     void flux_qt_table_set_header(double, double, double);
     double flux_qt_table_row_count(double);
     double flux_qt_table_col_count(double);
+    void flux_qt_store(double, double);
+    double flux_qt_load(double);
+    double flux_qt_create_tabwidget();
+    void flux_qt_tab_add(double, double, double);
+    double flux_qt_create_widget();
+    void flux_qt_set_text(double, double);
+    double flux_qt_get_text(double);
     // Workspace bridge
     void viora_flux_print(double);
     double flux_get_var(double);
@@ -251,6 +260,19 @@ void registerQtBridgeJitSymbols(Flux::FluxJIT& jit) {
     jit.registerFunction("flux_qt_table_set_header", (void*)&flux_qt_table_set_header);
     jit.registerFunction("flux_qt_table_row_count", (void*)&flux_qt_table_row_count);
     jit.registerFunction("flux_qt_table_col_count", (void*)&flux_qt_table_col_count);
+
+    // Widget name store (used by extensions for cross-function widget access)
+    jit.registerFunction("flux_qt_store", (void*)&flux_qt_store);
+    jit.registerFunction("flux_qt_load", (void*)&flux_qt_load);
+
+    // Tab and container widgets
+    jit.registerFunction("flux_qt_create_tabwidget", (void*)&flux_qt_create_tabwidget);
+    jit.registerFunction("flux_qt_tab_add", (void*)&flux_qt_tab_add);
+    jit.registerFunction("flux_qt_create_widget", (void*)&flux_qt_create_widget);
+
+    // Text field accessors
+    jit.registerFunction("flux_qt_set_text", (void*)&flux_qt_set_text);
+    jit.registerFunction("flux_qt_get_text", (void*)&flux_qt_get_text);
 
     // Property bridge (used by extension templates)
     jit.registerFunction("flux_qt_get_property", (void*)&flux_qt_get_property);
@@ -308,6 +330,13 @@ void register_flux_qt_jit_symbols() {
     jit.registerFunction("flux_set_var", (void*)&flux_set_var);
     jit.registerFunction("flux_set_prop", (void*)&flux_set_prop);
     jit.registerFunction("flux_set_prop_str", (void*)&flux_set_prop_str);
+    jit.registerFunction("flux_qt_store", (void*)&flux_qt_store);
+    jit.registerFunction("flux_qt_load", (void*)&flux_qt_load);
+    jit.registerFunction("flux_qt_create_tabwidget", (void*)&flux_qt_create_tabwidget);
+    jit.registerFunction("flux_qt_tab_add", (void*)&flux_qt_tab_add);
+    jit.registerFunction("flux_qt_create_widget", (void*)&flux_qt_create_widget);
+    jit.registerFunction("flux_qt_set_text", (void*)&flux_qt_set_text);
+    jit.registerFunction("flux_qt_get_text", (void*)&flux_qt_get_text);
     jit.registerFunction("flux_qt_get_property", (void*)&flux_qt_get_property);
     jit.registerFunction("flux_qt_set_property", (void*)&flux_qt_set_property);
     jit.registerFunction("flux_sim_get_vector_size", (void*)&flux_sim_get_vector_size);

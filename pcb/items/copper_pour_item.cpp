@@ -170,6 +170,7 @@ void CopperPourItem::generateHatchPattern() {
     m_hatchPath = QPainterPath();
     QRectF rect = m_path.boundingRect();
     double step = m_model->hatchWidth() * 3.0;
+    if (step <= 0) return;
     
     // Simple 45-degree hatching
     for (double x = rect.left() - rect.height(); x < rect.right(); x += step) {

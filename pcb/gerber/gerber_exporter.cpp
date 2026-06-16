@@ -619,8 +619,12 @@ bool GerberExporter::generateDrillFile(QGraphicsScene* scene, const QString& fil
     if (!result.success) return false;
 
     // Move the generated PTH file to the requested path
-    QFile::remove(filePath);
-    QFile::copy(result.pthFilePath, filePath);
+    if (result.pthFilePath != filePath) {
+        QFile::remove(filePath);
+        if (!QFile::copy(result.pthFilePath, filePath)) {
+            return false;
+        }
+    }
     return true;
 }
 

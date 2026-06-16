@@ -359,8 +359,6 @@ void PCBSelectTool::updateClearanceVisuals() {
         stroker.setJoinStyle(Qt::RoundJoin);
         
         QPainterPath haloPath = stroker.createStroke(sceneShape);
-        // Don't unite with sceneShape for simpler geometry during drag
-        // haloPath = haloPath.united(sceneShape); 
 
         QGraphicsPathItem* halo = new QGraphicsPathItem(haloPath);
         
@@ -719,8 +717,6 @@ void PCBSelectTool::mouseMoveEvent(QMouseEvent* event) {
         }
 
         updateDragCollisionPreview();
-        // updateClearanceVisuals(); // Temporarily disabled to fix crash
-
         m_lastMousePos = event->pos();
         updateResizeHandles();
         event->accept();

@@ -29,7 +29,6 @@ void DiodeItem::buildPrimitives() {
     // Cathode bar
     m_primitives.push_back(std::make_unique<LinePrimitive>(QPointF(-15, 11.25), QPointF(15, 11.25)));
 
-    // Triangle (Anode -> Cathode)
     QList<QPointF> triangle;
     triangle << QPointF(-15, -11.25) << QPointF(15, -11.25) << QPointF(0, 11.25);
     m_primitives.push_back(std::make_unique<PolygonPrimitive>(triangle, false));
@@ -38,7 +37,6 @@ void DiodeItem::buildPrimitives() {
     m_primitives.push_back(std::make_unique<LinePrimitive>(QPointF(0, -11.25), QPointF(0, -30)));
     m_primitives.push_back(std::make_unique<LinePrimitive>(QPointF(0, 11.25), QPointF(0, 30)));
 
-    // Pins (terminal tips)
     m_primitives.push_back(std::make_unique<CirclePrimitive>(QPointF(0, -30), 3.75, true));
     m_primitives.push_back(std::make_unique<CirclePrimitive>(QPointF(0, 30), 3.75, true));
 }

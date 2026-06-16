@@ -11,6 +11,7 @@
 #include <QFuture>
 #include <QFutureWatcher>
 #include <QtConcurrent/QtConcurrent>
+#include <atomic>
 #include <QMutex>
 #include <QSemaphore>
 #include <QElapsedTimer>
@@ -176,8 +177,8 @@ private:
     SchematicERCRules m_ercRules;
 
     // Execution state
-    bool m_running;
-    bool m_cancelled;
+    std::atomic<bool> m_running{false};
+    std::atomic<bool> m_cancelled{false};
     QFuture<void> m_future;
     QFutureWatcher<void>* m_watcher;
 

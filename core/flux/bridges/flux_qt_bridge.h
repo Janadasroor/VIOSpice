@@ -12,6 +12,11 @@
 #include <QVariant>
 #include <mutex>
 
+// qHash overload for QPointer<QObject> so it can be used as QHash key
+inline size_t qHash(const QPointer<QObject>& key, size_t seed = 0) noexcept {
+    return qHash(static_cast<void*>(key.data()), seed);
+}
+
 // Forward declaration is enough for the header
 namespace Flux { class FluxJIT; }
 
@@ -68,7 +73,7 @@ private:
 
     mutable std::mutex m_mutex;
     QHash<void*, QPointer<QObject>> m_registry;
-    QHash<QObject*, QString> m_signalNameMap;
+    QHash<QPointer<QObject>, QString> m_signalNameMap;
 };
 
 /**

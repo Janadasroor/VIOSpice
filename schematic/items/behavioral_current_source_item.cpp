@@ -50,7 +50,6 @@ void BehavioralCurrentSourceItem::paint(QPainter* painter, const QStyleOptionGra
     // Circle body
     painter->drawEllipse(QPointF(0, 0), 20, 20);
 
-    // Arrow (current source)
     if (m_arrowDirection == ArrowUp) {
         painter->drawLine(0, 10, 0, -6);
         painter->drawLine(0, -6, -5, 0);

@@ -23,6 +23,10 @@ NetManager::~NetManager() {
 
 QString NetManager::createNet(const QString& name) {
     QWriteLocker locker(&m_lock);
+    return createNetLocked(name);
+}
+
+QString NetManager::createNetLocked(const QString& name) {
     QString netName = name.isEmpty() ? generateNetName() : name;
 
     if (!m_nets.contains(netName)) {
@@ -37,6 +41,10 @@ QString NetManager::createNet(const QString& name) {
 
 void NetManager::removeNet(const QString& netName) {
     QWriteLocker locker(&m_lock);
+    removeNetLocked(netName);
+}
+
+void NetManager::removeNetLocked(const QString& netName) {
     if (m_nets.contains(netName)) {
         m_nets.remove(netName);
         m_netWires.remove(netName);
@@ -58,7 +66,7 @@ void NetManager::setBusAliases(const QMap<QString, QList<QString>>& aliases) {
 void NetManager::addConnection(const QString& netName, SchematicItem* item, const QPointF& point, const QString& pinName) {
     QWriteLocker locker(&m_lock);
     if (!m_nets.contains(netName)) {
-        createNet(netName);
+        createNetLocked(netName);
     }
 
     NetConnection connection = {item, point, pinName};
@@ -92,8 +100,8 @@ QList<NetConnection> NetManager::getConnections(const QString& netName) const {
 
 void NetManager::addWireToNet(const QString& netName, WireItem* wire) {
     QWriteLocker locker(&m_lock);
-    if (!m_netWires.contains(netName)) { // Check if net exists before accessing
-        createNet(netName);
+    if (!m_netWires.contains(netName)) {
+        createNetLocked(netName);
     }
 
     if (!m_netWires[netName].contains(wire)) {
@@ -109,7 +117,7 @@ void NetManager::removeWireFromNet(const QString& netName, WireItem* wire) {
 
         // Remove net if it becomes empty
         if (m_nets[netName].isEmpty() && m_netWires[netName].isEmpty()) {
-            removeNet(netName);
+            removeNetLocked(netName);
         }
     }
 }
@@ -357,11 +365,14 @@ void NetManager::updateNets(QGraphicsScene* scene) {
         NetClassManager::instance().assignNetToClass(it.key(), it.value());
     }
 
-    // qDebug() << "Rebuilt nets via DSU. Count:" << m_nets.size();
 }
 
 QString NetManager::findNetAtPoint(const QPointF& point) const {
     QReadLocker locker(&m_lock);
+    return findNetAtPointLocked(point);
+}
+
+QString NetManager::findNetAtPointLocked(const QPointF& point) const {
     auto pointToSegmentDistance = [](const QPointF& p, const QPointF& a, const QPointF& b) -> qreal {
         const qreal vx = b.x() - a.x();
         const qreal vy = b.y() - a.y();
@@ -412,8 +423,8 @@ QString NetManager::findNetAtPoint(const QPointF& point) const {
 
 bool NetManager::arePointsConnected(const QPointF& point1, const QPointF& point2) const {
     QReadLocker locker(&m_lock);
-    QString net1 = findNetAtPoint(point1);
-    QString net2 = findNetAtPoint(point2);
+    QString net1 = findNetAtPointLocked(point1);
+    QString net2 = findNetAtPointLocked(point2);
 
     return !net1.isEmpty() && !net2.isEmpty() && net1 == net2;
 }
@@ -543,7 +554,6 @@ QString NetManager::resolveBusAliasNetName(const QString& rawNetName) const {
     const QString netName = rawNetName.trimmed();
     if (netName.isEmpty()) return netName;
 
-    // ALIAS[index] -> member by index
     static const QRegularExpression indexedRe("^([A-Za-z_][A-Za-z0-9_]*)\\[(\\d+)\\]$");
     QRegularExpressionMatch m = indexedRe.match(netName);
     if (m.hasMatch()) {

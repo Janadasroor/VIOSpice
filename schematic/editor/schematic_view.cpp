@@ -345,7 +345,6 @@ void SchematicView::setCurrentTool(const QString& toolName) {
     if (tool) {
         setCurrentTool(tool);
         Q_EMIT toolChanged(toolName);
-//        qDebug() << "Switched to schematic tool:" << toolName;
     } else {
         qWarning() << "Failed to create schematic tool:" << toolName;
     }

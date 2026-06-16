@@ -3,26 +3,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-// symbols/symbol_editor.cpp
-//
-// Production-ready Symbol Editor
-// Key fixes vs. original:
-//   1.  m_drawnItems is now 1:1 with m_symbol.primitives() — overlay labels
-//       live in m_overlayItems so index arithmetic is always correct.
-//   2.  Undo commands no longer store raw QList& references (dangling-pointer
-//       hazard); they capture by value or hold a stable QPointer to the editor.
-//   3.  RemovePrimitiveCommand restores items at their ORIGINAL index, not by
-//       appending to the end (which broke subsequent operations).
-//   4.  Arc primitive uses consistent data keys (x, y, width, height,
-//       startAngle, spanAngle) both when creating and reading.
-//   5.  onPropertyChanged() does targeted visual updates instead of full rebuild.
-//   6.  Rotate/flip/move commands wrap applySymbolDefinition() via
-//       UpdateSymbolCommand so they are fully undoable.
-//   7.  clearScene() removes overlay items separately to avoid double-delete.
-//   8.  drawGrid() removed (replaced by SymbolEditorView::drawBackground()).
-//   9.  buildVisual() is a pure factory; ownership passes to caller.
-//  10.  QPointer<SymbolEditorView> used in lambdas to prevent dangling captures.
-
 #include "symbol_editor.h"
 #include "../core/project/config_manager.h"
 #include "symbol_library.h"

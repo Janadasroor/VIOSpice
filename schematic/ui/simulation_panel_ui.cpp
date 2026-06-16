@@ -907,7 +907,6 @@ void SimulationPanel::setAnalysisConfig(const AnalysisConfig& cfg) {
         }
     }
 
-//    qDebug() << "[SimulationPanel::setAnalysisConfig] mapped to idx=" << idx;
 
     if (idx >= 0 && idx < m_analysisType->count()) {
         m_analysisType->setCurrentIndex(idx);

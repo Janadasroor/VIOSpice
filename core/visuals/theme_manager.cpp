@@ -69,10 +69,8 @@ void ThemeManager::setTheme(PCBTheme* theme) {
         if (m_theme) {
             ConfigManager::instance().setCurrentTheme(themeNameFromType(m_theme->type()));
             ConfigManager::instance().save();
+            m_theme->applyToApplication();
         }
-        
-        // Apply globally
-        m_theme->applyToApplication();
         
         Q_EMIT themeChanged();
     }

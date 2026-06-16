@@ -702,7 +702,6 @@ void SchematicEditor::createToolBar() {
     });
     m_extensionsMenu->addSeparator();
 
-    // Settings (top-level, above Help)
     mainAppMenu->addSeparator();
     mainAppMenu->addAction(getThemeIcon(":/icons/tool_gear.svg"), "Settings...", QKeySequence(), this, &SchematicEditor::onSettings);
 
@@ -899,7 +898,6 @@ void SchematicEditor::createToolBar() {
 
     mainToolbar->addSeparator();
 
-    // Manipulation (Instant)
     QAction* rotateAct = mainToolbar->addAction(getThemeIcon(":/icons/tool_rotate.svg"), "Rotate");
     connect(rotateAct, &QAction::triggered, [this]() {
          if (m_scene && !m_scene->selectedItems().isEmpty()) {

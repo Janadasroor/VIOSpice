@@ -1467,10 +1467,10 @@ void SimulationPanel::addProbe(const QString& signalName) {
     }
     
     // If a live transient-style simulation is running, rebuild the live preview chart
-    // for the selected signal immediately so probing during an active run is visible
     // without waiting for a full plot refresh path.
     const QString liveSeriesName = matchedName;
     if ((m_analysisType->currentIndex() == 0 || m_analysisType->currentIndex() == 9) && m_chart) {
+        for (auto* s : m_realTimeSeries) delete s;
         m_chart->removeAllSeries();
         m_realTimeSeries.clear();
 
@@ -1670,6 +1670,8 @@ void SimulationPanel::clearAllProbes() {
     if (!m_signalList) return;
     const int count = m_signalList->count();
     m_signalList->clear();
+    for (auto* s : m_realTimeSeries) delete s;
+    m_realTimeSeries.clear();
     if (m_chart) {
         m_chart->removeAllSeries();
     }
@@ -1866,6 +1868,7 @@ void SimulationPanel::clearResults() {
     m_previousResults = SimResults();
     m_hasLastResults = false;
     m_hasPreviousResults = false;
+    for (auto* s : m_realTimeSeries) delete s;
     m_realTimeSeries.clear();
     m_realTimePointCounter = 0;
     if (m_timelineSlider) m_timelineSlider->setValue(0);
@@ -1901,6 +1904,7 @@ void SimulationPanel::setTargetScene(QGraphicsScene* scene, NetManager* netManag
         m_previousResults = SimResults();
         m_hasLastResults = false;
         m_hasPreviousResults = false;
+        for (auto* s : m_realTimeSeries) delete s;
         m_realTimeSeries.clear();
         m_realTimePointCounter = 0;
         if (m_timelineSlider) m_timelineSlider->setValue(0);
@@ -2665,7 +2669,6 @@ void SimulationPanel::onRunSimulation() {
     // Update simulation command directive on the schematic
     updateSchematicDirective();
     m_isSimInitiator = true; 
-    // idx == 1 is Transient, idx == 9 is Real-Time
     m_acceptRealTimeStream = (idx == 1 || idx == 9);
     if (m_acceptRealTimeStream) {
         g_liveStreamOwner = this;
@@ -2730,6 +2733,7 @@ void SimulationPanel::onRunSimulation() {
         }
 
         // Initialize real-time series tracking if needed
+        for (auto* s : m_realTimeSeries) delete s;
         m_realTimeSeries.clear();
         m_realTimePointCounter = 0;
 
@@ -3975,6 +3979,7 @@ void SimulationPanel::plotBuiltinResults(const SimResults& results) {
     }
     bool hadChecks = !m_persistentCheckedSignals.isEmpty();
 
+    for (auto* s : m_realTimeSeries) delete s;
     m_realTimeSeries.clear();
 
     bool waveformBatchStarted = false;
@@ -4419,6 +4424,7 @@ void SimulationPanel::plotBuiltinResults(const SimResults& results) {
     m_signalList->blockSignals(false);
     m_acceptRealTimeStream = restoreRealTimeStream;
     m_isSimInitiator = false; // Just in case, though onSimResultsReady handles it
+    for (auto* s : m_realTimeSeries) delete s;
     m_realTimeSeries.clear();
 }
 

@@ -47,7 +47,6 @@ void CapacitorItem::buildPrimitives() {
         m_primitives.push_back(std::make_unique<LinePrimitive>(QPointF(5, 0), QPointF(45, 0)));
     }
     
-    // Pins (terminal tips)
     m_primitives.push_back(std::make_unique<CirclePrimitive>(QPointF(-45, 0), 3.75, true));
     m_primitives.push_back(std::make_unique<CirclePrimitive>(QPointF(45, 0), 3.75, true));
 }

@@ -15,6 +15,7 @@
 #include "visual_pin_mapper.h"
 #include "flux_code_editor.h"
 #include "../items/smart_signal_item.h"
+#include "../../core/visuals/theme_manager.h"
 #include <QFileSystemWatcher>
 class NetManager;
 
@@ -86,6 +87,7 @@ private:
     void setupMenus();
     void createShortcuts();
     void saveCurrentToBlock();
+    void applyTheme();
     void updateEditorKeywords();
     void updateParametersTab();
     void applyTemplatePinShaping(const QString& content);
@@ -98,8 +100,8 @@ private:
 
     class QTabWidget* m_tabs;
     Flux::CodeEditor* m_editor;
-    class MiniScopeWidget* m_scope;
     class QListWidget* m_explorerList;
+    class QDockWidget* m_explorerDock;
     class QListWidget* m_templateList;
     class QDockWidget* m_templateDock;
     QFileSystemWatcher* m_templateWatcher;
