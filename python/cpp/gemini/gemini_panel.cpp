@@ -500,6 +500,7 @@ void GeminiPanel::askPrompt(const QString& text, bool includeContext, const QStr
 
     const QString selectedModel = m_bridge ? m_bridge->currentModel() : "gemini-2.0-flash";
     if (!selectedModel.isEmpty()) args << "--model" << selectedModel;
+    args << "--mode" << m_mode;
 
     QString instructions = gatherInstructions();
     QString fileContext = gatherFileMentionsContext(text);
