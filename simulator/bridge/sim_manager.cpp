@@ -27,6 +27,7 @@
 #include <QSharedPointer>
 #include <QRegularExpression>
 #include <QSet>
+#include <QHash>
 #include <QtConcurrent>
 
 namespace {
@@ -666,7 +667,7 @@ QString stripSPStatementsFromNetlist(const QString& netlistContent) {
     QStringList outLines;
     for (const QString& rawLine : netlistContent.split('\n')) {
         const QString trimmed = rawLine.trimmed();
-        if (trimmed.startsWith(".sp", Qt::CaseInsensitive)) {
+        if (trimmed.startsWith(".sp", Qt::CaseInsensitive) || trimmed.startsWith(".interactive", Qt::CaseInsensitive)) {
             outLines.append(QString("* VioSpice evaluates this .sp statement post-simulation: %1").arg(rawLine));
             continue;
         }
@@ -771,7 +772,7 @@ QString normalizeFluxSmartBlockSource(QString source, const QStringList& inputPi
         if (pin.isEmpty()) continue;
 
         const QString escapedPin = QRegularExpression::escape(pin);
-        const QString replacement = QString("inputs[in%1]").arg(i);
+        const QString replacement = QString("inputs[%1]").arg(i);
 
         source.replace(QRegularExpression(QString(R"(V\s*\(\s*[\"']%1[\"']\s*\))").arg(escapedPin), QRegularExpression::CaseInsensitiveOption), replacement);
         source.replace(QRegularExpression(QString(R"(inputs\s*\[\s*[\"']%1[\"']\s*\])").arg(escapedPin), QRegularExpression::CaseInsensitiveOption), replacement);
@@ -878,8 +879,6 @@ SimManager::SimManager(QObject* parent) : QObject(parent) {
 
     connect(&liveSim, &SimulationManager::simulationFinished, this, [this]() {
         if (!m_resultsPending) {
-            // Only cleanup immediately if we aren't waiting for raw results parsing.
-            // If results are pending, cleanup will happen in the parse callback.
             cleanupSimulation();
             Q_EMIT simulationStopped();
         }
@@ -997,9 +996,11 @@ QString SimManager::generateNetlist(QGraphicsScene* scene, NetManager* netMgr, c
         case SimAnalysisType::Transient:
         case SimAnalysisType::RealTime:
             params.type = SpiceNetlistGenerator::Transient;
-            params.start = "0";
+            params.start = QString::number(config.tStart > 0.0 ? config.tStart : 0.0, 'g', 12);
             params.stop = QString::number(config.tStop);
             params.step = QString::number(config.tStep);
+            if (config.type == SimAnalysisType::RealTime && config.transientMaxStep > 0.0)
+                params.transientMaxStep = QString::number(config.transientMaxStep, 'g', 12);
             params.transientSteady = config.transientStopAtSteadyState;
             if (config.transientSteadyStateTol > 0.0) {
                 params.steadyStateTol = QString::number(config.transientSteadyStateTol, 'g', 12);
@@ -1148,7 +1149,7 @@ void SimManager::startNgspiceWithNetlist(const QString& netlistContent) {
     // We'll manage it via a member or just use a transient one and pass path.
     auto* tempFile = new QTemporaryFile(this);
     tempFile->setAutoRemove(false);
-    const QString activeNetlist = stripNetStatementsFromNetlist(stripMeasStatementsFromNetlist(netlistContent));
+    const QString activeNetlist = stripSPStatementsFromNetlist(stripNetStatementsFromNetlist(stripMeasStatementsFromNetlist(netlistContent)));
     if (tempFile->open()) {
         QTextStream out(tempFile);
         out << activeNetlist;
@@ -1352,7 +1353,7 @@ void SimManager::runRealTime(QGraphicsScene* scene, NetManager* netMgr, double m
     config.rtMaxDataSize = std::max(1000, maxPts);
     config.rtMaxTime = std::max(0.0, maxTime);
     config.tStep = std::max(1e-9, config.rtTimeStep);
-    config.tStop = (maxTime > 0.0) ? maxTime : 3600.0; // 1h window if unlimited
+    config.tStop = (maxTime > 0.0) ? maxTime : 1e15;
 
     QString netlist = generateNetlist(scene, netMgr, config);
     if (netlist.isEmpty() || netlist.startsWith("* Missing scene")) {
@@ -1376,6 +1377,9 @@ void SimManager::runRealTime(QGraphicsScene* scene, NetManager* netMgr, double m
     m_stopRequested = false;
     m_paused = false;
 
+    // Compile FluxScript smart signal blocks before starting the simulation
+    if (scene) compileFluxScripts(scene);
+
     m_control = new SimControl();
     Q_EMIT simulationStarted();
 
@@ -1384,6 +1388,48 @@ void SimManager::runRealTime(QGraphicsScene* scene, NetManager* netMgr, double m
     if (!startSharedSimulation(netlist, QString("Starting interactive live stream (maxStep=%1s, maxTime=%2s, maxPts=%3)...")
         .arg(config.transientMaxStep).arg(config.rtMaxTime > 0 ? QString::number(config.rtMaxTime) : "unlimited").arg(config.rtMaxDataSize))) {
         return;
+    }
+}
+
+void SimManager::startNextRealTimeSegment() {
+    if (m_stopRequested || !m_rtScene || !m_rtNetMgr) {
+        cleanupSimulation();
+        Q_EMIT simulationStopped();
+        return;
+    }
+
+    double window = m_lastConfig.tStop;
+    double nextStart = m_rtCurrentTime;
+    double nextStop = nextStart + window;
+
+    SimAnalysisConfig cfg = m_lastConfig;
+    cfg.tStep = cfg.transientMaxStep;
+    cfg.tStart = nextStart;
+    cfg.tStop = nextStop;
+
+    QString netlist = generateNetlist(m_rtScene, m_rtNetMgr, cfg);
+    if (netlist.isEmpty() || netlist.startsWith("* Missing scene")) {
+        cleanupSimulation();
+        Q_EMIT simulationFinished(SimResults());
+        return;
+    }
+
+    m_activeNetlistText = netlist;
+    m_stopRequested = false;
+    m_paused = false;
+
+    // Ensure the real-time tick timer is running for the new segment
+    if (!m_rtTimer) {
+        m_rtTimer = new QTimer(this);
+        m_rtTimer->setSingleShot(false);
+        connect(m_rtTimer, &QTimer::timeout, this, &SimManager::onRealTimeTick);
+    }
+    m_rtTimer->start(m_lastConfig.rtIntervalMs > 0 ? m_lastConfig.rtIntervalMs : 50);
+
+    if (!startSharedSimulation(netlist, QString("[RealTime] Segment at t=%1..%2 (window=%3s)")
+        .arg(nextStart).arg(nextStop).arg(window))) {
+        cleanupSimulation();
+        Q_EMIT simulationFinished(SimResults());
     }
 }
 
@@ -1430,34 +1476,54 @@ void SimManager::onRealTimeTick() {
     if (sim.isNativeSmartSignalMode()) return;
     if (sim.m_fluxScriptTargets.isEmpty()) return;
 
-    // We don't have a fresh vecArray here, so we must rely on SimulationManager::getVectorValue 
+    // We don't have a fresh vecArray here, so we must rely on SimulationManager::getVectorValue
     // to pull the LATEST simulation points for inputs.
     // NOTE: This assumes ngGet_Vec_Info works across threads in this ngspice build.
-    
+
     // 1. Gather all required vectors into a snapshot for the JIT
     std::vector<double> currentSnapshot;
     for (const auto& vm : sim.m_vectorMap) {
         currentSnapshot.push_back(sim.getVectorValue(vm.name));
     }
-    
-    // 2. Drive JIT updates
+
+    // 2. Build net-name → vector-index lookup (m_vectorMap order matches currentSnapshot)
+    QHash<QString, int> netToIndex;
+    for (int i = 0; i < static_cast<int>(sim.m_vectorMap.size()); ++i) {
+        netToIndex[sim.m_vectorMap[i].name.toUpper()] = i;
+    }
+
+    // 3. Per-target: extract only the input-pin voltages (not all vectors)
+    //    so that inputs[0] correctly refers to the first input pin's voltage.
     double time = sim.getVectorValue("time");
-    Flux::JITContextManager::instance().setSimulationData(currentSnapshot);
 
     for (auto it = sim.m_fluxScriptTargets.begin(); it != sim.m_fluxScriptTargets.end(); ++it) {
         const QString scriptId = it.key();
         const Flux::FluxScriptTarget& target = it.value();
 
-        // Guardrail:
-        // When outputVoltageSources is empty we are on native A-device mode.
-        // Native mode is solver-integrated and must not be driven by the
-        // legacy real-time feedback tick.
-        if (target.outputVoltageSources.isEmpty()) {
-            continue;
+        if (target.outputVoltageSources.isEmpty()) continue;
+
+        // Retrieve the ordered list of input pin names for this block
+        const QStringList inputPins = Flux::JITContextManager::instance().getInputPinMapping(scriptId);
+
+        // Build a compact array containing only the input-pin voltages
+        std::vector<double> pinValues;
+        pinValues.reserve(inputPins.size());
+        for (const QString& pin : inputPins) {
+            // Resolve pin → net via pinToNetMap
+            QString net = target.pinToNetMap.value(pin);
+            if (net.isEmpty()) {
+                net = pin; // fallback: treat pin name as net name
+            }
+            int idx = netToIndex.value(net.toUpper(), -1);
+            if (idx >= 0 && idx < static_cast<int>(currentSnapshot.size())) {
+                pinValues.push_back(currentSnapshot[idx]);
+            } else {
+                pinValues.push_back(0.0);
+            }
         }
 
         Flux::JITContextManager::instance().setPinMapping(target.pinToNetMap);
-        double vOut = Flux::JITContextManager::instance().runUpdate(scriptId, time, currentSnapshot);
+        double vOut = Flux::JITContextManager::instance().runUpdate(scriptId, time, pinValues);
 
         if (std::isfinite(vOut)) {
             for (const QString& vSrc : target.outputVoltageSources) {
@@ -1482,10 +1548,11 @@ bool SimManager::startSharedSimulation(const QString& netlistContent, const QStr
 
     QTextStream out(tempFile);
     const QString activeNetlist = stripSPStatementsFromNetlist(stripNetStatementsFromNetlist(stripMeasStatementsFromNetlist(netlistContent)));
+    qDebug() << "[SimManager] Netlist content for simulation:" << activeNetlist;
     out << activeNetlist;
     out.flush();
     tempFile->close();
-
+    
     m_sharedNetlistPath = tempFile->fileName();
     tempFile->deleteLater();
 
@@ -1522,7 +1589,11 @@ void SimManager::parseRawResultsFile(const QString& path, const QString& netlist
             Q_EMIT simulationFinished(SimResults());
         }
 
-        cleanupSimulation();
+        // For real-time mode with auto-restart, cleanup is handled by the
+        // simulationFinished no-args handler (or the restart path). Avoid duplicating here.
+        if (m_lastConfig.type != SimAnalysisType::RealTime || m_stopRequested) {
+            cleanupSimulation();
+        }
     });
 
     watcher->setFuture(QtConcurrent::run(parseResultsTask, path, netlistText, analysisType));

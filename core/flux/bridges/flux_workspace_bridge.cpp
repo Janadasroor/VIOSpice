@@ -136,8 +136,20 @@ extern "C" {
         auto* editor = qobject_cast<SchematicEditor*>(QApplication::activeWindow());
         if (!editor) return;
 
-        SimulationSetupDialog::Config cfg;
         QString type = QString::fromUtf8(analysisType).toLower();
+        
+        // Live/interactive mode: start real-time simulation, return immediately (don't block)
+        if (type == "live" || type == "interactive") {
+            SimulationSetupDialog::Config cfg;
+            cfg.type = SimAnalysisType::RealTime;
+            cfg.rtStep = (tStep > 0.0) ? tStep : 1e-3;
+            cfg.rtMaxTime = (tStop > 0.0) ? tStop : 0.0;
+            cfg.stop = cfg.rtMaxTime;
+            editor->runSimulationConfig(cfg);
+            return;
+        }
+
+        SimulationSetupDialog::Config cfg;
         if (type == "tran" || type == "transient") cfg.type = SimAnalysisType::Transient;
         else if (type == "ac") cfg.type = SimAnalysisType::AC;
         else if (type == "op") cfg.type = SimAnalysisType::OP;

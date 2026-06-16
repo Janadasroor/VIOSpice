@@ -123,55 +123,6 @@ QIcon SchematicEditor::getThemeIcon(const QString& path) {
 void SchematicEditor::refreshOscilloscopeDockContent() {
     if (!m_oscilloscopeDock || !m_simulationPanel) return;
 
-    if (m_simulationPanel->isRealTimeMode()) {
-        QWidget* targetWidget = m_interactiveModeNoticeWidget;
-        if (!targetWidget) {
-            auto* container = new QWidget(m_oscilloscopeDock);
-            container->setObjectName("InteractiveModeOscilloscopeNotice");
-            auto* layout = new QVBoxLayout(container);
-            layout->setContentsMargins(28, 28, 28, 28);
-            layout->setSpacing(14);
-
-            auto* title = new QLabel("Place an oscilloscope instrument", container);
-            title->setStyleSheet("QLabel { font-size: 18px; font-weight: 700; }");
-            title->setAlignment(Qt::AlignCenter);
-            layout->addStretch();
-            layout->addWidget(title);
-
-            auto* body = new QLabel(
-                "Interactive mode uses oscilloscope instruments on the schematic canvas.\n"
-                "Place an oscilloscope instrument to view live signals.",
-                container);
-            body->setWordWrap(true);
-            body->setAlignment(Qt::AlignCenter);
-            body->setStyleSheet("QLabel { font-size: 13px; color: palette(mid); }");
-            layout->addWidget(body);
-
-            auto* placeScopeBtn = new QPushButton(getThemeIcon(":/icons/tool_oscilloscope.svg"), "Place Oscilloscope", container);
-            placeScopeBtn->setMinimumHeight(36);
-            placeScopeBtn->setCursor(Qt::PointingHandCursor);
-            placeScopeBtn->setStyleSheet(
-                "QPushButton { font-weight: 600; padding: 6px 16px; }"
-            );
-            connect(placeScopeBtn, &QPushButton::clicked, this, [this]() {
-                if (!m_view) return;
-                m_view->setCurrentTool("Oscilloscope Instrument");
-                ensureProbeToolConnected();
-                statusBar()->showMessage("Placement tool active: Oscilloscope Instrument", 4000);
-            });
-            layout->addWidget(placeScopeBtn, 0, Qt::AlignHCenter);
-            layout->addStretch();
-
-            m_interactiveModeNoticeWidget = container;
-            targetWidget = container;
-        }
-
-        if (m_oscilloscopeDock->widget() != targetWidget) {
-            m_oscilloscopeDock->setWidget(targetWidget);
-        }
-        return;
-    }
-
     const bool userWantsSParam = m_simulationPanel && m_simulationPanel->isSParameterModeSelected();
     const bool showFullPanel = userWantsSParam || ConfigManager::instance()
                                    .toolProperty("SimulationPanel", "showFullPanelInDock", false)
@@ -2156,6 +2107,9 @@ void SchematicEditor::syncSimConfigFromSchematic() {
             if (SpiceDirectiveClassifier::classify(text).target == SpiceDirectiveEditTarget::SimulationSetup) {
                 m_simConfig.commandText = text;
                 m_simConfigured = true;
+                if (text.contains(".interactive", Qt::CaseInsensitive)) {
+                    m_simConfig.type = SimAnalysisType::RealTime;
+                }
                 break;
             }
         }
@@ -2389,6 +2343,25 @@ void SchematicEditor::onRunSimulation() {
 
     // Try to sync with schematic directive before running
     syncSimConfigFromSchematic();
+
+    // Propagate schematic-detected type to the panel (e.g. RealTime from .interactive)
+    if (m_simulationPanel && m_simConfigured) {
+        SimulationPanel::AnalysisConfig pCfg;
+        pCfg.type = m_simConfig.type;
+        pCfg.stop = m_simConfig.stop;
+        pCfg.step = m_simConfig.step;
+        pCfg.transientSteady = m_simConfig.transientSteady;
+        pCfg.steadyStateTol = m_simConfig.steadyStateTol;
+        pCfg.steadyStateDelay = m_simConfig.steadyStateDelay;
+        pCfg.fStart = m_simConfig.fStart;
+        pCfg.fStop = m_simConfig.fStop;
+        pCfg.pts = m_simConfig.pts;
+        pCfg.rfPort1Source = m_simConfig.rfPort1Source;
+        pCfg.rfPort2Node = m_simConfig.rfPort2Node;
+        pCfg.rfZ0 = m_simConfig.rfZ0;
+        pCfg.commandText = m_simConfig.commandText;
+        m_simulationPanel->setAnalysisConfig(pCfg);
+    }
 
     // Show analysis setup dialog if the user hasn't configured the simulation yet
     if (!m_simConfigured) {
@@ -2824,9 +2797,29 @@ void SchematicEditor::onRunSimulation() {
         config.rfPort1Source = m_simConfig.rfPort1Source.toStdString();
         config.rfPort2Node = m_simConfig.rfPort2Node.toStdString();
         config.rfZ0 = m_simConfig.rfZ0 > 0.0 ? m_simConfig.rfZ0 : 50.0;
+    } else if (m_simConfig.type == SimAnalysisType::RealTime) {
+        config.type = SimAnalysisType::RealTime;
+        config.tStart = 0;
+        config.tStop = (m_simConfig.rtMaxTime > 0.0) ? m_simConfig.rtMaxTime : 1e15;
+        config.tStep = m_simConfig.step > 0 ? m_simConfig.step : 1e-6;
+        config.transientMaxStep = config.tStep;
+        config.rtTimeStep = config.tStep;
+        config.rtIntervalMs = m_simConfig.rtIntervalMs > 0 ? m_simConfig.rtIntervalMs : 50;
+        config.rtMaxTime = m_simConfig.rtMaxTime;
+        config.rtMaxDataSize = m_simConfig.rtMaxDataSize > 0 ? m_simConfig.rtMaxDataSize : 100000;
+        config.rtWindowTime = 10.0;
+        config.transientStorageMode = SimTransientStorageMode::AutoDecimate;
+        config.transientMaxStoredPoints = config.rtMaxDataSize;
+
+        updateSimulationUiState(true, "Starting interactive live stream...");
+        SimManager::instance().compileFluxScripts(m_scene);
+        if (m_simulationPanel) {
+            m_simulationPanel->setSchematicName(QFileInfo(m_currentFilePath).fileName());
+        }
+        SimManager::instance().runRealTime(m_scene, m_netManager, config.transientMaxStep, config.rtMaxTime, config.rtMaxDataSize);
+        return;
     }
 
-    // 2. Trigger Engine via Ngspice backend asynchronously.
     updateSimulationUiState(true, "Generating netlist...");
     QString netlist = SimManager::instance().generateNetlist(m_scene, m_netManager, config, m_projectDir);
     SimManager::instance().compileFluxScripts(m_scene);
@@ -2877,7 +2870,22 @@ void SchematicEditor::runSimulationConfig(const SimulationSetupDialog::Config& u
         config.rfZ0 = uiConfig.rfZ0 > 0.0 ? uiConfig.rfZ0 : 50.0;
     } else if (uiConfig.type == SimAnalysisType::RealTime) {
         config.type = SimAnalysisType::RealTime;
-        config.tStep = uiConfig.step > 0 ? uiConfig.step : 10e-6;
+        config.tStep = uiConfig.rtStep > 0 ? uiConfig.rtStep : 1e-3;
+        config.transientMaxStep = config.tStep;
+        config.rtTimeStep = config.tStep;
+        config.rtIntervalMs = uiConfig.rtIntervalMs > 0 ? uiConfig.rtIntervalMs : 50;
+        config.rtMaxDataSize = uiConfig.rtMaxDataSize > 0 ? uiConfig.rtMaxDataSize : 100000;
+        config.rtMaxTime = uiConfig.rtMaxTime;
+        config.rtWindowTime = 10.0;
+        config.tStop = (config.rtMaxTime > 0.0) ? config.rtMaxTime : 1e15;
+
+        updateSimulationUiState(true, "Starting interactive live stream...");
+        SimManager::instance().compileFluxScripts(m_scene);
+        if (m_simulationPanel) {
+            m_simulationPanel->setSchematicName(QFileInfo(m_currentFilePath).fileName());
+        }
+        SimManager::instance().runRealTime(m_scene, m_netManager, config.transientMaxStep, config.rtMaxTime, config.rtMaxDataSize);
+        return;
     }
 
     // Trigger Engine via Ngspice backend asynchronously.

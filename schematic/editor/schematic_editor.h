@@ -349,7 +349,6 @@ private:
     SourceControlPanel *m_sourceControlPanel;
 
     QDockWidget *m_oscilloscopeDock;
-    QWidget *m_interactiveModeNoticeWidget = nullptr;
 
     // Title block metadata
     TitleBlockData m_titleBlock;
