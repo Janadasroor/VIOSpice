@@ -34,6 +34,8 @@ public:
         SimAcSweepType acSweepType = SimAcSweepType::Decade;
         int rtIntervalMs = 50;
         double rtStep = 1e-3;
+        double rtMaxTime = 0.0;
+        int rtMaxDataSize = 100000;
         QString commandText;
 
         // RF / S-Parameter

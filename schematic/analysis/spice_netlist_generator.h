@@ -48,6 +48,7 @@ public:
         bool transientSteady = false;
         QString steadyStateTol;
         QString steadyStateDelay;
+        QString transientMaxStep; // Sets .tran Tmax (max internal step) when non-empty
         QString dcSource;
         QString dcStart;
         QString dcStop;

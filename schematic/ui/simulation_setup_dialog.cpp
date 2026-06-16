@@ -31,6 +31,9 @@ QJsonObject SimulationSetupDialog::Config::toJson() const {
     obj["rfPort2Node"] = rfPort2Node;
     obj["rfZ0"] = rfZ0;
     obj["dcSource"] = dcSource;
+    obj["rtStep"] = rtStep;
+    obj["rtMaxTime"] = rtMaxTime;
+    obj["rtMaxDataSize"] = rtMaxDataSize;
     return obj;
 }
 
@@ -60,6 +63,9 @@ SimulationSetupDialog::Config SimulationSetupDialog::Config::fromJson(const QJso
     cfg.rfPort2Node = obj.value("rfPort2Node").toString(cfg.rfPort2Node);
     cfg.rfZ0 = obj.value("rfZ0").toDouble(cfg.rfZ0);
     cfg.dcSource = obj.value("dcSource").toString(cfg.dcSource);
+    cfg.rtStep = obj.value("rtStep").toDouble(cfg.rtStep);
+    cfg.rtMaxTime = obj.value("rtMaxTime").toDouble(cfg.rtMaxTime);
+    cfg.rtMaxDataSize = obj.value("rtMaxDataSize").toInt(cfg.rtMaxDataSize);
     return cfg;
 }
 
@@ -242,13 +248,14 @@ void SimulationSetupDialog::onAnalysisChanged(int index) {
         if (auto* lbl = m_formLayout->labelForField(m_acSweepType)) lbl->show();
         m_param1->setText("10"); m_param2->setText("1meg"); m_param3->setText("100");
         m_param4->setText("V1"); m_param5->setText("OUT"); m_param6->setText("50");
-    } else if (index == 5) { // Real-time
-        setLabel(m_param1, "Update Interval (ms):");
-        setLabel(m_param2, "Simulated Time Step:");
-        m_param1->show(); m_param2->show();
+    } else if (index == 5) { // Interactive live
+        setLabel(m_param1, "Max Step (s):");
+        setLabel(m_param2, "Max Time (s):");
+        setLabel(m_param3, "Max Points:");
+        m_param1->show(); m_param2->show(); m_param3->show();
         if (auto* lbl = m_formLayout->labelForField(m_param1)) lbl->show();
         if (auto* lbl = m_formLayout->labelForField(m_param2)) lbl->show();
-        hideField(m_param3);
+        if (auto* lbl = m_formLayout->labelForField(m_param3)) lbl->show();
         hideField(m_param4); hideField(m_param5); hideField(m_param6);
         if (auto* lbl = m_formLayout->labelForField(m_steadyCheck)) lbl->hide();
         m_steadyCheck->hide();
@@ -256,7 +263,7 @@ void SimulationSetupDialog::onAnalysisChanged(int index) {
         hideField(m_steadyDelayEdit);
         m_acSweepType->hide();
         if (auto* lbl = m_formLayout->labelForField(m_acSweepType)) lbl->hide();
-        m_param1->setText("50"); m_param2->setText("1m");
+        m_param1->setText("1e-3"); m_param2->setText("0"); m_param3->setText("100000");
     } else if (index == 6) { // PSS
         setLabel(m_param1, "Fund Freq:");
         setLabel(m_param2, "Time Step:");
@@ -323,10 +330,11 @@ void SimulationSetupDialog::updateCommandDisplay() {
             .arg(m_param5->text())
             .arg(m_param4->text())
             .arg(m_param6->text());
-    } else if (idx == 5) { // Real-time
-        cmd = QString(".tran %1 %2 0")
+    } else if (idx == 5) { // Interactive live
+        cmd = QString(".interactive %1 %2 %3")
+            .arg(m_param1->text())
             .arg(m_param2->text())
-            .arg(m_param1->text());
+            .arg(m_param3->text());
     } else if (idx == 6) { // PSS
         cmd = QString(".pss %1 %2 %3").arg(m_param1->text(), m_param2->text(), m_param3->text());
         if (!m_param4->text().trimmed().isEmpty()) cmd += " " + m_param4->text().trimmed();
@@ -432,6 +440,8 @@ void SimulationSetupDialog::updateSyntaxHint() {
         m_syntaxLabel->setText(".net V(<out>) <src> Rin=<z0> Rout=<z0>");
     } else if (idx == 6) {
         m_syntaxLabel->setText(".pss <fund_freq> <tstep> <n_points> [osc_node]");
+    } else if (idx == 5) {
+        m_syntaxLabel->setText(".interactive <max_step> <max_time> <max_points>");
     } else {
         m_syntaxLabel->setText(".tran <rt_step> <update_interval> 0");
     }
@@ -484,9 +494,10 @@ SimulationSetupDialog::Config SimulationSetupDialog::getConfig() const {
         if (SimValueParser::parseSpiceNumber(m_param3->text().trimmed(), parsed)) cfg.pssPoints = std::max(1, m_param3->text().trimmed().toInt());
         cfg.pssOscNode = m_param4->text().trimmed();
     } else if (cfg.type == SimAnalysisType::RealTime) {
-        cfg.rtIntervalMs = std::max(10, m_param1->text().trimmed().toInt());
         double parsed = 0.0;
-        if (SimValueParser::parseSpiceNumber(m_param2->text().trimmed(), parsed)) cfg.rtStep = parsed;
+        if (SimValueParser::parseSpiceNumber(m_param1->text().trimmed(), parsed)) cfg.rtStep = parsed;
+        if (SimValueParser::parseSpiceNumber(m_param2->text().trimmed(), parsed)) cfg.rtMaxTime = parsed;
+        cfg.rtMaxDataSize = std::max(1000, m_param3->text().trimmed().toInt());
     }
 
     cfg.commandText = m_commandLine->text();
@@ -533,8 +544,9 @@ void SimulationSetupDialog::setConfig(const Config& cfg) {
         m_param3->setText(QString::number(cfg.pssPoints));
         m_param4->setText(cfg.pssOscNode);
     } else if (cfg.type == SimAnalysisType::RealTime) {
-        m_param1->setText(QString::number(cfg.rtIntervalMs));
-        m_param2->setText(QString::number(cfg.rtStep, 'g', 12));
+        m_param1->setText(QString::number(cfg.rtStep, 'g', 12));
+        m_param2->setText(QString::number(cfg.rtMaxTime, 'g', 12));
+        m_param3->setText(QString::number(cfg.rtMaxDataSize));
     }
     
     if (!cfg.commandText.isEmpty()) {

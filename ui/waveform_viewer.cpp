@@ -1040,9 +1040,11 @@ void WaveformViewer::appendPoints(const QString& name, const std::vector<double>
 
         if (m_windowTime > 0) {
             const double cutoff = times.back() - m_windowTime;
-            while (!sig.time.isEmpty() && sig.time.first() < cutoff) {
-                sig.time.removeFirst();
-                sig.values.removeFirst();
+            auto it = std::lower_bound(sig.time.begin(), sig.time.end(), cutoff);
+            int removeCount = std::distance(sig.time.begin(), it);
+            if (removeCount > 0) {
+                sig.time.remove(0, removeCount);
+                sig.values.remove(0, removeCount);
             }
         }
 
