@@ -29,7 +29,6 @@ void LogicAnalyzerItem::paint(QPainter *painter, const QStyleOptionGraphicsItem*
 
     QRectF r = QRectF(-45, -20, 90, (m_channelCount + 1) * 20.0 + 20.0).adjusted(2, 2, -2, -2);
     
-    // Body (Professional Slate Gray)
     painter->setBrush(QColor(45, 45, 55));
     painter->setPen(QPen(Qt::white, 2));
     painter->drawRoundedRect(r, 5, 5);

@@ -672,7 +672,6 @@ void GeminiPanel::processAgentStdoutChunk(const QString& chunk) {
         if (m_bridge) m_bridge->updateStatus("Reasoning...");
     }
 
-    // ... (Check for ACTION tags)
     if (chunk.contains("<ACTION>")) {
         QRegularExpression re("<ACTION>(.*?)</ACTION>");
         auto match = re.match(chunk);

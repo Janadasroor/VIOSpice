@@ -104,7 +104,6 @@ public:
         if (!m_reference.isEmpty() && m_reference != ref) {
             // Log changes to help track "R1 -> U1" issues
             // (Only log after initial setup to avoid noise)
-//            qDebug() << "[Item] Reference change:" << m_reference << "->" << ref << "type:" << itemTypeName();
         }
         m_reference = ref; 
         rebuildPrimitives();
@@ -235,7 +234,6 @@ public:
     // Bounding rect (required by QGraphicsItem)
     virtual QRectF boundingRect() const override = 0;
 
-    // Painting (required by QGraphicsItem)
     virtual void paint(QPainter *painter, const QStyleOptionGraphicsItem *option, QWidget *widget) override = 0;
 
 protected:

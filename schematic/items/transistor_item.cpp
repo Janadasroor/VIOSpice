@@ -81,7 +81,6 @@ void TransistorItem::buildPrimitives() {
         m_primitives.push_back(std::make_unique<LinePrimitive>(QPointF(0, 0), QPointF(30, 0)));
         m_primitives.push_back(std::make_unique<LinePrimitive>(QPointF(30, 0), QPointF(30, 30)));
         
-        // Arrow (at bulk connection point)
         QList<QPointF> arrow;
         if (m_transistorType == NMOS) {
             // Arrow pointing toward channel

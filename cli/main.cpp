@@ -4124,10 +4124,8 @@ bool runNetlistRun(const QString& filePath, const QCommandLineParser& parser) {
 
         const auto result = SpiceNetlistGenerator::generate(&scene, QFileInfo(filePath).absolutePath(), nullptr, params);
 
-        // --- Initialize Engine First ---
         // Ensure ngspice sets up its heap and signal handlers BEFORE LLVM JIT is created
         // to prevent malloc_consolidate crashes during simulation stream.
-        // sim.initialize();
 
         // --- FluxScript Integration ---
         if (!g_quiet) std::cout << "FluxScript: Found " << result.componentPins.size() << " component pin mappings." << std::endl;

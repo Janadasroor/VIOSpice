@@ -129,7 +129,9 @@ void SimNetlist::flatten() {
 
                 std::map<int, int> subNodeMapping;
                 for (size_t i = 0; i < sub->pinNames.size() && i < inst.nodes.size(); ++i) {
-                    subNodeMapping[i + 1] = nodeMapping.at(inst.nodes[i]);
+                    auto it = nodeMapping.find(inst.nodes[i]);
+                    if (it != nodeMapping.end())
+                        subNodeMapping[i + 1] = it->second;
                 }
                 subNodeMapping[0] = 0;
 

@@ -137,7 +137,6 @@ struct UnaryOpNode : EvalNode {
 // Detects rising (PosEdge) or falling (NegEdge) clock edge,
 // evaluates the data expression on the active edge, stores in mutable state.
 // For async reset, detects posedge of reset signal and forces Q=0.
-//
 // IMPORTANT: uses mutable state that persists across timesteps.
 // Uses time-based gating to prevent derivative perturbation calls
 // (from cfunc.c numerical partials) from corrupting edge detection.

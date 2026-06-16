@@ -81,6 +81,7 @@ DesignRule* DesignRuleEditor::createRule(RuleCategory category, QWidget* parent)
     dialog.m_isNewRule = true;
     
     if (dialog.exec() == QDialog::Accepted) {
+        dialog.m_isNewRule = false;
         rule->setParent(nullptr);
         return rule;
     }

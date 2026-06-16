@@ -37,7 +37,6 @@ void JoystickItem::paint(QPainter* painter, const QStyleOptionGraphicsItem*, QWi
     painter->drawLine(m_padSize / 2, 0, m_padSize / 2, m_padSize);
     painter->drawLine(0, m_padSize / 2, m_padSize, m_padSize / 2);
 
-    // Handle (Joystick Cap)
     double hX = ((m_xCurr - m_xMin) / (m_xMax - m_xMin)) * m_padSize;
     double hY = m_padSize - (((m_yCurr - m_yMin) / (m_yMax - m_yMin)) * m_padSize); // Flip Y for screen coord
 

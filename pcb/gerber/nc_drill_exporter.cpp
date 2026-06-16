@@ -327,11 +327,12 @@ QString NCDrillExporter::formatCoordinate(double value, const DrillOptions& opti
     int integerDigits = options.integerDigits;
     int decimalDigits = options.decimalDigits;
 
-    // Split into integer and decimal parts
+    // Split into integer and decimal parts (handle negative coordinates)
+    double absCoord = qAbs(coord);
     double intPart;
-    double fracPart = modf(coord, &intPart);
+    double fracPart = modf(absCoord, &intPart);
 
-    int intVal = qAbs(static_cast<int>(intPart));
+    int intVal = static_cast<int>(intPart);
     int fracVal = qRound(fracPart * qPow(10, decimalDigits));
 
     QString result;

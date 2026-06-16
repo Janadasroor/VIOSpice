@@ -12,11 +12,9 @@ class QGraphicsScene;
 
 /**
  * @brief Converts a SPICE netlist (.cir) into a schematic (.flxsch) file.
- *
  * This class parses the netlist, creates schematic components using the
  * SchematicItemFactory, places them in a grid layout, and draws AirWireItems
  * (ratsnest lines) to show connectivity between pins.
- *
  * The generated schematic can then be opened in the editor where users
  * manually route wires following the air wire guides.
  */

@@ -25,7 +25,6 @@ SheetPropertiesDialog::SheetPropertiesDialog(SchematicSheetItem* sheet, QUndoSta
     addTab(generalTab);
 
     // Block signals when setting initial values to avoid unnecessary
-    // applyPreview() triggers before the user has interacted with the dialog.
     if (auto* w = m_widgets.value("sheetName")) w->blockSignals(true);
     if (auto* w = m_widgets.value("fileName")) w->blockSignals(true);
     setPropertyValue("sheetName", m_initialName);

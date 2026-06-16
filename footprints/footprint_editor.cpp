@@ -1884,8 +1884,6 @@ void FootprintEditor::createToolBar() {
     m_leftToolbar->addWidget(spacer);
 }
 
-// ... existing code ...
-
 void FootprintEditor::onAddPrimitiveExact() {
     QDialog dialog(this);
     dialog.setWindowTitle("Add Primitive (Exact Dimensions)");

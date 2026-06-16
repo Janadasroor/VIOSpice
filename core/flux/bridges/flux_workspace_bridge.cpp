@@ -15,6 +15,7 @@
 #include <QApplication>
 #include <QEventLoop>
 #include <iostream>
+#include <deque>
 #include <vector>
 #include <string>
 #include <cstring>
@@ -28,7 +29,7 @@ static const char* dbl_to_str(double d) {
 
 static QMap<QString, double> g_fluxVars;
 static SchematicAPI* g_activeApi = nullptr;
-static std::vector<std::string> g_stringPool;
+static std::deque<std::string> g_stringPool;
 
 namespace Flux {
 namespace Core {

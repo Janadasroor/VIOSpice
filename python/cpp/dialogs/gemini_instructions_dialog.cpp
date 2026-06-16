@@ -108,7 +108,6 @@ GeminiInstructionsDialog::GeminiInstructionsDialog(const QString& projectPath, Q
     QHBoxLayout* listActionLayout = new QHBoxLayout();
     
     m_skillList = new QListWidget(this);
-// ...
     connect(m_skillList, &QListWidget::itemSelectionChanged, this, &GeminiInstructionsDialog::onSkillSelectionChanged);
     listActionLayout->addWidget(m_skillList, 1);
 

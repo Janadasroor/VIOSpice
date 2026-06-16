@@ -251,7 +251,6 @@ QList<DesignRuleViolation> SchematicERCAdvanced::checkMissingPowerPins(
         for (int i = 0; i < pinTypes.size() && i < connectionPoints.size(); ++i) {
             if (pinTypes[i] == SchematicItem::PowerInputPin) {
                 // For now, skip this check - proper implementation needs net tracing
-                // TODO: Implement proper power net detection
                 continue;
             }
         }

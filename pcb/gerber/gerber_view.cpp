@@ -69,6 +69,7 @@ void GerberView::setLayers(const QList<GerberLayer*>& layers) {
 
 void GerberView::clear() {
     m_scene->clear();
+    for (auto* layer : m_layers) delete layer;
     m_layers.clear();
 }
 

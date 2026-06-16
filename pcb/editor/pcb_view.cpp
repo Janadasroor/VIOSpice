@@ -112,6 +112,7 @@ QStringList PCBView::availableTools() const {
 }
 
 bool PCBView::isSnappedToPad(QPointF scenePos) {
+    if (!scene()) return false;
     QList<QGraphicsItem*> items = scene()->items(scenePos);
     for (auto* item : items) {
         QGraphicsItem* current = item;
@@ -127,6 +128,7 @@ bool PCBView::isSnappedToPad(QPointF scenePos) {
 }
 
 QPointF PCBView::snapToGrid(QPointF pos) {
+    if (!scene()) return pos;
     // 1. Magnetic Snapping to Pad/Via centers (Smart Routing)
     // This "pulls" the cursor towards pad/via centers for precise routing.
     double magneticRadius = 2.0; // mm

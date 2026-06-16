@@ -18,7 +18,6 @@ class SchematicItem;
 
 /**
  * @brief Handles save/load operations for schematic files
- * 
  * File format: JSON-based .sch files containing:
  * - File metadata (version, creation date, etc.)
  * - Page settings (size, orientation)

@@ -3817,7 +3817,6 @@ SpiceNetlistGenerator::GeneratedNetlist SpiceNetlistGenerator::generate(QGraphic
 
         if (isSevenSegmentDisplay) {
             // Visual-only instrument-style display:
-            // do not emit any SPICE element, otherwise reference prefixes like DS*
             // can be interpreted as diode instances and break netlist parsing.
             netlist += QString("* Info: %1 is visual-only and is omitted from simulation netlist\n").arg(ref);
             continue;

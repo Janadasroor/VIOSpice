@@ -192,7 +192,7 @@ void BoardSetupDialog::onLayerCountChanged(int count) {
     const QString previousFinish = m_currentStackup.surfaceFinish;
     const double previousMaskExpansion = m_currentStackup.solderMaskExpansion;
     const double previousPasteExpansion = m_currentStackup.pasteExpansion;
-    PCBLayerManager::instance().updateStackupFromLayerCount(count); // Temp preview
+    PCBLayerManager::instance().updateStackupFromLayerCount(count);
     m_currentStackup = PCBLayerManager::instance().stackup();
     m_currentStackup.surfaceFinish = previousFinish.isEmpty() ? m_currentStackup.surfaceFinish : previousFinish;
     m_currentStackup.solderMaskExpansion = previousMaskExpansion;

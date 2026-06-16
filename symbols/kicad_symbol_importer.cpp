@@ -9,7 +9,6 @@
 #include <QRegularExpression>
 #include <QSet>
 #include <QDebug>
-//#include "../footprints/footprint_library.h"
 #include <cmath>
 
 using Flux::Model::SymbolDefinition;

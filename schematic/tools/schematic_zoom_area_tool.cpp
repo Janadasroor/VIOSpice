@@ -122,7 +122,6 @@ void SchematicZoomAreaTool::mouseReleaseEvent(QMouseEvent* event) {
             QRectF sceneRect = view()->mapToScene(rect).boundingRect();
             view()->fitInView(sceneRect, Qt::KeepAspectRatio);
         } else {
-            // Click = zoom in at cursor
             const QPointF scenePos = view()->mapToScene(event->pos());
             const double scaleFactor = 1.2;
             view()->scale(scaleFactor, scaleFactor);

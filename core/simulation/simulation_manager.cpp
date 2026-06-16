@@ -55,7 +55,7 @@ void CommandWorker::executeSequence(const QStringList& cmds) {
         {
             std::unique_lock<std::mutex> lock(m_manager->m_workerSyncMutex);
             bool halted = m_manager->m_workerSyncCond.wait_for(lock, std::chrono::milliseconds(500), [this] {
-                return m_manager->m_ngspiceIsHalted;
+                return m_manager->m_ngspiceIsHalted.load();
             });
             if (halted) {
                 qDebug() << "[SimWorker] Halt confirmed at sync point.";
@@ -89,7 +89,7 @@ void CommandWorker::executeSequence(const QStringList& cmds) {
             std::unique_lock<std::mutex> lock(m_manager->m_workerSyncMutex);
             bool gotCallback = m_manager->m_workerSyncCond.wait_for(lock, std::chrono::milliseconds(500), [this] {
                 // Wait for any state change from halted
-                return !m_manager->m_ngspiceIsHalted || m_manager->m_state == SimulationState::Finished;
+                return !m_manager->m_ngspiceIsHalted.load() || m_manager->m_state == SimulationState::Finished;
             });
             
             if (!gotCallback) {
@@ -110,7 +110,7 @@ void CommandWorker::executeSequence(const QStringList& cmds) {
                     SpiceBackend::instance().execute("resume");
                     
                     bool resumed = m_manager->m_workerSyncCond.wait_for(lock, std::chrono::milliseconds(500), [this] {
-                        return !m_manager->m_ngspiceIsHalted;
+                        return !m_manager->m_ngspiceIsHalted.load();
                     });
                     
                     if (!resumed) {
@@ -343,7 +343,7 @@ void SimulationManager::runSimulation(const QString& netlist, SimControl* contro
     if (!m_isInitialized) initialize();
 
 #ifdef HAVE_NGSPICE
-    m_currentNetlist = netlist;
+    { std::lock_guard<std::mutex> lock(m_netlistMutex); m_currentNetlist = netlist; }
     { std::lock_guard<std::mutex> lock(m_controlMutex); m_streamingControl = control; }
     { std::lock_guard<std::mutex> lock(m_vectorMutex); m_vectorMap.clear(); }
     
@@ -396,7 +396,8 @@ void SimulationManager::runSimulation(const QString& netlist, SimControl* contro
     if (rc != 0 || m_lastLoadFailed) {
         m_bufferTimer->stop();
         setState(SimulationState::Error);
-        QString finalErr = m_lastErrorMessage.isEmpty() ? "Ngspice failed to start simulation." : m_lastErrorMessage;
+        QString finalErr;
+        { std::lock_guard<std::mutex> lock(m_logMutex); finalErr = m_lastErrorMessage.isEmpty() ? "Ngspice failed to start simulation." : m_lastErrorMessage; }
         Q_EMIT errorOccurred(finalErr);
         Q_EMIT simulationFinished();
         return;
@@ -427,7 +428,7 @@ bool SimulationManager::loadNetlistInternal(const QString& netlist, bool keepSto
         // Wait for halt confirmation
         std::unique_lock<std::mutex> lock(m_workerSyncMutex);
         m_workerSyncCond.wait_for(lock, std::chrono::milliseconds(500), [this] {
-            return m_ngspiceIsHalted;
+            return m_ngspiceIsHalted.load();
         });
     }
     
@@ -820,15 +821,18 @@ void SimulationManager::handleEngineStateChange(bool finished, int id) {
 
     // Determine raw path if we have a netlist file path
     QString rawPath;
-    if (m_currentNetlist.endsWith(".cir", Qt::CaseInsensitive)) {
-        rawPath = m_currentNetlist;
-        rawPath.replace(".cir", ".raw", Qt::CaseInsensitive);
-    } else if (!m_currentNetlist.isEmpty() && QFileInfo::exists(m_currentNetlist)) {
-        QFileInfo fi(m_currentNetlist);
-        rawPath = fi.absolutePath() + "/" + fi.completeBaseName() + ".raw";
-    } else {
-        // Default for temporary netlists
-        rawPath = QDir::tempPath() + "/viospice.raw";
+    {
+        std::lock_guard<std::mutex> lock(m_netlistMutex);
+        if (m_currentNetlist.endsWith(".cir", Qt::CaseInsensitive)) {
+            rawPath = m_currentNetlist;
+            rawPath.replace(".cir", ".raw", Qt::CaseInsensitive);
+        } else if (!m_currentNetlist.isEmpty() && QFileInfo::exists(m_currentNetlist)) {
+            QFileInfo fi(m_currentNetlist);
+            rawPath = fi.absolutePath() + "/" + fi.completeBaseName() + ".raw";
+        } else {
+            // Default for temporary netlists
+            rawPath = QDir::tempPath() + "/viospice.raw";
+        }
     }
 
     if (finished && (isPaused || m_haltRequested.load())) {
@@ -904,7 +908,10 @@ void SimulationManager::handleSimulationFinished(const QString& rawPath) {
         });
         return;
     }
-    if (m_lastRunFailed && !m_lastErrorMessage.isEmpty()) Q_EMIT errorOccurred(m_lastErrorMessage);
+    if (m_lastRunFailed) {
+        std::lock_guard<std::mutex> lock(m_logMutex);
+        if (!m_lastErrorMessage.isEmpty()) Q_EMIT errorOccurred(m_lastErrorMessage);
+    }
 #endif
     Q_EMIT simulationFinished();
 }
