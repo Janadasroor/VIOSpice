@@ -52,6 +52,7 @@ public:
      * @brief Resamples data to the nearest power of 2 for FFT processing.
      */
     static std::vector<double> resample(const std::vector<double>& x, const std::vector<double>& y, int targetSize) {
+        if (targetSize <= 1) return y.empty() ? std::vector<double>() : std::vector<double>{y.front()};
         if (y.size() < 2) return y;
         std::vector<double> result(targetSize);
         double xMin = x.front();

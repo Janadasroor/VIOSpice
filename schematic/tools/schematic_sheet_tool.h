@@ -16,7 +16,6 @@ class SchematicSheetTool : public SchematicTool {
 public:
     explicit SchematicSheetTool(QObject* parent = nullptr);
     
-    // name() is handled by base constructor
     QString iconName() const override { return "tool_sheet"; }
     QString tooltip() const override { return "Place Hierarchical Sheet (S)"; }
 

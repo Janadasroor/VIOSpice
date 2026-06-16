@@ -42,7 +42,7 @@ enum class SimAcSweepType {
 };
 
 struct SimAnalysisConfig {
-    SimAnalysisType type;
+    SimAnalysisType type = SimAnalysisType::OP;
     SimAcSweepType acSweepType = SimAcSweepType::Decade;
     double tStart = 0, tStop = 0.01, tStep = 1e-5;
     bool transientStopAtSteadyState = false;

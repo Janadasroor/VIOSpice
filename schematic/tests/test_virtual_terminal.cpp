@@ -94,7 +94,6 @@ void TestVirtualTerminal::testGenerateTxWaveform() {
     QCOMPARE(wave.size(), expectedPoints);
 
     // Data bits: LSB first, 0x41 = 0b01000001
-    // LSB=1, bit1=0, bit2=0, bit3=0, bit4=0, bit5=0, bit6=1, bit7=0
     // After start bit t=bitPeriod, each data bit advances by bitPeriod
     for (int i = 0; i < cfg.dataBits; ++i) {
         int bitIdx = 2 + i;
@@ -120,7 +119,6 @@ void TestVirtualTerminal::testGenerateTxWaveformWithParity() {
     QVector<QPair<double, double>> wave = win.generateTxWaveform(data);
     QVERIFY(!wave.isEmpty());
 
-    // start(2) + dataBits(7) + parity(1) + stop(1) = 11
     int expectedPoints = 2 + cfg.dataBits + 1 + 1;
     QCOMPARE(wave.size(), expectedPoints);
 

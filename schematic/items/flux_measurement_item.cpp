@@ -107,7 +107,6 @@ void FluxMeasurementItem::paint(QPainter *painter, const QStyleOptionGraphicsIte
     painter->setPen(QPen(borderColor, 1.5));
     painter->drawRoundedRect(rect, 4, 4);
     
-    // Icon (probe)
     painter->setPen(QPen(QColor(250, 204, 21), 2)); // Yellow
     painter->drawLine(8, rect.height() / 2 + 5, 14, rect.height() / 2 - 5);
     painter->setBrush(QColor(250, 204, 21));

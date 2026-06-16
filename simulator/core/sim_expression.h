@@ -48,14 +48,21 @@ public:
 
     double evaluate(const double* values, int count) const {
         if (m_rpn.empty()) return 0.0;
-        double stack[64]; 
+        std::vector<double> stack;
+        stack.reserve(128);
         int top = -1;
 
         for (const auto& token : m_rpn) {
             if (token.type == ExprTokenType::Number) {
-                stack[++top] = std::stod(token.value);
+                ++top;
+                if (top >= (int)stack.capacity()) stack.reserve(stack.capacity() * 2);
+                if (top >= (int)stack.size()) stack.resize(top + 1);
+                stack[top] = std::stod(token.value);
             } else if (token.type == ExprTokenType::Variable) {
-                stack[++top] = (token.varIdx >= 0 && token.varIdx < count) ? values[token.varIdx] : 0.0;
+                ++top;
+                if (top >= (int)stack.capacity()) stack.reserve(stack.capacity() * 2);
+                if (top >= (int)stack.size()) stack.resize(top + 1);
+                stack[top] = (token.varIdx >= 0 && token.varIdx < count) ? values[token.varIdx] : 0.0;
             } else if (token.type == ExprTokenType::Operator) {
                 if (top < 1) { top = -1; break; }
                 double b = stack[top--];

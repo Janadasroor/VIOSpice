@@ -17,7 +17,6 @@
 
 /**
  * @brief High-level API for controlling the schematic editor.
- * 
  * This class provides a clean interface for both CLI and AI agents to manipulate
  * the schematic without interacting directly with QGraphicsScene or QUndoCommand.
  */

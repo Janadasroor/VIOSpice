@@ -524,7 +524,6 @@ void SchematicComponentsWidget::populate() {
         }
     }
 
-//    qInfo() << "SchematicComponentsWidget: simulatable symbol filter kept"
 //            << simulatableLibrarySymbols << "of" << totalLibrarySymbols
 //            << "library symbols.";
 

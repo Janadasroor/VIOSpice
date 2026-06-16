@@ -151,7 +151,7 @@ private:
     std::atomic<SimulationState> m_state{SimulationState::Idle};
 
     bool m_isInitialized;
-    bool m_lastLoadFailed = false;
+    std::atomic<bool> m_lastLoadFailed{false};
     std::atomic<bool> m_lastRunFailed{false};
     QString m_lastErrorMessage;
     
@@ -168,8 +168,9 @@ private:
     QMap<QString, double> m_pendingHighPriorityUpdates;
     QStringList m_pendingInternalCommands;
     
-    int m_autoResumeCounter = 0;
+    std::atomic<int> m_autoResumeCounter{0};
     QString m_currentNetlist;
+    std::mutex m_netlistMutex;
     SimControl* m_streamingControl = nullptr;
     
     struct SimDataPoint {
@@ -207,7 +208,7 @@ public:
     // Synchronization for worker thread
     std::mutex m_workerSyncMutex;
     std::condition_variable m_workerSyncCond;
-    bool m_ngspiceIsHalted = false;
+    std::atomic<bool> m_ngspiceIsHalted{false};
 };
 
 #endif // SIMULATION_MANAGER_H

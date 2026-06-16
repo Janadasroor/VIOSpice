@@ -5,7 +5,6 @@
 
 // schematic_editor.cpp
 // Core SchematicEditor: constructor, destructor, canvas setup, and view/tool handlers.
-//
 // This file is the main entry point for SchematicEditor. The implementation is
 // split across multiple files for maintainability:
 //   - schematic_editor.cpp        : Core setup, constructor, view/tool handlers
@@ -286,16 +285,13 @@ SchematicEditor::SchematicEditor(QWidget *parent)
     applyTheme();
 
     // Set default tool
-    // qDebug() << "DBG: before setCurrentTool, m_view=" << m_view;
     if (m_view) m_view->setCurrentTool("Select");
-    // qDebug() << "DBG: after setCurrentTool";
 
     // Smart Cross-Probing from PCB
     connect(&SyncManager::instance(), &SyncManager::crossProbeReceived, this, &SchematicEditor::onCrossProbeReceived);
     
     // ECO / Netlist Synchronization from PCB or Reverse Engineering
     connect(&SyncManager::instance(), &SyncManager::ecoAvailable, this, &SchematicEditor::handleIncomingECO);
-    // qDebug() << "DBG: after signal connections";
 
     // Auto-Save Setup
     if (ConfigManager::instance().autoSaveEnabled()) {
@@ -303,11 +299,9 @@ SchematicEditor::SchematicEditor(QWidget *parent)
         connect(timer, &QTimer::timeout, this, &SchematicEditor::onSaveSchematic);
         timer->start(ConfigManager::instance().autoSaveInterval() * 60000);
     }
-    // qDebug() << "DBG: after auto-save";
 
     // Restore Session
     QStringList openFiles = ConfigManager::instance().toolProperty("SchematicEditor", "openFiles").toStringList();
-    // qDebug() << "DBG: session openFiles=" << openFiles;
     if (!openFiles.isEmpty()) {
         for (const QString& path : openFiles) {
             if (QFile::exists(path)) openFile(path);
@@ -317,7 +311,6 @@ SchematicEditor::SchematicEditor(QWidget *parent)
             m_workspaceTabs->setCurrentIndex(activeIdx);
         }
     }
-    // qDebug() << "DBG: constructor done";
 }
 
 SchematicEditor::~SchematicEditor() {
@@ -715,23 +708,18 @@ void SchematicEditor::addSchematicTab(const QString& name) {
     m_scene = scene;
     m_netManager = netManager;
     m_pageFrame = nullptr; // Let updatePageFrame create it for this new scene
-//    qDebug() << "[SchematicEditor] Updating page frame...";
     updatePageFrame();
 
 #ifdef HAVE_PYTHON
     // Create or update Logic Editor (standalone IDE)
-//    qDebug() << "[SchematicEditor] Initializing Logic Editor Panel...";
     if (!m_logicEditorPanel) {
-//        qDebug() << "[SchematicEditor] Creating NEW LogicEditorPanel...";
         m_logicEditorPanel = new LogicEditorPanel(scene, netManager, m_api, this);
         connect(m_logicEditorPanel, &LogicEditorPanel::closed, this, [this]() {
             if (m_logicEditorPanel) m_logicEditorPanel->setTargetBlock(nullptr);
         });
     } else {
-//        qDebug() << "[SchematicEditor] Updating EXISTING LogicEditorPanel scene...";
         m_logicEditorPanel->setScene(scene, netManager, m_api);
     }
-//    qDebug() << "[SchematicEditor] Logic Editor Panel ready.";
 #endif
 
     if (m_geminiPanel) {
@@ -1513,7 +1501,6 @@ void SchematicEditor::updatePropertyBar() {
             });
             m_propertyBar->addWidget(valEdit);
 
-            // Footprint (Quick View)
             if (!sItem->footprint().isEmpty()) {
                 m_propertyBar->addWidget(new QLabel(" FP:"));
                 QLabel* fpLabel = new QLabel(sItem->footprint());
@@ -1584,6 +1571,7 @@ void SchematicEditor::updateVirtualTerminals(const SimResults& results, const QM
             for (auto* item : m_scene->items()) {
                 if (auto* term = dynamic_cast<VirtualTerminalItem*>(item)) {
                     if (term->id() == id && m_netManager) {
+                        if (term->connectionPoints().size() < 2) break;
                         rxNet = m_netManager->findNetAtPoint(term->mapToScene(term->connectionPoints()[0]));
                         txNet = m_netManager->findNetAtPoint(term->mapToScene(term->connectionPoints()[1]));
                         break;
@@ -1644,6 +1632,7 @@ void SchematicEditor::onSimulationResultsReady(const SimResults& results) {
                 if (auto* term = dynamic_cast<VirtualTerminalItem*>(item)) {
                     if (term->id() == id) {
                         QStringList nets;
+                        if (term->connectionPoints().size() < 2) { break; }
                         nets << m_netManager->findNetAtPoint(term->mapToScene(term->connectionPoints()[0]));
                         nets << m_netManager->findNetAtPoint(term->mapToScene(term->connectionPoints()[1]));
                         vtNets[id] = nets;
@@ -1766,7 +1755,6 @@ void SchematicEditor::onSimulationResultsReady(const SimResults& results) {
 void SchematicEditor::onRealTimeDataBatchReceived(const std::vector<double>& times, const std::vector<std::vector<double>>& values, const QStringList& names) {
     if (times.empty() || values.empty()) return;
     
-//    qDebug() << "DBG: Real-time data batch received, samples:" << times.size() << "signals:" << names.size();
 
     for (auto* win : m_oscilloscopeWindows) {
         win->updateRealTimeData(times, values, names);
@@ -1982,7 +1970,7 @@ void SchematicEditor::openVirtualTerminalWindow(SchematicItem* item) {
         win->setConfig(term->config());
         if (m_lastSimResults) {
             QString rxNet, txNet;
-            if (m_netManager) {
+            if (m_netManager && term->connectionPoints().size() >= 2) {
                 rxNet = m_netManager->findNetAtPoint(term->mapToScene(term->connectionPoints()[0]));
                 txNet = m_netManager->findNetAtPoint(term->mapToScene(term->connectionPoints()[1]));
             }

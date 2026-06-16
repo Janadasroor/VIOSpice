@@ -825,10 +825,26 @@ Returns (ok: bool, diagnostics: list[SimParseDiagnostic]).
                   return result;
               }
 
-              // Build command
+              // Build command — validate and quote arguments to prevent injection
+              auto isValidSpiceNum = [](const std::string& s) -> bool {
+                  if (s.empty()) return false;
+                  for (char c : s) {
+                      if (!std::isalnum(c) && c != '.' && c != '-' && c != '+')
+                          return false;
+                  }
+                  return true;
+              };
+
+              if (!isValidSpiceNum(stop_time) || !isValidSpiceNum(step_time)) {
+                  fs::remove(tmpfile, ec);
+                  result["ok"] = false;
+                  result["error"] = "Invalid time parameter";
+                  return result;
+              }
+
               std::string run_cmd = "\"" + cmd + "\" netlist-run \"" + tmpfile.string() + "\"";
               if (analysis == "tran") {
-                  run_cmd += " --tran --stop " + stop_time + " --step " + step_time;
+                  run_cmd += " --tran --stop '" + stop_time + "' --step '" + step_time + "'";
               } else if (analysis == "op") {
                   run_cmd += " --op";
               }

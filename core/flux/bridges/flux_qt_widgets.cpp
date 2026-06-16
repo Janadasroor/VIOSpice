@@ -23,8 +23,20 @@
 #include <QTableWidget>
 #include <QHeaderView>
 #include <QTimer>
+#include <QHash>
+#include <QTabWidget>
+#include <mutex>
 #include <cstring>
-#include <bit>
+#include <cstdint>
+#include <cstring>
+
+template <typename To, typename From>
+inline To bit_cast(const From& src) noexcept {
+    static_assert(sizeof(To) == sizeof(From), "bit_cast sizes must match");
+    To dst;
+    std::memcpy(&dst, &src, sizeof(To));
+    return dst;
+}
 
 static const char* dbl_to_str(double d) {
     uint64_t raw;
@@ -320,5 +332,67 @@ extern "C" {
 
     void flux_qt_on_toggled_by_name(double handle, double func_dbl) {
         FluxQtBridge::instance().connectSignalByName(handle, SIGNAL(toggled(bool)), dbl_to_str(func_dbl));
+    }
+
+    // Tab widget
+    double flux_qt_create_tabwidget() {
+        QTabWidget* tabs = new QTabWidget();
+        tabs->setAttribute(Qt::WA_DeleteOnClose);
+        tabs->show();
+        return FluxQtBridge::instance().registerObject(tabs);
+    }
+
+    void flux_qt_tab_add(double tabsHandle, double paneHandle, double title_dbl) {
+        QTabWidget* tabs = qobject_cast<QTabWidget*>(
+            FluxQtBridge::instance().resolveHandle(tabsHandle));
+        QWidget* pane = qobject_cast<QWidget*>(
+            FluxQtBridge::instance().resolveHandle(paneHandle));
+        if (tabs && pane)
+            tabs->addTab(pane, QString::fromUtf8(dbl_to_str(title_dbl)));
+    }
+
+    // Generic container widget
+    double flux_qt_create_widget() {
+        QWidget* w = new QWidget();
+        w->setAttribute(Qt::WA_DeleteOnClose);
+        w->show();
+        return FluxQtBridge::instance().registerObject(w);
+    }
+
+    // Text get/set for QLineEdit
+    void flux_qt_set_text(double handle, double text_dbl) {
+        QLineEdit* edit = qobject_cast<QLineEdit*>(
+            FluxQtBridge::instance().resolveHandle(handle));
+        if (edit)
+            edit->setText(QString::fromUtf8(dbl_to_str(text_dbl)));
+    }
+
+    double flux_qt_get_text(double handle) {
+        QLineEdit* edit = qobject_cast<QLineEdit*>(
+            FluxQtBridge::instance().resolveHandle(handle));
+        if (edit) {
+            std::string s = edit->text().toStdString();
+            static std::vector<std::string> pool;
+            pool.push_back(std::move(s));
+            return bit_cast<double>(pool.back().c_str());
+        }
+        return 0.0;
+    }
+
+    // Widget name store (key-value for widget handles)
+    static QHash<QString, double> s_widgetStore;
+    static std::mutex s_storeMutex;
+
+    void flux_qt_store(double name_dbl, double handle) {
+        std::lock_guard<std::mutex> lock(s_storeMutex);
+        s_widgetStore[QString::fromUtf8(dbl_to_str(name_dbl))] = handle;
+    }
+
+    double flux_qt_load(double name_dbl) {
+        std::lock_guard<std::mutex> lock(s_storeMutex);
+        auto it = s_widgetStore.find(QString::fromUtf8(dbl_to_str(name_dbl)));
+        if (it != s_widgetStore.end())
+            return it.value();
+        return 0.0;
     }
 }

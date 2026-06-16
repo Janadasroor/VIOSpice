@@ -6,7 +6,6 @@
 // schematic_page_item.cpp
 // Professional IEEE/IEC-style schematic page frame with interactive title block.
 // Supports: logo image, company, designer, project name, sheet name, revision,
-//           automatic page numbering, date, description.
 
 #include "schematic_page_item.h"
 #include "theme_manager.h"
@@ -288,11 +287,7 @@ void SchematicPageItem::drawTitleBlock(QPainter* painter, bool isLight) {
     // |  LOGO  |      PROJECT / SHEET INFO       | Rev | Sheet |
     // |  LOGO  | Description                     | ... | Date  |
     // |  LOGO  | Company             | Designer  | ... | Size  |
-    //
     // We split the width into 4 zones:
-    //   zone[0] = logo   220u
-    //   zone[1] = main   auto
-    //   zone[2] = right  220u  (rev / sheet / date / size)
 
     const qreal logoW  = 220.0;
     const qreal rightW = 400.0;

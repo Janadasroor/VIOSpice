@@ -204,6 +204,7 @@ MainWindow::~MainWindow() {
 
 void MainWindow::applyTheme() {
     PCBTheme* theme = ThemeManager::theme();
+    if (!theme) return;
     theme->applyToWidget(this);
     
     // Apply specific toolbars and dock styling for premium look
@@ -4069,26 +4070,26 @@ void MainWindow::onSnippetGenerated(const QString& jsonSnippet) {
 }
 
 void MainWindow::onImportNetlist() {
-    NetlistImportDialog* importDialog = new NetlistImportDialog(this);
-    connect(importDialog, &NetlistImportDialog::importRequested, this, [this](const ECOPackage& pkg) {
+    NetlistImportDialog importDialog(this);
+    connect(&importDialog, &NetlistImportDialog::importRequested, this, [this](const ECOPackage& pkg) {
         // Apply the imported netlist to the PCB
         applyECO(pkg);
     });
 
-    if (importDialog->exec() == QDialog::Accepted) {
+    if (importDialog.exec() == QDialog::Accepted) {
         statusBar()->showMessage("Netlist import completed", 3000);
     }
 }
 
 void MainWindow::onExportPickPlace() {
-    PickPlaceExportDialog* dlg = new PickPlaceExportDialog(this);
+    PickPlaceExportDialog dlg(this);
 
     // Wire up the export to use the actual scene
-    connect(dlg, &QDialog::accepted, this, [this, dlg]() {
-        QString path = dlg->outputPath();
+    connect(&dlg, &QDialog::accepted, this, [this, &dlg]() {
+        QString path = dlg.outputPath();
         if (path.isEmpty()) return;
 
-        auto opts = dlg->options();
+        auto opts = dlg.options();
         QString err;
         bool ok = ManufacturingExporter::exportPickPlace(m_scene, path, opts, &err);
         if (!ok) {
@@ -4098,7 +4099,7 @@ void MainWindow::onExportPickPlace() {
         statusBar()->showMessage("Pick and Place exported to " + path, 4000);
     });
 
-    dlg->exec();
+    dlg.exec();
 }
 
 void MainWindow::onAutoRoute() {
@@ -4107,8 +4108,8 @@ void MainWindow::onAutoRoute() {
         return;
     }
 
-    AutoRouterDialog* dlg = new AutoRouterDialog(m_scene, this);
-    dlg->exec();
+    AutoRouterDialog dlg(m_scene, this);
+    dlg.exec();
 }
 
 void MainWindow::onLengthMatching() {
@@ -4117,8 +4118,8 @@ void MainWindow::onLengthMatching() {
         return;
     }
 
-    LengthMatchingDialog* dlg = new LengthMatchingDialog(m_scene, this);
-    dlg->exec();
+    LengthMatchingDialog dlg(m_scene, this);
+    dlg.exec();
 }
 
 void MainWindow::onCompareBoard() {
@@ -4146,8 +4147,8 @@ void MainWindow::onCompareBoard() {
     DiffReport report = PCBDiffEngine::compareFiles(boardA, boardB, PCBDiffEngine::CompareOptions());
 
     // Show diff viewer
-    PCBDiffViewer* viewer = new PCBDiffViewer(report, m_scene, nullptr, this);
-    viewer->exec();
+    PCBDiffViewer viewer(report, m_scene, nullptr, this);
+    viewer.exec();
 }
 
 void MainWindow::onGenerateDesignReport() {
@@ -4156,6 +4157,6 @@ void MainWindow::onGenerateDesignReport() {
         return;
     }
 
-    DesignReportDialog* dlg = new DesignReportDialog(m_scene, this);
-    dlg->exec();
+    DesignReportDialog dlg(m_scene, this);
+    dlg.exec();
 }

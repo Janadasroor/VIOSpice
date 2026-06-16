@@ -12,10 +12,8 @@
 
 /**
  * @brief Parses SPICE .cir netlist files into structured component and net data.
- *
  * Extracts component instances (type, reference, value, node connections) and
  * builds a net-to-pin map suitable for schematic reconstruction.
- *
  * Smart resolution: parses .model directives to determine component types
  * (e.g., NPN vs PNP, NMOS vs PMOS, NMF vs PMF) from model definitions.
  */

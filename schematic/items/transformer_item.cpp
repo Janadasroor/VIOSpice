@@ -52,7 +52,6 @@ void TransformerItem::buildPrimitives() {
     m_primitives.push_back(std::make_unique<LinePrimitive>(
         QPointF(xPri, y), QPointF(xPri, y - leadLength)));
         
-    // Coils (Semicircles)
     for (int i = 0; i < numWindings; ++i) {
         m_primitives.push_back(std::make_unique<ArcPrimitive>(
             QRectF(xPri - coilRadius, y, coilRadius * 2, coilRadius * 2), 

@@ -183,11 +183,11 @@ namespace {
 class EvalNodeBuilder : public slang::ast::ASTVisitor<EvalNodeBuilder, slang::ast::VisitFlags::Expressions> {
 public:
     std::unique_ptr<EvalNode> result;
-    const QMap<std::string_view, int>& inputMap;
-    const QMap<std::string_view, int>& inputWidths; // port name → bit width
+    const QMap<std::string, int>& inputMap;
+    const QMap<std::string, int>& inputWidths; // port name → bit width
 
-    EvalNodeBuilder(const QMap<std::string_view, int>& inputs,
-                    const QMap<std::string_view, int>& widths = {})
+    EvalNodeBuilder(const QMap<std::string, int>& inputs,
+                    const QMap<std::string, int>& widths = {})
         : inputMap(inputs), inputWidths(widths) {}
 
     template<typename T>
@@ -258,7 +258,7 @@ public:
     }
 
     void handle(const slang::ast::NamedValueExpression& expr) {
-        auto name = expr.symbol.name;
+        std::string name(expr.symbol.name);
         auto wit = inputWidths.find(name);
         if (wit != inputWidths.end() && wit.value() > 1) {
             // Multi-bit input: reconstruct integer from individual bits
@@ -407,8 +407,8 @@ public:
 // ── Helper: process an assignment expression (from ContinuousAssign or always_comb) ──
 // Builds the RHS eval node, then for each bit on the LHS creates a CompiledOutput.
 struct AssignmentProcessor {
-    const QMap<std::string_view, int>& inputMap;
-    const QMap<std::string_view, int>& inputWidths;
+    const QMap<std::string, int>& inputMap;
+    const QMap<std::string, int>& inputWidths;
     std::vector<SlangManager::CompiledOutput>& outputs;
     const QString& ref;  // component reference prefix for naming
 
@@ -621,8 +621,8 @@ SlangManager::CompiledModule SlangManager::compileToInterpreter(const QString& s
 
     // ── Phase 1: Build input map with multi-bit expansion ────────────────
     // Maps port name → first input index, and port name → bit width
-    QMap<std::string_view, int> inputMap;
-    QMap<std::string_view, int> inputWidths;
+    QMap<std::string, int> inputMap;
+    QMap<std::string, int> inputWidths;
     QList<PortInfo> ports;
 
     int inIdx = 0;
@@ -636,8 +636,8 @@ SlangManager::CompiledModule SlangManager::compileToInterpreter(const QString& s
             ports << info;
 
             if (p.direction == slang::ast::ArgumentDirection::In) {
-                inputMap[p.name] = inIdx;
-                inputWidths[p.name] = info.width;
+                inputMap[std::string(p.name)] = inIdx;
+                inputWidths[std::string(p.name)] = info.width;
                 // Expand multi-bit inputs: each bit occupies one input slot
                 // Inputs are LSB-first: slot 0 = bit 0, slot 1 = bit 1, ...
                 if (info.width > 1) {
@@ -663,7 +663,7 @@ SlangManager::CompiledModule SlangManager::compileToInterpreter(const QString& s
 
     // Helper: get input index for a named signal from inputMap
     auto getInputIndex = [&](std::string_view name) -> int {
-        auto it = inputMap.find(name);
+        auto it = inputMap.find(std::string(name));
         if (it != inputMap.end())
             return it.value();
         return -1;
