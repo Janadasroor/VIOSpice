@@ -5493,12 +5493,20 @@ SpiceNetlistGenerator::GeneratedNetlist SpiceNetlistGenerator::generate(QGraphic
                         }
                         return QString::number(fallback, 'g', 12);
                     };
-                    const QString tstep = safeNumber(params.step, 1e-6); // Default 1us
+                    const QString tstep = safeNumber(params.step, 1e-6);
                     const QString tstop = params.stop.isEmpty() ? "1m" : params.stop;
-                    netlist += QString(".tran %1 %2").arg(tstep, tstop);
-                }
-                if (!params.start.trimmed().isEmpty() && params.start.trimmed() != "0") {
-                    netlist += QString(" %1").arg(params.start.trimmed());
+                    const QString tstart = (params.start.trimmed().isEmpty() || params.start.trimmed() == "0")
+                        ? QString() : params.start.trimmed();
+                    if (!params.transientMaxStep.trimmed().isEmpty()) {
+                        if (!tstart.isEmpty())
+                            netlist += QString(".tran %1 %2 %3 %4").arg(tstep, tstop, tstart, params.transientMaxStep);
+                        else
+                            netlist += QString(".tran %1 %2 0 %3").arg(tstep, tstop, params.transientMaxStep);
+                    } else {
+                        netlist += QString(".tran %1 %2").arg(tstep, tstop);
+                        if (!tstart.isEmpty())
+                            netlist += QString(" %1").arg(tstart);
+                    }
                 }
                 if (params.transientSteady) {
                     netlist += " steady";
@@ -5617,6 +5625,15 @@ QString SpiceNetlistGenerator::buildCommand(const SimulationParams& params) {
     switch (params.type) {
         case Transient:
         {
+            if (!params.transientMaxStep.trimmed().isEmpty()) {
+                const QString tstart = (params.start.trimmed().isEmpty() || params.start.trimmed() == "0")
+                    ? QString("0") : params.start.trimmed();
+                QString command = QString(".tran %1 %2 %3 %4").arg(params.step, params.stop, tstart, params.transientMaxStep);
+                if (params.transientSteady) {
+                    command += " steady";
+                }
+                return command;
+            }
             QString command = QString(".tran %1 %2").arg(params.step, params.stop);
             if (!params.start.trimmed().isEmpty() && params.start.trimmed() != "0") {
                 command += QString(" %1").arg(params.start.trimmed());

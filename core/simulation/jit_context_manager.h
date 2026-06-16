@@ -89,6 +89,11 @@ public:
     void setInputPinMapping(const QString& id, const QStringList& pins);
 
     /**
+     * @brief Returns the ordered list of input pin names for a block.
+     */
+    QStringList getInputPinMapping(const QString& id);
+
+    /**
      * @brief Logs a message from the JIT to the console.
      */
     void logMessage(const QString& msg);

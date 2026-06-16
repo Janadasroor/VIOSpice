@@ -661,8 +661,13 @@ int SimulationManager::cbSendChar(char* output, int id, void* userData) {
         if (fatal) self->m_engineRecoveryRequired = true;
         if (isRunFail) self->m_lastRunFailed = true;
         if (self->m_lastErrorMessage.isEmpty() && (isErr || isRunFail)) self->m_lastErrorMessage = msg.trimmed();
-        self->m_logBuffer.push_back(msg);
-        qDebug() << "[Ngspice]" << msg.trimmed();
+
+        // Skip verbose per-step noise in real-time/interactive mode
+        bool isNoise = lower.startsWith("reference value") || lower.startsWith("referencevalue");
+        if (!isNoise) {
+            self->m_logBuffer.push_back(msg);
+            qDebug() << "[Ngspice]" << msg.trimmed();
+        }
     }
     return 0;
 }
@@ -816,9 +821,6 @@ int SimulationManager::cbBGThreadRunning(bool finished, int id, void* userData) 
 void SimulationManager::handleEngineStateChange(bool finished, int id) {
     bool isPaused = SpiceBackend::instance().isPaused();
     bool stopRequested = m_stopRequested.load();
-    qDebug() << "[SimManager] handleEngineStateChange: finished=" << finished << "isPaused=" << isPaused 
-             << "haltRequested=" << m_haltRequested.load() << "stopRequested=" << stopRequested;
-
     // Determine raw path if we have a netlist file path
     QString rawPath;
     {
@@ -903,7 +905,9 @@ void SimulationManager::handleSimulationFinished(const QString& rawPath) {
             SpiceBackend::instance().execute("set filetype=binary");
             SpiceBackend::instance().execute("write " + rawPath);
             QThread::msleep(200);
-            if (QFile::exists(rawPath) && QFileInfo(rawPath).size() > 0) Q_EMIT rawResultsReady(rawPath);
+            bool exists = QFile::exists(rawPath);
+            qint64 size = exists ? QFileInfo(rawPath).size() : 0;
+            if (exists && size > 0) Q_EMIT rawResultsReady(rawPath);
             Q_EMIT simulationFinished();
         });
         return;
