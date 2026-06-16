@@ -703,16 +703,16 @@ void SimulationPanel::onAnalysisChanged(int index) {
         m_steadyCheck->setVisible(false); m_steadyTolEdit->setVisible(false); m_steadyDelayEdit->setVisible(false);
         m_param4->setVisible(false); m_param5->setVisible(false); m_param6->setVisible(false);
         m_param1->setText("V(Out)");
-    } else if (index == 9) { // Real-time
-        setLabel(m_param1, "Update (ms):");
-        setLabel(m_param2, "Time Win (s):");
+    } else if (index == 9) { // Real-time / Interactive Live
+        setLabel(m_param1, "Max Step (s):");
+        setLabel(m_param2, "Max Time (s):");
         setLabel(m_param3, "Max Points:");
         m_param1->setVisible(true); m_param2->setVisible(true); m_param3->setVisible(true);
         m_steadyCheck->setVisible(false); m_steadyTolEdit->setVisible(false); m_steadyDelayEdit->setVisible(false);
         m_param4->setVisible(false); m_param5->setVisible(false); m_param6->setVisible(false);
-        m_param1->setText("100");
-        m_param2->setText("10");
-        m_param3->setText("50000");
+        m_param1->setText("1e-3");
+        m_param2->setText("0");
+        m_param3->setText("100000");
     }
 }
 
