@@ -472,6 +472,8 @@ void GeminiPanel::askPrompt(const QString& text, bool includeContext, const QStr
         reportError("API Key Missing", "Please set your Gemini API key in settings.", true);
         return;
     }
+    // Store as env var for the Python subprocess
+    setenv("GEMINI_API_KEY", key.toUtf8().constData(), 1);
 
     QVariantMap entry;
     entry["role"] = "user";
