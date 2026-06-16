@@ -301,6 +301,84 @@ void CodeEditor::paintEvent(QPaintEvent* e) {
             painter.fillRect(r.toRect(), QColor(255, 255, 0, 40));
         }
     }
+
+    for (int line : m_diffAddedLines) {
+        QTextBlock block = document()->findBlockByLineNumber(line);
+        if (block.isValid()) {
+            QRectF r = blockBoundingRect(block).translated(contentOffset());
+            painter.fillRect(r.toRect(), QColor(0, 200, 0, 50));
+        }
+    }
+    for (int line : m_diffDeletedLines) {
+        QTextBlock block = document()->findBlockByLineNumber(line);
+        if (block.isValid()) {
+            QRectF r = blockBoundingRect(block).translated(contentOffset());
+            painter.fillRect(r.toRect(), QColor(255, 0, 0, 50));
+        }
+    }
+}
+
+void CodeEditor::setDiffHighlights(const QSet<int>& addedLines, const QSet<int>& deletedLines) {
+    m_diffAddedLines = addedLines;
+    m_diffDeletedLines = deletedLines;
+    viewport()->update();
+}
+
+void CodeEditor::clearDiffHighlights() {
+    m_diffAddedLines.clear();
+    m_diffDeletedLines.clear();
+    viewport()->update();
+}
+
+QVector<DiffLine> CodeEditor::computeDiff(const QString& oldText, const QString& newText) {
+    const QStringList oldLines = oldText.split('\n');
+    const QStringList newLines = newText.split('\n');
+    const int oldLen = oldLines.size();
+    const int newLen = newLines.size();
+
+    // Build LCS table
+    QVector<QVector<int>> dp(oldLen + 1, QVector<int>(newLen + 1, 0));
+    for (int i = 1; i <= oldLen; ++i) {
+        for (int j = 1; j <= newLen; ++j) {
+            if (oldLines[i - 1] == newLines[j - 1])
+                dp[i][j] = dp[i - 1][j - 1] + 1;
+            else
+                dp[i][j] = qMax(dp[i - 1][j], dp[i][j - 1]);
+        }
+    }
+
+    // Backtrack to build diff
+    QVector<DiffLine> result;
+    int i = oldLen, j = newLen;
+    QVector<QPair<int, int>> ops; // (type, index) 0=unchanged, 1=deleted, 2=added
+    while (i > 0 || j > 0) {
+        if (i > 0 && j > 0 && oldLines[i - 1] == newLines[j - 1]) {
+            ops.prepend({0, i - 1});
+            --i; --j;
+        } else if (j > 0 && (i == 0 || dp[i][j - 1] >= dp[i - 1][j])) {
+            ops.prepend({2, j - 1});
+            --j;
+        } else {
+            ops.prepend({1, i - 1});
+            --i;
+        }
+    }
+
+    for (const auto& op : ops) {
+        DiffLine dl;
+        if (op.first == 0) {
+            dl.type = DiffLine::Unchanged;
+            dl.text = oldLines[op.second];
+        } else if (op.first == 1) {
+            dl.type = DiffLine::Deleted;
+            dl.text = oldLines[op.second];
+        } else {
+            dl.type = DiffLine::Added;
+            dl.text = newLines[op.second];
+        }
+        result.append(dl);
+    }
+    return result;
 }
 
 void CodeEditor::showFindReplaceDialog() {

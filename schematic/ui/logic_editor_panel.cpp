@@ -299,6 +299,30 @@ void LogicEditorPanel::setupUi() {
 
     mainLayout->addWidget(toolbar);
 
+    // Diff bar for AI-generated code review (hidden by default)
+    m_diffBar = new QFrame();
+    m_diffBar->setObjectName("diffBar");
+    m_diffBar->setStyleSheet("QFrame#diffBar { background: #2d2d2d; border-bottom: 1px solid #555; }");
+    m_diffBar->setFixedHeight(36);
+    auto* diffLayout = new QHBoxLayout(m_diffBar);
+    diffLayout->setContentsMargins(12, 2, 12, 2);
+    auto* diffLabel = new QLabel("AI generated code — review changes below");
+    diffLabel->setStyleSheet("color: #aaa; font-weight: bold;");
+    diffLayout->addWidget(diffLabel);
+    diffLayout->addStretch();
+    m_acceptDiffBtn = new QPushButton("Accept");
+    m_acceptDiffBtn->setStyleSheet(
+        "QPushButton { background: #2ea043; color: white; padding: 4px 16px; border: none; border-radius: 4px; font-weight: bold; }"
+        "QPushButton:hover { background: #3fb950; }");
+    diffLayout->addWidget(m_acceptDiffBtn);
+    m_rejectDiffBtn = new QPushButton("Reject");
+    m_rejectDiffBtn->setStyleSheet(
+        "QPushButton { background: #da3633; color: white; padding: 4px 16px; border: none; border-radius: 4px; font-weight: bold; }"
+        "QPushButton:hover { background: #f85149; }");
+    diffLayout->addWidget(m_rejectDiffBtn);
+    m_diffBar->hide();
+    mainLayout->addWidget(m_diffBar);
+
     // Tab 1: Code Editor
     auto* logicTab = new QWidget(m_tabs);
     auto* logicLayout = new QVBoxLayout(logicTab);
@@ -342,6 +366,9 @@ void LogicEditorPanel::setupUi() {
         return m_editor->toPlainText();
     });
     connect(m_geminiPanel, &GeminiPanel::pythonScriptGenerated, this, &LogicEditorPanel::onPythonGenerated);
+    connect(m_geminiPanel, &GeminiPanel::fluxScriptGenerated, this, &LogicEditorPanel::onFluxScriptGenerated);
+    connect(m_acceptDiffBtn, &QPushButton::clicked, this, &LogicEditorPanel::onAcceptDiff);
+    connect(m_rejectDiffBtn, &QPushButton::clicked, this, &LogicEditorPanel::onRejectDiff);
     m_aiDock->setWidget(m_geminiPanel);
     tabifyDockWidget(m_templateDock, m_aiDock);
     m_templateDock->raise(); // Show Templates by default
@@ -976,6 +1003,55 @@ void LogicEditorPanel::updatePreview() {
             m_editor->setErrorLines(errors);
         }
     }
+}
+
+void LogicEditorPanel::onFluxScriptGenerated(const QString& code) {
+    if (code.isEmpty()) return;
+
+    m_originalCode = m_editor->toPlainText();
+    m_pendingAiCode = code;
+
+    auto diff = Flux::CodeEditor::computeDiff(m_originalCode, code);
+
+    // Build merged display text and track highlight lines
+    QStringList mergedLines;
+    QSet<int> addedLines, deletedLines;
+    int lineNum = 0;
+    for (const auto& dl : diff) {
+        if (dl.type == Flux::DiffLine::Deleted) {
+            mergedLines.append("[-] " + dl.text);
+            deletedLines.insert(lineNum);
+        } else if (dl.type == Flux::DiffLine::Added) {
+            mergedLines.append("[+] " + dl.text);
+            addedLines.insert(lineNum);
+        } else {
+            mergedLines.append(" " + dl.text);
+        }
+        ++lineNum;
+    }
+
+    m_editor->setPlainText(mergedLines.join('\n'));
+    m_editor->setDiffHighlights(addedLines, deletedLines);
+    m_editor->setReadOnly(true);
+    m_diffBar->show();
+    m_statusLabel->setText("AI generated FluxScript code — review and accept or reject.");
+}
+
+void LogicEditorPanel::onAcceptDiff() {
+    m_editor->clearDiffHighlights();
+    m_editor->setPlainText(m_pendingAiCode);
+    m_editor->setReadOnly(false);
+    m_diffBar->hide();
+    updatePreview();
+    m_statusLabel->setText("AI code accepted.");
+}
+
+void LogicEditorPanel::onRejectDiff() {
+    m_editor->clearDiffHighlights();
+    m_editor->setPlainText(m_originalCode);
+    m_editor->setReadOnly(false);
+    m_diffBar->hide();
+    m_statusLabel->setText("AI code rejected.");
 }
 
 void LogicEditorPanel::onPythonGenerated(const QString& code) {
