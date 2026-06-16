@@ -119,7 +119,6 @@ void PCBDesignRulesEditor::addRuleRow(QVBoxLayout* layout, const QString& label,
 }
 
 void PCBDesignRulesEditor::onRuleChanged() {
-    // Placeholder for internal logic
 }
 
 } // namespace Flux

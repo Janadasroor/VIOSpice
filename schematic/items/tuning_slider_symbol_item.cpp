@@ -102,7 +102,6 @@ void TuningSliderSymbolItem::paint(QPainter* painter, const QStyleOptionGraphics
     painter->setPen(QPen(QColor(255, 255, 255, 30), 1));
     painter->drawLine(15, 25, m_width - 15, 25);
 
-    // Handle (Metallic Blue Knob)
     double handleX = valueToPos(m_current);
     QRectF handleRect(handleX - 4, 18, 8, 14);
     

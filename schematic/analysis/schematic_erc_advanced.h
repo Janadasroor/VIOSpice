@@ -18,7 +18,6 @@ using namespace Flux::Core;
 
 /**
  * @brief Advanced ERC (Electrical Rules Check) engine
- * 
  * Provides comprehensive electrical rule checking beyond the basic
  * pin connection matrix.
  */

@@ -62,8 +62,8 @@ QString decodeSpiceTextInBridge(const QByteArray& raw) {
 
     int oddZeros = 0;
     int evenZeros = 0;
-    const int n = raw.size();
-    for (int i = 0; i < n; ++i) {
+    const qsizetype n = raw.size();
+    for (qsizetype i = 0; i < n; ++i) {
         if (raw[i] == '\0') {
             if (i % 2 == 0) ++evenZeros;
             else ++oddZeros;
@@ -366,7 +366,7 @@ void parseSourceWaveform(const QString& raw, SimComponentInstance& inst) {
             wParam(t, 2, "am_mod_freq",     1000.0);
             wParam(t, 3, "am_carrier_freq", 10000.0);
             wParam(t, 4, "am_delay",        0.0);
-            if (!inst.params.count("voltage")) inst.params["voltage"] = 0.0;
+            if (!inst.params.count(mainKey)) inst.params[mainKey] = 0.0;
             return;
         }
     }

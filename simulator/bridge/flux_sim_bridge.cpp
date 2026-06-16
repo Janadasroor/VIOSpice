@@ -13,6 +13,7 @@
 namespace {
 
 double get_voltage_cb(const char* node) {
+    if (!node) return 0.0;
     QString qnode = QString::fromLatin1(node);
     if (!qnode.toLower().startsWith("v(")) {
         qnode = QString("v(%1)").arg(qnode);
@@ -21,6 +22,7 @@ double get_voltage_cb(const char* node) {
 }
 
 double get_current_cb(const char* branch) {
+    if (!branch) return 0.0;
     QString qbranch = QString::fromLatin1(branch);
     if (!qbranch.toLower().startsWith("i(")) {
         qbranch = QString("i(%1)").arg(qbranch);
@@ -29,6 +31,7 @@ double get_current_cb(const char* branch) {
 }
 
 double get_param_cb(const char* name) {
+    if (!name) return 0.0;
     return SimulationManager::instance().getVectorValue(QString::fromLatin1(name));
 }
 

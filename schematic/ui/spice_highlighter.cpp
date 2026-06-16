@@ -18,7 +18,6 @@ void SpiceHighlighter::updateColors() {
     PCBTheme* theme = ThemeManager::theme();
     bool isLight = theme && theme->type() == PCBTheme::Light;
 
-    // Components (R, C, L, V, I, Q, M, D, X, etc.)
     componentFormat.setForeground(isLight ? QColor("#0550ae") : QColor("#569cd6")); 
     componentFormat.setFontWeight(QFont::Bold);
     
@@ -27,7 +26,6 @@ void SpiceHighlighter::updateColors() {
     rule.format = componentFormat;
     highlightingRules.append(rule);
 
-    // Commands (.tran, .ac, .dc, .op, .model, .subckt, etc.)
     commandFormat.setForeground(isLight ? QColor("#8250df") : QColor("#c586c0"));
     commandFormat.setFontWeight(QFont::Bold);
     rule.pattern = QRegularExpression("^\\.[A-Za-z]+");
@@ -40,7 +38,6 @@ void SpiceHighlighter::updateColors() {
     rule.format = subcktFormat;
     highlightingRules.append(rule);
 
-    // Values (Numbers with suffixes k, m, u, n, p, f, meg, etc.)
     valueFormat.setForeground(isLight ? QColor("#067a40") : QColor("#b5cea8"));
     rule.pattern = QRegularExpression("\\b[0-9]*\\.?[0-9]+([eE][-+]?[0-9]+|[tgkMmUnPfF]|meg)?\\b");
     rule.format = valueFormat;
@@ -55,14 +52,12 @@ void SpiceHighlighter::updateColors() {
     rule.pattern = QRegularExpression(";.*");
     highlightingRules.append(rule);
 
-    // Errors (e.g. "Error: ...", "Fatal error: ...")
     errorFormat.setForeground(isLight ? QColor("#d32f2f") : QColor("#f44336"));
     errorFormat.setFontWeight(QFont::Bold);
     rule.pattern = QRegularExpression("(?i).*(error|fatal error):.*");
     rule.format = errorFormat;
     highlightingRules.append(rule);
 
-    // Warnings (e.g. "Warning: ...")
     warningFormat.setForeground(isLight ? QColor("#ed6c02") : QColor("#ffb300")); 
     warningFormat.setFontWeight(QFont::Bold);
     rule.pattern = QRegularExpression("(?i).*warning:.*");

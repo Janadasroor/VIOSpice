@@ -630,7 +630,6 @@ bool SymbolLibrary::load(const QString& filePath) {
     }
     locker.unlock();
     
-//    qDebug() << "Loaded library:" << m_name << "with" << m_symbols.size() << "symbols";
     return true;
 }
 
@@ -790,8 +789,6 @@ QList<SymbolLibrary::SymbolInfo> SymbolLibraryManager::searchMetadata(const QStr
 }
 
 void SymbolLibraryManager::loadBuiltInLibrary() {
-    //LibraryIndex::instance().initialize();
-    
     // Load from embedded resources
     SymbolLibrary* builtin = new SymbolLibrary("Built-in Standard", true);
     if (builtin->load(":/library/builtin.sclib")) {
@@ -799,7 +796,6 @@ void SymbolLibraryManager::loadBuiltInLibrary() {
         addLibrary(builtin);
         for (const QString& name : builtin->symbolNames()) {
             SymbolDefinition* sym = builtin->findSymbol(name);
-            //LibraryIndex::instance().addSymbol(name, builtin->name(), sym ? sym->category() : "");
         }
     } else {
         delete builtin;
@@ -1269,7 +1265,6 @@ void SymbolLibraryManager::loadUserLibraries(const QString& userLibPath, bool as
                 // Index symbols
                 for (const QString& name : lib->symbolNames()) {
                     SymbolDefinition* sym = lib->findSymbol(name);
-                    //LibraryIndex::instance().addSymbol(name, lib->name(), sym ? sym->category() : "");
                 }
                 qDebug() << "Loaded external library:" << filePath;
             } else {

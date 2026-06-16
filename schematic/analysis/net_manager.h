@@ -87,6 +87,10 @@ private:
     QString resolveBusAliasNetName(const QString& rawNetName) const;
     bool pointsAreClose(const QPointF& p1, const QPointF& p2, qreal threshold = 5.0) const;
     bool isPointOnItem(SchematicItem* item, const QPointF& scenePoint, qreal threshold = 3.0) const;
+
+    QString createNetLocked(const QString& name);
+    void removeNetLocked(const QString& netName);
+    QString findNetAtPointLocked(const QPointF& point) const;
 };
 
 #endif // NETMANAGER_H

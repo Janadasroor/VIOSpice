@@ -232,7 +232,7 @@ protected:
 
 private:
     bool m_updatingProperties;
-    QToolButton *m_agentStatusBtn;
+    QToolButton *m_agentStatusBtn = nullptr;
 
     void syncWsState();
     void openTextLabelPropertiesDialog(class SchematicTextItem* labelItem);

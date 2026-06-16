@@ -3,7 +3,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-// symbols/ui/symbol_preview_widget.h
 #pragma once
 
 #include <QWidget>

@@ -20,7 +20,6 @@ bool parseSpiceNumber(const std::string& text, double& outValue);
 // Qt convenience overload — only available when <QString> has been included.
 // Must be defined AFTER including this header + <QString> in any translation unit
 // that needs it. The inline definition avoids ODR violations.
-//
 // Usage in Qt-dependent files:
 //   #include "sim_value_parser.h"
 //   #include <QString>

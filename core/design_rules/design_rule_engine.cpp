@@ -33,8 +33,6 @@ namespace Core {
 DesignRuleEngine::DesignRuleEngine(QObject* parent)
     : QObject(parent)
     , m_ruleSet(nullptr)
-    , m_running(false)
-    , m_cancelled(false)
     , m_watcher(nullptr)
     , m_cacheEnabled(true)
     , m_threadPool(QThreadPool::globalInstance())
@@ -115,6 +113,7 @@ void DesignRuleEngine::run(QGraphicsScene* scene, NetManager* netManager) {
 void DesignRuleEngine::runAsync(QGraphicsScene* scene, NetManager* netManager) {
     if (!scene || m_running) return;
 
+    cancel();
     m_running = true;
     m_cancelled = false;
     m_violations.clear();
@@ -186,13 +185,17 @@ void DesignRuleEngine::executeRules(QGraphicsScene* scene, NetManager* netManage
             if (m_cancelled) break;
             
             auto violations = future.result();
-            if (!violations.isEmpty()) {
+            {
                 QMutexLocker locker(&m_violationsMutex);
-                m_violations.append(violations);
-                m_stats.violationsFound += violations.count();
+                if (!violations.isEmpty()) {
+                    m_violations.append(violations);
+                    m_stats.violationsFound += violations.count();
+                }
+                m_stats.rulesEvaluated++;
+            }
+            if (!violations.isEmpty()) {
                 Q_EMIT batchViolationsFound(violations);
             }
-            m_stats.rulesEvaluated++;
         }
 
         m_stats.threadsUsed = m_config.threadCount;
@@ -210,13 +213,17 @@ void DesignRuleEngine::executeRules(QGraphicsScene* scene, NetManager* netManage
             Q_EMIT progressUpdated(progress);
 
             auto violations = evaluateRule(rule, scene, netManager);
-            if (!violations.isEmpty()) {
+            {
                 QMutexLocker locker(&m_violationsMutex);
-                m_violations.append(violations);
-                m_stats.violationsFound += violations.count();
+                if (!violations.isEmpty()) {
+                    m_violations.append(violations);
+                    m_stats.violationsFound += violations.count();
+                }
+                m_stats.rulesEvaluated++;
+            }
+            if (!violations.isEmpty()) {
                 Q_EMIT batchViolationsFound(violations);
             }
-            m_stats.rulesEvaluated++;
 
             Q_EMIT ruleEvaluated(rule->name(), violations.count());
         }
@@ -303,6 +310,8 @@ QList<DesignRuleViolation> DesignRuleEngine::checkDrcRules(
     NetManager* netManager
 ) {
     QList<DesignRuleViolation> violations;
+
+    if (!m_ruleSet) return violations;
 
     // Get all schematic items
     QList<SchematicItem*> schematicItems;

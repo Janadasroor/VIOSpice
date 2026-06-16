@@ -6,7 +6,6 @@
 #include "logic_editor_panel.h"
 #include <QGraphicsScene>
 #include "flux_code_editor.h"
-#include "mini_scope_widget.h"
 #include "../items/smart_signal_item.h"
 #include "config_manager.h"
 #include "flux_python.h"
@@ -49,6 +48,7 @@
 #include <QElapsedTimer>
 #include "flux_completer.h"
 #include "../../core/flux/bridges/flux_workspace_bridge.h"
+#include "../../core/visuals/theme_manager.h"
 #include "../../schematic/editor/schematic_api.h"
 #include <QFileSystemWatcher>
 #include "visual_pin_mapper.h"
@@ -56,28 +56,26 @@
 
 LogicEditorPanel::LogicEditorPanel(QGraphicsScene* scene, NetManager* netManager, SchematicAPI* api, QWidget* parent)
     : QMainWindow(parent, Qt::Window), m_scene(scene), m_netManager(netManager), m_api(api) {
-//    qDebug() << "[LogicEditorPanel] Initializing...";
     // panel is owned by SchematicEditor; don't self-delete on close
     
     setWindowTitle("viospice Logic IDE");
-    resize(1100, 700);
+    resize(1300, 800);
+    setMinimumSize(900, 500);
     
     m_previewTimer = new QTimer(this);
     m_previewTimer->setSingleShot(true);
     m_previewTimer->setInterval(500);
     connect(m_previewTimer, &QTimer::timeout, this, &LogicEditorPanel::updatePreview);
 
-//    qDebug() << "[LogicEditorPanel] Setting up UI...";
     setupUi();
-//    qDebug() << "[LogicEditorPanel] Setting up menus...";
     setupMenus();
-//    qDebug() << "[LogicEditorPanel] Creating shortcuts...";
     createShortcuts();
-//    qDebug() << "[LogicEditorPanel] Refreshing templates...";
     refreshTemplates();
+    applyTheme();
+
+    connect(&ThemeManager::instance(), &ThemeManager::themeChanged, this, &LogicEditorPanel::applyTheme);
 
     // Setup Template Watcher
-//    qDebug() << "[LogicEditorPanel] Setting up template watcher...";
     m_templateWatcher = new QFileSystemWatcher(this);
     QString templatesPath = QDir(QCoreApplication::applicationDirPath()).absoluteFilePath("../python/templates");
     if (!QFile::exists(templatesPath)) {
@@ -89,7 +87,6 @@ LogicEditorPanel::LogicEditorPanel(QGraphicsScene* scene, NetManager* netManager
 }
 
 LogicEditorPanel::~LogicEditorPanel() {
-//    qDebug() << "[LogicEditorPanel] Destroying...";
 }
 
 void LogicEditorPanel::setScene(QGraphicsScene* scene, NetManager* netManager, SchematicAPI* api) {
@@ -217,7 +214,8 @@ void LogicEditorPanel::applyTemplatePinShaping(const QString& content) {
 }
 
 void LogicEditorPanel::setupUi() {
-    // 2. Central Widget (Splitter for Editor and Console)
+    auto* theme = ThemeManager::theme();
+
     auto* central = new QWidget();
     setCentralWidget(central);
     auto* mainLayout = new QVBoxLayout(central);
@@ -225,46 +223,36 @@ void LogicEditorPanel::setupUi() {
     mainLayout->setSpacing(0);
 
     m_tabs = new QTabWidget(this);
-    m_tabs->setStyleSheet(
-        "QTabWidget::pane { border-top: 1px solid #3e3e42; background: #1e1e1e; }"
-        "QTabBar::tab { background: #2d2d2d; color: #888888; padding: 8px 20px; border-right: 1px solid #3e3e42; }"
-        "QTabBar::tab:selected { background: #1e1e1e; color: #ffffff; }"
-    );
 
-    // 1. Sidebar (Project Explorer)
-    auto* explorerDock = new QDockWidget("Block Explorer", this);
-    explorerDock->setAllowedAreas(Qt::LeftDockWidgetArea | Qt::RightDockWidgetArea);
+    // 1. Sidebar (Block Explorer)
+    m_explorerDock = new QDockWidget("Block Explorer", this);
+    m_explorerDock->setAllowedAreas(Qt::LeftDockWidgetArea | Qt::RightDockWidgetArea);
     m_explorerList = new QListWidget(this);
-    m_explorerList->setStyleSheet("background: #252526; color: #cccccc; border: none; font-size: 12px;");
-    explorerDock->setWidget(m_explorerList);
-    addDockWidget(Qt::LeftDockWidgetArea, explorerDock);
+    m_explorerDock->setWidget(m_explorerList);
+    addDockWidget(Qt::LeftDockWidgetArea, m_explorerDock);
     connect(m_explorerList, &QListWidget::itemClicked, this, &LogicEditorPanel::onExplorerItemClicked);
+    resizeDocks({m_explorerDock}, {280}, Qt::Horizontal);
 
-    // Top Toolbar (IDE Style)
+    // Top Toolbar
     auto* toolbar = new QFrame();
-    toolbar->setFixedHeight(45);
-    toolbar->setStyleSheet("background: #333333; border-bottom: 1px solid #3e3e42;");
+    toolbar->setObjectName("logicToolbar");
     auto* toolLayout = new QHBoxLayout(toolbar);
-    
+    toolLayout->setContentsMargins(8, 4, 8, 4);
+
     m_applyBtn = new QPushButton("RUN & DEPLOY");
-    m_applyBtn->setStyleSheet("background: #0e639c; color: white; padding: 6px 15px; border-radius: 4px; font-weight: bold;");
     toolLayout->addWidget(m_applyBtn);
 
     m_bakeBtn = new QPushButton("BAKE TO SPICE");
-    m_bakeBtn->setStyleSheet("background: #68217a; color: white; padding: 6px 15px; border-radius: 4px; font-weight: bold;");
     toolLayout->addWidget(m_bakeBtn);
 
     toolLayout->addSpacing(10);
     m_stepBtn = new QPushButton("STEP");
-    m_stepBtn->setStyleSheet("background: #3c3c3c; color: #cccccc; padding: 6px 12px; border-radius: 4px;");
     toolLayout->addWidget(m_stepBtn);
 
     m_resumeBtn = new QPushButton("RESUME");
-    m_resumeBtn->setStyleSheet("background: #3c3c3c; color: #cccccc; padding: 6px 12px; border-radius: 4px;");
     toolLayout->addWidget(m_resumeBtn);
 
     m_stopBtn = new QPushButton("STOP");
-    m_stopBtn->setStyleSheet("background: #3c3c3c; color: #cccccc; padding: 6px 12px; border-radius: 4px;");
     toolLayout->addWidget(m_stopBtn);
 
     toolLayout->addSpacing(20);
@@ -272,22 +260,19 @@ void LogicEditorPanel::setupUi() {
     m_fileLinkEdit = new QLineEdit();
     m_fileLinkEdit->setPlaceholderText("Link to .flux file...");
     m_fileLinkEdit->setMinimumWidth(200);
-    m_fileLinkEdit->setStyleSheet("background: #252526; color: #ccc; border: 1px solid #3e3e42; padding: 4px;");
     toolLayout->addWidget(m_fileLinkEdit);
 
     m_browseFileBtn = new QPushButton("...");
     m_browseFileBtn->setFixedWidth(30);
-    m_browseFileBtn->setStyleSheet("background: #3c3c3c; color: #ccc;");
     toolLayout->addWidget(m_browseFileBtn);
 
     toolLayout->addStretch();
     m_engineLabel = new QLabel("Engine:");
-    m_engineLabel->setStyleSheet("color: #888; font-weight: bold; margin-left: 10px;");
     toolLayout->addWidget(m_engineLabel);
 
     m_engineCombo = new QComboBox(this);
     m_engineCombo->addItem("FluxScript JIT", static_cast<int>(SmartSignalItem::EngineType::FluxScript));
-    m_engineCombo->setEnabled(false);  // Only one engine — no choice to make
+    m_engineCombo->setEnabled(false);
     toolLayout->addWidget(m_engineCombo);
 
     connect(m_engineCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &LogicEditorPanel::onEngineChanged);
@@ -300,7 +285,6 @@ void LogicEditorPanel::setupUi() {
     connect(m_fileLinkEdit, &QLineEdit::textChanged, [this](const QString& path) {
         if (!m_targetBlock) return;
         m_targetBlock->setScriptFile(path);
-        
         if (!path.isEmpty()) {
             QFile f(path);
             if (f.open(QIODevice::ReadOnly | QIODevice::Text)) {
@@ -315,76 +299,59 @@ void LogicEditorPanel::setupUi() {
 
     mainLayout->addWidget(toolbar);
 
-    // Tab 1: Logic Editor
+    // Tab 1: Code Editor
     auto* logicTab = new QWidget(m_tabs);
     auto* logicLayout = new QVBoxLayout(logicTab);
     logicLayout->setContentsMargins(0, 0, 0, 0);
     logicLayout->setSpacing(0);
 
-    // Vertical Splitter for Editor area and Console
     QSplitter* vSplitter = new QSplitter(Qt::Vertical);
-    
-    // Top Half: Editor + MiniScope
-    auto* topHalf = new QWidget();
-    auto* topLayout = new QHBoxLayout(topHalf);
-    topLayout->setContentsMargins(0, 0, 0, 0);
-    topLayout->setSpacing(1);
 
     m_editor = new Flux::CodeEditor(m_scene, m_netManager, this);
-    topLayout->addWidget(m_editor, 3);
+    vSplitter->addWidget(m_editor);
 
-    m_scope = new MiniScopeWidget(this);
-    topLayout->addWidget(m_scope, 1);
-    
-    vSplitter->addWidget(topHalf);
+    // Bottom Half: Console
+    m_console = new QTextEdit(this);
+    m_console->setReadOnly(true);
+    m_console->setPlaceholderText("Output Console...");
+    QFont consoleFont("Consolas", 12);
+    consoleFont.setStyleHint(QFont::Monospace);
+    m_console->setFont(consoleFont);
+    vSplitter->addWidget(m_console);
 
-    // 1b. Right Sidebar (Template Library & AI Copilot)
-    auto* rightDockArea = new QWidget(this);
-    auto* rightLayout = new QVBoxLayout(rightDockArea);
-    rightLayout->setContentsMargins(0, 0, 0, 0);
+    vSplitter->setStretchFactor(0, 3);
+    vSplitter->setStretchFactor(1, 1);
+    logicLayout->addWidget(vSplitter);
 
+    m_tabs->addTab(logicTab, "CODE EDITOR");
+
+    // Right Sidebar: Template Library & AI Copilot (tabified together)
     m_templateDock = new QDockWidget("Logic Templates", this);
     m_templateDock->setAllowedAreas(Qt::LeftDockWidgetArea | Qt::RightDockWidgetArea);
     m_templateList = new QListWidget(this);
-    m_templateList->setStyleSheet("background: #252526; color: #4ec9b0; border: none; font-size: 12px; font-weight: bold;");
     m_templateDock->setWidget(m_templateList);
     addDockWidget(Qt::RightDockWidgetArea, m_templateDock);
     connect(m_templateList, &QListWidget::itemDoubleClicked, this, &LogicEditorPanel::onTemplateDoubleClicked);
 
     m_aiDock = new QDockWidget("AI Copilot", this);
     m_aiDock->setAllowedAreas(Qt::LeftDockWidgetArea | Qt::RightDockWidgetArea);
-    
     m_geminiPanel = new GeminiPanel(m_scene, this);
     m_geminiPanel->setNetManager(m_netManager);
     m_geminiPanel->setMode("logic");
-    
-    // Provide live code context to Gemini
     m_geminiPanel->setContextProvider([this]() -> QString {
         return m_editor->toPlainText();
     });
-    
     connect(m_geminiPanel, &GeminiPanel::pythonScriptGenerated, this, &LogicEditorPanel::onPythonGenerated);
-
     m_aiDock->setWidget(m_geminiPanel);
-    addDockWidget(Qt::RightDockWidgetArea, m_aiDock);
+    tabifyDockWidget(m_templateDock, m_aiDock);
+    m_templateDock->raise(); // Show Templates by default
+    resizeDocks({m_templateDock}, {360}, Qt::Horizontal);
 
-    // Bottom Half: Console
-    m_console = new QTextEdit(this);
-    m_console->setReadOnly(true);
-    m_console->setPlaceholderText("Output Console...");
-    m_console->setStyleSheet("background: #1e1e1e; color: #858585; font-family: 'Consolas', 'Courier New', monospace; font-size: 13px; border-top: 1px solid #333333; padding: 8px;");
-    vSplitter->addWidget(m_console);
-    
-    vSplitter->setStretchFactor(0, 4);
-    vSplitter->setStretchFactor(1, 1);
-    logicLayout->addWidget(vSplitter);
-
-    m_tabs->addTab(logicTab, "CODE EDITOR");
-
-    // Tab 2: Pin Manager (Visual)
+    // Tab 2: Pin Manager
     auto* pinsTab = new QWidget(m_tabs);
     auto* pinsLayout = new QVBoxLayout(pinsTab);
-    
+    pinsLayout->setContentsMargins(8, 8, 8, 8);
+
     m_pinMapper = new VisualPinMapper(this);
     pinsLayout->addWidget(m_pinMapper, 1);
 
@@ -392,11 +359,7 @@ void LogicEditorPanel::setupUi() {
     auto* addInBtn = new QPushButton("+ Add Input");
     auto* addOutBtn = new QPushButton("+ Add Output");
     auto* remPinBtn = new QPushButton("- Remove Selected");
-    
-    addInBtn->setStyleSheet("background: #3c3c3c; color: #ccc; padding: 6px;");
-    addOutBtn->setStyleSheet("background: #3c3c3c; color: #ccc; padding: 6px;");
-    remPinBtn->setStyleSheet("background: #3c3c3c; color: #ccc; padding: 6px;");
-    
+
     pinBtnLayout->addWidget(addInBtn);
     pinBtnLayout->addWidget(addOutBtn);
     pinBtnLayout->addWidget(remPinBtn);
@@ -413,28 +376,25 @@ void LogicEditorPanel::setupUi() {
     // Tab 3: Parameters
     m_paramsTab = new QWidget(this);
     m_paramsLayout = new QVBoxLayout(m_paramsTab);
+    m_paramsLayout->setContentsMargins(8, 8, 8, 8);
     m_paramsLayout->setAlignment(Qt::AlignTop);
     m_tabs->addTab(m_paramsTab, "PARAMETERS");
 
-    // Tab 4: Automated Testing
+    // Tab 4: Testing
     auto* testsTab = new QWidget(this);
     auto* testsLayout = new QVBoxLayout(testsTab);
-    
+    testsLayout->setContentsMargins(8, 8, 8, 8);
+
     m_testTable = new QTableWidget(0, 5, this);
     m_testTable->setHorizontalHeaderLabels({"Case Name", "Time (s)", "Inputs (JSON)", "Expected (JSON)", "Result"});
     m_testTable->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
-    m_testTable->setStyleSheet("background: #1e1e1e; color: #fff; gridline-color: #3e3e42;");
     testsLayout->addWidget(m_testTable);
 
     auto* testBtnLayout = new QHBoxLayout();
     auto* addTestBtn = new QPushButton("+ Add Test Case");
     auto* remTestBtn = new QPushButton("- Remove Selected");
     m_runTestsBtn = new QPushButton("RUN ALL TESTS");
-    
-    addTestBtn->setStyleSheet("background: #3c3c3c; color: #ccc; padding: 6px;");
-    remTestBtn->setStyleSheet("background: #3c3c3c; color: #ccc; padding: 6px;");
-    m_runTestsBtn->setStyleSheet("background: #22c55e; color: #fff; font-weight: bold; padding: 6px 15px;");
-    
+
     testBtnLayout->addWidget(addTestBtn);
     testBtnLayout->addWidget(remTestBtn);
     testBtnLayout->addStretch();
@@ -447,20 +407,19 @@ void LogicEditorPanel::setupUi() {
 
     m_tabs->addTab(testsTab, "TESTING");
 
-    // Tab 5: Snapshots Gallery
+    // Tab 5: Snapshots
     auto* snapTab = new QWidget(m_tabs);
     auto* snapLayout = new QVBoxLayout(snapTab);
-    
-    m_snapBtn = new QPushButton("CAPTURE SNAPSHOT", this);
-    m_snapBtn->setStyleSheet("background: #52525b; color: #fff; font-weight: bold; padding: 10px; border-radius: 4px;");
+    snapLayout->setContentsMargins(8, 8, 8, 8);
+
+    m_snapBtn = new QPushButton("CAPTURE SNAPSHOT");
     snapLayout->addWidget(m_snapBtn);
-    
+
     m_snapList = new QListWidget(this);
-    m_snapList->setStyleSheet("background: #1e1e1e; color: #ccc; border: 1px solid #3e3e42;");
     snapLayout->addWidget(m_snapList);
-    
-    QLabel* snapHint = new QLabel("Double-click to restore code", this);
-    snapHint->setStyleSheet("color: #888; font-style: italic;");
+
+    auto* snapHint = new QLabel("Double-click to restore code", this);
+    snapHint->setAlignment(Qt::AlignCenter);
     snapLayout->addWidget(snapHint);
 
     connect(m_snapBtn, &QPushButton::clicked, this, &LogicEditorPanel::onCaptureSnapshot);
@@ -472,19 +431,18 @@ void LogicEditorPanel::setupUi() {
 
     // Footer
     auto* footer = new QFrame();
-    footer->setFixedHeight(22);
-    footer->setStyleSheet("background: #52525b;");
+    footer->setObjectName("logicFooter");
     auto* footLayout = new QHBoxLayout(footer);
-    footLayout->setContentsMargins(10, 0, 10, 0);
+    footLayout->setContentsMargins(10, 2, 10, 2);
     m_statusLabel = new QLabel("Ready");
-    m_statusLabel->setStyleSheet("color: white; font-size: 10px;");
+    m_statusLabel->setFont(QFont("Segoe UI", 9));
     footLayout->addWidget(m_statusLabel);
-    
+
     footLayout->addStretch();
     m_schematicLabel = new QLabel("Source: None");
-    m_schematicLabel->setStyleSheet("color: #bae6fd; font-size: 10px; font-weight: bold;");
+    m_schematicLabel->setFont(QFont("Segoe UI", 9, QFont::Bold));
     footLayout->addWidget(m_schematicLabel);
-    
+
     mainLayout->addWidget(footer);
 
     connect(m_applyBtn, &QPushButton::clicked, this, &LogicEditorPanel::onApplyClicked);
@@ -690,8 +648,51 @@ void LogicEditorPanel::setTargetBlock(SmartSignalItem* item) {
         m_editor->clear();
         m_pinMapper->setPins({}, {});
         m_testTable->setRowCount(0);
-        m_scope->clear();
         m_statusLabel->setText("No block selected");
+    }
+}
+
+void LogicEditorPanel::applyTheme() {
+    auto* theme = ThemeManager::theme();
+    if (!theme) return;
+
+    // Apply theme to the entire window
+    theme->applyToWidget(this);
+
+    // Theme-specific stylesheet overrides for widgets that need them
+    bool isDark = (theme->type() != PCBTheme::Light);
+    QString bg = isDark ? "#1e1e1e" : "#f8fafc";
+    QString text = isDark ? "#858585" : "#64748b";
+    QString border = isDark ? "#333" : "#e2e8f0";
+
+    m_console->setStyleSheet(QString(
+        "QTextEdit { background: %1; color: %2; font-family: 'Consolas', 'Courier New', monospace; "
+        "font-size: 13px; border-top: 1px solid %3; padding: 8px; }"
+    ).arg(bg, text, border));
+
+    m_tabs->setStyleSheet(QString(
+        "QTabWidget::pane { border-top: 1px solid %1; }"
+    ).arg(theme->panelBorder().name()));
+
+    // Toolbar
+    auto* toolbar = findChild<QFrame*>("logicToolbar");
+    if (toolbar) toolbar->setStyleSheet(theme->toolbarStylesheet());
+
+    // Footer / status bar
+    auto* footer = findChild<QFrame*>("logicFooter");
+    if (footer) footer->setStyleSheet(theme->statusBarStylesheet());
+
+    // Dock widgets
+    for (auto* dock : findChildren<QDockWidget*>()) {
+        dock->setStyleSheet(theme->dockStylesheet());
+    }
+
+    // Template list: accent-colored text for Flux templates
+    for (int i = 0; i < m_templateList->count(); ++i) {
+        auto* item = m_templateList->item(i);
+        if (item && item->toolTip().contains(".flux")) {
+            item->setForeground(theme->successColor());
+        }
     }
 }
 
@@ -726,10 +727,15 @@ void LogicEditorPanel::updateParametersTab() {
 
     auto params = m_targetBlock->parameters();
     
-    // If no params, show a helpful message
+    auto* theme = ThemeManager::theme();
+    QColor paramText = theme ? theme->textColor() : QColor("#888");
+    QColor inputBg = theme ? theme->panelBackground() : QColor("#1e1e1e");
+    QColor inputText = theme ? theme->textColor() : QColor("#fff");
+    QString borderColor = theme ? theme->panelBorder().name() : "#444";
+
     if (params.isEmpty()) {
         auto* label = new QLabel("No parameters detected in script.\nUse 'self.params = {\"freq\": 1000}' in your init() method.");
-        label->setStyleSheet("color: #888; font-style: italic; padding: 20px;");
+        label->setStyleSheet(QString("color: %1; font-style: italic; padding: 20px;").arg(paramText.name()));
         m_paramsLayout->addWidget(label);
         return;
     }
@@ -741,12 +747,13 @@ void LogicEditorPanel::updateParametersTab() {
         
         auto* label = new QLabel(it.key());
         label->setFixedWidth(120);
-        label->setStyleSheet("color: #ccc; font-weight: bold;");
+        label->setStyleSheet(QString("color: %1; font-weight: bold;").arg(paramText.name()));
         
         auto* spin = new QDoubleSpinBox();
         spin->setRange(-1e12, 1e12);
         spin->setValue(it.value());
-        spin->setStyleSheet("background: #1e1e1e; color: #fff; border: 1px solid #444; padding: 4px;");
+        spin->setStyleSheet(QString("background: %1; color: %2; border: 1px solid %3; padding: 4px;")
+            .arg(inputBg.name(), inputText.name(), borderColor));
         
         connect(spin, QOverload<double>::of(&QDoubleSpinBox::valueChanged), [this, key = it.key()](double val) {
             if (m_targetBlock) {
@@ -945,7 +952,6 @@ void LogicEditorPanel::closeEvent(QCloseEvent* event) {
 void LogicEditorPanel::updatePreview() {
     QString code = m_editor->toPlainText();
     if (code.trimmed().isEmpty()) {
-        m_scope->clear();
         m_editor->setErrorLines({});
         return;
     }
