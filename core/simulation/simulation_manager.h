@@ -11,6 +11,7 @@
 #include <QStringList>
 #include <QVector>
 #include <QMap>
+#include <QPair>
 #include <QTimer>
 #include <functional>
 #include <vector>
@@ -79,6 +80,7 @@ public:
 
     // --- Dynamic Interaction API ---
     double getVectorValue(const QString& name);
+    QPair<QVector<double>, QVector<double>> getVectorHistory(const QString& name);
     void setParameter(const QString& name, double value);
     void sendInternalCommand(const QString& command);
 

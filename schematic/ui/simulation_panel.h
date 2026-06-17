@@ -338,6 +338,14 @@ private:
     QSet<QString> m_schematicNets;
     QString m_currentlyHoveredNet;
 
+    // Rolling cache of all signal data from live batches (for probe-during-pause)
+    struct CachedSignal {
+        QVector<double> time;
+        QVector<double> values;
+    };
+    QMap<QString, CachedSignal> m_signalCache;
+    int m_signalCacheMaxPoints = 100000;
+
     // .meas post-processing
     std::vector<MeasStatement> m_measStatements;
     void evaluateMeasStatements(const SimResults& results);
