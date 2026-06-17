@@ -1011,6 +1011,9 @@ void LogicEditorPanel::onFluxScriptGenerated(const QString& code) {
     m_originalCode = m_editor->toPlainText();
     m_pendingAiCode = code;
 
+    qDebug() << "[Diff] Original lines:" << m_originalCode.count('\n') + 1
+             << "New lines:" << code.count('\n') + 1;
+
     auto diff = Flux::CodeEditor::computeDiff(m_originalCode, code);
 
     // Show the new code (no [-]/[+] merged view — clean like VS Code)
@@ -1029,6 +1032,8 @@ void LogicEditorPanel::onFluxScriptGenerated(const QString& code) {
             ++newLine;
         }
     }
+    qDebug() << "[Diff] Added lines:" << addedLines.size()
+             << "New code total lines:" << (newLine + (diff.last().type != Flux::DiffLine::Added ? 1 : 0));
     // Deleted lines don't exist in the new code — no red highlights needed
     m_editor->setDiffHighlights(addedLines, {});
     m_editor->setReadOnly(true);
