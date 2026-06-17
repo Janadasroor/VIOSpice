@@ -511,6 +511,62 @@ double SimulationManager::getVectorValue(const QString& name) {
     return 0.0;
 }
 
+QPair<QVector<double>, QVector<double>> SimulationManager::getVectorHistory(const QString& name) {
+    QVector<double> time, values;
+
+    // Primary: read from m_simBuffer (Qt-owned, same data as streaming pipeline)
+    {
+        std::lock_guard<std::mutex> lock(m_bufferMutex);
+        if (!m_simBuffer.empty()) {
+            const QString lowerName = name.toLower();
+            int vecIndex = -1;
+            {
+                std::lock_guard<std::mutex> vlock(m_vectorMutex);
+                for (const auto& vm : m_vectorMap) {
+                    if (vm.name.toLower() == lowerName) {
+                        vecIndex = vm.index;
+                        break;
+                    }
+                }
+            }
+            if (vecIndex >= 0) {
+                time.reserve(m_simBuffer.size());
+                values.reserve(m_simBuffer.size());
+                for (const auto& dp : m_simBuffer) {
+                    if (vecIndex < static_cast<int>(dp.values.size())) {
+                        time.append(dp.time);
+                        values.append(dp.values[vecIndex]);
+                    }
+                }
+                if (!time.isEmpty()) return {time, values};
+            }
+        }
+    }
+
+    // Fallback: read directly from Ngspice's internal vectors (thread-safe)
+#ifdef HAVE_NGSPICE
+    if (!m_isInitialized) return {time, values};
+    ngSpice_LockRealloc();
+    pvector_info timeInfo = ngGet_Vec_Info("time");
+    pvector_info sigInfo = ngGet_Vec_Info(name.toLatin1().data());
+    if (sigInfo == nullptr) {
+        sigInfo = ngGet_Vec_Info(name.toLower().toLatin1().data());
+    }
+    if (timeInfo && timeInfo->v_realdata && timeInfo->v_length > 0 &&
+        sigInfo && sigInfo->v_realdata && sigInfo->v_length > 0) {
+        int len = qMin(timeInfo->v_length, sigInfo->v_length);
+        time.reserve(len);
+        values.reserve(len);
+        for (int i = 0; i < len; ++i) {
+            time.append(timeInfo->v_realdata[i]);
+            values.append(sigInfo->v_realdata[i]);
+        }
+    }
+    ngSpice_UnlockRealloc();
+#endif
+    return {time, values};
+}
+
 void SimulationManager::setParameter(const QString& name, double value) {
 #ifdef HAVE_NGSPICE
     if (!m_isInitialized) return;
