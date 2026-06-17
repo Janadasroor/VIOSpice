@@ -734,7 +734,14 @@ SymbolDefinition* SymbolLibraryManager::findSymbol(const QString& name) {
     // Prefer user libraries over built-in ones when names collide.
     QReadLocker locker(&m_lock);
     for (SymbolLibrary* lib : m_libraries) {
-        if (SymbolDefinition* sym = lib->findSymbol(name)) return sym;
+        if (!lib->isBuiltIn()) {
+            if (SymbolDefinition* sym = lib->findSymbol(name)) return sym;
+        }
+    }
+    for (SymbolLibrary* lib : m_libraries) {
+        if (lib->isBuiltIn()) {
+            if (SymbolDefinition* sym = lib->findSymbol(name)) return sym;
+        }
     }
     return nullptr;
 }
