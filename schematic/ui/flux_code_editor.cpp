@@ -108,6 +108,7 @@ CodeEditor::CodeEditor(QGraphicsScene* scene, NetManager* netManager, QWidget* p
 
     // Dark theme default
     setStyleSheet("background-color: #1e1e1e; color: #d4d4d4; selection-background-color: #264f78;");
+    setMinimumSize(200, 100);
 }
 
 void CodeEditor::setScene(QGraphicsScene* scene, NetManager* netManager) {
