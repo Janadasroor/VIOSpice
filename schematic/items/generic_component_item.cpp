@@ -179,6 +179,9 @@ QJsonObject GenericComponentItem::toJson() const {
     json["pinModeOverrides"] = overrides;
     json["pinPadMapping"] = pinPadMappingToJson();
     
+    // Store full symbol definition inline so external-library symbols survive reload
+    json["symbolDef"] = m_symbol.toJson();
+    
     return json;
 }
 
@@ -218,7 +221,13 @@ bool GenericComponentItem::fromJson(const QJsonObject& json) {
     if (m_spiceModel.trimmed().isEmpty() && valueRepresentsSpiceModel()) {
         m_spiceModel = m_value.trimmed();
     }
-    
+
+    // Restore full symbol definition from inline data (handles external symbols)
+    if (json.contains("symbolDef")) {
+        SymbolDefinition saved = SymbolDefinition::fromJson(json["symbolDef"].toObject());
+        if (!saved.name().isEmpty()) m_symbol = saved;
+    }
+
     QPointF restoredPos(json["x"].toDouble(), json["y"].toDouble());
     if (usesDigitalEventPins(resolvedPrimitives())) {
         restoredPos = snapPointToGrid(restoredPos, SchematicItem::kSchematicGridSize);
