@@ -95,8 +95,8 @@ QString sanitizeAgentTextChunk(QString text) {
 QVariantList parseMessageParts(const QString& text) {
     QVariantList parts;
 
-    // Combined regex to find Code Blocks, Tool Calls, Tool Results, Actions, and Snippets
-    const static QRegularExpression masterRe("(```(\\w*)\\n?(.*?)(?:\\n?```|$)|<TOOL_CALL>(.*?)</TOOL_CALL>|<TOOL_RESULT>(.*?)</TOOL_RESULT>|<ACTION>(.*?)</ACTION>|<SNIPPET>(.*?)</SNIPPET>)", 
+    // Combined regex to find Code Blocks, Tool Calls, Tool Results, Actions, Snippets, Suggestions, Usage, and FluxCode
+    const static QRegularExpression masterRe("(```(\\w*)\\n?(.*?)(?:\\n?```|$)|<TOOL_CALL>(.*?)</TOOL_CALL>|<TOOL_RESULT>(.*?)</TOOL_RESULT>|<ACTION>(.*?)</ACTION>|<SNIPPET>(.*?)</SNIPPET>|<SUGGESTION>(.*?)</SUGGESTION>|<USAGE>(.*?)</USAGE>|<FLUX_CODE>(.*?)</FLUX_CODE>)", 
                                            QRegularExpression::DotMatchesEverythingOption);
     const static QRegularExpression atRe(R"(@(\w+[\w\.]*))");
 
@@ -153,6 +153,16 @@ QVariantList parseMessageParts(const QString& text) {
             snipPart["type"] = "command_snippet";
             snipPart["content"] = match.captured(7);
             parts.append(snipPart);
+        } else if (fullMatch.startsWith("<SUGGESTION>")) {
+            // Handled by streaming parser; just skip in display
+        } else if (fullMatch.startsWith("<USAGE>")) {
+            // Token usage metadata; skip in display
+        } else if (fullMatch.startsWith("<FLUX_CODE>")) {
+            QVariantMap fluxPart;
+            fluxPart["type"] = "code";
+            fluxPart["language"] = "flux";
+            fluxPart["content"] = match.captured(10);
+            parts.append(fluxPart);
         }
 
         lastPos = match.capturedEnd();
@@ -772,15 +782,14 @@ void GeminiPanel::processAgentStdoutChunk(const QString& chunk) {
     }
 
     // Handle FLUX_CODE tags (FluxScript generation)
-    if (chunk.contains("<FLUX_CODE>")) {
-        static QRegularExpression fluxRe("<FLUX_CODE>(.*?)</FLUX_CODE>", QRegularExpression::DotMatchesEverythingOption);
-        auto fluxIter = fluxRe.globalMatch(m_responseBuffer, m_lastProcessedTagPos);
-        while (fluxIter.hasNext()) {
-            auto match = fluxIter.next();
-            QString code = match.captured(1).trimmed();
+    if (!m_fluxCodeEmitted && m_responseBuffer.contains("<FLUX_CODE>")) {
+        static QRegularExpression fluxTagRe("<FLUX_CODE>(.*?)</FLUX_CODE>", QRegularExpression::DotMatchesEverythingOption);
+        auto fluxMatch = fluxTagRe.match(m_responseBuffer);
+        if (fluxMatch.hasMatch()) {
+            QString code = fluxMatch.captured(1).trimmed();
             if (!code.isEmpty()) {
                 Q_EMIT fluxScriptGenerated(code);
-                m_lastProcessedTagPos = match.capturedEnd(0);
+                m_fluxCodeEmitted = true;
             }
         }
     }
