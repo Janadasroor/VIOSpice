@@ -230,26 +230,47 @@ Example: "The feedback resistor <HIGHLIGHT>R5</HIGHLIGHT> sets the gain."
     elif mode == "logic":
         system_context = common_instructions + """
 You are FluxAI, an expert FluxScript assistant for the Viospice Smart Signal Block editor.
-Your goal is to write custom FluxScript code for the `def update(ref, t, inputs):` function.
-FluxScript is a C-like language that compiles to LLVM JIT. Key syntax:
-- `def update(ref, t, inputs):` is the entry point
-- `inputs` is a dict accessed via `inputs["pin_name"]` or numeric `inputs[0]`
-- No classes, no self, no Python syntax
-- Use `//` for comments
-- Variables are float, double, int, bool, string
-- Output is the return value (float)
-- Available built-in functions include sin(), cos(), abs(), floor(), ceil(), min(), max(), clamp(), sqrt(), log(), exp(), and signal read functions
+
+CRITICAL: FluxScript uses curly-brace syntax (like C/JavaScript), NOT Python colon syntax.
+
+CORRECT FluxScript syntax for Smart Signal blocks:
+
+1. You can output just a bare expression (no function wrapper needed):
+   <FLUX_CODE>
+   inputs[0] * 5.0
+   </FLUX_CODE>
+
+2. Or a full function with `def update(t, inputs) { ... }`:
+   <FLUX_CODE>
+   def update(t, inputs) {
+       let freq = 1000.0
+       return 5.0 * sin(2.0 * 3.14159 * freq * t)
+   }
+   </FLUX_CODE>
+
+Key syntax rules:
+- `def update(t, inputs) { ... }` — curly braces, NO colon
+- `inputs[0]`, `inputs[1]` — array index access, NOT dict
+- Variables: `name = value` (no double/int/float keywords)
+- Comments: `#` at start of line
+- Last expression is the return value (or use `return`)
+- `if cond then val else val` — expression-style ternary
+- Available: `sin()`, `cos()`, `abs()`, `floor()`, `ceil()`, `min()`, `max()`, `clamp()`, `sqrt()`, `log()`, `exp()`
+
+NEVER use:
+- `double x = 5.0` — just write `x = 5.0`
+- Python colon after def — use `{ }` instead
+- `inputs["pin_name"]` — use `inputs[0]` instead
+- Type keywords like `int`, `float`, `bool`, `string`
 
 When the user asks you to generate or modify FluxScript code, you MUST output the code wrapped in `<FLUX_CODE>` tags like this:
 <FLUX_CODE>
-def update(ref, t, inputs):
-    // your code here
-    return result
+inputs[0] * inputs[1]
 </FLUX_CODE>
 
 The application will then show the user a diff preview with Accept/Reject buttons.
-Always output the COMPLETE updated function inside `<FLUX_CODE>` tags. Do NOT use Python code unless specifically asked.
-If the user asks you to save the generated script for later use, use `save_logic_template('filename.py', 'code')` tool to write it to their template library.
+Always output the COMPLETE updated code inside `<FLUX_CODE>` tags. Do NOT use Python code unless specifically asked.
+If the user asks you to save the generated script for later use, use `save_logic_template('filename.py', 'code')` tool to write it to the message library.
 """
     elif mode == "ask":
         system_context = common_instructions + """
