@@ -352,6 +352,7 @@ void LogicEditorPanel::setupUi() {
     // Right Sidebar: Template Library & AI Copilot (tabified together)
     m_templateDock = new QDockWidget("Logic Templates", this);
     m_templateDock->setAllowedAreas(Qt::LeftDockWidgetArea | Qt::RightDockWidgetArea);
+    m_templateDock->setMinimumWidth(260);
     m_templateList = new QListWidget(this);
     m_templateDock->setWidget(m_templateList);
     addDockWidget(Qt::RightDockWidgetArea, m_templateDock);
@@ -359,6 +360,7 @@ void LogicEditorPanel::setupUi() {
 
     m_aiDock = new QDockWidget("AI Copilot", this);
     m_aiDock->setAllowedAreas(Qt::LeftDockWidgetArea | Qt::RightDockWidgetArea);
+    m_aiDock->setMinimumWidth(260);
     m_geminiPanel = new GeminiPanel(m_scene, this);
     m_geminiPanel->setNetManager(m_netManager);
     m_geminiPanel->setMode("logic");
