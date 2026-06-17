@@ -1442,7 +1442,11 @@ void WaveformViewer::updatePlot(bool autoScale) {
         }
 
         if (autoScale) {
-            pane->axisX->setRange(globalMinX, globalMaxX);
+            if (m_preserveXRangeOnce) {
+                pane->axisX->setRange(m_preserveXMin, m_preserveXMax);
+            } else {
+                pane->axisX->setRange(globalMinX, globalMaxX);
+            }
         }
         pane->axisX->setTitleVisible(false); // Using in-line legend instead
         
@@ -1456,6 +1460,8 @@ void WaveformViewer::updatePlot(bool autoScale) {
             (pane->type == SignalType::VOLTAGE ? "Voltage (V)" : 
              pane->type == SignalType::CURRENT ? "Current (A)" : "Value"));
     }
+
+    m_preserveXRangeOnce = false;
 
     updateLegend();
 

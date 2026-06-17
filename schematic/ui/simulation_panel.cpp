@@ -1453,15 +1453,12 @@ void SimulationPanel::addProbe(const QString& signalName) {
         }
 
         syncProbeSelection();
-        m_waveformViewer->updatePlot(true);
 
-        // Probing can arrive while the dock/view layout is still settling, which
-        // leaves the trace list updated but the visible plot stale until a manual
-        // Fit triggers a second autoscale pass. Queue the same refresh here.
-        QPointer<WaveformViewer> viewer = m_waveformViewer;
-        QMetaObject::invokeMethod(this, [viewer]() {
-            if (viewer) viewer->zoomFit();
-        }, Qt::QueuedConnection);
+        // Preserve current X zoom range so adding a signal doesn't reset the view
+        double curMinX = 0, curMaxX = 0;
+        if (m_waveformViewer->currentXRange(curMinX, curMaxX))
+            m_waveformViewer->preserveXRangeOnce(curMinX, curMaxX);
+        m_waveformViewer->updatePlot(true);
     } else {
         syncProbeSelection();
     }
