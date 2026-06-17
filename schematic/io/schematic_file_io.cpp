@@ -25,6 +25,7 @@
 #include "hierarchical_port_item.h"
 #include "../items/voltage_source_item.h"
 #include "../items/tuning_slider_symbol_item.h"
+#include "../items/generic_component_item.h"
 
 #include <QFile>
 #include <QJsonDocument>
@@ -409,6 +410,23 @@ SchematicItem* SchematicFileIO::createItemFromJson(const QJsonObject& json) {
     
     if (type.isEmpty()) {
         return nullptr;
+    }
+    
+    // If the JSON carries an inline symbol definition, create a GenericComponentItem
+    // directly from it. This bypasses the factory so that external/user symbols load
+    // correctly even when their source library hasn't been indexed yet (e.g. during
+    // async cold-start indexing).
+    if (json.contains("symbolDef")) {
+        QJsonObject symObj = json["symbolDef"].toObject();
+        if (!symObj.isEmpty()) {
+            SymbolDefinition saved = SymbolDefinition::fromJson(symObj);
+            if (!saved.name().isEmpty()) {
+                auto* item = new GenericComponentItem(saved);
+                if (item->fromJson(json)) return item;
+                delete item;
+                qWarning() << "Inline symbolDef present but fromJson failed for type" << type;
+            }
+        }
     }
     
     // Use factory to create the item

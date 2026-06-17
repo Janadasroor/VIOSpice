@@ -925,7 +925,22 @@ void WaveformViewer::addSignal(const QString& name, const QVector<double>& time,
 }
 
 void WaveformViewer::addSignal(const QString& name, const QVector<double>& time, const QVector<double>& values, const QVector<double>& phase) {
-    if (time.isEmpty() || values.isEmpty()) return;
+    // Always register the signal even with empty data, so callers (e.g. addProbe
+    // during a paused simulation) can see it in m_signals and m_nodeList.
+    if (time.isEmpty() || values.isEmpty()) {
+        if (!m_signals.contains(name) && !name.isEmpty()) {
+            SignalData data;
+            data.name = name;
+            m_signals[name] = data;
+            m_nodeList->blockSignals(true);
+            auto* item = new QListWidgetItem(name, m_nodeList);
+            item->setFlags(item->flags() | Qt::ItemIsUserCheckable | Qt::ItemIsSelectable);
+            item->setCheckState(Qt::Unchecked);
+            updateNodeItemStyle(item);
+            m_nodeList->blockSignals(false);
+        }
+        return;
+    }
 
     SignalData data;
     data.name = name;
