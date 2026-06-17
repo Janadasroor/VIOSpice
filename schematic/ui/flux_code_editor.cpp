@@ -287,7 +287,7 @@ void CodeEditor::paintEvent(QPaintEvent* e) {
     QPainter painter(viewport());
     for (auto it = m_errorLines.begin(); it != m_errorLines.end(); ++it) {
         int line = it.key();
-        QTextBlock block = document()->findBlockByLineNumber(line);
+        QTextBlock block = document()->findBlockByNumber(line);
         if (block.isValid()) {
             QRectF r = blockBoundingRect(block).translated(contentOffset());
             painter.fillRect(r.toRect(), QColor(255, 0, 0, 40));
@@ -295,7 +295,7 @@ void CodeEditor::paintEvent(QPaintEvent* e) {
     }
     
     if (m_activeDebugLine >= 0) {
-        QTextBlock block = document()->findBlockByLineNumber(m_activeDebugLine);
+        QTextBlock block = document()->findBlockByNumber(m_activeDebugLine);
         if (block.isValid()) {
             QRectF r = blockBoundingRect(block).translated(contentOffset());
             painter.fillRect(r.toRect(), QColor(255, 255, 0, 40));
@@ -303,14 +303,14 @@ void CodeEditor::paintEvent(QPaintEvent* e) {
     }
 
     for (int line : m_diffAddedLines) {
-        QTextBlock block = document()->findBlockByLineNumber(line);
+        QTextBlock block = document()->findBlockByNumber(line);
         if (block.isValid()) {
             QRectF r = blockBoundingRect(block).translated(contentOffset());
             painter.fillRect(r.toRect(), QColor(0, 200, 0, 50));
         }
     }
     for (int line : m_diffDeletedLines) {
-        QTextBlock block = document()->findBlockByLineNumber(line);
+        QTextBlock block = document()->findBlockByNumber(line);
         if (block.isValid()) {
             QRectF r = blockBoundingRect(block).translated(contentOffset());
             painter.fillRect(r.toRect(), QColor(255, 0, 0, 50));
@@ -331,8 +331,15 @@ void CodeEditor::clearDiffHighlights() {
 }
 
 QVector<DiffLine> CodeEditor::computeDiff(const QString& oldText, const QString& newText) {
-    const QStringList oldLines = oldText.split('\n');
-    const QStringList newLines = newText.split('\n');
+    auto splitLines = [](const QString& t) {
+        QStringList lines = t.split('\n');
+        // Remove trailing empty entry from split if text ends with \n
+        if (!lines.isEmpty() && lines.last().isEmpty())
+            lines.removeLast();
+        return lines;
+    };
+    const QStringList oldLines = splitLines(oldText);
+    const QStringList newLines = splitLines(newText);
     const int oldLen = oldLines.size();
     const int newLen = newLines.size();
 
