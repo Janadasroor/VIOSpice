@@ -1013,25 +1013,24 @@ void LogicEditorPanel::onFluxScriptGenerated(const QString& code) {
 
     auto diff = Flux::CodeEditor::computeDiff(m_originalCode, code);
 
-    // Build merged display text and track highlight lines
-    QStringList mergedLines;
-    QSet<int> addedLines, deletedLines;
-    int lineNum = 0;
-    for (const auto& dl : diff) {
-        if (dl.type == Flux::DiffLine::Deleted) {
-            mergedLines.append("[-] " + dl.text);
-            deletedLines.insert(lineNum);
-        } else if (dl.type == Flux::DiffLine::Added) {
-            mergedLines.append("[+] " + dl.text);
-            addedLines.insert(lineNum);
-        } else {
-            mergedLines.append(" " + dl.text);
-        }
-        ++lineNum;
-    }
+    // Show the new code (no [-]/[+] merged view — clean like VS Code)
+    m_editor->setPlainText(code);
 
-    m_editor->setPlainText(mergedLines.join('\n'));
-    m_editor->setDiffHighlights(addedLines, deletedLines);
+    // Map diff positions to line numbers in the new code
+    QSet<int> addedLines;
+    int oldLine = 0, newLine = 0;
+    for (const auto& dl : diff) {
+        if (dl.type == Flux::DiffLine::Unchanged) {
+            ++oldLine; ++newLine;
+        } else if (dl.type == Flux::DiffLine::Deleted) {
+            ++oldLine;
+        } else if (dl.type == Flux::DiffLine::Added) {
+            addedLines.insert(newLine);
+            ++newLine;
+        }
+    }
+    // Deleted lines don't exist in the new code — no red highlights needed
+    m_editor->setDiffHighlights(addedLines, {});
     m_editor->setReadOnly(true);
     m_diffBar->show();
     m_statusLabel->setText("AI generated FluxScript code — review and accept or reject.");
