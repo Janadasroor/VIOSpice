@@ -1234,8 +1234,26 @@ void SimulationPanel::addProbe(const QString& signalName) {
         // If simulation is running, add with empty data for live streaming
         // If simulation has finished, add with existing results (if available)
         if (SimManager::instance().isRunning()) {
-            QVector<double> emptyTime, emptyValues;
-            m_waveformViewer->addSignal(matchedName, emptyTime, emptyValues);
+            QVector<double> probeTime, probeValues;
+            if (SimManager::instance().isPaused()) {
+                // Look up cached streaming data (all signals are cached in rolling buffer)
+                const QString lowerMatch = matchedName.toLower();
+                const QString lowerSignal = signalName.toLower();
+                QString bestKey;
+                for (auto it = m_signalCache.constBegin(); it != m_signalCache.constEnd(); ++it) {
+                    const QString k = it.key();
+                    if (k.toLower() == lowerMatch || k.toLower() == lowerSignal) {
+                        bestKey = it.key();
+                        break;
+                    }
+                }
+                if (!bestKey.isEmpty()) {
+                    const auto& cached = m_signalCache.value(bestKey);
+                    probeTime = cached.time;
+                    probeValues = cached.values;
+                }
+            }
+            m_waveformViewer->addSignal(matchedName, probeTime, probeValues);
             m_waveformViewer->setSignalChecked(matchedName, true);
             
             // Register in the persistent set immediately so the optimized real-time
@@ -1243,6 +1261,7 @@ void SimulationPanel::addProbe(const QString& signalName) {
             m_persistentCheckedSignals.insert(matchedName);
             m_persistentCheckedSignals.insert(signalName);
             m_liveNameCache.clear();
+            
         } else if (m_hasLastResults) {
             // Simulation finished - try to plot from existing results
             const SimWaveform* w = findWaveByNetAliases(m_lastResults.waveforms, matchedName);
@@ -1463,35 +1482,37 @@ void SimulationPanel::addProbe(const QString& signalName) {
         syncProbeSelection();
     }
     
-    // If a live transient-style simulation is running, rebuild the live preview chart
-    // without waiting for a full plot refresh path.
+    // If a live transient-style simulation is running, add a preview chart series
+    // for this signal without disturbing existing series for other signals.
     const QString liveSeriesName = matchedName;
     if ((m_analysisType->currentIndex() == 0 || m_analysisType->currentIndex() == 9) && m_chart) {
-        for (auto* s : m_realTimeSeries) delete s;
-        m_chart->removeAllSeries();
-        m_realTimeSeries.clear();
-
         auto axesX = m_chart->axes(Qt::Horizontal);
         auto axesY = m_chart->axes(Qt::Vertical);
         if (!axesX.isEmpty() && !axesY.isEmpty()) {
-            auto* ay = qobject_cast<QValueAxis*>(axesY[0]);
-            if (ay) {
-                const QString lower = liveSeriesName.toLower();
-                if (lower.startsWith("v(")) ay->setTitleText("Voltage (V)");
-                else if (lower.startsWith("i(") || lower.contains("#branch")) ay->setTitleText("Current (A)");
-                else if (lower.startsWith("p(")) ay->setTitleText("Power (W)");
-                else ay->setTitleText("Value");
+            // Don't recreate if already present
+            if (m_realTimeSeries.contains(liveSeriesName)) {
+                // Series already exists — no need to recreate
+            } else {
+                auto* ay = qobject_cast<QValueAxis*>(axesY[0]);
+                if (ay) {
+                    const QString lower = liveSeriesName.toLower();
+                    if (lower.startsWith("v(")) ay->setTitleText("Voltage (V)");
+                    else if (lower.startsWith("i(") || lower.contains("#branch")) ay->setTitleText("Current (A)");
+                    else if (lower.startsWith("p(")) ay->setTitleText("Power (W)");
+                    else ay->setTitleText("Value");
+                }
+
+                const QList<QColor> colors = {Qt::red, Qt::blue, QColor("#00aa00"), Qt::magenta, Qt::darkCyan};
+                QLineSeries* series = new QLineSeries();
+                series->setName(liveSeriesName);
+                series->setPen(QPen(colors[m_realTimeSeries.size() % colors.size()], 1.5));
+                m_chart->addSeries(series);
+                series->attachAxis(axesX[0]);
+                series->attachAxis(axesY[0]);
+                m_realTimeSeries[liveSeriesName] = series;
             }
 
-            const QList<QColor> colors = {Qt::red, Qt::blue, QColor("#00aa00"), Qt::magenta, Qt::darkCyan};
-            QLineSeries* series = new QLineSeries();
-            series->setName(liveSeriesName);
-            series->setPen(QPen(colors[0], 1.5));
-            m_chart->addSeries(series);
-            series->attachAxis(axesX[0]);
-            series->attachAxis(axesY[0]);
-            m_realTimeSeries[liveSeriesName] = series;
-
+            // Load existing data from waveform viewer for this signal
             if (m_waveformViewer) {
                 QVector<double> liveTime;
                 QVector<double> liveValues;
@@ -1504,24 +1525,26 @@ void SimulationPanel::addProbe(const QString& signalName) {
                         points.append(QPointF(liveTime[i], liveValues[i]));
                     }
                     if (!points.isEmpty()) {
-                        series->append(points);
-                        axesX[0]->setRange(points.first().x(), points.last().x());
-                        double minY = points.first().y();
-                        double maxY = points.first().y();
-                        for (const QPointF& p : points) {
-                            minY = std::min(minY, p.y());
-                            maxY = std::max(maxY, p.y());
+                        QLineSeries* series = m_realTimeSeries.value(liveSeriesName);
+                        if (series) {
+                            series->append(points);
+                            axesX[0]->setRange(points.first().x(), points.last().x());
+                            double minY = points.first().y();
+                            double maxY = points.first().y();
+                            for (const QPointF& p : points) {
+                                minY = std::min(minY, p.y());
+                                maxY = std::max(maxY, p.y());
+                            }
+                            double pad;
+                            double sigRange = std::abs(maxY - minY);
+                            if (sigRange < 1e-15) {
+                                double center = (maxY + minY) * 0.5;
+                                pad = std::max(std::abs(center) * 0.1, 1e-6);
+                            } else {
+                                pad = sigRange * 0.1;
+                            }
+                            axesY[0]->setRange(minY - pad, maxY + pad);
                         }
-                        double pad;
-                        double sigRange = std::abs(maxY - minY);
-                        if (sigRange < 1e-15) {
-                            // DC / near-flat: use 10% of signal magnitude, or at least 1e-6
-                            double center = (maxY + minY) * 0.5;
-                            pad = std::max(std::abs(center) * 0.1, 1e-6);
-                        } else {
-                            pad = sigRange * 0.1;
-                        }
-                        axesY[0]->setRange(minY - pad, maxY + pad);
                     }
                 }
             }
@@ -1682,6 +1705,7 @@ void SimulationPanel::clearAllProbes() {
         m_waveformViewer->clear();
     }
     m_persistentCheckedSignals.clear();
+    m_signalCache.clear();
     if (m_logOutput) {
         m_logOutput->append(QString("Cleared %1 probe(s).").arg(count));
     }
@@ -1868,6 +1892,7 @@ void SimulationPanel::clearResults() {
     for (auto* s : m_realTimeSeries) delete s;
     m_realTimeSeries.clear();
     m_realTimePointCounter = 0;
+    m_signalCache.clear();
     if (m_timelineSlider) m_timelineSlider->setValue(0);
     if (m_timelineLabel) m_timelineLabel->setText("t = 0");
     if (m_efficiencyTable) m_efficiencyTable->setRowCount(0);
@@ -3787,26 +3812,34 @@ void SimulationPanel::onRealTimeDataBatchReceived(const std::vector<double>& tim
             }
         }
 
-        if (!isTime && !isChecked && !isHovered) {
-            continue;
-        }
-
-        if (isTime) uiName = "time";
-
-        // Performance: Avoid spamming qDebug for every vector in every batch
-        /*
-        if (isChecked || isHovered) {
-             qDebug() << "[SimPanel] Streaming match:" << rawName << "->" << name << "-> UI:" << uiName 
-                      << "Checked:" << isChecked << "Hovered:" << isHovered;
-        }
-        */
-
+        // Build signal data for this vector
         std::vector<double> signalValues;
         signalValues.reserve(times.size());
         for (const auto& row : values) {
             if (static_cast<size_t>(i) < row.size()) signalValues.push_back(row[i]);
             else signalValues.push_back(0.0);
         }
+
+        // Rolling cache of ALL signal data (for probe-during-pause historical lookup)
+        if (!isTime) {
+            const QString cacheKey = name.isEmpty() ? rawName : name;
+            CachedSignal& cs = m_signalCache[cacheKey];
+            for (size_t j = 0; j < times.size(); ++j) {
+                cs.time.append(times[j]);
+                cs.values.append(signalValues[j]);
+            }
+            if (cs.time.size() > m_signalCacheMaxPoints) {
+                int removeCount = cs.time.size() - m_signalCacheMaxPoints / 2;
+                cs.time.remove(0, removeCount);
+                cs.values.remove(0, removeCount);
+            }
+        }
+
+        if (!isTime && !isChecked && !isHovered) {
+            continue;
+        }
+
+        if (isTime) uiName = "time";
 
         m_waveformViewer->appendPoints(uiName, times, signalValues);
         // m_waveformViewer->setSignalChecked(uiName, isChecked); // Removed: Toggling the checkbox in the sidebar now handles this explicitly via signal-slot
