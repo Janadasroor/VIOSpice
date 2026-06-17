@@ -70,6 +70,9 @@ public:
 
     static QVector<DiffLine> computeDiff(const QString& oldText, const QString& newText);
 
+private:
+    void rebuildExtraSelections();
+
 public Q_SLOTS:
     virtual void onRunRequested();
     void showFindReplaceDialog();

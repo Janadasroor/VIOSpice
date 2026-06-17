@@ -160,12 +160,12 @@ void CodeEditor::updateCompletionKeywords(const QStringList& keywords) {
 
 void CodeEditor::setErrorLines(const QMap<int, QString>& errors) {
     m_errorLines = errors;
-    viewport()->update();
+    rebuildExtraSelections();
 }
 
 void CodeEditor::setActiveDebugLine(int line) {
     m_activeDebugLine = line;
-    viewport()->update();
+    rebuildExtraSelections();
 }
 
 void CodeEditor::onRunRequested() {
@@ -283,51 +283,44 @@ bool CodeEditor::event(QEvent* e) {
 
 void CodeEditor::paintEvent(QPaintEvent* e) {
     QPlainTextEdit::paintEvent(e);
-    
-    QPainter painter(viewport());
-    for (auto it = m_errorLines.begin(); it != m_errorLines.end(); ++it) {
-        int line = it.key();
-        QTextBlock block = document()->findBlockByNumber(line);
-        if (block.isValid()) {
-            QRectF r = blockBoundingRect(block).translated(contentOffset());
-            painter.fillRect(r.toRect(), QColor(255, 0, 0, 40));
-        }
-    }
-    
-    if (m_activeDebugLine >= 0) {
-        QTextBlock block = document()->findBlockByNumber(m_activeDebugLine);
-        if (block.isValid()) {
-            QRectF r = blockBoundingRect(block).translated(contentOffset());
-            painter.fillRect(r.toRect(), QColor(255, 255, 0, 40));
-        }
-    }
+}
 
-    for (int line : m_diffAddedLines) {
+void CodeEditor::rebuildExtraSelections() {
+    QList<QTextEdit::ExtraSelection> selections;
+
+    auto addLine = [&](int line, const QColor& bg) {
         QTextBlock block = document()->findBlockByNumber(line);
-        if (block.isValid()) {
-            QRectF r = blockBoundingRect(block).translated(contentOffset());
-            painter.fillRect(r.toRect(), QColor(0, 200, 0, 50));
-        }
-    }
-    for (int line : m_diffDeletedLines) {
-        QTextBlock block = document()->findBlockByNumber(line);
-        if (block.isValid()) {
-            QRectF r = blockBoundingRect(block).translated(contentOffset());
-            painter.fillRect(r.toRect(), QColor(255, 0, 0, 50));
-        }
-    }
+        if (!block.isValid()) return;
+        QTextEdit::ExtraSelection sel;
+        sel.format.setBackground(bg);
+        sel.format.setProperty(QTextFormat::FullWidthSelection, true);
+        sel.cursor = QTextCursor(block);
+        sel.cursor.movePosition(QTextCursor::StartOfBlock);
+        sel.cursor.movePosition(QTextCursor::EndOfBlock, QTextCursor::KeepAnchor);
+        selections.append(sel);
+    };
+
+    for (auto it = m_errorLines.begin(); it != m_errorLines.end(); ++it)
+        addLine(it.key(), QColor(255, 0, 0, 60));
+    if (m_activeDebugLine >= 0)
+        addLine(m_activeDebugLine, QColor(255, 255, 0, 60));
+    for (int line : m_diffAddedLines)
+        addLine(line, QColor(0, 200, 0, 60));
+    for (int line : m_diffDeletedLines)
+        addLine(line, QColor(255, 0, 0, 60));
+    setExtraSelections(selections);
 }
 
 void CodeEditor::setDiffHighlights(const QSet<int>& addedLines, const QSet<int>& deletedLines) {
     m_diffAddedLines = addedLines;
     m_diffDeletedLines = deletedLines;
-    viewport()->update();
+    rebuildExtraSelections();
 }
 
 void CodeEditor::clearDiffHighlights() {
     m_diffAddedLines.clear();
     m_diffDeletedLines.clear();
-    viewport()->update();
+    rebuildExtraSelections();
 }
 
 QVector<DiffLine> CodeEditor::computeDiff(const QString& oldText, const QString& newText) {
