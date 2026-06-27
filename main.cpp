@@ -26,6 +26,8 @@
 #include "footprints/footprint_library.h"
 #include "simulator/bridge/sim_manager.h"
 
+#include "core/update_checker.h"
+
 #include <QIcon>
 #include <QApplication>
 #include <QDebug>
@@ -146,6 +148,20 @@ int main(int argc, char *argv[])
             pm->show();
         }
         splash->deleteLater();
+
+        auto *checker = new UpdateChecker("0.1", qApp);
+        QObject::connect(checker, &UpdateChecker::updateAvailable,
+                         [](const QString &ver, const QString &url) {
+            qDebug() << "Update available:" << ver << url;
+            if (auto *w = qApp->activeWindow()) {
+                if (auto *sb = w->findChild<QStatusBar*>()) {
+                    sb->showMessage(
+                        QStringLiteral("VioraEDA v%1 is available (you have v0.1) — %2")
+                            .arg(ver, url), 15000);
+                }
+            }
+        });
+        checker->checkAsync();
     }, Qt::QueuedConnection);
 
     int exitCode = a.exec();
