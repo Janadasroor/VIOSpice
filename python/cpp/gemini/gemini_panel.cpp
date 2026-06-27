@@ -483,7 +483,7 @@ void GeminiPanel::askPrompt(const QString& text, bool includeContext, const QStr
         return;
     }
     // Store as env var for the Python subprocess
-    setenv("GEMINI_API_KEY", key.toUtf8().constData(), 1);
+    qputenv("GEMINI_API_KEY", key.toUtf8());
 
     QVariantMap entry;
     entry["role"] = "user";
