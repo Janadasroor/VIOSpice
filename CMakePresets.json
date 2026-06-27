@@ -1,0 +1,81 @@
+{
+  "version": 3,
+  "configurePresets": [
+    {
+      "name": "release",
+      "displayName": "Release with prebuilt deps",
+      "description": "Default CI build: download prebuilt VioMATRIXC + FluxScript",
+      "binaryDir": "${sourceDir}/build",
+      "generator": "Unix Makefiles",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "MI_OVERRIDE": "OFF",
+        "CMAKE_C_COMPILER_LAUNCHER": "ccache",
+        "CMAKE_CXX_COMPILER_LAUNCHER": "ccache"
+      }
+    },
+    {
+      "name": "dev",
+      "inherits": "release",
+      "displayName": "Local development (build engine from source)",
+      "description": "Builds VioMATRIXC engine from local or cloned source (VIOSPICE_DEV_MODE=ON)",
+      "cacheVariables": {
+        "VIOSPICE_DEV_MODE": "ON"
+      }
+    },
+    {
+      "name": "debug",
+      "inherits": "release",
+      "displayName": "Debug build with prebuilt deps",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug"
+      }
+    },
+    {
+      "name": "asan",
+      "inherits": "release",
+      "displayName": "AddressSanitizer + UndefinedBehaviorSanitizer",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "RelWithDebInfo",
+        "CMAKE_CXX_FLAGS": "-fsanitize=address,undefined -fno-omit-frame-pointer",
+        "CMAKE_EXE_LINKER_FLAGS": "-fsanitize=address,undefined"
+      }
+    },
+    {
+      "name": "msys2-mingw64",
+      "description": "Windows/MinGW via MSYS2 (release, build FluxScript from source)",
+      "generator": "MSYS Makefiles",
+      "binaryDir": "${sourceDir}/build",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "MI_OVERRIDE": "OFF",
+        "SLANG_USE_MIMALLOC": "OFF",
+        "VIOSPICE_BUILD_FLUXSCRIPT": "ON"
+      }
+    }
+  ],
+  "buildPresets": [
+    { "name": "release", "configurePreset": "release" },
+    { "name": "dev", "configurePreset": "dev" },
+    { "name": "debug", "configurePreset": "debug" },
+    { "name": "asan", "configurePreset": "asan" },
+    { "name": "msys2-mingw64", "configurePreset": "msys2-mingw64" }
+  ],
+  "testPresets": [
+    {
+      "name": "unit",
+      "configurePreset": "release",
+      "environment": {
+        "QT_QPA_PLATFORM": "offscreen"
+      },
+      "output": {
+        "outputOnFailure": true
+      },
+      "filter": {
+        "include": {
+          "name": "^(schematic|core|simulator|rpi|unit_|regression|integration)\\."
+        }
+      }
+    }
+  ]
+}
