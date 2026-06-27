@@ -430,9 +430,9 @@ jobs:
 
           # Run linuxdeploy with Qt plugin
           QMAKE="${{ runner.temp }}/Qt/6.10.0/gcc_64/bin/qmake" \
-          LINUXDEPLOY_QT_EXCLUDE_LIBRARY_PATTERNS="libmimerapi" \
           /tmp/linuxdeploy --appdir AppDir --output appimage \
             --plugin qt \
+            --exclude-library "libmimerapi.so" \
             --desktop-file AppDir/viospice.desktop \
             --icon-file AppDir/logo_viospice.png
 
