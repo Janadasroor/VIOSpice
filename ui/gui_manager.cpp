@@ -29,12 +29,25 @@ GuiManager::GuiManager(QObject* parent)
 }
 
 // ============================================================================
-// Fuzzy match
+// Fuzzy match with scoring: exact > starts-with > contains
 // ============================================================================
 
+static int matchScore(const QString& candidate, const QString& query) {
+    if (query.isEmpty() || candidate.isEmpty()) return 0;
+
+    QString c = candidate.toLower();
+    QString q = query.toLower();
+
+    if (c == q) return 100;                    // Exact match
+    if (c.startsWith(q)) return 80;            // Starts with
+    if (c.contains(q)) return 60;              // Contains
+    if (candidate.contains(query, Qt::CaseInsensitive)) return 60;
+
+    return 0;
+}
+
 bool GuiManager::fuzzyMatch(const QString& candidate, const QString& query) {
-    if (query.isEmpty()) return false;
-    return candidate.contains(query, Qt::CaseInsensitive);
+    return matchScore(candidate, query) > 0;
 }
 
 // ============================================================================
@@ -66,31 +79,43 @@ QWidget* GuiManager::findWindow(const QString& name) const {
 QWidget* GuiManager::findChildByLabel(QWidget* parent, const QString& label) const {
     if (!parent || label.isEmpty()) return nullptr;
 
+    QWidget* bestMatch = nullptr;
+    int bestScore = 0;
+
+    auto checkWidget = [&](QWidget* widget, int extraScore = 0) {
+        if (!widget || !widget->isVisible()) return;
+        int score = matchScore(widget->metaObject()->className(), label);
+        if (score > bestScore) { bestScore = score; bestMatch = widget; }
+    };
+
     for (QPushButton* btn : parent->findChildren<QPushButton*>()) {
         if (!btn->isVisible()) continue;
-        if (fuzzyMatch(btn->text(), label)) return btn;
-        if (fuzzyMatch(btn->toolTip(), label)) return btn;
-        if (fuzzyMatch(btn->objectName(), label)) return btn;
+        int s = 0;
+        if ((s = matchScore(btn->text(), label)) > bestScore) { bestScore = s; bestMatch = btn; }
+        else if ((s = matchScore(btn->toolTip(), label)) > bestScore) { bestScore = s; bestMatch = btn; }
+        else if ((s = matchScore(btn->objectName(), label)) > bestScore) { bestScore = s; bestMatch = btn; }
     }
 
     for (QToolButton* btn : parent->findChildren<QToolButton*>()) {
         if (!btn->isVisible()) continue;
-        if (fuzzyMatch(btn->text(), label)) return btn;
-        if (fuzzyMatch(btn->toolTip(), label)) return btn;
-        if (fuzzyMatch(btn->objectName(), label)) return btn;
-        if (btn->defaultAction() && fuzzyMatch(btn->defaultAction()->text(), label))
-            return btn;
-        if (btn->defaultAction() && fuzzyMatch(btn->defaultAction()->toolTip(), label))
-            return btn;
+        int s = 0;
+        if ((s = matchScore(btn->text(), label)) > bestScore) { bestScore = s; bestMatch = btn; }
+        else if ((s = matchScore(btn->toolTip(), label)) > bestScore) { bestScore = s; bestMatch = btn; }
+        else if ((s = matchScore(btn->objectName(), label)) > bestScore) { bestScore = s; bestMatch = btn; }
+        else if (btn->defaultAction()) {
+            if ((s = matchScore(btn->defaultAction()->text(), label)) > bestScore) { bestScore = s; bestMatch = btn; }
+            else if ((s = matchScore(btn->defaultAction()->toolTip(), label)) > bestScore) { bestScore = s; bestMatch = btn; }
+        }
     }
 
     for (QLineEdit* edit : parent->findChildren<QLineEdit*>()) {
         if (!edit->isVisible()) continue;
-        if (fuzzyMatch(edit->objectName(), label)) return edit;
-        if (fuzzyMatch(edit->placeholderText(), label)) return edit;
+        int s = 0;
+        if ((s = matchScore(edit->objectName(), label)) > bestScore) { bestScore = s; bestMatch = edit; }
+        else if ((s = matchScore(edit->placeholderText(), label)) > bestScore) { bestScore = s; bestMatch = edit; }
     }
 
-    return nullptr;
+    return bestMatch;
 }
 
 // ============================================================================
@@ -100,13 +125,17 @@ QWidget* GuiManager::findChildByLabel(QWidget* parent, const QString& label) con
 QAction* GuiManager::findActionByText(QWidget* window, const QString& text) const {
     if (!window || text.isEmpty()) return nullptr;
 
+    QAction* bestMatch = nullptr;
+    int bestScore = 0;
+
     QMenuBar* menuBar = window->findChild<QMenuBar*>();
     if (menuBar) {
         for (QMenu* menu : menuBar->findChildren<QMenu*>()) {
             for (QAction* action : menu->actions()) {
                 if (action->isSeparator()) continue;
-                if (fuzzyMatch(action->text(), text)) return action;
-                if (fuzzyMatch(action->toolTip(), text)) return action;
+                int s = 0;
+                if ((s = matchScore(action->text(), text)) > bestScore) { bestScore = s; bestMatch = action; }
+                else if ((s = matchScore(action->toolTip(), text)) > bestScore) { bestScore = s; bestMatch = action; }
             }
         }
     }
@@ -114,12 +143,13 @@ QAction* GuiManager::findActionByText(QWidget* window, const QString& text) cons
     for (QToolBar* toolbar : window->findChildren<QToolBar*>()) {
         for (QAction* action : toolbar->actions()) {
             if (action->isSeparator()) continue;
-            if (fuzzyMatch(action->text(), text)) return action;
-            if (fuzzyMatch(action->toolTip(), text)) return action;
+            int s = 0;
+            if ((s = matchScore(action->text(), text)) > bestScore) { bestScore = s; bestMatch = action; }
+            else if ((s = matchScore(action->toolTip(), text)) > bestScore) { bestScore = s; bestMatch = action; }
         }
     }
 
-    return nullptr;
+    return bestMatch;
 }
 
 // ============================================================================
