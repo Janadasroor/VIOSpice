@@ -2698,6 +2698,9 @@ static bool sendGuiCommand(const QVariantMap& cmd, QVariantMap& response) {
     return sendWebSocketCommand("127.0.0.1", 18790, cmd, response);
 }
 
+// Forward declaration for workflow step execution
+bool runScreenshot(const QStringList& rawArgs, const QCommandLineParser& parser);
+
 bool runGui(const QStringList& rawArgs, const QCommandLineParser& parser) {
     if (rawArgs.size() < 3) {
         std::cerr << "Usage: viora gui <subcommand> [options]\n";
@@ -2962,8 +2965,108 @@ bool runGui(const QStringList& rawArgs, const QCommandLineParser& parser) {
         return true;
     }
 
+    // --- wait ---
+    if (subcmd == "wait") {
+        if (rawArgs.size() < 4) {
+            std::cerr << "Usage: viora gui wait <milliseconds>" << std::endl;
+            return false;
+        }
+        int ms = rawArgs.at(3).toInt();
+        if (ms > 0) {
+            QThread::msleep(ms);
+        }
+        return true;
+    }
+
+    // --- run (workflow: execute multiple steps sequentially) ---
+    if (subcmd == "run") {
+        // Collect --step arguments
+        QStringList steps;
+        for (int i = 3; i < rawArgs.size(); ++i) {
+            if (rawArgs.at(i) == "--step" && i + 1 < rawArgs.size()) {
+                steps.append(rawArgs.at(++i));
+            }
+        }
+
+        if (steps.isEmpty()) {
+            std::cerr << "Usage: viora gui run --step \"<command>\" [--step \"<command>\"] ..." << std::endl;
+            std::cerr << "\nExample:\n";
+            std::cerr << "  viora gui run \\\n";
+            std::cerr << "    --step \"tab xspice\" \\\n";
+            std::cerr << "    --step \"click Run Simulation\" \\\n";
+            std::cerr << "    --step \"wait 2000\" \\\n";
+            std::cerr << "    --step \"screenshot --name Analog Oscilloscope --output /tmp/osc.png\"\n";
+            return false;
+        }
+
+        std::cout << "Running " << steps.size() << " steps..." << std::endl;
+
+        for (int i = 0; i < steps.size(); ++i) {
+            const QString& step = steps.at(i);
+            std::cout << "  [" << (i + 1) << "/" << steps.size() << "] " << step.toStdString() << std::endl;
+
+            // Parse the step into args
+            QStringList stepArgs = step.split(QRegularExpression("\\s+"), Qt::SkipEmptyParts);
+            if (stepArgs.isEmpty()) continue;
+
+            QString stepCmd = stepArgs.at(0);
+
+            // Wait command (local, no server)
+            if (stepCmd == "wait") {
+                if (stepArgs.size() > 1) {
+                    int ms = stepArgs.at(1).toInt();
+                    if (ms > 0) QThread::msleep(ms);
+                }
+                continue;
+            }
+
+            // Screenshot command
+            if (stepCmd == "screenshot") {
+                QStringList fullArgs = {"viora", "screenshot"};
+                for (int j = 1; j < stepArgs.size(); ++j)
+                    fullArgs.append(stepArgs.at(j));
+                QCommandLineParser p;
+                p.addOption(QCommandLineOption("json"));
+                p.addOption(QCommandLineOption("name", "", "name"));
+                p.addOption(QCommandLineOption("output", "", "file"));
+                p.addOption(QCommandLineOption("format", "", "fmt"));
+                p.addOption(QCommandLineOption("scale", "", "n"));
+                p.addOption(QCommandLineOption("region", "", "region"));
+                p.addOption(QCommandLineOption("clipboard"));
+                p.addOption(QCommandLineOption("include-hidden"));
+                p.addOption(QCommandLineOption("list-children"));
+                p.addOption(QCommandLineOption("watch"));
+                p.addOption(QCommandLineOption("interval", "", "ms"));
+                p.addOption(QCommandLineOption("output-dir", "", "dir"));
+                p.process(fullArgs);
+                runScreenshot(fullArgs, p);
+                continue;
+            }
+
+            // GUI subcommands (click, menu, key, type, tab, list-buttons)
+            QStringList guiArgs = {"viora", "gui", stepCmd};
+            for (int j = 1; j < stepArgs.size(); ++j)
+                guiArgs.append(stepArgs.at(j));
+            guiArgs.append("--window");
+            guiArgs.append(window);
+            if (jsonOutput) guiArgs.append("--json");
+
+            QCommandLineParser p;
+            p.addOption(QCommandLineOption("json"));
+            p.addOption(QCommandLineOption("window", "", "name"));
+            p.addOption(QCommandLineOption("type", "", "type"));
+            p.addOption(QCommandLineOption("parent", "", "name"));
+            p.addOption(QCommandLineOption("append"));
+            p.process(guiArgs);
+            runGui(guiArgs, p);
+        }
+
+        std::cout << "Workflow complete." << std::endl;
+        return true;
+    }
+
     std::cerr << "Unknown gui subcommand: " << subcmd.toStdString() << std::endl;
-    std::cerr << "Available subcommands: list-buttons, click, type, menu, key, tab" << std::endl;
+    std::cerr << "Available subcommands: list-buttons, click, type, menu, key, tab, wait, run" << std::endl;
     return false;
 }
 
@@ -6400,6 +6503,8 @@ static void printCommandHelp(const QString& command) {
         std::cout << "  menu <action-text>            Trigger a menu action\n";
         std::cout << "  key <shortcut>                Send a keyboard shortcut\n";
         std::cout << "  tab <tab-name>                Switch to a tab by name\n";
+        std::cout << "  wait <ms>                     Wait for milliseconds\n";
+        std::cout << "  run --step \"<cmd>\" ...         Run multiple steps sequentially\n";
         std::cout << "\n";
         std::cout << "Options:\n";
         std::cout << "  --window <name>    Target window (default: SchematicEditor)\n";
@@ -6416,6 +6521,9 @@ static void printCommandHelp(const QString& command) {
         std::cout << "  viora gui type ProjectSearch \"my project\"              Type in search field\n";
         std::cout << "  viora gui key Ctrl+S                                   Send keyboard shortcut\n";
         std::cout << "  viora gui key F8                                       Press F8 key\n";
+        std::cout << "  viora gui tab mos_test                                 Switch to tab\n";
+        std::cout << "  viora gui wait 1000                                    Wait 1 second\n";
+        std::cout << "  viora gui run --step \"tab xspice\" --step \"click Run\"   Run workflow\n";
         return;
     }
     if (command == "generate-report") {
