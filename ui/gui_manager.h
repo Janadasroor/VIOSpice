@@ -36,6 +36,7 @@ public:
     QVariantMap triggerMenuAction(const QString& windowName, const QString& actionText);
     QVariantMap pressKey(const QString& windowName, const QString& shortcut);
     QVariantMap switchTab(const QString& windowName, const QString& tabName);
+    QVariantMap getText(const QString& windowName, const QString& widgetName);
 
 private:
     explicit GuiManager(QObject* parent = nullptr);
