@@ -7,6 +7,8 @@
 #include <QPainter>
 #include <QGraphicsDropShadowEffect>
 #include <QFontDatabase>
+#include <QScreen>
+#include <QGuiApplication>
 #include "theme_manager.h"
 
 SmartProbeOverlay::SmartProbeOverlay(QWidget* parent) : QWidget(parent) {
@@ -91,12 +93,32 @@ void SmartProbeOverlay::showAt(const QPoint& pos, const QString& netName, const 
     // Stop any running fade-out animation
     m_fadeAnimation->stop();
     
-    move(pos);
+    // Clamp position to screen bounds
+    QPoint clampedPos = pos;
+    QScreen* screen = QGuiApplication::screenAt(pos);
+    if (screen) {
+        QRect screenRect = screen->availableGeometry();
+        clampedPos.setX(qBound(screenRect.left(), clampedPos.x(), screenRect.right() - width()));
+        clampedPos.setY(qBound(screenRect.top(), clampedPos.y(), screenRect.bottom() - height()));
+    }
+    
+    move(clampedPos);
     show(); // show() before animation starts so it's visible while fading in
     
     m_fadeAnimation->setStartValue(m_opacity);
     m_fadeAnimation->setEndValue(1.0);
     m_fadeAnimation->start();
+}
+
+void SmartProbeOverlay::moveClipped(const QPoint& pos) {
+    QPoint clampedPos = pos;
+    QScreen* screen = QGuiApplication::screenAt(pos);
+    if (screen) {
+        QRect screenRect = screen->availableGeometry();
+        clampedPos.setX(qBound(screenRect.left(), clampedPos.x(), screenRect.right() - width()));
+        clampedPos.setY(qBound(screenRect.top(), clampedPos.y(), screenRect.bottom() - height()));
+    }
+    move(clampedPos);
 }
 
 void SmartProbeOverlay::updateAIAnnotation(const QString& text) {

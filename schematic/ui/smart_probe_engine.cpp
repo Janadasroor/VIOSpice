@@ -71,7 +71,7 @@ void SmartProbeEngine::probe(const QString& netName, const QString& context, con
 
     if (m_currentNet == netName && m_overlay->isVisible()) {
         // Smoothly follow the mouse if still on the same net
-        m_overlay->move(viewPos);
+        m_overlay->moveClipped(viewPos);
         return;
     }
 

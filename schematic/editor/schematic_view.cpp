@@ -954,7 +954,7 @@ void SchematicView::mouseMoveEvent(QMouseEvent *event) {
             }
             
             // Trigger Smart Probe logic (Follow mouse or handle hide grace period)
-            m_smartProbeEngine->probe(hoveredNet, context, event->pos() + QPoint(26, 20));
+            m_smartProbeEngine->probe(hoveredNet, context, mapToGlobal(event->pos() + QPoint(26, 20)));
             Q_EMIT netHovered(hoveredNet);
         } else {
             // Check if hovering over a component body
@@ -964,15 +964,15 @@ void SchematicView::mouseMoveEvent(QMouseEvent *event) {
                 const QString kindTag = powerHeld ? "P" : "I";
                 const QString sigName = (kindTag == "I") ? "I(" + hoveredComp->reference() + ")" : "P(" + hoveredComp->reference() + ")";
                 
-                m_smartProbeEngine->probe(sigName, hoveredComp->reference() + " Current/Power", event->pos() + QPoint(26, 20));
+                m_smartProbeEngine->probe(sigName, hoveredComp->reference() + " Current/Power", mapToGlobal(event->pos() + QPoint(26, 20)));
                 Q_EMIT netHovered(sigName);
             } else {
-                m_smartProbeEngine->probe("", "", event->pos());
+                m_smartProbeEngine->probe("", "", mapToGlobal(event->pos()));
                 Q_EMIT netHovered("");
             }
         }
     } else if (m_smartProbeEngine) {
-        m_smartProbeEngine->probe("", "", event->pos());
+        m_smartProbeEngine->probe("", "", mapToGlobal(event->pos()));
         Q_EMIT netHovered("");
     }
 
