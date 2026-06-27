@@ -358,6 +358,97 @@ def viora_ui_load_simulation_results(path: str) -> dict:
     return core.load_simulation_results(path)
 
 
+# ── Screenshot Tools ─────────────────────────────────────────────
+
+@mcp.tool()
+def viora_screenshot_list(include_hidden: bool = False) -> dict:
+    """List all visible top-level windows in the running VioraEDA GUI."""
+    return core.screenshot_list(include_hidden=include_hidden)
+
+
+@mcp.tool()
+def viora_screenshot_capture(
+    name: str,
+    output: str = "",
+    scale: float = 1.0,
+    format: str = "PNG",
+    clipboard: bool = False,
+    region: str = "",
+) -> Image:
+    """Capture a screenshot of a window or widget by name.
+    Returns a PNG image. Use name='Analog Oscilloscope' for waveforms,
+    name='SchematicEditor' for the full editor, etc.
+    """
+    import tempfile
+    if not output:
+        output = tempfile.mktemp(suffix=".png")
+    result = core.screenshot_capture(
+        name=name, output=output, scale=scale,
+        format=format, clipboard=clipboard, region=region,
+    )
+    if not result.get("ok"):
+        raise RuntimeError(result.get("error", "Screenshot failed"))
+    return Image(path=output)
+
+
+# ── GUI Remote Control Tools ─────────────────────────────────────
+
+@mcp.tool()
+def viora_gui_list_elements(
+    window: str = "SchematicEditor",
+    filter_type: str = "",
+    filter_parent: str = "",
+) -> dict:
+    """List interactive elements (buttons, menu actions, text fields) in a window.
+    Use filter_type='QToolButton' or 'QAction' to narrow results.
+    Use filter_parent='MainToolbar' to find toolbar buttons.
+    """
+    return core.gui_list_elements(
+        window=window, filter_type=filter_type, filter_parent=filter_parent,
+    )
+
+
+@mcp.tool()
+def viora_gui_click(target: str, window: str = "SchematicEditor") -> dict:
+    """Click a button or trigger an action by label or objectName.
+    Fuzzy matching: 'Run Simulation' matches 'Run Simulation (F8)'.
+    """
+    return core.gui_click(target=target, window=window)
+
+
+@mcp.tool()
+def viora_gui_type(
+    field: str, text: str,
+    window: str = "SchematicEditor",
+    append: bool = False,
+) -> dict:
+    """Type text into a QLineEdit or QTextEdit field by objectName."""
+    return core.gui_type(field=field, text=text, window=window, append=append)
+
+
+@mcp.tool()
+def viora_gui_menu(action: str, window: str = "SchematicEditor") -> dict:
+    """Trigger a menu action by text label (e.g., 'Export as PDF')."""
+    return core.gui_menu(action=action, window=window)
+
+
+@mcp.tool()
+def viora_gui_key(shortcut: str, window: str = "SchematicEditor") -> dict:
+    """Send a keyboard shortcut (e.g., Ctrl+S, F8, Escape, Ctrl+Shift+K)."""
+    return core.gui_key(shortcut=shortcut, window=window)
+
+
+@mcp.tool()
+def viora_gui_tab(tab_name: str, window: str = "SchematicEditor") -> dict:
+    """Switch to a tab by name (e.g., 'xspice', 'mos_test')."""
+    return core.gui_tab(tab_name=tab_name, window=window)
+
+
+@mcp.tool()
+def viora_gui_wait(ms: int) -> dict:
+    """Wait for a specified number of milliseconds."""
+    return core.gui_wait(ms=ms)
+
 
 if __name__ == "__main__":
     logging.info("VioraEDA MCP server starting (stdio transport)")
