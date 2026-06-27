@@ -560,7 +560,7 @@ jobs:
           echo "All required files present"
 
       - name: Upload release asset
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           files: |
             VioraEDA-*-linux-x86_64.tar.gz
