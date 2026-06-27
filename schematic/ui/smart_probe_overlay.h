@@ -19,6 +19,7 @@ public:
     explicit SmartProbeOverlay(QWidget* parent = nullptr);
 
     void showAt(const QPoint& pos, const QString& netName, const QString& instantVal, const QString& context);
+    void moveClipped(const QPoint& pos);
     void updateAIAnnotation(const QString& text);
     void setAIStatus(const QString& status);
     void clearAIAnnotation();
