@@ -2583,6 +2583,9 @@ bool runLibraryAutoConvert(const QStringList& args, const QCommandLineParser& pa
     return filesProcessed > 0;
 }
 
+// ============================================================================
+// WebSocket client for UICommandServer communication
+// ============================================================================
 static bool sendWebSocketCommand(const QString& host, int port, const QVariantMap& cmd, QVariantMap& response) {
     QTcpSocket socket;
     socket.connectToHost(host, port);
@@ -2592,6 +2595,7 @@ static bool sendWebSocketCommand(const QString& host, int port, const QVariantMa
 
     QByteArray payload = QJsonDocument::fromVariant(cmd).toJson(QJsonDocument::Compact);
 
+    // --- WebSocket handshake (RFC 6455) ---
     QByteArray key(16, 0);
     for (int i = 0; i < 16; ++i)
         key[i] = static_cast<char>(QRandomGenerator::global()->generate() & 0xFF);
@@ -2619,8 +2623,9 @@ static bool sendWebSocketCommand(const QString& host, int port, const QVariantMa
         return false;
     }
 
+    // --- Build masked WebSocket frame (client must mask) ---
     QByteArray frame;
-    frame.append(static_cast<char>(0x81));
+    frame.append(static_cast<char>(0x81)); // FIN + TEXT opcode
 
     int len = payload.size();
     if (len <= 125) {
@@ -2648,16 +2653,16 @@ static bool sendWebSocketCommand(const QString& host, int port, const QVariantMa
     socket.write(frame);
     socket.waitForBytesWritten(1000);
 
+    // --- Read and parse response frame ---
     if (!socket.waitForReadyRead(5000)) {
         return false;
     }
 
     QByteArray rawData = socket.readAll();
-    int headerLen = 2;
     if (rawData.size() < 2) return false;
 
     int opcode = rawData[0] & 0x0F;
-    if (opcode == 0x08) return false;
+    if (opcode == 0x08) return false; // Connection close
 
     quint64 payloadLen = rawData[1] & 0x7F;
     int offset = 2;
@@ -2686,7 +2691,11 @@ static bool sendWebSocketCommand(const QString& host, int port, const QVariantMa
     return true;
 }
 
+// ============================================================================
+// Screenshot command: captures any widget via UICommandServer
+// ============================================================================
 bool runScreenshot(const QStringList& rawArgs, const QCommandLineParser& parser) {
+    // --- Parse CLI arguments ---
     QString name;
     QString output;
     qreal scale = 1.0;
@@ -2729,6 +2738,7 @@ bool runScreenshot(const QStringList& rawArgs, const QCommandLineParser& parser)
         }
     }
 
+    // --- List children of a parent widget ---
     if (listChildren) {
         if (name.isEmpty()) {
             std::cerr << "Error: --list-children requires --name <parent>" << std::endl;
@@ -2760,6 +2770,7 @@ bool runScreenshot(const QStringList& rawArgs, const QCommandLineParser& parser)
         return true;
     }
 
+    // --- List all visible windows ---
     if (name.isEmpty() && !watchMode) {
         QVariantMap cmd;
         cmd["cmd"] = "screenshot_list";
@@ -2798,6 +2809,7 @@ bool runScreenshot(const QStringList& rawArgs, const QCommandLineParser& parser)
         return true;
     }
 
+    // --- Single capture lambda (used by both normal and watch mode) ---
     auto captureOnce = [&]() -> bool {
         QVariantMap params;
         params["name"] = name;
@@ -2847,6 +2859,7 @@ bool runScreenshot(const QStringList& rawArgs, const QCommandLineParser& parser)
         return true;
     };
 
+    // --- Watch mode: continuous frame capture ---
     if (watchMode) {
         if (name.isEmpty()) {
             std::cerr << "Error: --watch requires --name <window>" << std::endl;
