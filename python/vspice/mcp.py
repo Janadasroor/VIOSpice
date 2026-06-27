@@ -817,3 +817,90 @@ def netlist_job_result(job_id: str) -> Dict[str, Any]:
         del _jobs[job_id]
         return {"ok": True, "job_id": job_id, "result": result}
 
+
+# ── Screenshot Tools ─────────────────────────────────────────────
+
+def screenshot_list(include_hidden: bool = False) -> Dict[str, Any]:
+    """List all visible top-level windows."""
+    args = ["screenshot", "--json"]
+    if include_hidden:
+        args.append("--include-hidden")
+    return run_viora_command(args, json_out=True)
+
+
+def screenshot_capture(
+    name: str,
+    output: str = "",
+    scale: float = 1.0,
+    format: str = "PNG",
+    clipboard: bool = False,
+    region: str = "",
+) -> Dict[str, Any]:
+    """Capture a screenshot of a window or widget by name."""
+    args = ["screenshot", "--name", name, "--format", format, "--scale", str(scale), "--json"]
+    if output:
+        args.extend(["--output", output])
+    if clipboard:
+        args.append("--clipboard")
+    if region:
+        args.extend(["--region", region])
+    return run_viora_command(args, json_out=True)
+
+
+# ── GUI Remote Control Tools ─────────────────────────────────────
+
+def gui_list_elements(
+    window: str = "SchematicEditor",
+    filter_type: str = "",
+    filter_parent: str = "",
+) -> Dict[str, Any]:
+    """List interactive elements (buttons, menu actions, text fields) in a window."""
+    args = ["gui", "list-buttons", "--window", window, "--json"]
+    if filter_type:
+        args.extend(["--type", filter_type])
+    if filter_parent:
+        args.extend(["--parent", filter_parent])
+    return run_viora_command(args, json_out=True)
+
+
+def gui_click(target: str, window: str = "SchematicEditor") -> Dict[str, Any]:
+    """Click a button or trigger an action by label or objectName."""
+    args = ["gui", "click", target, "--window", window, "--json"]
+    return run_viora_command(args, json_out=True)
+
+
+def gui_type(
+    field: str, text: str,
+    window: str = "SchematicEditor",
+    append: bool = False,
+) -> Dict[str, Any]:
+    """Type text into a QLineEdit or QTextEdit field."""
+    args = ["gui", "type", field, text, "--window", window, "--json"]
+    if append:
+        args.append("--append")
+    return run_viora_command(args, json_out=True)
+
+
+def gui_menu(action: str, window: str = "SchematicEditor") -> Dict[str, Any]:
+    """Trigger a menu action by text label."""
+    args = ["gui", "menu", action, "--window", window, "--json"]
+    return run_viora_command(args, json_out=True)
+
+
+def gui_key(shortcut: str, window: str = "SchematicEditor") -> Dict[str, Any]:
+    """Send a keyboard shortcut (e.g., Ctrl+S, F8, Escape)."""
+    args = ["gui", "key", shortcut, "--window", window, "--json"]
+    return run_viora_command(args, json_out=True)
+
+
+def gui_tab(tab_name: str, window: str = "SchematicEditor") -> Dict[str, Any]:
+    """Switch to a tab by name."""
+    args = ["gui", "tab", tab_name, "--window", window, "--json"]
+    return run_viora_command(args, json_out=True)
+
+
+def gui_wait(ms: int) -> Dict[str, Any]:
+    """Wait for a specified number of milliseconds."""
+    args = ["gui", "wait", str(ms)]
+    return run_viora_command(args, json_out=True)
+
