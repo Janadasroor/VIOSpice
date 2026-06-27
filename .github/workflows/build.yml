@@ -407,6 +407,8 @@ jobs:
       - name: Configure with coverage
         run: |
           cmake --preset release \
+            -DCMAKE_C_COMPILER=clang-21 \
+            -DCMAKE_CXX_COMPILER=clang++-21 \
             -DCMAKE_C_FLAGS="-fprofile-instr-generate -fcoverage-mapping" \
             -DCMAKE_CXX_FLAGS="-fprofile-instr-generate -fcoverage-mapping"
 
@@ -422,9 +424,9 @@ jobs:
       - name: Generate coverage report
         if: always()
         run: |
-          llvm-profdata merge -sparse coverage-*.profraw -o coverage.profdata || true
-          llvm-cov report --instr-profile=coverage.profdata build/VioraEDA --ignore-filename-regex='.*_deps/.*|.*bindings/.*' || true
-          llvm-cov show --instr-profile=coverage.profdata build/VioraEDA --ignore-filename-regex='.*_deps/.*|.*bindings/.*' > coverage.txt 2>&1 || true
+          llvm-profdata-21 merge -sparse coverage-*.profraw -o coverage.profdata || true
+          llvm-cov-21 report --instr-profile=coverage.profdata build/VioraEDA --ignore-filename-regex='.*_deps/.*|.*bindings/.*' || true
+          llvm-cov-21 show --instr-profile=coverage.profdata build/VioraEDA --ignore-filename-regex='.*_deps/.*|.*bindings/.*' > coverage.txt 2>&1 || true
           echo "Coverage report generated"
 
       - name: Upload coverage to Codecov
