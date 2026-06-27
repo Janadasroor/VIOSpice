@@ -1,0 +1,18 @@
+{
+  "metadata": {"application": "viospice", "version": 1},
+  "pageSettings": {"width": 1100, "height": 850},
+  "titleBlock": {"title": "AVR Block Preview", "revision": "1.0"},
+  "items": [
+    {
+      "type": "AvrMicrocontroller",
+      "reference": "UAVR1",
+      "name": "AVR Microcontroller",
+      "x": 0, "y": 0,
+      "avrModel": "ATmega328P",
+      "firmwarePath": "",
+      "clockFrequency": 16000000,
+      "jitEnabled": true,
+      "adcVoltage": 5.0
+    }
+  ]
+}

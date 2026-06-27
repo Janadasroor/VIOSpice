@@ -207,6 +207,125 @@ else()
     message(STATUS "VIOSPICE ENGINE (prebuilt): ${VIOSPICE_PREFERRED_ENGINE_LIB}")
 endif()
 
+# --- VioAVR Co-Simulation Support ---
+option(VIOSPICE_ENABLE_VIOAVR "Enable AVR microcontroller co-simulation via VioAVR" ON)
+if(VIOSPICE_ENABLE_VIOAVR)
+    set(VIOAVR_DOWNLOAD_BASE "https://github.com/Janadasroor/VioAVR/releases/download/v0.1.0"
+        CACHE STRING "URL prefix for prebuilt VioAVR archive")
+
+    if(WIN32)
+        set(VIOAVR_ARCHIVE "vioavr-windows-x86_64.zip")
+        set(VIOAVR_COSIM_LIB_NAME "avr_cosim.dll")
+    elseif(APPLE)
+        set(VIOAVR_ARCHIVE "vioavr-macos-arm64.tar.gz")
+        set(VIOAVR_COSIM_LIB_NAME "libavr_cosim.dylib")
+    else()
+        set(VIOAVR_ARCHIVE "vioavr-linux-x86_64.tar.gz")
+        set(VIOAVR_COSIM_LIB_NAME "libavr_cosim.so")
+    endif()
+    set(VIOAVR_DOWNLOAD_URL "${VIOAVR_DOWNLOAD_BASE}/${VIOAVR_ARCHIVE}")
+
+    if(VIOSPICE_DEV_MODE)
+        # --- Build VioAVR from source (local repo or FetchContent) ---
+        if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/../VioAVR/CMakeLists.txt")
+            message(STATUS "VioAVR: using local ../VioAVR")
+            set(vioavr_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../VioAVR")
+        else()
+            FetchContent_Declare(
+                vioavr
+                GIT_REPOSITORY https://github.com/Janadasroor/VioAVR.git
+                GIT_TAG        main
+            )
+            FetchContent_GetProperties(vioavr)
+            if(NOT vioavr_POPULATED)
+                message(STATUS "Fetching VioAVR from GitHub...")
+                cmake_policy(SET CMP0169 OLD)
+                FetchContent_Populate(vioavr)
+                cmake_policy(SET CMP0169 NEW)
+            endif()
+        endif()
+
+        set(VIOSPAVR_INCLUDE_DIR "${vioavr_SOURCE_DIR}/include")
+
+        # Copy viospice.cm to build/cm/
+        file(MAKE_DIRECTORY "${CMAKE_BINARY_DIR}/cm")
+        set(_vioavr_cm "${vioavr_SOURCE_DIR}/cosim/avr_analog_bridge/viospice.cm")
+        if(EXISTS "${_vioavr_cm}")
+            file(COPY "${_vioavr_cm}" DESTINATION "${CMAKE_BINARY_DIR}/cm")
+        endif()
+
+        # Find libavr_cosim.so
+        find_library(_vioavr_cosim_FOUND avr_cosim
+            PATHS "${vioavr_SOURCE_DIR}/build" "${vioavr_SOURCE_DIR}/cosim"
+            NO_DEFAULT_PATH)
+        if(_vioavr_cosim_FOUND)
+            set(VIOSPAVR_COSIM_LIB "${_vioavr_cosim_FOUND}")
+        endif()
+        # Fallback: local VioAVR build or own build dir
+        if(NOT VIOSPAVR_COSIM_LIB)
+            foreach(_search "${CMAKE_BINARY_DIR}" "${CMAKE_CURRENT_SOURCE_DIR}/../VioAVR/build/cosim" "${CMAKE_CURRENT_SOURCE_DIR}/../VioAVR/build" "${CMAKE_CURRENT_SOURCE_DIR}/../VioAVR/cosim")
+                if(EXISTS "${_search}/libavr_cosim.so")
+                    set(VIOSPAVR_COSIM_LIB "${_search}/libavr_cosim.so")
+                    break()
+                endif()
+            endforeach()
+        endif()
+        # Copy viospice.cm from local build if needed
+        if(VIOSPAVR_COSIM_LIB AND NOT EXISTS "${CMAKE_BINARY_DIR}/cm/viospice.cm")
+            foreach(_cm_search "${CMAKE_CURRENT_SOURCE_DIR}/../VioAVR/build/cosim/avr_adc_bridge.cm"
+                               "${CMAKE_CURRENT_SOURCE_DIR}/../VioAVR/cosim/avr_analog_bridge/viospice.cm")
+                if(EXISTS "${_cm_search}")
+                    file(COPY "${_cm_search}" DESTINATION "${CMAKE_BINARY_DIR}/cm/viospice.cm")
+                    break()
+                endif()
+            endforeach()
+        endif()
+
+        message(STATUS "VioAVR (dev): include=${VIOSPAVR_INCLUDE_DIR}")
+    else()
+        # --- Download prebuilt VioAVR ---
+        message(STATUS "Downloading prebuilt VioAVR...")
+        set(_va_dir "${CMAKE_BINARY_DIR}/vioavr-prebuilt")
+        set(_va_archive "${_va_dir}/${VIOAVR_ARCHIVE}")
+
+        if(NOT EXISTS "${_va_dir}/lib/${VIOAVR_COSIM_LIB_NAME}")
+            file(DOWNLOAD "${VIOAVR_DOWNLOAD_URL}" "${_va_archive}" STATUS _dl_status)
+            list(GET _dl_status 0 _dl_rc)
+            if(_dl_rc EQUAL 0)
+                file(ARCHIVE_EXTRACT INPUT "${_va_archive}" DESTINATION "${_va_dir}")
+                file(REMOVE "${_va_archive}")
+            else()
+                message(WARNING "Failed to download VioAVR from ${VIOAVR_DOWNLOAD_URL} — AVR co-simulation disabled")
+                set(VIOSPICE_ENABLE_VIOAVR OFF)
+            endif()
+        endif()
+
+        if(VIOSPICE_ENABLE_VIOAVR)
+            set(VIOSPAVR_INCLUDE_DIR "${_va_dir}/include")
+            set(VIOSPAVR_COSIM_LIB "${_va_dir}/lib/${VIOAVR_COSIM_LIB_NAME}")
+
+            file(MAKE_DIRECTORY "${CMAKE_BINARY_DIR}/cm")
+            file(GLOB _vioavr_cm_files "${_va_dir}/lib/*.cm" "${_va_dir}/cm/*.cm")
+            foreach(_cm ${_vioavr_cm_files})
+                file(COPY "${_cm}" DESTINATION "${CMAKE_BINARY_DIR}/cm")
+            endforeach()
+
+            message(STATUS "VioAVR (prebuilt): ${VIOSPAVR_COSIM_LIB}")
+        endif()
+    endif()
+
+        if(VIOSPICE_ENABLE_VIOAVR)
+            add_compile_definitions(HAVE_VIOAVR)
+            set(VIOSPAVR_FOUND TRUE)
+            if(VIOSPAVR_COSIM_LIB)
+                message(STATUS "VioAVR cosim library: ${VIOSPAVR_COSIM_LIB}")
+                add_compile_definitions(VIOAVR_COSIM_PATH="${VIOSPAVR_COSIM_LIB}")
+            else()
+                message(WARNING "VioAVR cosim library NOT found — AVR co-simulation will use fallback path")
+            endif()
+        endif()
+endif()
+
 add_compile_definitions(HAVE_NGSPICE)
 add_compile_definitions(VIOSPICE_CM_DIR="${CMAKE_BINARY_DIR}/cm")
 set(VIOSPICE_ENGINE_FOUND TRUE)

@@ -79,6 +79,8 @@
 #include "../items/core_item.h"
 #include "../items/lcouple_item.h"
 #include "../items/system_verilog_block_item.h"
+#include "../items/avr_microcontroller_item.h"
+#include "../dialogs/avr_microcontroller_dialog.h"
 #include "../items/xspice_block_item.h"
 #include "../dialogs/design_rule_editor.h"
 #include "../dialogs/voltage_controlled_switch_dialog.h"
@@ -1516,6 +1518,17 @@ void SchematicEditor::onItemDoubleClicked(SchematicItem* item) {
                 QJsonObject newState = item->toJson();
                 newState["svFilePath"] = dlg.svFilePath();
                 newState["moduleName"] = dlg.moduleName();
+                m_undoStack->push(new BulkChangePropertyCommand(m_scene, item, newState));
+            }
+            return;
+        }
+
+        // AVR Microcontroller properties dialog
+        if (item->itemTypeName() == "AvrMicrocontroller") {
+            auto* avr = static_cast<AvrMicrocontrollerItem*>(item);
+            AvrMicrocontrollerDialog dlg(avr, this);
+            if (dlg.exec() == QDialog::Accepted) {
+                QJsonObject newState = item->toJson();
                 m_undoStack->push(new BulkChangePropertyCommand(m_scene, item, newState));
             }
             return;

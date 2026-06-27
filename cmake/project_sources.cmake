@@ -358,8 +358,12 @@ set(SCHEMATIC_SOURCES
     schematic/items/xspice_block_item.h
     schematic/items/system_verilog_block_item.cpp
     schematic/items/system_verilog_block_item.h
+    schematic/items/avr_microcontroller_item.cpp
+    schematic/items/avr_microcontroller_item.h
     schematic/dialogs/system_verilog_block_dialog.cpp
     schematic/dialogs/system_verilog_block_dialog.h
+    schematic/dialogs/avr_microcontroller_dialog.cpp
+    schematic/dialogs/avr_microcontroller_dialog.h
     schematic/items/adc_bridge_item.cpp
     schematic/items/adc_bridge_item.h
     schematic/items/dac_bridge_item.cpp
