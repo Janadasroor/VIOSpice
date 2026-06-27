@@ -37,6 +37,7 @@ public:
     QVariantMap pressKey(const QString& windowName, const QString& shortcut);
     QVariantMap switchTab(const QString& windowName, const QString& tabName);
     QVariantMap getText(const QString& windowName, const QString& widgetName);
+    QVariantMap drag(const QString& windowName, int x1, int y1, int x2, int y2, int delayMs = 100);
 
 private:
     explicit GuiManager(QObject* parent = nullptr);
