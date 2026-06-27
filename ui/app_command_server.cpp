@@ -456,6 +456,11 @@ QVariantMap UICommandServer::handleCommand(const QVariantMap& request) {
         QString tab = params.value("tab", "").toString();
         response = GuiManager::instance().switchTab(window, tab);
     }
+    else if (cmd == "gui_get_text") {
+        QString window = params.value("window", "").toString();
+        QString widget = params.value("widget", "").toString();
+        response = GuiManager::instance().getText(window, widget);
+    }
     else if (cmd == "ping") {
         response["ok"] = true;
         response["pong"] = true;

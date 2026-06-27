@@ -2965,6 +2965,40 @@ bool runGui(const QStringList& rawArgs, const QCommandLineParser& parser) {
         return true;
     }
 
+    // --- text ---
+    if (subcmd == "text") {
+        QString widgetName;
+        for (int i = 3; i < rawArgs.size(); ++i) {
+            if (rawArgs.at(i) == "--widget" && i + 1 < rawArgs.size())
+                widgetName = rawArgs.at(++i);
+        }
+
+        QVariantMap cmd;
+        cmd["cmd"] = "gui_get_text";
+        QVariantMap params;
+        params["window"] = window;
+        if (!widgetName.isEmpty()) params["widget"] = widgetName;
+        cmd["params"] = params;
+
+        QVariantMap response;
+        if (!sendGuiCommand(cmd, response)) {
+            std::cerr << "Error: Cannot connect to running VioSpice instance (port 18790)" << std::endl;
+            return false;
+        }
+
+        if (jsonOutput) {
+            std::cout << QJsonDocument::fromVariant(response).toJson(QJsonDocument::Compact).toStdString() << std::endl;
+            return true;
+        }
+
+        QJsonArray widgets = response["widgets"].toJsonArray();
+        for (const auto& w : widgets) {
+            QJsonObject obj = w.toObject();
+            std::cout << obj["text"].toString().toStdString() << std::endl;
+        }
+        return true;
+    }
+
     // --- wait ---
     if (subcmd == "wait") {
         if (rawArgs.size() < 4) {
