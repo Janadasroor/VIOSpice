@@ -428,11 +428,11 @@ jobs:
           cp linux/viospice.desktop AppDir/
           cp resources/icons/logo_viospice.png AppDir/
 
-          # Run linuxdeploy with Qt plugin
+          # Run linuxdeploy with Qt plugin (skip multimedia — needs libmimerapi)
           QMAKE="${{ runner.temp }}/Qt/6.10.0/gcc_64/bin/qmake" \
+          LINUXDEPLOY_QT_SKIP_PLUGINS="multimedia" \
           /tmp/linuxdeploy --appdir AppDir --output appimage \
             --plugin qt \
-            --exclude-library "libmimerapi.so" \
             --desktop-file AppDir/viospice.desktop \
             --icon-file AppDir/logo_viospice.png
 
