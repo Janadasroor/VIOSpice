@@ -140,3 +140,19 @@ function(vioraeda_setup_rpath target)
         INSTALL_RPATH "${_origin};${VIOSPICE_PREFERRED_ENGINE_DIR};${FLUXSCRIPT_LIB_DIR}"
     )
 endfunction()
+
+# Convenience helper: define a C++ test executable and register it with CTest.
+# Usage:
+#   vioraeda_add_test(my_test_name
+#       SOURCES test_my_test.cpp
+#       LINK_LIBS VioCore VioUI
+#   )
+function(vioraeda_add_test name)
+    cmake_parse_arguments(ARG "" "" "SOURCES;LINK_LIBS" ${ARGN})
+    add_executable(${name} ${ARG_SOURCES})
+    set_target_properties(${name} PROPERTIES AUTOMOC ON)
+    target_include_directories(${name} PRIVATE ${VIORAEDA_COMMON_INCLUDE_DIRS})
+    target_link_libraries(${name} PRIVATE ${ARG_LINK_LIBS} Qt${QT_VERSION_MAJOR}::Test)
+    vioraeda_setup_rpath(${name})
+    add_test(NAME ${name} COMMAND ${name})
+endfunction()
