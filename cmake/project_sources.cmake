@@ -17,6 +17,8 @@ set(CORE_SOURCES
     core/project/config_manager.cpp
     core/project/config_manager.h
     core/sync/sync_manager.h
+    core/update_checker.cpp
+    core/update_checker.h
     core/pcb_sync_dialog.cpp
     core/pcb_sync_dialog.h
     core/sync/semantic_merge_engine.cpp
