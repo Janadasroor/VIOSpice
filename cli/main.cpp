@@ -3198,8 +3198,54 @@ bool runGui(const QStringList& rawArgs, const QCommandLineParser& parser) {
         return true;
     }
 
+    // --- click-at ---
+    if (subcmd == "click-at") {
+        if (rawArgs.size() < 5) {
+            std::cerr << "Usage: viora gui click-at <x> <y> [--window <name>] [--button left|right|middle]" << std::endl;
+            std::cerr << "Click at specific screen coordinates." << std::endl;
+            return false;
+        }
+        int x = rawArgs.at(3).toInt();
+        int y = rawArgs.at(4).toInt();
+        QString button = "left";
+        for (int i = 5; i < rawArgs.size(); ++i) {
+            if (rawArgs.at(i) == "--button" && i + 1 < rawArgs.size())
+                button = rawArgs.at(++i);
+        }
+
+        QVariantMap cmd;
+        cmd["cmd"] = "gui_click_at";
+        QVariantMap params;
+        params["window"] = window;
+        params["x"] = x;
+        params["y"] = y;
+        params["button"] = button;
+        cmd["params"] = params;
+
+        QVariantMap response;
+        if (!sendGuiCommand(cmd, response)) {
+            std::cerr << "Error: Cannot connect to running VioSpice instance (port 18790)" << std::endl;
+            return false;
+        }
+
+        if (jsonOutput) {
+            std::cout << QJsonDocument::fromVariant(response).toJson(QJsonDocument::Compact).toStdString() << std::endl;
+            return response.value("ok").toBool();
+        }
+
+        if (!response.value("ok").toBool()) {
+            std::cerr << "Error: " << response.value("error").toString().toStdString() << std::endl;
+            return false;
+        }
+
+        std::cout << "Clicked at " << response.value("pos").toString().toStdString()
+                  << " (" << response.value("button").toString().toStdString() << ")"
+                  << " on " << response.value("target").toString().toStdString() << std::endl;
+        return true;
+    }
+
     std::cerr << "Unknown gui subcommand: " << subcmd.toStdString() << std::endl;
-    std::cerr << "Available subcommands: list-buttons, click, type, menu, key, tab, wait, run, drag, scroll" << std::endl;
+    std::cerr << "Available subcommands: list-buttons, click, click-at, type, menu, key, tab, wait, run, drag, scroll" << std::endl;
     return false;
 }
 
@@ -6632,6 +6678,7 @@ static void printCommandHelp(const QString& command) {
         std::cout << "Subcommands:\n";
         std::cout << "  list-buttons                  List interactive elements\n";
         std::cout << "  click <label-or-name>         Click a button or trigger an action\n";
+        std::cout << "  click-at <x> <y>              Click at specific coordinates\n";
         std::cout << "  type <field> <text>           Type text into an input field\n";
         std::cout << "  menu <action-text>            Trigger a menu action\n";
         std::cout << "  key <shortcut>                Send a keyboard shortcut\n";

@@ -660,3 +660,50 @@ QVariantMap GuiManager::scroll(const QString& windowName, int x, int y, int delt
     resp["target"] = target->metaObject()->className();
     return resp;
 }
+
+// ============================================================================
+// Click at coordinates
+// ============================================================================
+
+QVariantMap GuiManager::clickAt(const QString& windowName, int x, int y, const QString& button) {
+    QVariantMap resp;
+    resp["ok"] = false;
+
+    QWidget* window = findWindow(windowName);
+    if (!window) {
+        resp["error"] = QString("Window not found: %1").arg(windowName);
+        return resp;
+    }
+
+    QWidget* target = window->focusWidget();
+    if (!target) target = window;
+
+    QPoint pos(x, y);
+
+    // Convert global coords to local if needed
+    if (window->windowFlags() & Qt::Window) {
+        pos = window->mapFromGlobal(pos);
+    }
+
+    // Determine mouse button
+    Qt::MouseButton mouseBtn = Qt::LeftButton;
+    if (button == "right") mouseBtn = Qt::RightButton;
+    else if (button == "middle") mouseBtn = Qt::MiddleButton;
+
+    // Press
+    QMouseEvent pressEvent(QEvent::MouseButtonPress, pos, pos,
+                           mouseBtn, mouseBtn, Qt::NoModifier);
+    QApplication::sendEvent(target, &pressEvent);
+
+    // Release (with small delay for realism)
+    QThread::msleep(50);
+    QMouseEvent releaseEvent(QEvent::MouseButtonRelease, pos, pos,
+                             mouseBtn, Qt::NoButton, Qt::NoModifier);
+    QApplication::sendEvent(target, &releaseEvent);
+
+    resp["ok"] = true;
+    resp["pos"] = QString("%1,%2").arg(x).arg(y);
+    resp["button"] = button;
+    resp["target"] = target->metaObject()->className();
+    return resp;
+}

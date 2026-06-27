@@ -478,6 +478,13 @@ QVariantMap UICommandServer::handleCommand(const QVariantMap& request) {
         int deltaX = params.value("deltaX", 0).toInt();
         response = GuiManager::instance().scroll(window, x, y, deltaY, deltaX);
     }
+    else if (cmd == "gui_click_at") {
+        QString window = params.value("window", "").toString();
+        int x = params.value("x", 0).toInt();
+        int y = params.value("y", 0).toInt();
+        QString button = params.value("button", "left").toString();
+        response = GuiManager::instance().clickAt(window, x, y, button);
+    }
     else if (cmd == "ping") {
         response["ok"] = true;
         response["pong"] = true;
