@@ -1,0 +1,15 @@
+Checks: >
+    clang-analyzer-*,
+    performance-*,
+    modernize-*,
+    bugprone-*,
+    readability-identifier-naming,
+    -modernize-use-trailing-return-type,
+    -llvmlibc-*,
+    -altera-*
+CheckOptions:
+  readability-identifier-naming.ClassCase: CamelCase
+  readability-identifier-naming.FunctionCase: camelBack
+  readability-identifier-naming.VariableCase: camelBack
+  readability-identifier-naming.MemberCase: camelBack
+  readability-identifier-naming.MemberSuffix: _
