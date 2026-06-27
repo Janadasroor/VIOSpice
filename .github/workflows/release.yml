@@ -397,6 +397,42 @@ jobs:
           cp -r templates staging/
           tar czf VioraEDA-${{ github.ref_name }}-linux-x86_64.tar.gz -C staging .
 
+      - name: Build AppImage (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          # Download AppImage tools at build time
+          wget -q https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage -O /tmp/linuxdeploy
+          wget -q https://github.com/linuxdeploy/linuxdeploy-plugin-qt/releases/download/continuous/linuxdeploy-plugin-qt-x86_64.AppImage -O /tmp/linuxdeploy-plugin-qt
+          chmod +x /tmp/linuxdeploy /tmp/linuxdeploy-plugin-qt
+
+          # Build AppDir structure
+          export VERSION=${{ github.ref_name }}
+          mkdir -p AppDir/usr/bin AppDir/usr/lib AppDir/usr/share/applications AppDir/usr/share/icons/hicolor/256x256/apps
+          cp build/VioraEDA AppDir/usr/bin/
+          cp build/viora AppDir/usr/bin/ 2>/dev/null || true
+          # Code models
+          mkdir -p AppDir/usr/lib/cm
+          cp -r build/cm/. AppDir/usr/lib/cm/ 2>/dev/null || true
+          # Engine libs
+          if [ -d "build/viomatrixc-prebuilt/lib" ]; then
+            cp build/viomatrixc-prebuilt/lib/*.so* AppDir/usr/lib/ 2>/dev/null || true
+          fi
+          cp build/libLLVM.so* AppDir/usr/lib/ 2>/dev/null || true
+          # Desktop file and icon
+          cp linux/viospice.desktop AppDir/usr/share/applications/viospice.desktop
+          cp resources/icons/logo_viospice.png AppDir/usr/share/icons/hicolor/256x256/apps/viospice.png
+          # Also put them at AppDir root for linuxdeploy
+          cp linux/viospice.desktop AppDir/
+          cp resources/icons/logo_viospice.png AppDir/
+
+          # Run linuxdeploy with Qt plugin
+          /tmp/linuxdeploy --appdir AppDir --output appimage \
+            --plugin qt \
+            --desktop-file AppDir/viospice.desktop \
+            --icon-file AppDir/logo_viospice.png
+
+          mv VioraEDA-*.AppImage VioraEDA-${{ github.ref_name }}-x86_64.AppImage
+
       - name: Package (macOS)
         if: runner.os == 'macOS'
         run: |
@@ -528,5 +564,6 @@ jobs:
         with:
           files: |
             VioraEDA-*-linux-x86_64.tar.gz
+            VioraEDA-*-linux-x86_64.AppImage
             VioraEDA-*-macos-arm64.tar.gz
             VioraEDA-*-windows-x86_64.zip
