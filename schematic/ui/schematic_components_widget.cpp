@@ -480,6 +480,7 @@ void SchematicComponentsWidget::populate() {
         // XSPICE Behavioral Blocks
         {"XspiceBlock", "XSPICE"},
         {"SystemVerilogBlock", "XSPICE"},
+        {"AvrMicrocontroller", "Co-Simulation"},
         {"AdcBridge", "Mixed-Signal"},
         {"DacBridge", "Mixed-Signal"},
         {"AnalogFunction", "Analog Functions"},

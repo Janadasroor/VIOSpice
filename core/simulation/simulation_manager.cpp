@@ -284,7 +284,7 @@ void SimulationManager::initialize() {
     if (m_isInitialized) {
         QString cmDir = QCoreApplication::applicationDirPath() + "/cm";
         qDebug() << "[XSPICE] Loading code models from:" << cmDir;
-        QStringList cmSubDirs = {"analog", "digital", "spice2poly", "tlines", "xtradev", "xtraevt"};
+        QStringList cmSubDirs = {"analog", "digital", "spice2poly", "tlines", "xtradev", "xtraevt", "viospice"};
         
         for (const QString& sub : cmSubDirs) {
             QString cmPath = QString("%1/%2.cm").arg(cmDir, sub);

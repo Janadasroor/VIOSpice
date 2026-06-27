@@ -69,6 +69,7 @@ SchematicItem* SchematicItemFactory::createItem(const QString& typeName, QPointF
                                     typeName == "16-Segment Display" ||
                                     typeName == "XspiceBlock" ||
                                     typeName == "SystemVerilogBlock" ||
+                                    typeName == "AvrMicrocontroller" ||
                                     typeName == "Voltmeter (DC)" ||
                                     typeName == "Voltmeter (AC)" ||
                                     typeName == "Ammeter (DC)" ||
