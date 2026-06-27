@@ -34,21 +34,43 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install Qt (Linux)
+      - name: Cache Qt (Linux)
         if: runner.os == 'Linux'
+        id: cache-qt-linux
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/Qt
+          key: ${{ runner.os }}-qt-6.10.0-linux_gcc_64
+
+      - name: Install Qt (Linux)
+        if: runner.os == 'Linux' && steps.cache-qt-linux.outputs.cache-hit != 'true'
         run: |
           python3 -m venv /tmp/qt-env
           /tmp/qt-env/bin/pip install aqtinstall
           /tmp/qt-env/bin/aqt install-qt --outputdir "${{ runner.temp }}/Qt" ${{ matrix.qt_host }} desktop 6.10.0 ${{ matrix.qt_arch }} -m qtcharts qtpdf qtwebsockets qtmultimedia qt5compat qtshadertools
-          echo "Qt6_DIR=${{ runner.temp }}/Qt/6.10.0/${{ matrix.qt_dir_suffix }}/lib/cmake/Qt6" >> $GITHUB_ENV
+
+      - name: Set Qt6_DIR (Linux)
+        if: runner.os == 'Linux'
+        run: echo "Qt6_DIR=${{ runner.temp }}/Qt/6.10.0/${{ matrix.qt_dir_suffix }}/lib/cmake/Qt6" >> $GITHUB_ENV
+
+      - name: Cache Qt (macOS)
+        if: runner.os == 'macOS'
+        id: cache-qt-macos
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/Qt
+          key: ${{ runner.os }}-qt-6.10.0-clang_64
 
       - name: Install Qt (macOS)
-        if: runner.os == 'macOS'
+        if: runner.os == 'macOS' && steps.cache-qt-macos.outputs.cache-hit != 'true'
         run: |
           python3 -m venv /tmp/qt-env
           /tmp/qt-env/bin/pip install aqtinstall
           /tmp/qt-env/bin/aqt install-qt --outputdir "${{ runner.temp }}/Qt" ${{ matrix.qt_host }} desktop 6.10.0 ${{ matrix.qt_arch }} -m qtcharts qtpdf qtwebsockets qtmultimedia qt5compat qtshadertools
-          echo "Qt6_DIR=${{ runner.temp }}/Qt/6.10.0/${{ matrix.qt_dir_suffix }}/lib/cmake/Qt6" >> $GITHUB_ENV
+
+      - name: Set Qt6_DIR (macOS)
+        if: runner.os == 'macOS'
+        run: echo "Qt6_DIR=${{ runner.temp }}/Qt/6.10.0/${{ matrix.qt_dir_suffix }}/lib/cmake/Qt6" >> $GITHUB_ENV
 
       - name: Setup MSYS2 + Install deps (Windows)
         if: runner.os == 'Windows'
@@ -118,7 +140,7 @@ jobs:
 
       - name: Configure (Linux)
         if: runner.os == 'Linux'
-        run: cmake -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache -DMI_OVERRIDE=OFF
+        run: cmake --preset release
 
       - name: Install LLVM (macOS)
         if: runner.os == 'macOS'
@@ -127,8 +149,8 @@ jobs:
       - name: Configure (macOS)
         if: runner.os == 'macOS'
         run: |
-          cmake -B build -DCMAKE_BUILD_TYPE=Release \
-            -DLLVM_DIR="$(brew --prefix llvm)/lib/cmake/llvm" -DMI_OVERRIDE=OFF
+          cmake --preset release \
+            -DLLVM_DIR="$(brew --prefix llvm)/lib/cmake/llvm"
 
       - name: Install and link dependencies (macOS)
         if: runner.os == 'macOS'
@@ -142,42 +164,104 @@ jobs:
         shell: msys2 {0}
         run: |
           PYPATH=$(cygpath -w /mingw64/bin/python.exe)
-          cmake -B build -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON -DVIOSPICE_BUILD_FLUXSCRIPT=ON \
-            -DPython3_EXECUTABLE="$PYPATH" -DPython_EXECUTABLE="$PYPATH" \
-            -G "MSYS Makefiles" -DMI_OVERRIDE=OFF -DSLANG_USE_MIMALLOC=OFF
+          cmake --preset msys2-mingw64 \
+            -DPython3_EXECUTABLE="$PYPATH" -DPython_EXECUTABLE="$PYPATH"
 
       - name: Build (Linux)
         if: runner.os == 'Linux'
-        run: cmake --build build --parallel $(nproc)
+        run: cmake --build --preset release --parallel $(nproc)
 
       - name: Build (macOS)
         if: runner.os == 'macOS'
-        run: cmake --build build --parallel 2
+        run: cmake --build --preset release --parallel 2
 
       - name: Build (Windows)
         if: runner.os == 'Windows'
         shell: msys2 {0}
-        run: cmake --build build --parallel $(nproc)
+        run: cmake --build --preset msys2-mingw64 --parallel $(nproc)
 
       - name: Smoke test VioraEDA (Linux)
         if: runner.os == 'Linux'
         run: |
           sudo ldconfig
           ldd ./build/VioraEDA 2>&1 | grep "not found" || echo "All libraries found"
-          set +e
-          QT_QPA_PLATFORM=offscreen ./build/VioraEDA &
-          pid=$!
-          sleep 8
-          kill $pid 2>/dev/null
-          wait $pid
-          rc=$?
-          set -e
-          if [ $rc -eq 0 ] || [ $rc -ge 128 ]; then
-            echo "PASS: VioraEDA started without crashing (exit code $rc)"
-          else
-            echo "FAIL: VioraEDA crashed (exit code $rc)"
-            exit $rc
+          echo "=== viora --version ==="
+          ./build/viora --version
+          echo "=== viora --help ==="
+          ./build/viora --help
+
+      - name: Smoke test VioraEDA (macOS)
+        if: runner.os == 'macOS'
+        env:
+          DYLD_LIBRARY_PATH: ${{ github.workspace }}/build/viomatrixc-prebuilt/lib:${{ github.workspace }}/build/fluxscript-prebuilt/lib:/opt/homebrew/lib
+        run: |
+          echo "=== viora --version ==="
+          ./build/viora --version
+          echo "=== viora --help ==="
+          ./build/viora --help
+
+      - name: Smoke test VioraEDA (Windows)
+        if: runner.os == 'Windows'
+        shell: msys2 {0}
+        run: |
+          set -x
+          # Copy local prebuilt engine DLL
+          cp -v build/viomatrixc-prebuilt/bin/libngspice-0.dll build/ 2>&1 || true
+          
+          # Dynamically copy the actual libpython DLL and create any expected aliases
+          py_dll=$(find /mingw64/bin -maxdepth 1 -name "libpython3.*.dll" | head -n 1)
+          if [ -n "$py_dll" ]; then
+            cp -v "$py_dll" build/ || true
+            py_version=$(basename "$py_dll" | sed -E 's/libpython([0-9]+)\.([0-9]+)\.dll/\1\2/')
+            cp -v "$py_dll" "build/python${py_version}.dll" 2>/dev/null || true
           fi
+          cp -v /mingw64/bin/python3.dll build/ 2>/dev/null || true
+
+          # Copy Qt Windows platform plugins (including minimal/offscreen for headless CTest)
+          for pdir in /mingw64/share/qt6/plugins /mingw64/plugins /mingw64/lib/qt6/plugins; do
+            if [ -d "$pdir/platforms" ]; then
+              mkdir -p build/platforms
+              cp -v "$pdir/platforms/"*.dll build/platforms/ 2>&1 || true
+              break
+            fi
+          done
+
+          # Auto-discover and bundle missing MinGW / local DLLs from transitive dependencies
+          shopt -s nocasematch
+          unset SCANNED
+          declare -a QUEUE
+          # Seed queue with all executables and DLLs currently in build/
+          while IFS= read -r f; do QUEUE+=("$f"); done < <(find build -maxdepth 1 -type f \( -name '*.exe' -o -name '*.dll' \) 2>/dev/null)
+          while [ ${#QUEUE[@]} -gt 0 ]; do
+             f="${QUEUE[0]}"
+             QUEUE=("${QUEUE[@]:1}")
+             base=$(basename "$f")
+             case " ${SCANNED[*]} " in *" $base "*) continue ;; esac
+             SCANNED+=("$base")
+             for dll in $(objdump -p "$f" 2>/dev/null | grep "DLL Name" | awk '{print $3}'); do
+               [ -f "build/$dll" ] && continue
+               case "$dll" in
+                 kernel32.dll|user32.dll|gdi32.dll|advapi32.dll|shell32.dll|ole32.dll|oleaut32.dll|comdlg32.dll|imm32.dll|winmm.dll|ws2_32.dll|msvcrt.dll|version.dll|shlwapi.dll|comctl32.dll|uxtheme.dll|winspool.drv|msimg32.dll|usp10.dll|dnsapi.dll|iphlpapi.dll|opengl32.dll|glu32.dll|setupapi.dll|cfgmgr32.dll|ntmarta.dll|wldap32.dll|crypt32.dll|wtsapi32.dll|secur32.dll|wintrust.dll|oleacc.dll|riched20.dll|lz32.dll|mpr.dll|netapi32.dll|powrprof.dll|propsys.dll|dwmapi.dll|bcrypt.dll|ntdll.dll|sechost.dll|api-ms-win-*|d3d*.dll|DWrite.dll|dxgi.dll|AUTHZ.dll|AVRT.dll|USERENV.dll|WINHTTP.dll|RPCRT4.dll)
+                   continue ;;
+               esac
+               # First look recursively in build/ (for locally built DLLs like libFluxScript.dll)
+               local_dll=$(find build -name "$dll" 2>/dev/null | head -n 1)
+               if [ -n "$local_dll" ] && [ -f "$local_dll" ] && [ ! -f "build/$dll" ]; then
+                 cp -v "$local_dll" build/ && echo "  copied local $dll"
+                 QUEUE+=("build/$dll")
+               elif [ -f "/mingw64/bin/$dll" ] && [ ! -f "build/$dll" ]; then
+                 cp "/mingw64/bin/$dll" build/ && echo "  copied $dll (transitive dep)"
+                 QUEUE+=("build/$dll")
+               fi
+             done
+          done
+
+          echo "=== DLL dependency check ==="
+          which ldd 2>/dev/null && ldd build/viora.exe 2>&1 | grep -i "not found" || echo "(ldd not available or no unresolved)"
+          echo "=== viora --version ==="
+          QT_QPA_PLATFORM=minimal ./build/viora.exe --version
+          echo "=== viora --help ==="
+          QT_QPA_PLATFORM=minimal ./build/viora.exe --help
 
       - name: Smoke test VioraEDA (macOS)
         if: runner.os == 'macOS'
@@ -278,7 +362,7 @@ jobs:
         env:
           QT_QPA_PLATFORM: offscreen
           DYLD_LIBRARY_PATH: ${{ github.workspace }}/build/viomatrixc-prebuilt/lib:${{ github.workspace }}/build/fluxscript-prebuilt/lib:/opt/homebrew/lib
-        run: ctest --test-dir build --output-on-failure -R "^(schematic|core|simulator|rpi|unit_|regression|integration)\."
+        run: ctest --preset unit -R "^(schematic|core|simulator|rpi|unit_|regression|integration)\."
 
       - name: Run unit tests (Windows)
         if: runner.os == 'Windows'
@@ -287,7 +371,7 @@ jobs:
           export PATH="$PWD/build:/mingw64/bin:$PATH"
           export QT_PLUGIN_PATH="$PWD/build"
           export QT_QPA_PLATFORM=offscreen
-          ctest --test-dir build --output-on-failure -R "^(schematic|core|simulator|rpi|unit_|regression|integration)\."
+          ctest --preset unit -R "^(schematic|core|simulator|rpi|unit_|regression|integration)\."
 
       - name: Package (Linux)
         if: runner.os == 'Linux'

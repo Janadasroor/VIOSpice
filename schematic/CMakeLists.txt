@@ -62,3 +62,24 @@ endif()
 # For backward compatibility if other modules use VioSchematicCore or VioSchematicUI
 add_library(VioSchematicCore ALIAS VioSchematic)
 add_library(VioSchematicUI ALIAS VioSchematic)
+
+if(BUILD_TESTING)
+    vioraeda_add_test(test_spice_directive_netlist
+        SOURCES tests/test_spice_directive_netlist.cpp
+        LINK_LIBS VioSchematic VioSymbols VioSimulator VioCore VioUI
+    )
+    target_include_directories(test_spice_directive_netlist PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}
+        ${CMAKE_CURRENT_SOURCE_DIR}/items
+    )
+
+    vioraeda_add_test(test_virtual_terminal
+        SOURCES tests/test_virtual_terminal.cpp
+        LINK_LIBS VioSchematic VioSymbols VioSimulator VioCore VioUI
+    )
+    target_include_directories(test_virtual_terminal PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}
+        ${CMAKE_CURRENT_SOURCE_DIR}/items
+        ${CMAKE_CURRENT_SOURCE_DIR}/ui
+    )
+endif()

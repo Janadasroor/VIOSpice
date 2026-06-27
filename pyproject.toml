@@ -1,0 +1,14 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.backends._legacy:_Backend"
+
+[tool.pytest.ini_options]
+minversion = "7.0"
+testpaths = ["tests", "python"]
+python_files = ["test_*.py"]
+markers = [
+    "slow: slow tests (batch simulations, etc.)",
+    "regression: regression tests against known-good output",
+    "gui: tests requiring Qt GUI (use QT_QPA_PLATFORM=offscreen)",
+]
+filterwarnings = ["ignore::DeprecationWarning"]
