@@ -32,7 +32,7 @@ jobs:
             qt_dir_suffix: mingw64
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Cache Qt (Linux)
         if: runner.os == 'Linux'
