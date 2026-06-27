@@ -58,6 +58,8 @@
             "binaryDir": "${sourceDir}/build",
             "generator": "MSYS Makefiles",
             "cacheVariables": {
+                "CMAKE_C_COMPILER_LAUNCHER": "",
+                "CMAKE_CXX_COMPILER_LAUNCHER": "",
                 "BUILD_TESTING": "ON",
                 "VIOSPICE_BUILD_FLUXSCRIPT": "ON",
                 "SLANG_USE_MIMALLOC": "OFF"
