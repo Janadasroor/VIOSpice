@@ -386,6 +386,7 @@ jobs:
           sudo apt update
           sudo apt install -y \
             build-essential cmake \
+            clang-21 \
             libcurl4-openssl-dev \
             libgl1-mesa-dev \
             libpulse-dev \
