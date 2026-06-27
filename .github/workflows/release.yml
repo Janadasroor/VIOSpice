@@ -402,6 +402,7 @@ jobs:
 
       - name: Build AppImage (Linux)
         if: runner.os == 'Linux'
+        continue-on-error: true
         run: |
           # Download AppImage tools at build time
           wget -q https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage -O /tmp/linuxdeploy
