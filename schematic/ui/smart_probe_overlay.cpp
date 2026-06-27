@@ -14,8 +14,9 @@
 SmartProbeOverlay::SmartProbeOverlay(QWidget* parent) : QWidget(parent) {
     setAttribute(Qt::WA_TransparentForMouseEvents);
     setFixedSize(320, 180);
-    setWindowFlags(Qt::FramelessWindowHint | Qt::ToolTip);
+    setWindowFlags(Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint);
     setAttribute(Qt::WA_TranslucentBackground);
+    setAttribute(Qt::WA_ShowWithoutActivating);
 
     QVBoxLayout* layout = new QVBoxLayout(this);
     layout->setContentsMargins(15, 12, 15, 12);
