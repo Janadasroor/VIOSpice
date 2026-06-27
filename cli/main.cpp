@@ -2889,8 +2889,81 @@ bool runGui(const QStringList& rawArgs, const QCommandLineParser& parser) {
         return true;
     }
 
+    // --- key ---
+    if (subcmd == "key") {
+        if (rawArgs.size() < 4) {
+            std::cerr << "Usage: viora gui key <shortcut> [--window <name>]" << std::endl;
+            std::cerr << "Examples: Ctrl+S, F8, Escape, Ctrl+Shift+K" << std::endl;
+            return false;
+        }
+        QString shortcut = rawArgs.at(3);
+
+        QVariantMap cmd;
+        cmd["cmd"] = "gui_press_key";
+        QVariantMap params;
+        params["window"] = window;
+        params["key"] = shortcut;
+        cmd["params"] = params;
+
+        QVariantMap response;
+        if (!sendGuiCommand(cmd, response)) {
+            std::cerr << "Error: Cannot connect to running VioSpice instance (port 18790)" << std::endl;
+            return false;
+        }
+
+        if (jsonOutput) {
+            std::cout << QJsonDocument::fromVariant(response).toJson(QJsonDocument::Compact).toStdString() << std::endl;
+            return response.value("ok").toBool();
+        }
+
+        if (!response.value("ok").toBool()) {
+            std::cerr << "Error: " << response.value("error").toString().toStdString() << std::endl;
+            return false;
+        }
+
+        std::cout << "Pressed: " << response.value("shortcut").toString().toStdString()
+                  << " on " << response.value("target").toString().toStdString() << std::endl;
+        return true;
+    }
+
+    // --- tab ---
+    if (subcmd == "tab") {
+        if (rawArgs.size() < 4) {
+            std::cerr << "Usage: viora gui tab <tab-name> [--window <name>]" << std::endl;
+            return false;
+        }
+        QString tabName = rawArgs.at(3);
+
+        QVariantMap cmd;
+        cmd["cmd"] = "gui_switch_tab";
+        QVariantMap params;
+        params["window"] = window;
+        params["tab"] = tabName;
+        cmd["params"] = params;
+
+        QVariantMap response;
+        if (!sendGuiCommand(cmd, response)) {
+            std::cerr << "Error: Cannot connect to running VioSpice instance (port 18790)" << std::endl;
+            return false;
+        }
+
+        if (jsonOutput) {
+            std::cout << QJsonDocument::fromVariant(response).toJson(QJsonDocument::Compact).toStdString() << std::endl;
+            return response.value("ok").toBool();
+        }
+
+        if (!response.value("ok").toBool()) {
+            std::cerr << "Error: " << response.value("error").toString().toStdString() << std::endl;
+            return false;
+        }
+
+        std::cout << "Switched to tab: " << response.value("tab").toString().toStdString()
+                  << " (index " << response.value("index").toInt() << ")" << std::endl;
+        return true;
+    }
+
     std::cerr << "Unknown gui subcommand: " << subcmd.toStdString() << std::endl;
-    std::cerr << "Available subcommands: list-buttons, click, type, menu" << std::endl;
+    std::cerr << "Available subcommands: list-buttons, click, type, menu, key, tab" << std::endl;
     return false;
 }
 
@@ -6325,6 +6398,8 @@ static void printCommandHelp(const QString& command) {
         std::cout << "  click <label-or-name>         Click a button or trigger an action\n";
         std::cout << "  type <field> <text>           Type text into an input field\n";
         std::cout << "  menu <action-text>            Trigger a menu action\n";
+        std::cout << "  key <shortcut>                Send a keyboard shortcut\n";
+        std::cout << "  tab <tab-name>                Switch to a tab by name\n";
         std::cout << "\n";
         std::cout << "Options:\n";
         std::cout << "  --window <name>    Target window (default: SchematicEditor)\n";
@@ -6339,6 +6414,8 @@ static void printCommandHelp(const QString& command) {
         std::cout << "  viora gui click \"Run Simulation\"                       Click a button\n";
         std::cout << "  viora gui menu \"Export as PDF\"                          Trigger menu action\n";
         std::cout << "  viora gui type ProjectSearch \"my project\"              Type in search field\n";
+        std::cout << "  viora gui key Ctrl+S                                   Send keyboard shortcut\n";
+        std::cout << "  viora gui key F8                                       Press F8 key\n";
         return;
     }
     if (command == "generate-report") {

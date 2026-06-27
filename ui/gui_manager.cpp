@@ -15,6 +15,8 @@
 #include <QLineEdit>
 #include <QTextEdit>
 #include <QMouseEvent>
+#include <QKeyEvent>
+#include <QTabBar>
 #include <QToolBar>
 
 GuiManager& GuiManager::instance() {
@@ -339,5 +341,162 @@ QVariantMap GuiManager::triggerMenuAction(const QString& windowName, const QStri
     }
 
     resp["error"] = QString("Menu action not found: %1").arg(actionText);
+    return resp;
+}
+
+// ============================================================================
+// Press key / keyboard shortcut
+// ============================================================================
+
+QVariantMap GuiManager::pressKey(const QString& windowName, const QString& shortcut) {
+    QVariantMap resp;
+    resp["ok"] = false;
+
+    QWidget* window = findWindow(windowName);
+    if (!window) {
+        resp["error"] = QString("Window not found: %1").arg(windowName);
+        return resp;
+    }
+
+    QWidget* focusWidget = window->focusWidget();
+    if (!focusWidget) focusWidget = window;
+
+    Qt::KeyboardModifiers mods = Qt::NoModifier;
+    QString keyStr = shortcut;
+
+    // Parse modifier keys
+    while (true) {
+        if (keyStr.startsWith("Ctrl+", Qt::CaseInsensitive)) {
+            mods |= Qt::ControlModifier;
+            keyStr = keyStr.mid(5);
+        } else if (keyStr.startsWith("Alt+", Qt::CaseInsensitive)) {
+            mods |= Qt::AltModifier;
+            keyStr = keyStr.mid(4);
+        } else if (keyStr.startsWith("Shift+", Qt::CaseInsensitive)) {
+            mods |= Qt::ShiftModifier;
+            keyStr = keyStr.mid(6);
+        } else if (keyStr.startsWith("Meta+", Qt::CaseInsensitive)) {
+            mods |= Qt::MetaModifier;
+            keyStr = keyStr.mid(5);
+        } else {
+            break;
+        }
+    }
+
+    // Map key string to Qt::Key
+    int key = 0;
+    if (keyStr.length() == 1) {
+        key = keyStr.at(0).toUpper().unicode();
+    } else if (keyStr == "Escape") {
+        key = Qt::Key_Escape;
+    } else if (keyStr == "Return" || keyStr == "Enter") {
+        key = Qt::Key_Return;
+    } else if (keyStr == "Tab") {
+        key = Qt::Key_Tab;
+    } else if (keyStr == "Backspace") {
+        key = Qt::Key_Backspace;
+    } else if (keyStr == "Delete") {
+        key = Qt::Key_Delete;
+    } else if (keyStr == "Space") {
+        key = Qt::Key_Space;
+    } else if (keyStr == "Up") {
+        key = Qt::Key_Up;
+    } else if (keyStr == "Down") {
+        key = Qt::Key_Down;
+    } else if (keyStr == "Left") {
+        key = Qt::Key_Left;
+    } else if (keyStr == "Right") {
+        key = Qt::Key_Right;
+    } else if (keyStr == "Home") {
+        key = Qt::Key_Home;
+    } else if (keyStr == "End") {
+        key = Qt::Key_End;
+    } else if (keyStr == "PageUp") {
+        key = Qt::Key_PageUp;
+    } else if (keyStr == "PageDown") {
+        key = Qt::Key_PageDown;
+    } else if (keyStr == "F1") {
+        key = Qt::Key_F1;
+    } else if (keyStr == "F2") {
+        key = Qt::Key_F2;
+    } else if (keyStr == "F3") {
+        key = Qt::Key_F3;
+    } else if (keyStr == "F4") {
+        key = Qt::Key_F4;
+    } else if (keyStr == "F5") {
+        key = Qt::Key_F5;
+    } else if (keyStr == "F6") {
+        key = Qt::Key_F6;
+    } else if (keyStr == "F7") {
+        key = Qt::Key_F7;
+    } else if (keyStr == "F8") {
+        key = Qt::Key_F8;
+    } else if (keyStr == "F9") {
+        key = Qt::Key_F9;
+    } else if (keyStr == "F10") {
+        key = Qt::Key_F10;
+    } else if (keyStr == "F11") {
+        key = Qt::Key_F11;
+    } else if (keyStr == "F12") {
+        key = Qt::Key_F12;
+    } else {
+        resp["error"] = QString("Unknown key: %1").arg(shortcut);
+        return resp;
+    }
+
+    QKeyEvent pressEvent(QEvent::KeyPress, key, mods);
+    QApplication::sendEvent(focusWidget, &pressEvent);
+
+    QKeyEvent releaseEvent(QEvent::KeyRelease, key, mods);
+    QApplication::sendEvent(focusWidget, &releaseEvent);
+
+    // Also send to tab bars if it's a tab-switching shortcut
+    if (mods == Qt::ControlModifier && (key == Qt::Key_PageUp || key == Qt::Key_PageDown || key == Qt::Key_Tab)) {
+        for (QTabBar* tabBar : window->findChildren<QTabBar*>()) {
+            if (tabBar->isVisible()) {
+                QKeyEvent tabPress(QEvent::KeyPress, key, mods);
+                QApplication::sendEvent(tabBar, &tabPress);
+                QKeyEvent tabRelease(QEvent::KeyRelease, key, mods);
+                QApplication::sendEvent(tabBar, &tabRelease);
+            }
+        }
+    }
+
+    resp["ok"] = true;
+    resp["shortcut"] = shortcut;
+    resp["target"] = focusWidget->metaObject()->className();
+    return resp;
+}
+
+// ============================================================================
+// Switch tab by name
+// ============================================================================
+
+QVariantMap GuiManager::switchTab(const QString& windowName, const QString& tabName) {
+    QVariantMap resp;
+    resp["ok"] = false;
+
+    QWidget* window = findWindow(windowName);
+    if (!window) {
+        resp["error"] = QString("Window not found: %1").arg(windowName);
+        return resp;
+    }
+
+    // Find QTabBar or QMainWindowTabBar
+    for (QTabBar* tabBar : window->findChildren<QTabBar*>()) {
+        for (int i = 0; i < tabBar->count(); ++i) {
+            QString tabText = tabBar->tabText(i);
+            if (tabText.contains(tabName, Qt::CaseInsensitive) ||
+                tabBar->tabToolTip(i).contains(tabName, Qt::CaseInsensitive)) {
+                tabBar->setCurrentIndex(i);
+                resp["ok"] = true;
+                resp["tab"] = tabText;
+                resp["index"] = i;
+                return resp;
+            }
+        }
+    }
+
+    resp["error"] = QString("Tab not found: %1").arg(tabName);
     return resp;
 }
