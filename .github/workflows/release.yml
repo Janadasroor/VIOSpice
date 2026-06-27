@@ -130,7 +130,7 @@ jobs:
       - name: Install system deps (macOS)
         if: runner.os == 'macOS'
         run: |
-          brew install cmake curl python@3.12
+          brew install cmake curl python@3.12 ccache
 
       - name: Setup ccache (Linux)
         if: runner.os == 'Linux'
@@ -426,6 +426,7 @@ jobs:
           cp resources/icons/logo_viospice.png AppDir/
 
           # Run linuxdeploy with Qt plugin
+          QMAKE="${{ runner.temp }}/Qt/6.10.0/gcc_64/bin/qmake" \
           /tmp/linuxdeploy --appdir AppDir --output appimage \
             --plugin qt \
             --desktop-file AppDir/viospice.desktop \
