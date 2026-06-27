@@ -116,6 +116,7 @@ jobs:
             libcurl4-openssl-dev \
             libgl1-mesa-dev \
             libpulse-dev \
+            libxkbcommon-x11-0 \
             llvm-21-dev \
             python3 python3-dev \
             ngspice
