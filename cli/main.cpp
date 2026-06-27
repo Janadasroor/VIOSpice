@@ -3149,8 +3149,57 @@ bool runGui(const QStringList& rawArgs, const QCommandLineParser& parser) {
         return true;
     }
 
+    // --- scroll ---
+    if (subcmd == "scroll") {
+        if (rawArgs.size() < 6) {
+            std::cerr << "Usage: viora gui scroll <x> <y> <deltaY> [--window <name>] [--deltaX <n>]" << std::endl;
+            std::cerr << "Simulates mouse scroll wheel at (x,y)." << std::endl;
+            std::cerr << "deltaY > 0 = scroll up (zoom in), deltaY < 0 = scroll down (zoom out)" << std::endl;
+            return false;
+        }
+        int x = rawArgs.at(3).toInt();
+        int y = rawArgs.at(4).toInt();
+        int deltaY = rawArgs.at(5).toInt();
+        int deltaX = 0;
+        for (int i = 6; i < rawArgs.size(); ++i) {
+            if (rawArgs.at(i) == "--deltaX" && i + 1 < rawArgs.size())
+                deltaX = rawArgs.at(++i).toInt();
+        }
+
+        QVariantMap cmd;
+        cmd["cmd"] = "gui_scroll";
+        QVariantMap params;
+        params["window"] = window;
+        params["x"] = x;
+        params["y"] = y;
+        params["deltaY"] = deltaY;
+        params["deltaX"] = deltaX;
+        cmd["params"] = params;
+
+        QVariantMap response;
+        if (!sendGuiCommand(cmd, response)) {
+            std::cerr << "Error: Cannot connect to running VioSpice instance (port 18790)" << std::endl;
+            return false;
+        }
+
+        if (jsonOutput) {
+            std::cout << QJsonDocument::fromVariant(response).toJson(QJsonDocument::Compact).toStdString() << std::endl;
+            return response.value("ok").toBool();
+        }
+
+        if (!response.value("ok").toBool()) {
+            std::cerr << "Error: " << response.value("error").toString().toStdString() << std::endl;
+            return false;
+        }
+
+        std::cout << "Scrolled at " << response.value("pos").toString().toStdString()
+                  << " delta=" << response.value("delta").toString().toStdString()
+                  << " on " << response.value("target").toString().toStdString() << std::endl;
+        return true;
+    }
+
     std::cerr << "Unknown gui subcommand: " << subcmd.toStdString() << std::endl;
-    std::cerr << "Available subcommands: list-buttons, click, type, menu, key, tab, wait, run, drag" << std::endl;
+    std::cerr << "Available subcommands: list-buttons, click, type, menu, key, tab, wait, run, drag, scroll" << std::endl;
     return false;
 }
 
@@ -6590,6 +6639,7 @@ static void printCommandHelp(const QString& command) {
         std::cout << "  wait <ms>                     Wait for milliseconds\n";
         std::cout << "  run --step \"<cmd>\" ...         Run multiple steps sequentially\n";
         std::cout << "  drag <x1> <y1> <x2> <y2>     Simulate mouse drag\n";
+        std::cout << "  scroll <x> <y> <deltaY>       Simulate scroll wheel\n";
         std::cout << "\n";
         std::cout << "Options:\n";
         std::cout << "  --window <name>    Target window (default: SchematicEditor)\n";

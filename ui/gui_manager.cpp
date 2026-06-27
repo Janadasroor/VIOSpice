@@ -20,6 +20,7 @@
 #include <QTabBar>
 #include <QThread>
 #include <QToolBar>
+#include <QWheelEvent>
 
 GuiManager& GuiManager::instance() {
     static GuiManager s_instance;
@@ -620,6 +621,42 @@ QVariantMap GuiManager::drag(const QString& windowName, int x1, int y1, int x2, 
     resp["ok"] = true;
     resp["from"] = QString("%1,%2").arg(x1).arg(y1);
     resp["to"] = QString("%1,%2").arg(x2).arg(y2);
+    resp["target"] = target->metaObject()->className();
+    return resp;
+}
+
+// ============================================================================
+// Scroll wheel simulation
+// ============================================================================
+
+QVariantMap GuiManager::scroll(const QString& windowName, int x, int y, int deltaY, int deltaX) {
+    QVariantMap resp;
+    resp["ok"] = false;
+
+    QWidget* window = findWindow(windowName);
+    if (!window) {
+        resp["error"] = QString("Window not found: %1").arg(windowName);
+        return resp;
+    }
+
+    QWidget* target = window->focusWidget();
+    if (!target) target = window;
+
+    QPoint pos(x, y);
+
+    // Convert global coords to local if needed
+    if (window->windowFlags() & Qt::Window) {
+        pos = window->mapFromGlobal(pos);
+    }
+
+    // Send wheel event
+    QWheelEvent wheelEvent(pos, pos, QPoint(deltaX, deltaY), QPoint(deltaX, deltaY),
+                           Qt::NoButton, Qt::NoModifier, Qt::NoScrollPhase, false);
+    QApplication::sendEvent(target, &wheelEvent);
+
+    resp["ok"] = true;
+    resp["pos"] = QString("%1,%2").arg(x).arg(y);
+    resp["delta"] = QString("%1,%2").arg(deltaX).arg(deltaY);
     resp["target"] = target->metaObject()->className();
     return resp;
 }
