@@ -150,7 +150,10 @@ endfunction()
 function(vioraeda_add_test name)
     cmake_parse_arguments(ARG "" "" "SOURCES;LINK_LIBS" ${ARGN})
     add_executable(${name} ${ARG_SOURCES})
-    set_target_properties(${name} PROPERTIES AUTOMOC ON)
+    set_target_properties(${name} PROPERTIES
+        AUTOMOC ON
+        RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}"
+    )
     target_include_directories(${name} PRIVATE ${VIORAEDA_COMMON_INCLUDE_DIRS})
     target_link_libraries(${name} PRIVATE ${ARG_LINK_LIBS} Qt${QT_VERSION_MAJOR}::Test)
     vioraeda_setup_rpath(${name})
