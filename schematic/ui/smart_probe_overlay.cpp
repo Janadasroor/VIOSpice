@@ -94,16 +94,20 @@ void SmartProbeOverlay::showAt(const QPoint& pos, const QString& netName, const 
     // Stop any running fade-out animation
     m_fadeAnimation->stop();
     
-    // Clamp position to screen bounds
-    QPoint clampedPos = pos;
-    QScreen* screen = QGuiApplication::screenAt(pos);
-    if (screen) {
-        QRect screenRect = screen->availableGeometry();
-        clampedPos.setX(qBound(screenRect.left(), clampedPos.x(), screenRect.right() - width()));
-        clampedPos.setY(qBound(screenRect.top(), clampedPos.y(), screenRect.bottom() - height()));
+    // Convert global coordinates to parent-relative coordinates
+    QPoint localPos = pos;
+    if (parentWidget()) {
+        localPos = parentWidget()->mapFromGlobal(pos);
     }
     
-    move(clampedPos);
+    // Clamp to parent bounds
+    if (parentWidget()) {
+        QRect parentRect = parentWidget()->rect();
+        localPos.setX(qBound(0, localPos.x(), parentRect.width() - width()));
+        localPos.setY(qBound(0, localPos.y(), parentRect.height() - height()));
+    }
+    
+    move(localPos);
     show(); // show() before animation starts so it's visible while fading in
     
     m_fadeAnimation->setStartValue(m_opacity);
@@ -112,14 +116,14 @@ void SmartProbeOverlay::showAt(const QPoint& pos, const QString& netName, const 
 }
 
 void SmartProbeOverlay::moveClipped(const QPoint& pos) {
-    QPoint clampedPos = pos;
-    QScreen* screen = QGuiApplication::screenAt(pos);
-    if (screen) {
-        QRect screenRect = screen->availableGeometry();
-        clampedPos.setX(qBound(screenRect.left(), clampedPos.x(), screenRect.right() - width()));
-        clampedPos.setY(qBound(screenRect.top(), clampedPos.y(), screenRect.bottom() - height()));
+    QPoint localPos = pos;
+    if (parentWidget()) {
+        localPos = parentWidget()->mapFromGlobal(pos);
+        QRect parentRect = parentWidget()->rect();
+        localPos.setX(qBound(0, localPos.x(), parentRect.width() - width()));
+        localPos.setY(qBound(0, localPos.y(), parentRect.height() - height()));
     }
-    move(clampedPos);
+    move(localPos);
 }
 
 void SmartProbeOverlay::updateAIAnnotation(const QString& text) {
