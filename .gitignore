@@ -7,6 +7,10 @@ build-asan/
 build-tsan/
 build-appimage/
 AppDir/
+# AppImage tooling — download at build time
+linuxdeploy
+linuxdeploy-plugin-qt
+appimagetool
 CMakeFiles/
 CMakeCache.txt
 cmake_install.cmake
