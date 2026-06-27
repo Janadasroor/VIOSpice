@@ -16,6 +16,7 @@
 #include <QTextEdit>
 #include <QMouseEvent>
 #include <QKeyEvent>
+#include <QLabel>
 #include <QTabBar>
 #include <QToolBar>
 
@@ -528,5 +529,40 @@ QVariantMap GuiManager::switchTab(const QString& windowName, const QString& tabN
     }
 
     resp["error"] = QString("Tab not found: %1").arg(tabName);
+    return resp;
+}
+
+// ============================================================================
+// Get text content from widgets
+// ============================================================================
+
+QVariantMap GuiManager::getText(const QString& windowName, const QString& widgetName) {
+    QVariantMap resp;
+    resp["ok"] = false;
+
+    QWidget* window = findWindow(windowName);
+    if (!window) {
+        resp["error"] = QString("Window not found: %1").arg(windowName);
+        return resp;
+    }
+
+    QVariantList texts;
+
+    // Get all QLabels
+    for (QLabel* label : window->findChildren<QLabel*>()) {
+        if (!label->isVisible()) continue;
+        if (!widgetName.isEmpty() && !fuzzyMatch(label->objectName(), widgetName) &&
+            !fuzzyMatch(label->text(), widgetName))
+            continue;
+
+        QVariantMap item;
+        item["type"] = "QLabel";
+        item["objectName"] = label->objectName();
+        item["text"] = label->text();
+        texts.append(item);
+    }
+
+    resp["ok"] = true;
+    resp["widgets"] = texts;
     return resp;
 }
