@@ -602,6 +602,9 @@ set(UI_SOURCES
     core/ui/color_button.h
     core/ui/text_properties_dialog.cpp
     core/ui/text_properties_dialog.h
+
+    ui/screenshot_manager.cpp
+    ui/screenshot_manager.h
 )
 
 # =============================================================================
