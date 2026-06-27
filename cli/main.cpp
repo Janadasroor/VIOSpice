@@ -2692,6 +2692,209 @@ static bool sendWebSocketCommand(const QString& host, int port, const QVariantMa
 }
 
 // ============================================================================
+// GUI remote control: interact with running GUI widgets
+// ============================================================================
+static bool sendGuiCommand(const QVariantMap& cmd, QVariantMap& response) {
+    return sendWebSocketCommand("127.0.0.1", 18790, cmd, response);
+}
+
+bool runGui(const QStringList& rawArgs, const QCommandLineParser& parser) {
+    if (rawArgs.size() < 3) {
+        std::cerr << "Usage: viora gui <subcommand> [options]\n";
+        std::cerr << "\nSubcommands:\n";
+        std::cerr << "  list-buttons   List interactive elements in a window\n";
+        std::cerr << "  click <target> Click a button or trigger an action\n";
+        std::cerr << "  type <field> <text>  Type text into an input field\n";
+        std::cerr << "  menu <action>  Trigger a menu action\n";
+        return false;
+    }
+
+    QString subcmd = rawArgs.at(2);
+    bool jsonOutput = parser.isSet("json");
+
+    // --- Parse --window option ---
+    QString window;
+    for (int i = 3; i < rawArgs.size(); ++i) {
+        if (rawArgs.at(i) == "--window" && i + 1 < rawArgs.size()) {
+            window = rawArgs.at(++i);
+        }
+    }
+    if (window.isEmpty()) {
+        // Default to first visible top-level window
+        window = "SchematicEditor";
+    }
+
+    // --- list-buttons ---
+    if (subcmd == "list-buttons") {
+        QString filterType;
+        QString filterParent;
+        for (int i = 3; i < rawArgs.size(); ++i) {
+            if (rawArgs.at(i) == "--type" && i + 1 < rawArgs.size())
+                filterType = rawArgs.at(++i);
+            else if (rawArgs.at(i) == "--parent" && i + 1 < rawArgs.size())
+                filterParent = rawArgs.at(++i);
+            else if (rawArgs.at(i) == "--window" && i + 1 < rawArgs.size())
+                ++i;
+        }
+
+        QVariantMap cmd;
+        cmd["cmd"] = "gui_list_elements";
+        QVariantMap params;
+        params["window"] = window;
+        if (!filterType.isEmpty()) params["type"] = filterType;
+        if (!filterParent.isEmpty()) params["parent"] = filterParent;
+        cmd["params"] = params;
+
+        QVariantMap response;
+        if (!sendGuiCommand(cmd, response)) {
+            std::cerr << "Error: Cannot connect to running VioSpice instance (port 18790)" << std::endl;
+            return false;
+        }
+
+        if (jsonOutput) {
+            std::cout << QJsonDocument::fromVariant(response).toJson(QJsonDocument::Compact).toStdString() << std::endl;
+            return true;
+        }
+
+        QJsonArray elements = response["elements"].toJsonArray();
+        if (elements.isEmpty()) {
+            std::cout << "No interactive elements found in " << window.toStdString() << std::endl;
+            return true;
+        }
+
+        std::cout << "Interactive elements in " << window.toStdString() << ":" << std::endl;
+        for (const auto& e : elements) {
+            QJsonObject obj = e.toObject();
+            std::cout << "  [" << obj["type"].toString().toStdString() << "] "
+                      << obj["label"].toString().toStdString();
+            if (!obj["objectName"].toString().isEmpty())
+                std::cout << " (" << obj["objectName"].toString().toStdString() << ")";
+            if (!obj["parentName"].toString().isEmpty())
+                std::cout << " in " << obj["parentName"].toString().toStdString();
+            std::cout << std::endl;
+        }
+        return true;
+    }
+
+    // --- click ---
+    if (subcmd == "click") {
+        if (rawArgs.size() < 4) {
+            std::cerr << "Usage: viora gui click <label-or-name> [--window <name>]" << std::endl;
+            return false;
+        }
+        QString target = rawArgs.at(3);
+
+        QVariantMap cmd;
+        cmd["cmd"] = "gui_click";
+        QVariantMap params;
+        params["window"] = window;
+        params["target"] = target;
+        cmd["params"] = params;
+
+        QVariantMap response;
+        if (!sendGuiCommand(cmd, response)) {
+            std::cerr << "Error: Cannot connect to running VioSpice instance (port 18790)" << std::endl;
+            return false;
+        }
+
+        if (jsonOutput) {
+            std::cout << QJsonDocument::fromVariant(response).toJson(QJsonDocument::Compact).toStdString() << std::endl;
+            return response.value("ok").toBool();
+        }
+
+        if (!response.value("ok").toBool()) {
+            std::cerr << "Error: " << response.value("error").toString().toStdString() << std::endl;
+            return false;
+        }
+
+        std::cout << "Clicked: " << response.value("label").toString().toStdString()
+                  << " (" << response.value("type").toString().toStdString() << ")" << std::endl;
+        return true;
+    }
+
+    // --- type ---
+    if (subcmd == "type") {
+        if (rawArgs.size() < 5) {
+            std::cerr << "Usage: viora gui type <field-name> <text> [--window <name>] [--append]" << std::endl;
+            return false;
+        }
+        QString fieldName = rawArgs.at(3);
+        QString text = rawArgs.at(4);
+        bool append = false;
+        for (int i = 5; i < rawArgs.size(); ++i) {
+            if (rawArgs.at(i) == "--append") append = true;
+        }
+
+        QVariantMap cmd;
+        cmd["cmd"] = "gui_type";
+        QVariantMap params;
+        params["window"] = window;
+        params["target"] = fieldName;
+        params["text"] = text;
+        params["append"] = append;
+        cmd["params"] = params;
+
+        QVariantMap response;
+        if (!sendGuiCommand(cmd, response)) {
+            std::cerr << "Error: Cannot connect to running VioSpice instance (port 18790)" << std::endl;
+            return false;
+        }
+
+        if (jsonOutput) {
+            std::cout << QJsonDocument::fromVariant(response).toJson(QJsonDocument::Compact).toStdString() << std::endl;
+            return response.value("ok").toBool();
+        }
+
+        if (!response.value("ok").toBool()) {
+            std::cerr << "Error: " << response.value("error").toString().toStdString() << std::endl;
+            return false;
+        }
+
+        std::cout << "Typed into: " << response.value("field").toString().toStdString() << std::endl;
+        return true;
+    }
+
+    // --- menu ---
+    if (subcmd == "menu") {
+        if (rawArgs.size() < 4) {
+            std::cerr << "Usage: viora gui menu <action-text> [--window <name>]" << std::endl;
+            return false;
+        }
+        QString actionText = rawArgs.at(3);
+
+        QVariantMap cmd;
+        cmd["cmd"] = "gui_menu";
+        QVariantMap params;
+        params["window"] = window;
+        params["action"] = actionText;
+        cmd["params"] = params;
+
+        QVariantMap response;
+        if (!sendGuiCommand(cmd, response)) {
+            std::cerr << "Error: Cannot connect to running VioSpice instance (port 18790)" << std::endl;
+            return false;
+        }
+
+        if (jsonOutput) {
+            std::cout << QJsonDocument::fromVariant(response).toJson(QJsonDocument::Compact).toStdString() << std::endl;
+            return response.value("ok").toBool();
+        }
+
+        if (!response.value("ok").toBool()) {
+            std::cerr << "Error: " << response.value("error").toString().toStdString() << std::endl;
+            return false;
+        }
+
+        std::cout << "Triggered: " << response.value("action").toString().toStdString() << std::endl;
+        return true;
+    }
+
+    std::cerr << "Unknown gui subcommand: " << subcmd.toStdString() << std::endl;
+    std::cerr << "Available subcommands: list-buttons, click, type, menu" << std::endl;
+    return false;
+}
+
+// ============================================================================
 // Screenshot command: captures any widget via UICommandServer
 // ============================================================================
 bool runScreenshot(const QStringList& rawArgs, const QCommandLineParser& parser) {
@@ -6006,6 +6209,7 @@ static void printGeneralHelp() {
     std::cout << "  library-to-symbols <input_path> <out_dir> [--recursive]\n";
     std::cout << "  library-auto-convert <input_path> <out_dir> [--mapping <mapping.json>] [--recursive]\n";
     std::cout << "  screenshot [--name <name>] [--output <file.png>]\n";
+    std::cout << "  gui <subcommand> [<args>]\n";
     std::cout << "\nTips:\n";
     std::cout << "  Use \"viora help <command>\" for command-specific help.\n";
     std::cout << "  Use --json for machine-readable output.\n";
@@ -6108,6 +6312,33 @@ static void printCommandHelp(const QString& command) {
         std::cout << "  viora screenshot --name SchematicEditor --list-children     List dock panels\n";
         std::cout << "  viora screenshot --name Oscilloscope --include-hidden      Find hidden docks\n";
         std::cout << "  viora screenshot --watch --name Schematic --interval 500 --output-dir /tmp/frames\n";
+        return;
+    }
+    if (command == "gui") {
+        std::cout << "gui <subcommand> [options]\n";
+        std::cout << "\n";
+        std::cout << "Control the running VioSpice GUI remotely.\n";
+        std::cout << "Requires a running VioSpice GUI instance.\n";
+        std::cout << "\n";
+        std::cout << "Subcommands:\n";
+        std::cout << "  list-buttons                  List interactive elements\n";
+        std::cout << "  click <label-or-name>         Click a button or trigger an action\n";
+        std::cout << "  type <field> <text>           Type text into an input field\n";
+        std::cout << "  menu <action-text>            Trigger a menu action\n";
+        std::cout << "\n";
+        std::cout << "Options:\n";
+        std::cout << "  --window <name>    Target window (default: SchematicEditor)\n";
+        std::cout << "  --type <type>      Filter by widget type (QPushButton, QToolButton, QAction, QLineEdit)\n";
+        std::cout << "  --parent <name>    Filter by parent toolbar/objectName\n";
+        std::cout << "  --append           Append text instead of replacing (for 'type')\n";
+        std::cout << "  --json             Machine-readable output\n";
+        std::cout << "\n";
+        std::cout << "Examples:\n";
+        std::cout << "  viora gui list-buttons                                  List all buttons\n";
+        std::cout << "  viora gui list-buttons --type QToolButton --parent MainToolbar\n";
+        std::cout << "  viora gui click \"Run Simulation\"                       Click a button\n";
+        std::cout << "  viora gui menu \"Export as PDF\"                          Trigger menu action\n";
+        std::cout << "  viora gui type ProjectSearch \"my project\"              Type in search field\n";
         return;
     }
     if (command == "generate-report") {
@@ -6365,6 +6596,7 @@ int main(int argc, char *argv[]) {
     QCommandLineOption intervalOption("interval", "Interval for --watch mode in ms", "ms", "1000");
     QCommandLineOption outputDirOption("output-dir", "Directory for --watch mode frames", "dir");
     QCommandLineOption regionOption("region", "Capture a specific region x,y,w,h", "region");
+    QCommandLineOption windowOption("window", "Target window name", "name", "SchematicEditor");
     QCommandLineOption shareTitleOption("share-title", "Share title", "stitle", "");
     QCommandLineOption shareDescOption("share-description", "Share description", "sdesc", "");
     QCommandLineOption shareUploadOption("upload", "Upload to server instead of URL (share)");
@@ -6432,9 +6664,10 @@ int main(int argc, char *argv[]) {
     parser.addOption(intervalOption);
     parser.addOption(outputDirOption);
     parser.addOption(regionOption);
+    parser.addOption(windowOption);
 
     // Positional arguments
-    parser.addPositionalArgument("command", "Command to run: drc, erc, simulate, netlist-run, netlist-validate, raw-info, raw-export, view, verilog-inspect, render, schematic-render, symbol-render, symbol-query, symbol-validate, symbol-list, symbol-export, symbol-import, library-index, schematic-query, schematic-netlist, schematic-bom, schematic-validate, schematic-diff, schematic-transform, schematic-probe, netlist-compare, generate-report, share, audit, autofix, process, python, plugins-smoke, plugin-pack, plugin-inspect, screenshot");
+    parser.addPositionalArgument("command", "Command to run: drc, erc, simulate, netlist-run, netlist-validate, raw-info, raw-export, view, verilog-inspect, render, schematic-render, symbol-render, symbol-query, symbol-validate, symbol-list, symbol-export, symbol-import, library-index, schematic-query, schematic-netlist, schematic-bom, schematic-validate, schematic-diff, schematic-transform, schematic-probe, netlist-compare, generate-report, share, audit, autofix, process, python, plugins-smoke, plugin-pack, plugin-inspect, screenshot, gui");
     parser.addPositionalArgument("file", "File to process (.pcb or .sch), except for plugins-smoke");
     parser.addPositionalArgument("script", "JSON script file for 'process' command", "");
 
@@ -6472,6 +6705,9 @@ int main(int argc, char *argv[]) {
         }
         if (command == "screenshot") {
             return runScreenshot(QCoreApplication::arguments(), parser) ? 0 : 1;
+        }
+        if (command == "gui") {
+            return runGui(QCoreApplication::arguments(), parser) ? 0 : 1;
         }
     }
 
