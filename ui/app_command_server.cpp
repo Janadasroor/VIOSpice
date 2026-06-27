@@ -5,6 +5,7 @@
 
 #include "app_command_server.h"
 #include "screenshot_manager.h"
+#include "gui_manager.h"
 
 #include <QDebug>
 #include <QAction>
@@ -419,6 +420,31 @@ QVariantMap UICommandServer::handleCommand(const QVariantMap& request) {
             childrenArray.append(c);
         response["ok"] = true;
         response["children"] = childrenArray;
+    }
+    else if (cmd == "gui_list_elements") {
+        QString window = params.value("window", "").toString();
+        QString filterType = params.value("type", "").toString();
+        QString filterParent = params.value("parent", "").toString();
+        QVariantList elements = GuiManager::instance().listElements(window, filterType, filterParent);
+        response["ok"] = true;
+        response["elements"] = elements;
+    }
+    else if (cmd == "gui_click") {
+        QString window = params.value("window", "").toString();
+        QString target = params.value("target", "").toString();
+        response = GuiManager::instance().clickButton(window, target);
+    }
+    else if (cmd == "gui_type") {
+        QString window = params.value("window", "").toString();
+        QString target = params.value("target", "").toString();
+        QString text = params.value("text", "").toString();
+        bool append = params.value("append", false).toBool();
+        response = GuiManager::instance().typeInField(window, target, text, append);
+    }
+    else if (cmd == "gui_menu") {
+        QString window = params.value("window", "").toString();
+        QString action = params.value("action", "").toString();
+        response = GuiManager::instance().triggerMenuAction(window, action);
     }
     else if (cmd == "ping") {
         response["ok"] = true;
