@@ -34,6 +34,8 @@ public:
     QVariantMap typeInField(const QString& windowName, const QString& objectName,
                             const QString& text, bool append = false);
     QVariantMap triggerMenuAction(const QString& windowName, const QString& actionText);
+    QVariantMap pressKey(const QString& windowName, const QString& shortcut);
+    QVariantMap switchTab(const QString& windowName, const QString& tabName);
 
 private:
     explicit GuiManager(QObject* parent = nullptr);
