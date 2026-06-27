@@ -428,11 +428,42 @@ jobs:
           cp linux/viospice.desktop AppDir/
           cp resources/icons/logo_viospice.png AppDir/
 
-          # Run linuxdeploy with Qt plugin (skip multimedia — needs libmimerapi)
-          QMAKE="${{ runner.temp }}/Qt/6.10.0/gcc_64/bin/qmake" \
-          LINUXDEPLOY_QT_SKIP_PLUGINS="multimedia" \
+          # Build AppImage (manual Qt bundle — qt plugin fails on CI missing deps)
+          export VERSION=${{ github.ref_name }}
+          QT_LIB="${{ runner.temp }}/Qt/6.10.0/gcc_64/lib"
+          mkdir -p AppDir/usr/plugins/platforms AppDir/usr/plugins/imageformats
+          cp "$QT_LIB"/libQt6Widgets.so.6 AppDir/usr/lib/
+          cp "$QT_LIB"/libQt6Core.so.6 AppDir/usr/lib/
+          cp "$QT_LIB"/libQt6Gui.so.6 AppDir/usr/lib/
+          cp "$QT_LIB"/libQt6Svg.so.6 AppDir/usr/lib/
+          cp "$QT_LIB"/libQt6Concurrent.so.6 AppDir/usr/lib/
+          cp "$QT_LIB"/libQt6Network.so.6 AppDir/usr/lib/
+          cp "$QT_LIB"/libQt6OpenGL.so.6 AppDir/usr/lib/
+          cp "$QT_LIB"/libQt6OpenGLWidgets.so.6 AppDir/usr/lib/
+          cp "$QT_LIB"/libQt6PrintSupport.so.6 AppDir/usr/lib/
+          cp "$QT_LIB"/libQt6Sql.so.6 AppDir/usr/lib/
+          cp "$QT_LIB"/libQt6Qml.so.6 AppDir/usr/lib/
+          cp "$QT_LIB"/libQt6Quick.so.6 AppDir/usr/lib/
+          cp "$QT_LIB"/libQt6QuickWidgets.so.6 AppDir/usr/lib/
+          cp "$QT_LIB"/libQt6QmlModels.so.6 AppDir/usr/lib/
+          cp "$QT_LIB"/libQt6WebSockets.so.6 AppDir/usr/lib/
+          cp "$QT_LIB"/libQt6Multimedia.so.6 AppDir/usr/lib/
+          cp "$QT_LIB"/libQt6Charts.so.6 AppDir/usr/lib/
+          # Qt platform plugins
+          for pdir in "${{ runner.temp }}/Qt/6.10.0/gcc_64/plugins" "${{ runner.temp }}/Qt/6.10.0/gcc_64/lib/qt6/plugins"; do
+            if [ -d "$pdir/platforms" ]; then
+              cp "$pdir/platforms/"*.so AppDir/usr/plugins/platforms/ 2>/dev/null || true
+              cp "$pdir/imageformats/"*.so AppDir/usr/plugins/imageformats/ 2>/dev/null || true
+              break
+            fi
+          done
+          # Create qt.conf
+          cat > AppDir/usr/bin/qt.conf << 'QTEOF'
+          [Paths]
+          Plugins = ../plugins
+          QTEOF
+
           /tmp/linuxdeploy --appdir AppDir --output appimage \
-            --plugin qt \
             --desktop-file AppDir/viospice.desktop \
             --icon-file AppDir/logo_viospice.png
 
