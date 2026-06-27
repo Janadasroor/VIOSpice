@@ -4,11 +4,14 @@
  */
 
 #include "app_command_server.h"
+#include "screenshot_manager.h"
 
 #include <QDebug>
 #include <QAction>
 #include <QMenuBar>
 #include <QMessageBox>
+#include <QJsonArray>
+#include <QJsonObject>
 
 UICommandServer::UICommandServer(QObject* parent)
     : QObject(parent)
@@ -311,6 +314,111 @@ QVariantMap UICommandServer::handleCommand(const QVariantMap& request) {
             response["has_schematic"] = false;
             response["message"] = "No schematic context available";
         }
+    }
+    else if (cmd == "screenshot_list") {
+        bool includeHidden = params.value("include_hidden", false).toBool();
+        QList<ScreenshotManager::WindowInfo> windows = ScreenshotManager::instance().listWindows(includeHidden);
+        QJsonArray windowArray;
+        for (const auto& w : windows) {
+            QJsonObject obj;
+            obj["class"] = w.className;
+            obj["title"] = w.windowTitle;
+            obj["objectName"] = w.objectName;
+            obj["index"] = w.index;
+            obj["visible"] = w.isVisible;
+            if (!w.childWidgets.isEmpty()) {
+                QJsonArray children;
+                for (const auto& c : w.childWidgets)
+                    children.append(c);
+                obj["children"] = children;
+            }
+            windowArray.append(obj);
+        }
+        response["ok"] = true;
+        response["windows"] = windowArray;
+    }
+    else if (cmd == "screenshot_capture") {
+        QString name = params.value("name", "").toString();
+        QString output = params.value("output", "").toString();
+        bool clipboard = params.value("clipboard", true).toBool();
+        qreal scale = params.value("scale", 1.0).toDouble();
+        QString format = params.value("format", "PNG").toString();
+        bool includeHidden = params.value("include_hidden", false).toBool();
+        QRect region;
+        if (params.contains("region")) {
+            QVariantList r = params.value("region").toList();
+            if (r.size() == 4)
+                region = QRect(r[0].toInt(), r[1].toInt(), r[2].toInt(), r[3].toInt());
+        }
+
+        CaptureOptions opts;
+        opts.format = format;
+        opts.scale = scale;
+        opts.clipboard = clipboard;
+        opts.region = region;
+        opts.includeHidden = includeHidden;
+
+        QPixmap pixmap = ScreenshotManager::instance().captureWindow(name, opts);
+        if (pixmap.isNull()) {
+            response["error"] = QString("Window not found: %1").arg(name);
+        } else {
+            if (output.isEmpty())
+                output = ScreenshotManager::generateFileName(name, format);
+            ScreenshotManager::instance().saveToFile(pixmap, output, format);
+            response["path"] = output;
+            if (clipboard) {
+                ScreenshotManager::instance().copyToClipboard(pixmap);
+            }
+            response["ok"] = true;
+            response["clipboard"] = clipboard;
+            response["width"] = pixmap.width();
+            response["height"] = pixmap.height();
+            response["format"] = format;
+        }
+    }
+    else if (cmd == "screenshot_all") {
+        QString outputDir = params.value("output_dir", "").toString();
+        bool clipboard = params.value("clipboard", false).toBool();
+        qreal scale = params.value("scale", 1.0).toDouble();
+        QString format = params.value("format", "PNG").toString();
+        bool includeHidden = params.value("include_hidden", false).toBool();
+
+        CaptureOptions opts;
+        opts.format = format;
+        opts.scale = scale;
+        opts.clipboard = clipboard;
+        opts.includeHidden = includeHidden;
+
+        auto results = ScreenshotManager::instance().captureAll(opts);
+        QJsonArray filesArray;
+
+        for (const auto& pair : results) {
+            const auto& info = pair.first;
+            const auto& pixmap = pair.second;
+
+            if (!outputDir.isEmpty()) {
+                QString fileName = ScreenshotManager::generateFileName(info.className, format);
+                QString fullPath = outputDir + "/" + fileName;
+                ScreenshotManager::instance().saveToFile(pixmap, fullPath, format);
+                filesArray.append(fullPath);
+            }
+            if (clipboard) {
+                ScreenshotManager::instance().copyToClipboard(pixmap);
+            }
+        }
+
+        response["ok"] = true;
+        response["count"] = results.size();
+        response["files"] = filesArray;
+    }
+    else if (cmd == "screenshot_children") {
+        QString parent = params.value("parent", "").toString();
+        QStringList children = ScreenshotManager::instance().listChildren(parent);
+        QJsonArray childrenArray;
+        for (const auto& c : children)
+            childrenArray.append(c);
+        response["ok"] = true;
+        response["children"] = childrenArray;
     }
     else if (cmd == "ping") {
         response["ok"] = true;

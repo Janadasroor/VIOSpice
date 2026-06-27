@@ -35,6 +35,9 @@
 #include "../utils/schematic_url_encoder.h"
 #include <QLoggingCategory>
 #include <QProcess>
+#include <QTcpSocket>
+#include <QVariantMap>
+#include <QRandomGenerator>
 #include "python/cpp/core/flux_script_manager.h"
 #include <QNetworkAccessManager>
 #include <QNetworkRequest>
@@ -2578,6 +2581,303 @@ bool runLibraryAutoConvert(const QStringList& args, const QCommandLineParser& pa
     }
 
     return filesProcessed > 0;
+}
+
+static bool sendWebSocketCommand(const QString& host, int port, const QVariantMap& cmd, QVariantMap& response) {
+    QTcpSocket socket;
+    socket.connectToHost(host, port);
+    if (!socket.waitForConnected(3000)) {
+        return false;
+    }
+
+    QByteArray payload = QJsonDocument::fromVariant(cmd).toJson(QJsonDocument::Compact);
+
+    QByteArray key(16, 0);
+    for (int i = 0; i < 16; ++i)
+        key[i] = static_cast<char>(QRandomGenerator::global()->generate() & 0xFF);
+    QByteArray keyBase64 = key.toBase64();
+
+    QByteArray hostBytes = host.toUtf8();
+    QByteArray request;
+    request.append("GET / HTTP/1.1\r\n");
+    request.append("Host: " + hostBytes + ":" + QByteArray::number(port) + "\r\n");
+    request.append("Upgrade: websocket\r\n");
+    request.append("Connection: Upgrade\r\n");
+    request.append("Sec-WebSocket-Key: " + keyBase64 + "\r\n");
+    request.append("Sec-WebSocket-Version: 13\r\n");
+    request.append("\r\n");
+
+    socket.write(request);
+    socket.waitForBytesWritten(1000);
+
+    if (!socket.waitForReadyRead(5000)) {
+        return false;
+    }
+
+    QByteArray handshakeResponse = socket.readAll();
+    if (!handshakeResponse.contains("101")) {
+        return false;
+    }
+
+    QByteArray frame;
+    frame.append(static_cast<char>(0x81));
+
+    int len = payload.size();
+    if (len <= 125) {
+        frame.append(static_cast<char>(0x80 | len));
+    } else if (len <= 65535) {
+        frame.append(static_cast<char>(0x80 | 126));
+        frame.append(static_cast<char>((len >> 8) & 0xFF));
+        frame.append(static_cast<char>(len & 0xFF));
+    } else {
+        frame.append(static_cast<char>(0x80 | 127));
+        for (int i = 7; i >= 0; --i)
+            frame.append(static_cast<char>((len >> (8 * i)) & 0xFF));
+    }
+
+    QByteArray maskKey(4, 0);
+    for (int i = 0; i < 4; ++i)
+        maskKey[i] = static_cast<char>(QRandomGenerator::global()->generate() & 0xFF);
+    frame.append(maskKey);
+
+    QByteArray maskedPayload = payload;
+    for (int i = 0; i < maskedPayload.size(); ++i)
+        maskedPayload[i] ^= maskKey[i % 4];
+    frame.append(maskedPayload);
+
+    socket.write(frame);
+    socket.waitForBytesWritten(1000);
+
+    if (!socket.waitForReadyRead(5000)) {
+        return false;
+    }
+
+    QByteArray rawData = socket.readAll();
+    int headerLen = 2;
+    if (rawData.size() < 2) return false;
+
+    int opcode = rawData[0] & 0x0F;
+    if (opcode == 0x08) return false;
+
+    quint64 payloadLen = rawData[1] & 0x7F;
+    int offset = 2;
+
+    if (payloadLen == 126) {
+        if (rawData.size() < 4) return false;
+        payloadLen = (static_cast<quint8>(rawData[2]) << 8) | static_cast<quint8>(rawData[3]);
+        offset = 4;
+    } else if (payloadLen == 127) {
+        if (rawData.size() < 10) return false;
+        payloadLen = 0;
+        for (int i = 0; i < 8; ++i)
+            payloadLen = (payloadLen << 8) | static_cast<quint8>(rawData[2 + i]);
+        offset = 10;
+    }
+
+    if (rawData.size() < offset + payloadLen) return false;
+    QByteArray responseData = rawData.mid(offset, payloadLen);
+
+    QJsonParseError parseError;
+    QJsonDocument doc = QJsonDocument::fromJson(responseData, &parseError);
+    if (parseError.error != QJsonParseError::NoError || !doc.isObject()) {
+        return false;
+    }
+    response = doc.toVariant().toMap();
+    return true;
+}
+
+bool runScreenshot(const QStringList& rawArgs, const QCommandLineParser& parser) {
+    QString name;
+    QString output;
+    qreal scale = 1.0;
+    bool clipboard = false;
+    bool jsonOutput = parser.isSet("json");
+    bool includeHidden = false;
+    bool listChildren = false;
+    QString format = "PNG";
+    QRect region;
+    bool watchMode = false;
+    int interval = 1000;
+    QString outputDir;
+
+    for (int i = 2; i < rawArgs.size(); ++i) {
+        const QString& arg = rawArgs.at(i);
+        if (arg == "--name" && i + 1 < rawArgs.size()) {
+            name = rawArgs.at(++i);
+        } else if (arg == "--output" && i + 1 < rawArgs.size()) {
+            output = rawArgs.at(++i);
+        } else if (arg == "--scale" && i + 1 < rawArgs.size()) {
+            scale = rawArgs.at(++i).toDouble();
+        } else if (arg == "--format" && i + 1 < rawArgs.size()) {
+            format = rawArgs.at(++i).toUpper();
+        } else if (arg == "--region" && i + 1 < rawArgs.size()) {
+            QStringList parts = rawArgs.at(++i).split(",");
+            if (parts.size() == 4)
+                region = QRect(parts[0].toInt(), parts[1].toInt(), parts[2].toInt(), parts[3].toInt());
+        } else if (arg == "--interval" && i + 1 < rawArgs.size()) {
+            interval = rawArgs.at(++i).toInt();
+        } else if (arg == "--output-dir" && i + 1 < rawArgs.size()) {
+            outputDir = rawArgs.at(++i);
+        } else if (arg == "--clipboard") {
+            clipboard = true;
+        } else if (arg == "--include-hidden") {
+            includeHidden = true;
+        } else if (arg == "--list-children") {
+            listChildren = true;
+        } else if (arg == "--watch") {
+            watchMode = true;
+        }
+    }
+
+    if (listChildren) {
+        if (name.isEmpty()) {
+            std::cerr << "Error: --list-children requires --name <parent>" << std::endl;
+            return false;
+        }
+        QVariantMap cmd;
+        cmd["cmd"] = "screenshot_children";
+        QVariantMap params;
+        params["parent"] = name;
+        cmd["params"] = params;
+        QVariantMap response;
+        if (!sendWebSocketCommand("127.0.0.1", 18790, cmd, response)) {
+            std::cerr << "Error: Cannot connect to running VioSpice instance (port 18790)" << std::endl;
+            return false;
+        }
+        if (jsonOutput) {
+            std::cout << QJsonDocument::fromVariant(response).toJson(QJsonDocument::Compact).toStdString() << std::endl;
+            return true;
+        }
+        QJsonArray children = response["children"].toJsonArray();
+        if (children.isEmpty()) {
+            std::cout << "No children found for: " << name.toStdString() << std::endl;
+            return true;
+        }
+        std::cout << "Children of " << name.toStdString() << ":" << std::endl;
+        for (const auto& c : children) {
+            std::cout << "  - " << c.toString().toStdString() << std::endl;
+        }
+        return true;
+    }
+
+    if (name.isEmpty() && !watchMode) {
+        QVariantMap cmd;
+        cmd["cmd"] = "screenshot_list";
+        QVariantMap params;
+        params["include_hidden"] = includeHidden;
+        cmd["params"] = params;
+        QVariantMap response;
+        if (!sendWebSocketCommand("127.0.0.1", 18790, cmd, response)) {
+            std::cerr << "Error: Cannot connect to running VioSpice instance (port 18790)" << std::endl;
+            std::cerr << "Make sure VioSpice GUI is running." << std::endl;
+            return false;
+        }
+        if (jsonOutput) {
+            std::cout << QJsonDocument::fromVariant(response).toJson(QJsonDocument::Compact).toStdString() << std::endl;
+            return true;
+        }
+        QJsonArray windows = response["windows"].toJsonArray();
+        if (windows.isEmpty()) {
+            std::cout << "No visible windows found." << std::endl;
+            return true;
+        }
+        std::cout << "Available windows:" << std::endl;
+        for (const auto& w : windows) {
+            QJsonObject obj = w.toObject();
+            std::cout << "  [" << obj["index"].toInt() << "] "
+                      << obj["class"].toString().toStdString()
+                      << " - " << obj["title"].toString().toStdString()
+                      << std::endl;
+            if (obj.contains("children")) {
+                QJsonArray children = obj["children"].toArray();
+                for (const auto& c : children) {
+                    std::cout << "      " << c.toString().toStdString() << std::endl;
+                }
+            }
+        }
+        return true;
+    }
+
+    auto captureOnce = [&]() -> bool {
+        QVariantMap params;
+        params["name"] = name;
+        params["clipboard"] = clipboard;
+        params["scale"] = scale;
+        params["format"] = format;
+        params["include_hidden"] = includeHidden;
+        if (!output.isEmpty()) {
+            params["output"] = output;
+        }
+        if (!region.isNull()) {
+            QVariantList r;
+            r << region.x() << region.y() << region.width() << region.height();
+            params["region"] = r;
+        }
+
+        QVariantMap cmd;
+        cmd["cmd"] = "screenshot_capture";
+        cmd["params"] = params;
+
+        QVariantMap response;
+        if (!sendWebSocketCommand("127.0.0.1", 18790, cmd, response)) {
+            std::cerr << "Error: Cannot connect to running VioSpice instance (port 18790)" << std::endl;
+            std::cerr << "Make sure VioSpice GUI is running." << std::endl;
+            return false;
+        }
+
+        if (jsonOutput) {
+            std::cout << QJsonDocument::fromVariant(response).toJson(QJsonDocument::Compact).toStdString() << std::endl;
+            return response.value("ok").toBool();
+        }
+
+        if (!response.value("ok").toBool()) {
+            std::cerr << "Error: " << response.value("error").toString().toStdString() << std::endl;
+            return false;
+        }
+
+        std::cout << "Screenshot captured: "
+                  << response.value("width").toInt() << "x"
+                  << response.value("height").toInt() << std::endl;
+        if (response.contains("path")) {
+            std::cout << "Saved to: " << response.value("path").toString().toStdString() << std::endl;
+        }
+        if (clipboard) {
+            std::cout << "Copied to clipboard." << std::endl;
+        }
+        return true;
+    };
+
+    if (watchMode) {
+        if (name.isEmpty()) {
+            std::cerr << "Error: --watch requires --name <window>" << std::endl;
+            return false;
+        }
+        if (outputDir.isEmpty())
+            outputDir = ".";
+        std::cout << "Watching " << name.toStdString() << " every " << interval << "ms. Press Ctrl+C to stop." << std::endl;
+
+        QElapsedTimer timer;
+        timer.start();
+        int frame = 0;
+
+        while (true) {
+            if (timer.elapsed() >= interval) {
+                QString origOutput = output;
+                output = QString("%1/%2_frame_%3.%4")
+                    .arg(outputDir)
+                    .arg(name)
+                    .arg(frame++, 4, 10, QChar('0'))
+                    .arg(format.toLower());
+                captureOnce();
+                output = origOutput;
+                timer.restart();
+            }
+            QCoreApplication::processEvents();
+            QThread::msleep(10);
+        }
+    }
+
+    return captureOnce();
 }
 
 bool runItemRender(const QStringList& args, const QCommandLineParser& parser) {
@@ -5692,6 +5992,7 @@ static void printGeneralHelp() {
     std::cout << "  symbol-from-subckt <input.cir|lib> <out_dir> [--name <subckt>]\n";
     std::cout << "  library-to-symbols <input_path> <out_dir> [--recursive]\n";
     std::cout << "  library-auto-convert <input_path> <out_dir> [--mapping <mapping.json>] [--recursive]\n";
+    std::cout << "  screenshot [--name <name>] [--output <file.png>]\n";
     std::cout << "\nTips:\n";
     std::cout << "  Use \"viora help <command>\" for command-specific help.\n";
     std::cout << "  Use --json for machine-readable output.\n";
@@ -5764,6 +6065,36 @@ static void printCommandHelp(const QString& command) {
         std::cout << "schematic-netlist <file.flxsch>\n";
         std::cout << "  --analysis tran|ac|op  --step <s>  --stop <s>\n";
         std::cout << "  --format spice|json  --out <file>\n";
+        return;
+    }
+    if (command == "screenshot") {
+        std::cout << "screenshot [options]\n";
+        std::cout << "\n";
+        std::cout << "Capture screenshots of open VioSpice windows.\n";
+        std::cout << "Requires a running VioSpice GUI instance.\n";
+        std::cout << "\n";
+        std::cout << "Options:\n";
+        std::cout << "  --name <name>        Window class name or title substring\n";
+        std::cout << "  --output <file>      Output file path\n";
+        std::cout << "  --format <fmt>       Output format: PNG, JPG, BMP (default: PNG)\n";
+        std::cout << "  --scale <n>          Device pixel scale factor (default: 1.0)\n";
+        std::cout << "  --region <x,y,w,h>  Capture a specific region of the widget\n";
+        std::cout << "  --clipboard          Copy screenshot to clipboard\n";
+        std::cout << "  --include-hidden     Include hidden/docked widgets\n";
+        std::cout << "  --list-children      List child widgets of a parent window\n";
+        std::cout << "  --watch              Continuously capture frames\n";
+        std::cout << "  --interval <ms>      Interval for --watch mode (default: 1000)\n";
+        std::cout << "  --output-dir <dir>   Directory for --watch mode frames\n";
+        std::cout << "  --json               Machine-readable output\n";
+        std::cout << "\n";
+        std::cout << "Examples:\n";
+        std::cout << "  viora screenshot                                        List open windows\n";
+        std::cout << "  viora screenshot --name SchematicEditor                 Capture window\n";
+        std::cout << "  viora screenshot --name PCB --format JPG --scale 2.0   Capture as JPG at 2x\n";
+        std::cout << "  viora screenshot --name WaveformViewer --region 0,0,500,300  Region capture\n";
+        std::cout << "  viora screenshot --name SchematicEditor --list-children     List dock panels\n";
+        std::cout << "  viora screenshot --name Oscilloscope --include-hidden      Find hidden docks\n";
+        std::cout << "  viora screenshot --watch --name Schematic --interval 500 --output-dir /tmp/frames\n";
         return;
     }
     if (command == "generate-report") {
@@ -6014,6 +6345,13 @@ int main(int argc, char *argv[]) {
     QCommandLineOption noNetlistOption("no-netlist", "Exclude netlist section from report");
     QCommandLineOption rawFileOption("raw-file", "Simulation results file (.raw) to include in report", "rawfile");
     QCommandLineOption schematicPngOption("schematic-png", "Schematic image file (.png) to embed in report", "pngfile");
+    QCommandLineOption clipboardOption("clipboard", "Copy screenshot to clipboard");
+    QCommandLineOption includeHiddenOption("include-hidden", "Include hidden/docked widgets");
+    QCommandLineOption listChildrenOption("list-children", "List child widgets of a parent window");
+    QCommandLineOption watchOption("watch", "Continuously capture frames");
+    QCommandLineOption intervalOption("interval", "Interval for --watch mode in ms", "ms", "1000");
+    QCommandLineOption outputDirOption("output-dir", "Directory for --watch mode frames", "dir");
+    QCommandLineOption regionOption("region", "Capture a specific region x,y,w,h", "region");
     QCommandLineOption shareTitleOption("share-title", "Share title", "stitle", "");
     QCommandLineOption shareDescOption("share-description", "Share description", "sdesc", "");
     QCommandLineOption shareUploadOption("upload", "Upload to server instead of URL (share)");
@@ -6074,9 +6412,16 @@ int main(int argc, char *argv[]) {
     parser.addOption(noNetlistOption);
     parser.addOption(rawFileOption);
     parser.addOption(schematicPngOption);
+    parser.addOption(clipboardOption);
+    parser.addOption(includeHiddenOption);
+    parser.addOption(listChildrenOption);
+    parser.addOption(watchOption);
+    parser.addOption(intervalOption);
+    parser.addOption(outputDirOption);
+    parser.addOption(regionOption);
 
     // Positional arguments
-    parser.addPositionalArgument("command", "Command to run: drc, erc, simulate, netlist-run, netlist-validate, raw-info, raw-export, view, verilog-inspect, render, schematic-render, symbol-render, symbol-query, symbol-validate, symbol-list, symbol-export, symbol-import, library-index, schematic-query, schematic-netlist, schematic-bom, schematic-validate, schematic-diff, schematic-transform, schematic-probe, netlist-compare, generate-report, share, audit, autofix, process, python, plugins-smoke, plugin-pack, plugin-inspect");
+    parser.addPositionalArgument("command", "Command to run: drc, erc, simulate, netlist-run, netlist-validate, raw-info, raw-export, view, verilog-inspect, render, schematic-render, symbol-render, symbol-query, symbol-validate, symbol-list, symbol-export, symbol-import, library-index, schematic-query, schematic-netlist, schematic-bom, schematic-validate, schematic-diff, schematic-transform, schematic-probe, netlist-compare, generate-report, share, audit, autofix, process, python, plugins-smoke, plugin-pack, plugin-inspect, screenshot");
     parser.addPositionalArgument("file", "File to process (.pcb or .sch), except for plugins-smoke");
     parser.addPositionalArgument("script", "JSON script file for 'process' command", "");
 
@@ -6111,6 +6456,9 @@ int main(int argc, char *argv[]) {
         if (command == "item-render") {
             SchematicItemRegistry::registerBuiltInItems();
             return runItemRender(args, parser) ? 0 : 1;
+        }
+        if (command == "screenshot") {
+            return runScreenshot(QCoreApplication::arguments(), parser) ? 0 : 1;
         }
     }
 
