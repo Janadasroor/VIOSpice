@@ -605,6 +605,8 @@ set(UI_SOURCES
 
     ui/screenshot_manager.cpp
     ui/screenshot_manager.h
+    ui/gui_manager.cpp
+    ui/gui_manager.h
 )
 
 # =============================================================================
