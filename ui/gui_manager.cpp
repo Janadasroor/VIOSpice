@@ -18,6 +18,7 @@
 #include <QKeyEvent>
 #include <QLabel>
 #include <QTabBar>
+#include <QThread>
 #include <QToolBar>
 
 GuiManager& GuiManager::instance() {
@@ -564,5 +565,61 @@ QVariantMap GuiManager::getText(const QString& windowName, const QString& widget
 
     resp["ok"] = true;
     resp["widgets"] = texts;
+    return resp;
+}
+
+// ============================================================================
+// Drag-and-drop simulation
+// ============================================================================
+
+QVariantMap GuiManager::drag(const QString& windowName, int x1, int y1, int x2, int y2, int delayMs) {
+    QVariantMap resp;
+    resp["ok"] = false;
+
+    QWidget* window = findWindow(windowName);
+    if (!window) {
+        resp["error"] = QString("Window not found: %1").arg(windowName);
+        return resp;
+    }
+
+    QWidget* target = window->focusWidget();
+    if (!target) target = window;
+
+    QPoint startPos(x1, y1);
+    QPoint endPos(x2, y2);
+
+    // Convert global coords to local if needed
+    if (window->windowFlags() & Qt::Window) {
+        startPos = window->mapFromGlobal(startPos);
+        endPos = window->mapFromGlobal(endPos);
+    }
+
+    // Press at start position
+    QMouseEvent pressEvent(QEvent::MouseButtonPress, startPos, startPos,
+                           Qt::LeftButton, Qt::LeftButton, Qt::NoModifier);
+    QApplication::sendEvent(target, &pressEvent);
+
+    // Move in small steps to simulate realistic drag
+    int steps = qMax(1, delayMs / 5);
+    for (int i = 1; i <= steps; ++i) {
+        QPoint currentPos = startPos + (endPos - startPos) * i / steps;
+        QMouseEvent moveEvent(QEvent::MouseMove, currentPos, currentPos,
+                              Qt::LeftButton, Qt::LeftButton, Qt::NoModifier);
+        QApplication::sendEvent(target, &moveEvent);
+        QApplication::processEvents();
+        if (i < steps) {
+            QThread::msleep(5);
+        }
+    }
+
+    // Release at end position
+    QMouseEvent releaseEvent(QEvent::MouseButtonRelease, endPos, endPos,
+                             Qt::LeftButton, Qt::NoButton, Qt::NoModifier);
+    QApplication::sendEvent(target, &releaseEvent);
+
+    resp["ok"] = true;
+    resp["from"] = QString("%1,%2").arg(x1).arg(y1);
+    resp["to"] = QString("%1,%2").arg(x2).arg(y2);
+    resp["target"] = target->metaObject()->className();
     return resp;
 }
