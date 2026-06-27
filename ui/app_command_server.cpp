@@ -470,6 +470,14 @@ QVariantMap UICommandServer::handleCommand(const QVariantMap& request) {
         int delay = params.value("delay", 100).toInt();
         response = GuiManager::instance().drag(window, x1, y1, x2, y2, delay);
     }
+    else if (cmd == "gui_scroll") {
+        QString window = params.value("window", "").toString();
+        int x = params.value("x", 0).toInt();
+        int y = params.value("y", 0).toInt();
+        int deltaY = params.value("deltaY", 0).toInt();
+        int deltaX = params.value("deltaX", 0).toInt();
+        response = GuiManager::instance().scroll(window, x, y, deltaY, deltaX);
+    }
     else if (cmd == "ping") {
         response["ok"] = true;
         response["pong"] = true;
