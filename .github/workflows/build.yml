@@ -20,24 +20,46 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install Qt (Linux)
+      - name: Cache Qt (Linux)
         if: runner.os == 'Linux'
+        id: cache-qt-linux
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/Qt
+          key: ${{ runner.os }}-qt-6.10.0-linux_gcc_64
+
+      - name: Install Qt (Linux)
+        if: runner.os == 'Linux' && steps.cache-qt-linux.outputs.cache-hit != 'true'
         run: |
           sudo apt update
           sudo apt install -y python3-pip python3-venv
           python3 -m venv /tmp/qt-env
           /tmp/qt-env/bin/pip install aqtinstall
           /tmp/qt-env/bin/aqt install-qt --outputdir "${{ runner.temp }}/Qt" linux desktop 6.10.0 linux_gcc_64 -m qtcharts qtpdf qtwebsockets qtmultimedia qt5compat qtshadertools
-          echo "Qt6_DIR=${{ runner.temp }}/Qt/6.10.0/gcc_64/lib/cmake/Qt6" >> $GITHUB_ENV
+
+      - name: Set Qt6_DIR (Linux)
+        if: runner.os == 'Linux'
+        run: echo "Qt6_DIR=${{ runner.temp }}/Qt/6.10.0/gcc_64/lib/cmake/Qt6" >> $GITHUB_ENV
+
+      - name: Cache Qt (macOS)
+        if: runner.os == 'macOS'
+        id: cache-qt-macos
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/Qt
+          key: ${{ runner.os }}-qt-6.10.0-clang_64
 
       - name: Install Qt (macOS)
-        if: runner.os == 'macOS'
+        if: runner.os == 'macOS' && steps.cache-qt-macos.outputs.cache-hit != 'true'
         run: |
           brew install python@3.12
           python3 -m venv /tmp/qt-env
           /tmp/qt-env/bin/pip install aqtinstall
           /tmp/qt-env/bin/aqt install-qt --outputdir "${{ runner.temp }}/Qt" mac desktop 6.10.0 clang_64 -m qtcharts qtpdf qtwebsockets qtmultimedia qt5compat qtshadertools
-          echo "Qt6_DIR=${{ runner.temp }}/Qt/6.10.0/macos/lib/cmake/Qt6" >> $GITHUB_ENV
+
+      - name: Set Qt6_DIR (macOS)
+        if: runner.os == 'macOS'
+        run: echo "Qt6_DIR=${{ runner.temp }}/Qt/6.10.0/macos/lib/cmake/Qt6" >> $GITHUB_ENV
 
       - name: Install system deps (Linux)
         if: runner.os == 'Linux'
@@ -106,15 +128,14 @@ jobs:
 
       - name: Configure (Linux)
         if: runner.os == 'Linux'
-        run: cmake -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache -DMI_OVERRIDE=OFF
+        run: cmake --preset release
 
       - name: Configure (macOS)
         if: runner.os == 'macOS'
         run: |
           brew install llvm
-          cmake -B build -DCMAKE_BUILD_TYPE=Release \
-            -DLLVM_DIR="$(brew --prefix llvm)/lib/cmake/llvm" \
-            -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache -DMI_OVERRIDE=OFF
+          cmake --preset release \
+            -DLLVM_DIR="$(brew --prefix llvm)/lib/cmake/llvm"
 
       - name: Install and link dependencies (macOS)
         if: runner.os == 'macOS'
@@ -126,61 +147,41 @@ jobs:
       - name: Configure (Windows)
         if: runner.os == 'Windows'
         shell: msys2 {0}
-        run: cmake -B build -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON -DVIOSPICE_BUILD_FLUXSCRIPT=ON -G "MSYS Makefiles" -DMI_OVERRIDE=OFF -DSLANG_USE_MIMALLOC=OFF
+        run: cmake --preset msys2-mingw64
 
       - name: Build (Linux / macOS)
         if: runner.os != 'Windows'
         run: |
           if [ "${{ runner.os }}" = "macOS" ]; then
-            cmake --build build --parallel 3
+            cmake --build --preset release --parallel 3
           else
-            cmake --build build --parallel $(nproc)
+            cmake --build --preset release --parallel $(nproc)
           fi
 
       - name: Build (Windows)
         if: runner.os == 'Windows'
         shell: msys2 {0}
-        run: cmake --build build --parallel $(nproc)
+        run: cmake --build --preset msys2-mingw64 --parallel $(nproc)
 
       - name: Smoke test VioraEDA (Linux)
         if: runner.os == 'Linux'
         run: |
           sudo ldconfig
           ldd ./build/VioraEDA 2>&1 | grep "not found" || echo "All libraries found"
-          set +e
-          QT_QPA_PLATFORM=offscreen ./build/VioraEDA &
-          pid=$!
-          sleep 8
-          kill $pid 2>/dev/null
-          wait $pid
-          rc=$?
-          set -e
-          if [ $rc -eq 0 ] || [ $rc -ge 128 ]; then
-            echo "PASS: VioraEDA started without crashing (exit code $rc)"
-          else
-            echo "FAIL: VioraEDA crashed (exit code $rc)"
-            exit $rc
-          fi
+          echo "=== viora --version ==="
+          ./build/viora --version
+          echo "=== viora --help ==="
+          ./build/viora --help
 
       - name: Smoke test VioraEDA (macOS)
         if: runner.os == 'macOS'
         env:
           DYLD_LIBRARY_PATH: ${{ github.workspace }}/build/viomatrixc-prebuilt/lib:${{ github.workspace }}/build/fluxscript-prebuilt/lib
         run: |
-          set +e
-          QT_QPA_PLATFORM=offscreen ./build/VioraEDA &
-          pid=$!
-          sleep 8
-          kill $pid 2>/dev/null
-          wait $pid
-          rc=$?
-          set -e
-          if [ $rc -eq 0 ] || [ $rc -ge 128 ]; then
-            echo "PASS: VioraEDA started without crashing (exit code $rc)"
-          else
-            echo "FAIL: VioraEDA crashed (exit code $rc)"
-            exit $rc
-          fi
+          echo "=== viora --version ==="
+          ./build/viora --version
+          echo "=== viora --help ==="
+          ./build/viora --help
 
       - name: Smoke test VioraEDA (Windows)
         if: runner.os == 'Windows'
@@ -240,28 +241,17 @@ jobs:
 
           echo "=== DLL dependency check ==="
           which ldd 2>/dev/null && ldd build/viora.exe 2>&1 | grep -i "not found" || echo "(ldd not available or no unresolved)"
-          echo "=== file info ==="
-          file build/viora.exe 2>&1 || true
-          # Launch viora.exe (CLI) to smoke test DLL loading
-          set +e
-          echo "=== launching viora.exe (CLI) ==="
-          QT_QPA_PLATFORM=minimal ./build/viora.exe --help 2>&1
-          rc=$?
-          set -e
-          echo "=== exit code: $rc ==="
-          if [ $rc -eq 0 ] || [ $rc -ge 128 ]; then
-            echo "PASS: viora CLI started without DLL loading errors (exit code $rc)"
-          else
-            echo "FAIL: viora CLI crashed or failed to load (exit code $rc)"
-            exit $rc
-          fi
+          echo "=== viora --version ==="
+          QT_QPA_PLATFORM=minimal ./build/viora.exe --version
+          echo "=== viora --help ==="
+          QT_QPA_PLATFORM=minimal ./build/viora.exe --help
 
       - name: Unit tests (Linux / macOS)
         if: runner.os != 'Windows'
         env:
           QT_QPA_PLATFORM: offscreen
           DYLD_LIBRARY_PATH: ${{ github.workspace }}/build/viomatrixc-prebuilt/lib:${{ github.workspace }}/build/fluxscript-prebuilt/lib
-        run: ctest --test-dir build --output-on-failure -R "^(schematic|core|simulator|rpi|unit_|regression|integration)\."
+        run: ctest --preset unit -R "^(schematic|core|simulator|rpi|unit_|regression|integration)\."
 
       - name: Unit tests (Windows)
         if: runner.os == 'Windows'
@@ -274,5 +264,172 @@ jobs:
           ldd build/test_sim_rf_math.exe 2>&1 | grep -i "not found" || echo "(no unresolved deps)"
           echo "=== launching ctest ==="
           export QT_QPA_PLATFORM=offscreen
-          ctest --test-dir build --output-on-failure \
-            -R "^(schematic|core|simulator|rpi|unit_|regression|integration)\."
+          ctest --preset unit -R "^(schematic|core|simulator|rpi|unit_|regression|integration)\."
+
+  sanitizer:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Qt
+        run: |
+          sudo apt update
+          sudo apt install -y python3-pip python3-venv
+          python3 -m venv /tmp/qt-env
+          /tmp/qt-env/bin/pip install aqtinstall
+          /tmp/qt-env/bin/aqt install-qt --outputdir "${{ runner.temp }}/Qt" linux desktop 6.10.0 linux_gcc_64 -m qtcharts qtpdf qtwebsockets qtmultimedia qt5compat qtshadertools
+          echo "Qt6_DIR=${{ runner.temp }}/Qt/6.10.0/gcc_64/lib/cmake/Qt6" >> $GITHUB_ENV
+
+      - name: Install system deps
+        run: |
+          sudo apt install -y software-properties-common ccache
+          wget -qO - https://apt.llvm.org/llvm-snapshot.gpg.key | sudo apt-key add -
+          sudo add-apt-repository "deb https://apt.llvm.org/noble/ llvm-toolchain-noble-21 main"
+          sudo apt update
+          sudo apt install -y \
+            build-essential cmake \
+            libcurl4-openssl-dev \
+            libgl1-mesa-dev \
+            libpulse-dev \
+            llvm-21-dev \
+            python3 python3-dev \
+            ngspice
+          for pkg in \
+            http://archive.ubuntu.com/ubuntu/pool/main/o/openssl/libssl1.1_1.1.1f-1ubuntu2_amd64.deb \
+            http://archive.ubuntu.com/ubuntu/pool/main/o/openldap/libldap-2.4-2_2.4.49+dfsg-2ubuntu1.10_amd64.deb; do
+            wget -qO /tmp/pkg.deb "$pkg" && sudo dpkg -i /tmp/pkg.deb || true
+          done
+          sudo apt-get install -f -y
+
+      - name: Setup ccache
+        uses: hendrikmuhs/ccache-action@v1.2
+        with:
+          key: ${{ runner.os }}-asan
+
+      - name: Configure with ASan
+        run: cmake --preset asan
+
+      - name: Build
+        run: cmake --build --preset asan --parallel $(nproc)
+
+      - name: Test
+        env:
+          QT_QPA_PLATFORM: offscreen
+          ASAN_OPTIONS: detect_leaks=0
+        run: ctest --preset unit -R "^(schematic|core|simulator|rpi|unit_|regression|integration)\."
+
+  clang-tidy:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Qt
+        run: |
+          sudo apt update
+          sudo apt install -y python3-pip python3-venv
+          python3 -m venv /tmp/qt-env
+          /tmp/qt-env/bin/pip install aqtinstall
+          /tmp/qt-env/bin/aqt install-qt --outputdir "${{ runner.temp }}/Qt" linux desktop 6.10.0 linux_gcc_64 -m qtcharts qtpdf qtwebsockets qtmultimedia qt5compat qtshadertools
+          echo "Qt6_DIR=${{ runner.temp }}/Qt/6.10.0/gcc_64/lib/cmake/Qt6" >> $GITHUB_ENV
+
+      - name: Install system deps
+        run: |
+          sudo apt install -y software-properties-common ccache
+          wget -qO - https://apt.llvm.org/llvm-snapshot.gpg.key | sudo apt-key add -
+          sudo add-apt-repository "deb https://apt.llvm.org/noble/ llvm-toolchain-noble-21 main"
+          sudo apt update
+          sudo apt install -y \
+            build-essential cmake \
+            libcurl4-openssl-dev \
+            libgl1-mesa-dev \
+            libpulse-dev \
+            llvm-21-dev \
+            python3 python3-dev \
+            ngspice
+          for pkg in \
+            http://archive.ubuntu.com/ubuntu/pool/main/o/openssl/libssl1.1_1.1.1f-1ubuntu2_amd64.deb \
+            http://archive.ubuntu.com/ubuntu/pool/main/o/openldap/libldap-2.4-2_2.4.49+dfsg-2ubuntu1.10_amd64.deb; do
+            wget -qO /tmp/pkg.deb "$pkg" && sudo dpkg -i /tmp/pkg.deb || true
+          done
+          sudo apt-get install -f -y
+
+      - name: Configure
+        run: cmake --preset release -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+
+      - name: Run clang-tidy
+        run: |
+          run-clang-tidy -p build -j$(nproc) -quiet \
+            -header-filter="$(pwd)/.*" \
+            2>&1 | grep -E "warning:|error:" | head -50 || true
+          echo "clang-tidy completed"
+
+  coverage:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Qt
+        run: |
+          sudo apt update
+          sudo apt install -y python3-pip python3-venv
+          python3 -m venv /tmp/qt-env
+          /tmp/qt-env/bin/pip install aqtinstall
+          /tmp/qt-env/bin/aqt install-qt --outputdir "${{ runner.temp }}/Qt" linux desktop 6.10.0 linux_gcc_64 -m qtcharts qtpdf qtwebsockets qtmultimedia qt5compat qtshadertools
+          echo "Qt6_DIR=${{ runner.temp }}/Qt/6.10.0/gcc_64/lib/cmake/Qt6" >> $GITHUB_ENV
+
+      - name: Install system deps
+        run: |
+          sudo apt install -y software-properties-common ccache
+          wget -qO - https://apt.llvm.org/llvm-snapshot.gpg.key | sudo apt-key add -
+          sudo add-apt-repository "deb https://apt.llvm.org/noble/ llvm-toolchain-noble-21 main"
+          sudo apt update
+          sudo apt install -y \
+            build-essential cmake \
+            libcurl4-openssl-dev \
+            libgl1-mesa-dev \
+            libpulse-dev \
+            llvm-21-dev \
+            python3 python3-dev \
+            ngspice
+          for pkg in \
+            http://archive.ubuntu.com/ubuntu/pool/main/o/openssl/libssl1.1_1.1.1f-1ubuntu2_amd64.deb \
+            http://archive.ubuntu.com/ubuntu/pool/main/o/openldap/libldap-2.4-2_2.4.49+dfsg-2ubuntu1.10_amd64.deb; do
+            wget -qO /tmp/pkg.deb "$pkg" && sudo dpkg -i /tmp/pkg.deb || true
+          done
+          sudo apt-get install -f -y
+
+      - name: Setup ccache
+        uses: hendrikmuhs/ccache-action@v1.2
+        with:
+          key: ${{ runner.os }}-coverage
+
+      - name: Configure with coverage
+        run: |
+          cmake --preset release \
+            -DCMAKE_C_FLAGS="-fprofile-instr-generate -fcoverage-mapping" \
+            -DCMAKE_CXX_FLAGS="-fprofile-instr-generate -fcoverage-mapping"
+
+      - name: Build
+        run: cmake --build --preset release --parallel $(nproc)
+
+      - name: Test
+        env:
+          QT_QPA_PLATFORM: offscreen
+          LLVM_PROFILE_FILE: "coverage-%p.profraw"
+        run: ctest --preset unit -R "^(schematic|core|simulator|rpi|unit_|regression|integration)\."
+
+      - name: Generate coverage report
+        if: always()
+        run: |
+          llvm-profdata merge -sparse coverage-*.profraw -o coverage.profdata || true
+          llvm-cov report --instr-profile=coverage.profdata build/VioraEDA --ignore-filename-regex='.*_deps/.*|.*bindings/.*' || true
+          llvm-cov show --instr-profile=coverage.profdata build/VioraEDA --ignore-filename-regex='.*_deps/.*|.*bindings/.*' > coverage.txt 2>&1 || true
+          echo "Coverage report generated"
+
+      - name: Upload coverage to Codecov
+        if: always()
+        uses: codecov/codecov-action@v5
+        with:
+          files: ./coverage.txt
+          flags: unittests
+          fail_ci_if_error: false

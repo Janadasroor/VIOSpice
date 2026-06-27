@@ -1,81 +1,101 @@
 {
-  "version": 3,
-  "configurePresets": [
-    {
-      "name": "release",
-      "displayName": "Release with prebuilt deps",
-      "description": "Default CI build: download prebuilt VioMATRIXC + FluxScript",
-      "binaryDir": "${sourceDir}/build",
-      "generator": "Unix Makefiles",
-      "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Release",
-        "MI_OVERRIDE": "OFF",
-        "CMAKE_C_COMPILER_LAUNCHER": "ccache",
-        "CMAKE_CXX_COMPILER_LAUNCHER": "ccache"
-      }
+    "version": 6,
+    "cmakeMinimumRequired": {
+        "major": 3,
+        "minor": 25,
+        "patch": 0
     },
-    {
-      "name": "dev",
-      "inherits": "release",
-      "displayName": "Local development (build engine from source)",
-      "description": "Builds VioMATRIXC engine from local or cloned source (VIOSPICE_DEV_MODE=ON)",
-      "cacheVariables": {
-        "VIOSPICE_DEV_MODE": "ON"
-      }
-    },
-    {
-      "name": "debug",
-      "inherits": "release",
-      "displayName": "Debug build with prebuilt deps",
-      "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Debug"
-      }
-    },
-    {
-      "name": "asan",
-      "inherits": "release",
-      "displayName": "AddressSanitizer + UndefinedBehaviorSanitizer",
-      "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "RelWithDebInfo",
-        "CMAKE_CXX_FLAGS": "-fsanitize=address,undefined -fno-omit-frame-pointer",
-        "CMAKE_EXE_LINKER_FLAGS": "-fsanitize=address,undefined"
-      }
-    },
-    {
-      "name": "msys2-mingw64",
-      "description": "Windows/MinGW via MSYS2 (release, build FluxScript from source)",
-      "generator": "MSYS Makefiles",
-      "binaryDir": "${sourceDir}/build",
-      "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Release",
-        "MI_OVERRIDE": "OFF",
-        "SLANG_USE_MIMALLOC": "OFF",
-        "VIOSPICE_BUILD_FLUXSCRIPT": "ON"
-      }
-    }
-  ],
-  "buildPresets": [
-    { "name": "release", "configurePreset": "release" },
-    { "name": "dev", "configurePreset": "dev" },
-    { "name": "debug", "configurePreset": "debug" },
-    { "name": "asan", "configurePreset": "asan" },
-    { "name": "msys2-mingw64", "configurePreset": "msys2-mingw64" }
-  ],
-  "testPresets": [
-    {
-      "name": "unit",
-      "configurePreset": "release",
-      "environment": {
-        "QT_QPA_PLATFORM": "offscreen"
-      },
-      "output": {
-        "outputOnFailure": true
-      },
-      "filter": {
-        "include": {
-          "name": "^(schematic|core|simulator|rpi|unit_|regression|integration)\\."
+    "configurePresets": [
+        {
+            "name": "release",
+            "displayName": "Release",
+            "description": "Default CI build (Release, ccache, Unix Makefiles)",
+            "binaryDir": "${sourceDir}/build",
+            "generator": "Unix Makefiles",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Release",
+                "CMAKE_C_COMPILER_LAUNCHER": "ccache",
+                "CMAKE_CXX_COMPILER_LAUNCHER": "ccache",
+                "MI_OVERRIDE": "OFF"
+            }
+        },
+        {
+            "name": "dev",
+            "displayName": "Dev Mode",
+            "description": "Developer mode — builds VioMATRIXC from source",
+            "inherits": "release",
+            "cacheVariables": {
+                "VIOSPICE_DEV_MODE": "ON"
+            }
+        },
+        {
+            "name": "debug",
+            "displayName": "Debug",
+            "description": "Debug build with symbols",
+            "inherits": "release",
+            "binaryDir": "${sourceDir}/build-debug",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Debug"
+            }
+        },
+        {
+            "name": "asan",
+            "displayName": "AddressSanitizer",
+            "description": "Release + ASan/UBSan for test hardening",
+            "inherits": "release",
+            "binaryDir": "${sourceDir}/build-asan",
+            "cacheVariables": {
+                "CMAKE_C_FLAGS": "-fsanitize=address,undefined -fno-omit-frame-pointer",
+                "CMAKE_CXX_FLAGS": "-fsanitize=address,undefined -fno-omit-frame-pointer",
+                "CMAKE_EXE_LINKER_FLAGS": "-fsanitize=address,undefined"
+            }
+        },
+        {
+            "name": "msys2-mingw64",
+            "displayName": "MSYS2 MinGW64",
+            "description": "Windows MinGW64 build",
+            "inherits": "release",
+            "binaryDir": "${sourceDir}/build",
+            "generator": "MSYS Makefiles",
+            "cacheVariables": {
+                "BUILD_TESTING": "ON",
+                "VIOSPICE_BUILD_FLUXSCRIPT": "ON",
+                "SLANG_USE_MIMALLOC": "OFF"
+            }
         }
-      }
-    }
-  ]
+    ],
+    "buildPresets": [
+        {
+            "name": "release",
+            "configurePreset": "release"
+        },
+        {
+            "name": "dev",
+            "configurePreset": "dev"
+        },
+        {
+            "name": "debug",
+            "configurePreset": "debug"
+        },
+        {
+            "name": "asan",
+            "configurePreset": "asan"
+        },
+        {
+            "name": "msys2-mingw64",
+            "configurePreset": "msys2-mingw64"
+        }
+    ],
+    "testPresets": [
+        {
+            "name": "unit",
+            "configurePreset": "release",
+            "output": {
+                "outputOnFailure": true
+            },
+            "execution": {
+                "noTestsAction": "error"
+            }
+        }
+    ]
 }

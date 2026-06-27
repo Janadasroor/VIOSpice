@@ -1,0 +1,7 @@
+BasedOnStyle: Qt
+AccessModifierOffset: -4
+BreakBeforeBraces: Allman
+ColumnLimit: 100
+IndentWidth: 4
+UseTab: Always
+AllowShortFunctionsOnASingleLine: None
