@@ -433,6 +433,10 @@ jobs:
 
           mv VioraEDA-*.AppImage VioraEDA-${{ github.ref_name }}-x86_64.AppImage
 
+      - name: Package DEB (Linux)
+        if: runner.os == 'Linux'
+        run: cd build && cpack -G DEB -B "${{ github.workspace }}/deb-pkg" || echo "DEB packaging skipped"
+
       - name: Package (macOS)
         if: runner.os == 'macOS'
         run: |
@@ -452,6 +456,10 @@ jobs:
           # Copy smart block templates
           cp -r templates staging/
           tar czf VioraEDA-${{ github.ref_name }}-macos-arm64.tar.gz -C staging .
+
+      - name: Package DMG (macOS)
+        if: runner.os == 'macOS'
+        run: cd build && cpack -G DragNDrop -B "${{ github.workspace }}/dmg-pkg" || echo "DMG packaging skipped"
 
       - name: Package (Windows)
         if: runner.os == 'Windows'
@@ -530,6 +538,11 @@ jobs:
           zip -r ../VioraEDA-${{ github.ref_name }}-windows-x86_64.zip .
           cd ..
 
+      - name: Package NSIS (Windows)
+        if: runner.os == 'Windows'
+        shell: msys2 {0}
+        run: cd build && cpack -G NSIS -B "${{ github.workspace }}/nsis-pkg" || echo "NSIS packaging skipped (makensis not available)"
+
       - name: Verify package contents (Windows)
         if: runner.os == 'Windows'
         shell: msys2 {0}
@@ -565,5 +578,7 @@ jobs:
           files: |
             VioraEDA-*-linux-x86_64.tar.gz
             VioraEDA-*-linux-x86_64.AppImage
+            deb-pkg/*.deb
             VioraEDA-*-macos-arm64.tar.gz
+            dmg-pkg/*.dmg
             VioraEDA-*-windows-x86_64.zip

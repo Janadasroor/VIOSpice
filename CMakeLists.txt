@@ -601,3 +601,20 @@ target_link_libraries(viospice-merge PRIVATE
 set_target_properties(viospice-merge PROPERTIES
     CXX_STANDARD 17
 )
+
+# --- CPack Packaging ---
+set(CPACK_PACKAGE_NAME "VioraEDA")
+set(CPACK_PACKAGE_VERSION "${PROJECT_VERSION}")
+set(CPACK_PACKAGE_VENDOR "Janadasroor Team")
+set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "High-performance open-source EDA/SPICE simulator")
+
+if(WIN32)
+    set(CPACK_GENERATOR "NSIS;ZIP")
+elseif(APPLE)
+    set(CPACK_GENERATOR "DragNDrop;TGZ")
+else()
+    set(CPACK_GENERATOR "TGZ;DEB")
+    set(CPACK_DEBIAN_PACKAGE_SECTION "electronics")
+    set(CPACK_DEBIAN_PACKAGE_DEPENDS "libqt6widgets6 (>= 6.10), python3 (>= 3.10)")
+endif()
+include(CPack)
