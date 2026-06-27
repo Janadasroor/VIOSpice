@@ -322,51 +322,6 @@ jobs:
           sudo ldconfig
           ctest --preset asan -R "^(schematic|core|simulator|rpi|unit_|regression|integration)\."
 
-  clang-tidy:
-    runs-on: ubuntu-24.04
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Install Qt
-        run: |
-          sudo apt update
-          sudo apt install -y python3-pip python3-venv
-          python3 -m venv /tmp/qt-env
-          /tmp/qt-env/bin/pip install aqtinstall
-          /tmp/qt-env/bin/aqt install-qt --outputdir "${{ runner.temp }}/Qt" linux desktop 6.10.0 linux_gcc_64 -m qtcharts qtpdf qtwebsockets qtmultimedia qt5compat qtshadertools
-          echo "Qt6_DIR=${{ runner.temp }}/Qt/6.10.0/gcc_64/lib/cmake/Qt6" >> $GITHUB_ENV
-
-      - name: Install system deps
-        run: |
-          sudo apt install -y software-properties-common ccache
-          wget -qO - https://apt.llvm.org/llvm-snapshot.gpg.key | sudo apt-key add -
-          sudo add-apt-repository "deb https://apt.llvm.org/noble/ llvm-toolchain-noble-21 main"
-          sudo apt update
-          sudo apt install -y \
-            build-essential cmake \
-            libcurl4-openssl-dev \
-            libgl1-mesa-dev \
-            libpulse-dev \
-            llvm-21-dev \
-            python3 python3-dev \
-            ngspice
-          for pkg in \
-            http://archive.ubuntu.com/ubuntu/pool/main/o/openssl/libssl1.1_1.1.1f-1ubuntu2_amd64.deb \
-            http://archive.ubuntu.com/ubuntu/pool/main/o/openldap/libldap-2.4-2_2.4.49+dfsg-2ubuntu1.10_amd64.deb; do
-            wget -qO /tmp/pkg.deb "$pkg" && sudo dpkg -i /tmp/pkg.deb || true
-          done
-          sudo apt-get install -f -y
-
-      - name: Configure
-        run: cmake --preset release -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
-
-      - name: Run clang-tidy
-        run: |
-          run-clang-tidy -p build -j$(nproc) -quiet \
-            -header-filter="$(pwd)/.*" \
-            2>&1 | grep -E "warning:|error:" | head -50 || true
-          echo "clang-tidy completed"
-
   coverage:
     runs-on: ubuntu-24.04
     steps:
