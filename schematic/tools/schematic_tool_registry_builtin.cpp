@@ -84,6 +84,7 @@ void SchematicToolRegistryBuiltIn::registerBuiltInTools() {
     
     registry.registerTool("XspiceBlock", []() { return new SchematicComponentTool("XspiceBlock"); });
     registry.registerTool("SystemVerilogBlock", []() { return new SchematicComponentTool("SystemVerilogBlock"); });
+    registry.registerTool("AvrMicrocontroller", []() { return new SchematicComponentTool("AvrMicrocontroller"); });
     registry.registerTool("AdcBridge", []() { return new SchematicComponentTool("AdcBridge"); });
     registry.registerTool("DacBridge", []() { return new SchematicComponentTool("DacBridge"); });
     registry.registerTool("AnalogFunction", []() { return new SchematicComponentTool("AnalogFunction"); });

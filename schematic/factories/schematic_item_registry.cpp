@@ -46,6 +46,7 @@
 #include "tuning_slider_symbol_item.h"
 #include "xspice_block_item.h"
 #include "system_verilog_block_item.h"
+#include "avr_microcontroller_item.h"
 #include "controlled_source_item.h"
 #include "adc_bridge_item.h"
 #include "dac_bridge_item.h"
@@ -729,6 +730,15 @@ void SchematicItemRegistry::registerBuiltInItems() {
     // SystemVerilog RTL blocks
     factory.registerItemType("SystemVerilogBlock", [](QPointF pos, const QJsonObject& properties, QGraphicsItem* parent) -> SchematicItem* {
         auto* item = new SystemVerilogBlockItem(pos, parent);
+        if (!properties.isEmpty()) item->fromJson(properties);
+        return item;
+    });
+
+    // AVR Microcontroller co-simulation
+    factory.registerItemType("AvrMicrocontroller", [](QPointF pos, const QJsonObject& properties, QGraphicsItem* parent) -> SchematicItem* {
+        QString mcuModel = properties.value("avrModel").toString("ATmega328P");
+        auto* item = new AvrMicrocontrollerItem(mcuModel, parent);
+        item->setPos(pos);
         if (!properties.isEmpty()) item->fromJson(properties);
         return item;
     });
