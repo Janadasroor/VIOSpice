@@ -614,6 +614,13 @@ BulkChangePropertyCommand::BulkChangePropertyCommand(QGraphicsScene* scene, Sche
     setText(QString("Update %1 Properties").arg(m_item ? m_item->reference() : "Item"));
 }
 
+BulkChangePropertyCommand::BulkChangePropertyCommand(QGraphicsScene* scene, SchematicItem* item,
+                                                   const QJsonObject& oldState, const QJsonObject& newState,
+                                                   QUndoCommand* parent)
+    : SchematicCommand(scene, "Bulk Update Properties", parent), m_item(item), m_oldState(oldState), m_newState(newState) {
+    setText(QString("Update %1 Properties").arg(m_item ? m_item->reference() : "Item"));
+}
+
 void BulkChangePropertyCommand::undo() {
     if (m_item) {
         m_item->fromJson(m_oldState);

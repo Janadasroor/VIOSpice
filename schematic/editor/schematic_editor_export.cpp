@@ -94,8 +94,15 @@ void SchematicEditor::onSettings() {
         auto& config = ConfigManager::instance();
         m_view->setSnapToGrid(config.snapToGrid());
         m_view->viewport()->update();
-        applyTheme(); // Refresh theme if changed
-        refreshOscilloscopeDockContent(); // Dynamically update simulation panel full/compact view
+        applyTheme();
+        refreshOscilloscopeDockContent();
+        // Reload overlay visibility from config
+        m_showVoltageOverlays = config.showVoltageOverlay();
+        m_showCurrentOverlays = config.showCurrentOverlay();
+        // Refresh overlays if simulation results exist
+        if (m_view && m_view->hasSimResults()) {
+            showSimulationResults(m_view->lastSimResults());
+        }
     }
 }
 

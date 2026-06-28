@@ -137,6 +137,9 @@ class BulkChangePropertyCommand : public SchematicCommand {
 public:
     BulkChangePropertyCommand(QGraphicsScene* scene, SchematicItem* item,
                              const QJsonObject& newState, QUndoCommand* parent = nullptr);
+    BulkChangePropertyCommand(QGraphicsScene* scene, SchematicItem* item,
+                             const QJsonObject& oldState, const QJsonObject& newState,
+                             QUndoCommand* parent = nullptr);
     void undo() override;
     void redo() override;
 private:

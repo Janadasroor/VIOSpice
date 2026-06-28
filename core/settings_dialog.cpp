@@ -173,9 +173,15 @@ void SettingsDialog::setupUI() {
     m_autoShowSimulationTabCheck = new QCheckBox("Automatically switch to Simulation tab when running");
     m_showNetTableCheck = new QCheckBox("Show net voltage summary table on schematic after transient simulation");
     m_showNetTableCheck->setChecked(true);
+    m_showVoltageOverlayCheck = new QCheckBox("Show voltage annotations on schematic after simulation");
+    m_showVoltageOverlayCheck->setChecked(true);
+    m_showCurrentOverlayCheck = new QCheckBox("Show current annotations on schematic after simulation");
+    m_showCurrentOverlayCheck->setChecked(true);
     laySimUi->addWidget(m_showFullSimulationPanelCheck);
     laySimUi->addWidget(m_autoShowSimulationTabCheck);
     laySimUi->addWidget(m_showNetTableCheck);
+    laySimUi->addWidget(m_showVoltageOverlayCheck);
+    laySimUi->addWidget(m_showCurrentOverlayCheck);
     laySim->addWidget(grpSimUi);
 
     QGroupBox* grpTols = new QGroupBox("Tolerances & Accuracy");
@@ -387,6 +393,8 @@ void SettingsDialog::loadSettings() {
         config.toolProperty("SimulationPanel", "showFullPanelInDock", false).toBool());
     m_autoShowSimulationTabCheck->setChecked(config.autoShowSimulationTab());
     m_showNetTableCheck->setChecked(config.showNetTableOverlay());
+    m_showVoltageOverlayCheck->setChecked(config.showVoltageOverlay());
+    m_showCurrentOverlayCheck->setChecked(config.showCurrentOverlay());
     m_enablePcbEditorsCheck->setChecked(config.isFeatureEnabled("pcb_tools", true));
 
     m_geminiKeyEdit->setText(config.geminiApiKey());
@@ -447,6 +455,8 @@ void SettingsDialog::onAccept() {
                            m_showFullSimulationPanelCheck->isChecked());
     config.setAutoShowSimulationTab(m_autoShowSimulationTabCheck->isChecked());
     config.setShowNetTableOverlay(m_showNetTableCheck->isChecked());
+    config.setShowVoltageOverlay(m_showVoltageOverlayCheck->isChecked());
+    config.setShowCurrentOverlay(m_showCurrentOverlayCheck->isChecked());
     config.setFeatureEnabled("pcb_tools", m_enablePcbEditorsCheck->isChecked());
 
     config.setGeminiApiKey(m_geminiKeyEdit->text());

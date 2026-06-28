@@ -106,6 +106,11 @@ public:
     bool showNetTableOverlay() const;
     void setShowNetTableOverlay(bool enabled);
 
+    bool showVoltageOverlay() const;
+    void setShowVoltageOverlay(bool enabled);
+    bool showCurrentOverlay() const;
+    void setShowCurrentOverlay(bool enabled);
+
     // Tool Properties
     void setToolProperty(const QString& toolName, const QString& propName, const QVariant& value);
     QVariant toolProperty(const QString& toolName, const QString& propName, const QVariant& defaultValue = QVariant()) const;

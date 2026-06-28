@@ -579,6 +579,7 @@ add_subdirectory(python)
 add_subdirectory(footprints)
 add_subdirectory(pcb)
 
+option(VIOSPICE_ENABLE_TESTS "Enable tests" ON)
 if(BUILD_TESTING AND VIOSPICE_ENABLE_TESTS)
     add_subdirectory(tests)
 endif()
