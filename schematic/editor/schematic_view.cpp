@@ -11,6 +11,7 @@
 #include "theme_manager.h"
 #include "schematic_item.h"
 #include "../items/generic_component_item.h"
+#include "../items/avr_microcontroller_item.h"
 #include "../items/schematic_sheet_item.h"
 #include "schematic_commands.h"
 #include "../../symbols/items/symbol_primitive_item.h"
@@ -346,7 +347,19 @@ void SchematicView::setCurrentTool(const QString& toolName) {
         setCurrentTool(tool);
         Q_EMIT toolChanged(toolName);
     } else {
-        qWarning() << "Failed to create schematic tool:" << toolName;
+        // Check if toolName matches an MCU name — create AVR block directly
+        const auto& mcuDb = AvrMicrocontrollerItem::mcuDatabase();
+        if (mcuDb.contains(toolName)) {
+            auto* avr = new AvrMicrocontrollerItem(toolName);
+            avr->setPos(QPointF(0, 0));
+            if (scene()) {
+                scene()->addItem(avr);
+            }
+            setCurrentTool("Select");
+            Q_EMIT toolChanged("Select");
+        } else {
+            qWarning() << "Failed to create schematic tool:" << toolName;
+        }
     }
 }
 
