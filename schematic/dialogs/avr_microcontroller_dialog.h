@@ -15,6 +15,8 @@ class QListWidgetItem;
 class QDoubleSpinBox;
 class QCheckBox;
 class QButtonGroup;
+class QTabWidget;
+class QLabel;
 class AvrMicrocontrollerItem;
 
 class AvrMicrocontrollerDialog : public QDialog {
@@ -25,23 +27,40 @@ public:
 private slots:
     void onBrowseFirmware();
     void onAccept();
-    void onSearchChanged(const QString& text);
-    void onFilterChanged();
-    void onItemClicked(QListWidgetItem* item);
+    void onChipSearchChanged(const QString& text);
+    void onChipFilterChanged();
+    void onChipItemClicked(QListWidgetItem* item);
+    void onBoardSearchChanged(const QString& text);
+    void onBoardItemClicked(QListWidgetItem* item);
+    void onTabChanged(int index);
 
 private:
     void populateDeviceList();
-    void applyFilter();
+    void populateBoardList();
+    void applyChipFilter();
+    void applyBoardFilter();
     QString selectedMcu() const;
+    QString selectedBoard() const;
 
     AvrMicrocontrollerItem* m_item;
-    QLineEdit* m_searchEdit;
-    QListWidget* m_deviceList;
+    QTabWidget* m_tabWidget;
+
+    // Chip mode
+    QLineEdit* m_chipSearchEdit;
+    QListWidget* m_chipDeviceList;
+    QButtonGroup* m_chipFilterGroup;
+    QStringList m_allDevices;
+
+    // Board mode
+    QLineEdit* m_boardSearchEdit;
+    QListWidget* m_boardList;
+    QLabel* m_boardInfoLabel;
+
+    // Shared settings
+    QLineEdit* m_firmwareEdit;
     QDoubleSpinBox* m_clockSpin;
     QCheckBox* m_jitCheck;
     QDoubleSpinBox* m_adcVoltageSpin;
-    QStringList m_allDevices;
-    QButtonGroup* m_filterGroup;
 };
 
 #endif // AVR_MICROCONTROLLER_DIALOG_H

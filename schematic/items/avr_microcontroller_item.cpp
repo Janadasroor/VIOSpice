@@ -4,6 +4,7 @@
  */
 
 #include "avr_microcontroller_item.h"
+#include "arduino_board_def.h"
 #include "theme_manager.h"
 #include <QPainter>
 #include <QJsonObject>
@@ -310,6 +311,34 @@ void AvrMicrocontrollerItem::setFirmwarePath(const QString& path) {
     update();
 }
 
+void AvrMicrocontrollerItem::setBoardType(const QString& board) {
+    const auto& db = arduinoBoardDatabase();
+    if (!db.contains(board)) {
+        m_boardType.clear();
+        m_isArduinoMode = false;
+        return;
+    }
+    m_boardType = board;
+    m_isArduinoMode = true;
+    const auto& def = db[board];
+
+    // Auto-configure from board definition
+    setMcuModel(def.mcuModel);
+    setClockFrequency(def.defaultClock);
+
+    // Build pin list with Arduino aliases
+    m_pinList.clear();
+    for (const auto& p : def.pins) {
+        AvrPinDef pin;
+        pin.name = p.label.isEmpty() ? QString("D%1").arg(p.digitalPin) : p.label;
+        pin.dir = (p.analogChannel >= 0) ? AvrPinDef::AnalogInOut : AvrPinDef::Bidirectional;
+        m_pinList.append(pin);
+    }
+    updateSize();
+    setParamExpression("boardType", board);
+    update();
+}
+
 // ─── Geometry ────────────────────────────────────────────────────────────────
 
 QRectF AvrMicrocontrollerItem::boundingRect() const {
@@ -377,7 +406,12 @@ void AvrMicrocontrollerItem::paint(QPainter* painter, const QStyleOptionGraphics
     painter->drawRect(displayRect);
 
     // MCU model name in Display
-    QString displayName = m_mcuModel;
+    QString displayName;
+    if (m_isArduinoMode && !m_boardType.isEmpty()) {
+        displayName = m_boardType;
+    } else {
+        displayName = m_mcuModel;
+    }
     if (displayName.isEmpty()) displayName = "AVR MCU";
     painter->setPen(QColor(34, 197, 94));
     QFont f("Monospace", 9, QFont::Bold);
@@ -522,6 +556,7 @@ QJsonObject AvrMicrocontrollerItem::toJson() const {
     j["clockFrequency"] = m_clockFrequency;
     j["jitEnabled"] = m_jitEnabled;
     j["adcVoltage"] = m_adcVoltage;
+    if (!m_boardType.isEmpty()) j["boardType"] = m_boardType;
     return j;
 }
 
@@ -532,12 +567,17 @@ bool AvrMicrocontrollerItem::fromJson(const QJsonObject& json) {
     m_clockFrequency = json.value("clockFrequency").toDouble(16000000);
     m_jitEnabled = json.value("jitEnabled").toBool(true);
     m_adcVoltage = json.value("adcVoltage").toDouble(5.0);
+    QString boardType = json.value("boardType").toString();
 
-    setParamExpression("avrModel", m_mcuModel);
-    setParamExpression("firmwarePath", m_firmwarePath);
-    setParamExpression("clockFrequency", QString::number(m_clockFrequency));
-    setParamExpression("jitEnabled", m_jitEnabled ? "1" : "0");
-    setParamExpression("adcVoltage", QString::number(m_adcVoltage, 'f', 1));
+    if (!boardType.isEmpty()) {
+        setBoardType(boardType);
+    } else {
+        setParamExpression("avrModel", m_mcuModel);
+        setParamExpression("firmwarePath", m_firmwarePath);
+        setParamExpression("clockFrequency", QString::number(m_clockFrequency));
+        setParamExpression("jitEnabled", m_jitEnabled ? "1" : "0");
+        setParamExpression("adcVoltage", QString::number(m_adcVoltage, 'f', 1));
+    }
 
     if (!m_firmwarePath.isEmpty()) {
         SchematicItem::setValue(m_firmwarePath);
@@ -558,11 +598,17 @@ SchematicItem* AvrMicrocontrollerItem::clone() const {
     item->m_clockFrequency = m_clockFrequency;
     item->m_jitEnabled = m_jitEnabled;
     item->m_adcVoltage = m_adcVoltage;
-    item->setParamExpression("avrModel", m_mcuModel);
-    item->setParamExpression("firmwarePath", m_firmwarePath);
-    item->setParamExpression("clockFrequency", QString::number(m_clockFrequency));
-    item->setParamExpression("jitEnabled", m_jitEnabled ? "1" : "0");
-    item->setParamExpression("adcVoltage", QString::number(m_adcVoltage, 'f', 1));
+    item->m_boardType = m_boardType;
+    item->m_isArduinoMode = m_isArduinoMode;
+    if (!m_boardType.isEmpty()) {
+        item->setBoardType(m_boardType);
+    } else {
+        item->setParamExpression("avrModel", m_mcuModel);
+        item->setParamExpression("firmwarePath", m_firmwarePath);
+        item->setParamExpression("clockFrequency", QString::number(m_clockFrequency));
+        item->setParamExpression("jitEnabled", m_jitEnabled ? "1" : "0");
+        item->setParamExpression("adcVoltage", QString::number(m_adcVoltage, 'f', 1));
+    }
     if (!m_firmwarePath.isEmpty()) {
         item->SchematicItem::setValue(m_firmwarePath);
         item->setProperty("firmwarePath", m_firmwarePath);
