@@ -8,6 +8,7 @@
 #include "schematic_item_factory.h"
 #include "schematic_commands.h"
 #include "schematic_item.h"
+#include "../items/avr_microcontroller_item.h"
 #include "wire_item.h"
 #include "schematic_wire_utils.h"
 #include <QUndoStack>
@@ -127,6 +128,15 @@ void SchematicComponentTool::mousePressEvent(QMouseEvent* event) {
     auto& factory = SchematicItemFactory::instance();
     SchematicItem* component = factory.createItem(m_componentType, snappedPos);
     
+    // If this is an AVR block and a specific MCU was requested, set it
+    if (component && m_componentType == "AvrMicrocontroller" && view()) {
+        QString mcu = view()->takePendingAvrMcu();
+        if (!mcu.isEmpty()) {
+            auto* avr = qobject_cast<AvrMicrocontrollerItem*>(component);
+            if (avr) avr->setMcuModel(mcu);
+        }
+    }
+
     if (component) {
         component->setRotation(m_currentRotation); // Apply rotation
         // Apply flip state

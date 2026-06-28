@@ -347,16 +347,15 @@ void SchematicView::setCurrentTool(const QString& toolName) {
         setCurrentTool(tool);
         Q_EMIT toolChanged(toolName);
     } else {
-        // Check if toolName matches an MCU name — create AVR block directly
+        // Check if toolName matches an MCU name — activate AVR tool with MCU pre-selected
         const auto& mcuDb = AvrMicrocontrollerItem::mcuDatabase();
         if (mcuDb.contains(toolName)) {
-            auto* avr = new AvrMicrocontrollerItem(toolName);
-            avr->setPos(QPointF(0, 0));
-            if (scene()) {
-                scene()->addItem(avr);
+            m_pendingAvrMcu = toolName;
+            auto* tool = registry.createTool("AvrMicrocontroller");
+            if (tool) {
+                setCurrentTool(tool);
+                Q_EMIT toolChanged("AvrMicrocontroller");
             }
-            setCurrentTool("Select");
-            Q_EMIT toolChanged("Select");
         } else {
             qWarning() << "Failed to create schematic tool:" << toolName;
         }
