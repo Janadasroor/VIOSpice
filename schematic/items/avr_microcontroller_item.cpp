@@ -635,7 +635,9 @@ bool AvrMicrocontrollerItem::fromJson(const QJsonObject& json) {
         setProperty("firmwarePath", m_firmwarePath);
     }
 
-    buildPinList();
+    if (boardType.isEmpty()) {
+        buildPinList();
+    }
     updateSize();
     rebuildPrimitives();
     return true;
@@ -664,7 +666,9 @@ SchematicItem* AvrMicrocontrollerItem::clone() const {
         item->SchematicItem::setValue(m_firmwarePath);
         item->setProperty("firmwarePath", m_firmwarePath);
     }
-    item->buildPinList();
+    if (m_boardType.isEmpty()) {
+        item->buildPinList();
+    }
     item->updateSize();
     return item;
 }
