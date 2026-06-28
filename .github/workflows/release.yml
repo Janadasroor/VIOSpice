@@ -369,7 +369,10 @@ jobs:
         env:
           QT_QPA_PLATFORM: offscreen
           DYLD_LIBRARY_PATH: ${{ github.workspace }}/build/viomatrixc-prebuilt/lib:${{ github.workspace }}/build/fluxscript-prebuilt/lib:/opt/homebrew/lib
-        run: ctest --preset unit -R "^(schematic|core|simulator|rpi|unit_|regression|integration)\."
+          LD_LIBRARY_PATH: ${{ github.workspace }}/build/viomatrixc-prebuilt/lib:${{ github.workspace }}/build/fluxscript-prebuilt/lib
+        run: |
+          sudo ldconfig
+          ctest --preset unit -R "^(schematic|core|simulator|rpi|unit_|regression|integration)\."
 
       - name: Run unit tests (Windows)
         if: runner.os == 'Windows'
