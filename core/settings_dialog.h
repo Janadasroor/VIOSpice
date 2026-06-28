@@ -52,6 +52,8 @@ private:
     QCheckBox* m_showFullSimulationPanelCheck;
     QCheckBox* m_autoShowSimulationTabCheck;
     QCheckBox* m_showNetTableCheck;
+    QCheckBox* m_showVoltageOverlayCheck;
+    QCheckBox* m_showCurrentOverlayCheck;
 
     // PCB
     QCheckBox* m_enablePcbEditorsCheck;

@@ -1526,10 +1526,11 @@ void SchematicEditor::onItemDoubleClicked(SchematicItem* item) {
         // AVR Microcontroller properties dialog
         if (item->itemTypeName() == "AvrMicrocontroller") {
             auto* avr = static_cast<AvrMicrocontrollerItem*>(item);
+            QJsonObject oldState = item->toJson();
             AvrMicrocontrollerDialog dlg(avr, this);
             if (dlg.exec() == QDialog::Accepted) {
                 QJsonObject newState = item->toJson();
-                m_undoStack->push(new BulkChangePropertyCommand(m_scene, item, newState));
+                m_undoStack->push(new BulkChangePropertyCommand(m_scene, item, oldState, newState));
             }
             return;
         }

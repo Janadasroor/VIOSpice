@@ -1,11 +1,20 @@
 # Root test aggregation entrypoint.
-option(VIOSPICE_ENABLE_TESTS "Enable tests" ON)
-
 if(VIOSPICE_ENABLE_TESTS)
     vioraeda_add_test(test_design_rule
         SOURCES test_design_rule.cpp test_design_rule.h
         LINK_LIBS VioCore VioSymbols VioSimulator FluxScript FluxScriptManager VioUI
     )
+endif()
+
+# CLI-based regression tests (no Python needed)
+if(VIOSPICE_ENABLE_TESTS AND BUILD_VIOSPICE_CLI)
+    add_executable(test_sim_golden
+        regression/test_sim_golden.cpp
+    )
+    target_compile_definitions(test_sim_golden PRIVATE VIO_CMD_PATH=\"$<TARGET_FILE:viora>\")
+    target_link_libraries(test_sim_golden PRIVATE Qt${QT_VERSION_MAJOR}::Core)
+    add_test(NAME regression.sim_golden COMMAND test_sim_golden ${CMAKE_SOURCE_DIR}/tests/circuits)
+    set_tests_properties(regression.sim_golden PROPERTIES LABELS "fast;regression;simulator")
 endif()
 
 # Python-dependent test suites

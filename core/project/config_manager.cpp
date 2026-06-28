@@ -213,7 +213,16 @@ void ConfigManager::setAutoShowSimulationTab(bool enabled) {
 bool ConfigManager::showNetTableOverlay() const { return m_settings.value("simulator/showNetTableOverlay", true).toBool(); }
 void ConfigManager::setShowNetTableOverlay(bool enabled) {
     m_settings.setValue("simulator/showNetTableOverlay", enabled);
-    m_settings.sync();
+}
+
+bool ConfigManager::showVoltageOverlay() const { return m_settings.value("simulator/showVoltageOverlay", true).toBool(); }
+void ConfigManager::setShowVoltageOverlay(bool enabled) {
+    m_settings.setValue("simulator/showVoltageOverlay", enabled);
+}
+
+bool ConfigManager::showCurrentOverlay() const { return m_settings.value("simulator/showCurrentOverlay", true).toBool(); }
+void ConfigManager::setShowCurrentOverlay(bool enabled) {
+    m_settings.setValue("simulator/showCurrentOverlay", enabled);
 }
 
 void ConfigManager::setToolProperty(const QString& toolName, const QString& propName, const QVariant& value) {
