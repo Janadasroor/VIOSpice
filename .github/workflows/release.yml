@@ -435,11 +435,9 @@ jobs:
           cp linux/viospice.desktop AppDir/
           cp resources/icons/logo_viospice.png AppDir/
 
-          # Remove Qt Multimedia from AppDir (needs libmimerapi.so which isn't available)
-          rm -f AppDir/usr/lib/libQt6Multimedia* 2>/dev/null || true
-
           # Run linuxdeploy with Qt plugin
           QMAKE="${{ runner.temp }}/Qt/6.10.0/gcc_64/bin/qmake" \
+          LINUXDEPLOY_QT_EXCLUDE_LIBRARY_PATTERNS="libmimerapi" \
           /tmp/linuxdeploy --appdir AppDir --output appimage \
             --plugin qt \
             --desktop-file AppDir/viospice.desktop \
