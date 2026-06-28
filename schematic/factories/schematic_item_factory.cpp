@@ -7,6 +7,7 @@
 #include <QDebug>
 #include "generic_component_item.h"
 #include "symbol_library.h"
+#include "avr_microcontroller_item.h"
 
 using Flux::Model::SymbolDefinition;
 
@@ -83,6 +84,17 @@ SchematicItem* SchematicItemFactory::createItem(const QString& typeName, QPointF
         if (SymbolDefinition* def = SymbolLibraryManager::instance().findSymbol(typeName)) {
             item = new GenericComponentItem(*def, parent);
             item->setPos(pos);
+        }
+    }
+
+    // Check if typeName matches an MCU name — create AVR block with that MCU pre-selected
+    if (!item) {
+        const auto& mcuDb = AvrMicrocontrollerItem::mcuDatabase();
+        if (mcuDb.contains(typeName)) {
+            auto* avr = new AvrMicrocontrollerItem(typeName, parent);
+            avr->setPos(pos);
+            if (!properties.isEmpty()) avr->fromJson(properties);
+            item = avr;
         }
     }
 
