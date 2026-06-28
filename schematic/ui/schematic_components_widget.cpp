@@ -13,6 +13,8 @@
 #include <QPushButton>
 #include <QHeaderView>
 #include <QLabel>
+#include <QLibrary>
+#include <QCoreApplication>
 #include <QMessageBox>
 #include <QPainter>
 #include <QPainterPath>
@@ -497,9 +499,27 @@ void SchematicComponentsWidget::populate() {
         {"Hierarchical Port", "Hierarchy"}
     };
 
-    builtIn.reserve(builtInTools.size());
+    builtIn.reserve(builtInTools.size() + 400);
     for (const auto& t : builtInTools) {
         builtIn.append({t.name, t.category, ""});
+    }
+
+    // Add all VioAVR device names to Co-Simulation category
+    QLibrary vioavrLib("avr_cosim");
+    if (!vioavrLib.load()) {
+        vioavrLib.setFileName(QCoreApplication::applicationDirPath() + "/../build/libavr_cosim");
+        vioavrLib.load();
+    }
+    if (vioavrLib.isLoaded()) {
+        auto countFn = reinterpret_cast<int(*)()>(vioavrLib.resolve("vioavr_device_count"));
+        auto nameFn = reinterpret_cast<const char*(*)(int)>(vioavrLib.resolve("vioavr_device_name"));
+        if (countFn && nameFn) {
+            int count = countFn();
+            for (int i = 0; i < count; ++i) {
+                const char* name = nameFn(i);
+                if (name) builtIn.append({QString::fromLatin1(name), "Co-Simulation", ""});
+            }
+        }
     }
 
     QMap<QString, QStringList> libs;
