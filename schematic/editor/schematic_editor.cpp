@@ -300,6 +300,10 @@ SchematicEditor::SchematicEditor(QWidget *parent)
         timer->start(ConfigManager::instance().autoSaveInterval() * 60000);
     }
 
+    // Load simulation overlay settings
+    m_showVoltageOverlays = ConfigManager::instance().showVoltageOverlay();
+    m_showCurrentOverlays = ConfigManager::instance().showCurrentOverlay();
+
     // Restore Session
     QStringList openFiles = ConfigManager::instance().toolProperty("SchematicEditor", "openFiles").toStringList();
     if (!openFiles.isEmpty()) {
@@ -2143,12 +2147,31 @@ void SchematicEditor::updateSimulationOverlays(const QMap<QString, double>& node
 
     if (nodeVoltages.empty() && currents.empty()) return;
 
-    // 2. Add Voltage Overlays
+    // 2. Add Voltage Overlays (filtered to avoid clutter on ICs)
     if (m_showVoltageOverlays) {
         for (auto it = nodeVoltages.begin(); it != nodeVoltages.end(); ++it) {
             QString netName = it.key();
             double val = it.value();
-            if (netName == "0") continue; // Ground is obvious
+
+            // Skip obvious nets
+            if (netName == "0") continue;
+            static const QStringList skipNets = {"VCC", "VDD", "VSS", "GND", "3.3V", "5V", "12V", "VBAT", "AVCC", "AREF"};
+            if (skipNets.contains(netName, Qt::CaseInsensitive)) continue;
+
+            // Skip nets with only one connection (auto-generated unconnected pins)
+            if (m_netManager) {
+                QString matchedNet;
+                for (const QString& name : m_netManager->netNames()) {
+                    if (name.compare(netName, Qt::CaseInsensitive) == 0) {
+                        matchedNet = name;
+                        break;
+                    }
+                }
+                if (!matchedNet.isEmpty()) {
+                    auto conns = m_netManager->getConnections(matchedNet);
+                    if (conns.size() <= 1) continue; // Single connection = unconnected pin
+                }
+            }
 
             // Find a representative point for this net
             QPointF overlayPos;
@@ -2156,7 +2179,6 @@ void SchematicEditor::updateSimulationOverlays(const QMap<QString, double>& node
 
             for (auto* item : m_scene->items()) {
                 if (SchematicItem* sItem = dynamic_cast<SchematicItem*>(item)) {
-                    // If it's a wire or label, we can use its position
                     if (sItem->itemType() == SchematicItem::LabelType || sItem->itemType() == SchematicItem::NetLabelType) {
                         if (sItem->value().compare(netName, Qt::CaseInsensitive) == 0) {
                             overlayPos = sItem->scenePos() + QPointF(0, -20);
@@ -2168,8 +2190,6 @@ void SchematicEditor::updateSimulationOverlays(const QMap<QString, double>& node
             }
 
             if (!found && m_netManager) {
-                // Fallback: Use first connection point of the net
-                // Match net name case-insensitively in NetManager
                 QString matchedNet;
                 for (const QString& name : m_netManager->netNames()) {
                     if (name.compare(netName, Qt::CaseInsensitive) == 0) {

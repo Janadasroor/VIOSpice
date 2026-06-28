@@ -21,6 +21,7 @@
 #include <QButtonGroup>
 #include <QRadioButton>
 #include <QSplitter>
+#include <QSettings>
 
 AvrMicrocontrollerDialog::AvrMicrocontrollerDialog(AvrMicrocontrollerItem* item, QWidget* parent)
     : QDialog(parent)
@@ -161,8 +162,13 @@ void AvrMicrocontrollerDialog::populateDeviceList() {
     }
     m_allDevices.sort(Qt::CaseInsensitive);
 
-    // Pre-select current MCU
+    // Pre-select current MCU or last used
     QString current = m_item->mcuModel();
+    if (current.isEmpty() || current == "ATmega328P") {
+        QSettings settings("VioraEDA", "AVRDialog");
+        QString lastMcu = settings.value("lastMcu").toString();
+        if (!lastMcu.isEmpty()) current = lastMcu;
+    }
     applyFilter();
 
     // Select current in list
@@ -262,7 +268,7 @@ void AvrMicrocontrollerDialog::onBrowseFirmware() {
 void AvrMicrocontrollerDialog::onAccept() {
     QString mcu = selectedMcu();
     if (mcu.isEmpty()) {
-        mcu = m_item->mcuModel();  // Keep current if nothing selected
+        mcu = m_item->mcuModel();
     }
     m_item->setMcuModel(mcu);
     auto* edit = findChild<QLineEdit*>("firmwareEdit");
@@ -270,5 +276,10 @@ void AvrMicrocontrollerDialog::onAccept() {
     m_item->setClockFrequency(m_clockSpin->value());
     m_item->setJitEnabled(m_jitCheck->isChecked());
     m_item->setAdcVoltage(m_adcVoltageSpin->value());
+
+    // Remember last selected MCU for next time
+    QSettings settings("VioraEDA", "AVRDialog");
+    settings.setValue("lastMcu", mcu);
+
     accept();
 }
