@@ -623,6 +623,8 @@ bool AvrMicrocontrollerItem::fromJson(const QJsonObject& json) {
     if (!boardType.isEmpty()) {
         setBoardType(boardType);
     } else {
+        m_isArduinoMode = false;
+        m_boardType.clear();
         setParamExpression("avrModel", m_mcuModel);
         setParamExpression("firmwarePath", m_firmwarePath);
         setParamExpression("clockFrequency", QString::number(m_clockFrequency));
