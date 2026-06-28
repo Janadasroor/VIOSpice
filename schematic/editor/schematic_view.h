@@ -58,6 +58,7 @@ public:
     void setCurrentTool(const QString& toolName);
     void setCurrentTool(SchematicTool* tool);
     SchematicTool* currentTool() const { return m_currentTool; }
+    QString takePendingAvrMcu() { QString s = m_pendingAvrMcu; m_pendingAvrMcu.clear(); return s; }
     QStringList availableTools() const;
 
     // --- Snapping ---
@@ -185,6 +186,7 @@ private:
     class NetManager* m_netManager = nullptr;
 
     SchematicTool* m_currentTool = nullptr;
+    QString m_pendingAvrMcu;
     SchematicItem* m_lastHoveredItem = nullptr;
     QMap<SchematicItem*, QSet<int>> m_hoverHighlightedPins;
     QList<QGraphicsItem*> m_liveErcMarkers;
