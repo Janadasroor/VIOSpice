@@ -8,7 +8,8 @@
 #include <QCoreApplication>
 #include <cstring>
 
-// C API function pointer types matching VioAVR's c_api.h
+// C API function pointer types matching VioAVR's c_api.h exactly
+#pragma pack(push, 1)
 struct CBoardPin {
     uint8_t arduino_pin;
     char port;
@@ -18,6 +19,7 @@ struct CBoardPin {
     uint8_t supports_interrupt;
     int8_t analog_channel;
 };
+#pragma pack(pop)
 
 typedef int (*BoardCountFn)(void);
 typedef const char* (*BoardNameFn)(int);

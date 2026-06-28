@@ -332,20 +332,17 @@ void AvrMicrocontrollerDialog::onBrowseFirmware() {
 }
 
 void AvrMicrocontrollerDialog::onAccept() {
-    int tab = m_tabWidget->currentIndex();
-    if (tab == 1) {
-        // Board mode
-        QString board = selectedBoard();
-        if (!board.isEmpty()) {
-            m_item->setBoardType(board);
-        }
+    // Always check if a board was selected (regardless of current tab)
+    QString board = selectedBoard();
+    if (!board.isEmpty()) {
+        m_item->setBoardType(board);
     } else {
-        // Chip mode
+        // Chip mode — no board selected
         QString mcu = selectedMcu();
         if (!mcu.isEmpty()) {
             m_item->setMcuModel(mcu);
         }
-        m_item->setBoardType(""); // Clear board mode
+        m_item->setBoardType("");
     }
 
     m_item->setFirmwarePath(m_firmwareEdit->text());
@@ -355,8 +352,8 @@ void AvrMicrocontrollerDialog::onAccept() {
 
     QSettings settings("VioraEDA", "AVRDialog");
     settings.setValue("lastMcu", m_item->mcuModel());
-    if (tab == 1) settings.setValue("lastBoard", selectedBoard());
-    settings.setValue("lastTab", tab);
+    if (!board.isEmpty()) settings.setValue("lastBoard", board);
+    settings.setValue("lastTab", m_tabWidget->currentIndex());
 
     accept();
 }
