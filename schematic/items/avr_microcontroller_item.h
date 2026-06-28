@@ -49,6 +49,10 @@ public:
     double adcVoltage() const { return m_adcVoltage; }
     void setAdcVoltage(double v) { m_adcVoltage = v; setParamExpression("adcVoltage", QString::number(v, 'f', 1)); }
 
+    QString boardType() const { return m_boardType; }
+    void setBoardType(const QString& board);
+    bool isArduinoMode() const { return m_isArduinoMode; }
+
     // SchematicItem interface
     QString itemTypeName() const override { return "AvrMicrocontroller"; }
     ItemType itemType() const override { return SchematicItem::CustomType; }
@@ -73,6 +77,8 @@ private:
     double m_clockFrequency = 16000000;
     bool m_jitEnabled = true;
     double m_adcVoltage = 5.0;
+    QString m_boardType;
+    bool m_isArduinoMode = false;
     QList<AvrPinDef> m_pinList;
     QSizeF m_size;
 };
