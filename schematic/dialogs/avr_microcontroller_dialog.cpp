@@ -5,6 +5,7 @@
 
 #include "avr_microcontroller_dialog.h"
 #include "../items/avr_microcontroller_item.h"
+#include "../items/arduino_board_def.h"
 
 #include <QVBoxLayout>
 #include <QHBoxLayout>
@@ -20,49 +21,55 @@
 #include <QDialogButtonBox>
 #include <QButtonGroup>
 #include <QRadioButton>
-#include <QSplitter>
+#include <QTabWidget>
 #include <QSettings>
+#include <QSplitter>
 
 AvrMicrocontrollerDialog::AvrMicrocontrollerDialog(AvrMicrocontrollerItem* item, QWidget* parent)
     : QDialog(parent)
     , m_item(item) {
     setWindowTitle("AVR Microcontroller Properties");
-    setMinimumSize(560, 520);
+    setMinimumSize(580, 560);
 
     auto* mainLayout = new QVBoxLayout(this);
     mainLayout->setSpacing(8);
 
-    // ── MCU Selection (searchable) ──────────────────────────────────────
-    auto* mcuLabel = new QLabel("MCU Model:");
-    mcuLabel->setStyleSheet("font-weight: bold;");
-    mainLayout->addWidget(mcuLabel);
+    // ── Tab widget: Chip vs Board ───────────────────────────────────────
+    m_tabWidget = new QTabWidget();
 
-    // Search bar
-    m_searchEdit = new QLineEdit();
-    m_searchEdit->setPlaceholderText("Search devices... (e.g. ATmega328, ATtiny, AVR128)");
-    m_searchEdit->setClearButtonEnabled(true);
-    connect(m_searchEdit, &QLineEdit::textChanged, this, &AvrMicrocontrollerDialog::onSearchChanged);
-    mainLayout->addWidget(m_searchEdit);
+    // ── Tab 1: Chip Mode ────────────────────────────────────────────────
+    auto* chipTab = new QWidget();
+    auto* chipLayout = new QVBoxLayout(chipTab);
+
+    auto* chipLabel = new QLabel("MCU Model:");
+    chipLabel->setStyleSheet("font-weight: bold;");
+    chipLayout->addWidget(chipLabel);
+
+    m_chipSearchEdit = new QLineEdit();
+    m_chipSearchEdit->setPlaceholderText("Search devices... (e.g. ATmega328, ATtiny, AVR128)");
+    m_chipSearchEdit->setClearButtonEnabled(true);
+    connect(m_chipSearchEdit, &QLineEdit::textChanged, this, &AvrMicrocontrollerDialog::onChipSearchChanged);
+    chipLayout->addWidget(m_chipSearchEdit);
 
     // Family filter buttons
     auto* filterLayout = new QHBoxLayout();
     filterLayout->setSpacing(4);
-    m_filterGroup = new QButtonGroup(this);
-    m_filterGroup->setExclusive(true);
+    m_chipFilterGroup = new QButtonGroup(this);
+    m_chipFilterGroup->setExclusive(true);
 
     auto addFilter = [&](const QString& label, const QString& prefix) {
         auto* btn = new QRadioButton(label);
         btn->setObjectName("filter_" + prefix);
         btn->setSizePolicy(QSizePolicy::Minimum, QSizePolicy::Fixed);
-        m_filterGroup->addButton(btn);
-        connect(btn, &QRadioButton::toggled, this, &AvrMicrocontrollerDialog::onFilterChanged);
+        m_chipFilterGroup->addButton(btn);
+        connect(btn, &QRadioButton::toggled, this, &AvrMicrocontrollerDialog::onChipFilterChanged);
         filterLayout->addWidget(btn);
     };
 
     auto* allBtn = new QRadioButton("All");
     allBtn->setChecked(true);
-    m_filterGroup->addButton(allBtn);
-    connect(allBtn, &QRadioButton::toggled, this, &AvrMicrocontrollerDialog::onFilterChanged);
+    m_chipFilterGroup->addButton(allBtn);
+    connect(allBtn, &QRadioButton::toggled, this, &AvrMicrocontrollerDialog::onChipFilterChanged);
     filterLayout->addWidget(allBtn);
 
     addFilter("ATmega", "ATmega");
@@ -71,39 +78,60 @@ AvrMicrocontrollerDialog::AvrMicrocontrollerDialog(AvrMicrocontrollerItem* item,
     addFilter("AVR-Ex", "AVR-EA");
     addFilter("XMEGA", "ATxmega");
     addFilter("Other", "OTHER");
-
     filterLayout->addStretch();
-    mainLayout->addLayout(filterLayout);
+    chipLayout->addLayout(filterLayout);
 
-    // Device list
-    m_deviceList = new QListWidget();
-    m_deviceList->setAlternatingRowColors(true);
-    m_deviceList->setMinimumHeight(160);
-    connect(m_deviceList, &QListWidget::itemClicked, this, &AvrMicrocontrollerDialog::onItemClicked);
-    connect(m_deviceList, &QListWidget::itemDoubleClicked, this, &AvrMicrocontrollerDialog::onItemClicked);
-    mainLayout->addWidget(m_deviceList);
+    m_chipDeviceList = new QListWidget();
+    m_chipDeviceList->setAlternatingRowColors(true);
+    m_chipDeviceList->setMinimumHeight(140);
+    connect(m_chipDeviceList, &QListWidget::itemClicked, this, &AvrMicrocontrollerDialog::onChipItemClicked);
+    connect(m_chipDeviceList, &QListWidget::itemDoubleClicked, this, &AvrMicrocontrollerDialog::onChipItemClicked);
+    chipLayout->addWidget(m_chipDeviceList);
 
-    // Device count label
-    auto* countLabel = new QLabel();
-    countLabel->setObjectName("countLabel");
-    countLabel->setStyleSheet("color: gray; font-size: 11px;");
-    mainLayout->addWidget(countLabel);
+    m_tabWidget->addTab(chipTab, "Chip");
 
-    // ── Settings ────────────────────────────────────────────────────────
+    // ── Tab 2: Board Mode ───────────────────────────────────────────────
+    auto* boardTab = new QWidget();
+    auto* boardLayout = new QVBoxLayout(boardTab);
+
+    auto* boardLabel = new QLabel("Arduino Board:");
+    boardLabel->setStyleSheet("font-weight: bold;");
+    boardLayout->addWidget(boardLabel);
+
+    m_boardSearchEdit = new QLineEdit();
+    m_boardSearchEdit->setPlaceholderText("Search boards... (e.g. Uno, Mega, Nano, Leonardo)");
+    m_boardSearchEdit->setClearButtonEnabled(true);
+    connect(m_boardSearchEdit, &QLineEdit::textChanged, this, &AvrMicrocontrollerDialog::onBoardSearchChanged);
+    boardLayout->addWidget(m_boardSearchEdit);
+
+    m_boardList = new QListWidget();
+    m_boardList->setAlternatingRowColors(true);
+    m_boardList->setMinimumHeight(140);
+    connect(m_boardList, &QListWidget::itemClicked, this, &AvrMicrocontrollerDialog::onBoardItemClicked);
+    connect(m_boardList, &QListWidget::itemDoubleClicked, this, &AvrMicrocontrollerDialog::onBoardItemClicked);
+    boardLayout->addWidget(m_boardList);
+
+    m_boardInfoLabel = new QLabel();
+    m_boardInfoLabel->setWordWrap(true);
+    m_boardInfoLabel->setStyleSheet("color: gray; font-size: 11px; padding: 4px; background: palette(base); border: 1px solid palette(mid); border-radius: 4px;");
+    boardLayout->addWidget(m_boardInfoLabel);
+
+    m_tabWidget->addTab(boardTab, "Board");
+
+    mainLayout->addWidget(m_tabWidget);
+
+    // ── Shared Settings ─────────────────────────────────────────────────
     auto* settingsGroup = new QFormLayout();
 
-    // Firmware
     auto* fwLayout = new QHBoxLayout();
-    auto* firmwareEdit = new QLineEdit(item->firmwarePath());
-    firmwareEdit->setPlaceholderText("Path to .hex firmware file...");
-    firmwareEdit->setObjectName("firmwareEdit");
+    m_firmwareEdit = new QLineEdit(item->firmwarePath());
+    m_firmwareEdit->setPlaceholderText("Path to .hex firmware file...");
     auto* browseBtn = new QPushButton("Browse...");
     connect(browseBtn, &QPushButton::clicked, this, &AvrMicrocontrollerDialog::onBrowseFirmware);
-    fwLayout->addWidget(firmwareEdit);
+    fwLayout->addWidget(m_firmwareEdit);
     fwLayout->addWidget(browseBtn);
     settingsGroup->addRow("Firmware:", fwLayout);
 
-    // Clock frequency
     m_clockSpin = new QDoubleSpinBox();
     m_clockSpin->setRange(100000, 100000000);
     m_clockSpin->setDecimals(0);
@@ -120,12 +148,10 @@ AvrMicrocontrollerDialog::AvrMicrocontrollerDialog(AvrMicrocontrollerItem* item,
     }
     settingsGroup->addRow("Clock:", clockLayout);
 
-    // JIT
     m_jitCheck = new QCheckBox("Enable x86-64 JIT compilation");
     m_jitCheck->setChecked(item->jitEnabled());
     settingsGroup->addRow("", m_jitCheck);
 
-    // ADC voltage
     m_adcVoltageSpin = new QDoubleSpinBox();
     m_adcVoltageSpin->setRange(1.0, 5.5);
     m_adcVoltageSpin->setDecimals(1);
@@ -150,8 +176,16 @@ AvrMicrocontrollerDialog::AvrMicrocontrollerDialog(AvrMicrocontrollerItem* item,
     connect(buttons, &QDialogButtonBox::rejected, this, &QDialog::reject);
     mainLayout->addWidget(buttons);
 
-    // Populate and select current
+    // Populate lists and select current
     populateDeviceList();
+    populateBoardList();
+
+    // Set initial tab based on current item
+    if (item->isArduinoMode() && !item->boardType().isEmpty()) {
+        m_tabWidget->setCurrentIndex(1); // Board tab
+    } else {
+        m_tabWidget->setCurrentIndex(0); // Chip tab
+    }
 }
 
 void AvrMicrocontrollerDialog::populateDeviceList() {
@@ -162,48 +196,62 @@ void AvrMicrocontrollerDialog::populateDeviceList() {
     }
     m_allDevices.sort(Qt::CaseInsensitive);
 
-    // Pre-select current MCU or last used
+    applyChipFilter();
+
+    // Select current MCU
     QString current = m_item->mcuModel();
-    if (current.isEmpty() || current == "ATmega328P") {
-        QSettings settings("VioraEDA", "AVRDialog");
-        QString lastMcu = settings.value("lastMcu").toString();
-        if (!lastMcu.isEmpty()) current = lastMcu;
-    }
-    applyFilter();
-
-    // Select current in list
     if (!current.isEmpty()) {
-        auto items = m_deviceList->findItems(current, Qt::MatchExactly);
+        auto items = m_chipDeviceList->findItems(current, Qt::MatchExactly);
         if (!items.isEmpty()) {
-            m_deviceList->setCurrentItem(items.first());
-            m_deviceList->scrollToItem(items.first());
+            m_chipDeviceList->setCurrentItem(items.first());
+            m_chipDeviceList->scrollToItem(items.first());
         }
-    }
-
-    // Update count
-    auto* countLabel = findChild<QLabel*>("countLabel");
-    if (countLabel) {
-        countLabel->setText(QString("%1 devices available").arg(m_allDevices.size()));
     }
 }
 
-void AvrMicrocontrollerDialog::applyFilter() {
-    QString search = m_searchEdit->text().trimmed().toLower();
+void AvrMicrocontrollerDialog::populateBoardList() {
+    const auto& db = arduinoBoardDatabase();
+    m_boardList->clear();
+    QStringList boards = db.keys();
+    boards.sort(Qt::CaseInsensitive);
+    for (const QString& name : boards) {
+        auto* item = new QListWidgetItem(name);
+        m_boardList->addItem(item);
+    }
+
+    // Select current board
+    QString current = m_item->boardType();
+    if (!current.isEmpty()) {
+        auto items = m_boardList->findItems(current, Qt::MatchExactly);
+        if (!items.isEmpty()) {
+            m_boardList->setCurrentItem(items.first());
+            m_boardList->scrollToItem(items.first());
+            // Show board info
+            const auto& def = db[current];
+            m_boardInfoLabel->setText(
+                QString("<b>%1</b><br>MCU: %2 | Clock: %3 MHz | Flash: %4 KB | SRAM: %5 bytes | %6 pins")
+                    .arg(def.boardName, def.mcuModel)
+                    .arg(def.defaultClock / 1e6, 0, 'f', 0)
+                    .arg(def.flashBytes / 1024)
+                    .arg(def.sramBytes)
+                    .arg(def.pins.size()));
+        }
+    }
+}
+
+void AvrMicrocontrollerDialog::applyChipFilter() {
+    QString search = m_chipSearchEdit->text().trimmed().toLower();
     QString familyFilter;
 
-    // Determine active family filter
-    QRadioButton* checked = qobject_cast<QRadioButton*>(m_filterGroup->checkedButton());
+    QRadioButton* checked = qobject_cast<QRadioButton*>(m_chipFilterGroup->checkedButton());
     if (checked && checked->objectName() != "filter_") {
         familyFilter = checked->objectName().remove("filter_");
     }
 
-    m_deviceList->clear();
-    int shown = 0;
+    m_chipDeviceList->clear();
     for (const QString& name : m_allDevices) {
-        // Family filter
         if (!familyFilter.isEmpty()) {
             if (familyFilter == "OTHER") {
-                // "Other" = not ATmega, ATtiny, or ATxmega
                 if (name.startsWith("ATmega", Qt::CaseInsensitive) ||
                     name.startsWith("ATtiny", Qt::CaseInsensitive) ||
                     name.startsWith("ATxmega", Qt::CaseInsensitive))
@@ -212,74 +260,103 @@ void AvrMicrocontrollerDialog::applyFilter() {
                 continue;
             }
         }
-
-        // Search filter
         if (!search.isEmpty() && !name.toLower().contains(search))
             continue;
 
         auto* item = new QListWidgetItem(name);
-        // Highlight hardcoded MCUs (with detailed pin layouts)
         if (name == "ATmega328P" || name == "ATmega2560" || name == "ATtiny85" || name == "ATmega4809") {
-            item->setForeground(QColor(34, 197, 94));  // Green accent
-            item->setData(Qt::UserRole, true);  // Mark as detailed
+            item->setForeground(QColor(34, 197, 94));
         }
-        m_deviceList->addItem(item);
-        shown++;
-    }
-
-    auto* countLabel = findChild<QLabel*>("countLabel");
-    if (countLabel) {
-        if (shown == m_allDevices.size())
-            countLabel->setText(QString("%1 devices available").arg(shown));
-        else
-            countLabel->setText(QString("%1 of %2 devices").arg(shown).arg(m_allDevices.size()));
+        m_chipDeviceList->addItem(item);
     }
 }
 
-void AvrMicrocontrollerDialog::onSearchChanged(const QString&) {
-    applyFilter();
-}
+void AvrMicrocontrollerDialog::applyBoardFilter() {
+    QString search = m_boardSearchEdit->text().trimmed().toLower();
+    const auto& db = arduinoBoardDatabase();
 
-void AvrMicrocontrollerDialog::onFilterChanged() {
-    applyFilter();
-}
-
-void AvrMicrocontrollerDialog::onItemClicked(QListWidgetItem* item) {
-    if (item) {
-        // Could auto-fill clock from MCU database here
+    for (int i = 0; i < m_boardList->count(); ++i) {
+        auto* item = m_boardList->item(i);
+        if (search.isEmpty() || item->text().toLower().contains(search)) {
+            item->setHidden(false);
+        } else {
+            item->setHidden(true);
+        }
     }
+}
+
+void AvrMicrocontrollerDialog::onChipSearchChanged(const QString&) { applyChipFilter(); }
+void AvrMicrocontrollerDialog::onChipFilterChanged() { applyChipFilter(); }
+void AvrMicrocontrollerDialog::onChipItemClicked(QListWidgetItem*) {}
+void AvrMicrocontrollerDialog::onBoardSearchChanged(const QString&) { applyBoardFilter(); }
+
+void AvrMicrocontrollerDialog::onBoardItemClicked(QListWidgetItem* item) {
+    if (!item) return;
+    const auto& db = arduinoBoardDatabase();
+    QString name = item->text();
+    if (db.contains(name)) {
+        const auto& def = db[name];
+        m_boardInfoLabel->setText(
+            QString("<b>%1</b><br>MCU: %2 | Clock: %3 MHz | Flash: %4 KB | SRAM: %5 bytes | %6 pins")
+                .arg(def.boardName, def.mcuModel)
+                .arg(def.defaultClock / 1e6, 0, 'f', 0)
+                .arg(def.flashBytes / 1024)
+                .arg(def.sramBytes)
+                .arg(def.pins.size()));
+        // Auto-fill clock from board definition
+        m_clockSpin->setValue(def.defaultClock);
+    }
+}
+
+void AvrMicrocontrollerDialog::onTabChanged(int index) {
+    Q_UNUSED(index);
 }
 
 QString AvrMicrocontrollerDialog::selectedMcu() const {
-    auto* item = m_deviceList->currentItem();
+    auto* item = m_chipDeviceList->currentItem();
+    return item ? item->text() : QString();
+}
+
+QString AvrMicrocontrollerDialog::selectedBoard() const {
+    auto* item = m_boardList->currentItem();
     return item ? item->text() : QString();
 }
 
 void AvrMicrocontrollerDialog::onBrowseFirmware() {
     QString path = QFileDialog::getOpenFileName(
         this, "Select AVR Firmware", QString(),
-        "Intel HEX Files (*.hex);;ELF Files (*.elf);;All Files (*)");
+        "Intel HEX Files (*.hex);;ELF Files (*.elf);;Arduino Sketches (*.ino);;All Files (*)");
     if (!path.isEmpty()) {
-        auto* edit = findChild<QLineEdit*>("firmwareEdit");
-        if (edit) edit->setText(path);
+        m_firmwareEdit->setText(path);
     }
 }
 
 void AvrMicrocontrollerDialog::onAccept() {
-    QString mcu = selectedMcu();
-    if (mcu.isEmpty()) {
-        mcu = m_item->mcuModel();
+    int tab = m_tabWidget->currentIndex();
+    if (tab == 1) {
+        // Board mode
+        QString board = selectedBoard();
+        if (!board.isEmpty()) {
+            m_item->setBoardType(board);
+        }
+    } else {
+        // Chip mode
+        QString mcu = selectedMcu();
+        if (!mcu.isEmpty()) {
+            m_item->setMcuModel(mcu);
+        }
+        m_item->setBoardType(""); // Clear board mode
     }
-    m_item->setMcuModel(mcu);
-    auto* edit = findChild<QLineEdit*>("firmwareEdit");
-    if (edit) m_item->setFirmwarePath(edit->text());
+
+    m_item->setFirmwarePath(m_firmwareEdit->text());
     m_item->setClockFrequency(m_clockSpin->value());
     m_item->setJitEnabled(m_jitCheck->isChecked());
     m_item->setAdcVoltage(m_adcVoltageSpin->value());
 
-    // Remember last selected MCU for next time
     QSettings settings("VioraEDA", "AVRDialog");
-    settings.setValue("lastMcu", mcu);
+    settings.setValue("lastMcu", m_item->mcuModel());
+    if (tab == 1) settings.setValue("lastBoard", selectedBoard());
+    settings.setValue("lastTab", tab);
 
     accept();
 }

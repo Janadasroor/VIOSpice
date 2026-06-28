@@ -362,6 +362,8 @@ set(SCHEMATIC_SOURCES
     schematic/items/system_verilog_block_item.h
     schematic/items/avr_microcontroller_item.cpp
     schematic/items/avr_microcontroller_item.h
+    schematic/items/arduino_board_def.cpp
+    schematic/items/arduino_board_def.h
     schematic/dialogs/system_verilog_block_dialog.cpp
     schematic/dialogs/system_verilog_block_dialog.h
     schematic/dialogs/avr_microcontroller_dialog.cpp
