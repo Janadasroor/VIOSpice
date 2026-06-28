@@ -332,12 +332,10 @@ void AvrMicrocontrollerDialog::onBrowseFirmware() {
 }
 
 void AvrMicrocontrollerDialog::onAccept() {
-    // Always check if a board was selected (regardless of current tab)
     QString board = selectedBoard();
     if (!board.isEmpty()) {
         m_item->setBoardType(board);
     } else {
-        // Chip mode — no board selected
         QString mcu = selectedMcu();
         if (!mcu.isEmpty()) {
             m_item->setMcuModel(mcu);
