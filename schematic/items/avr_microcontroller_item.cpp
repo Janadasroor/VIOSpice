@@ -322,18 +322,69 @@ void AvrMicrocontrollerItem::setBoardType(const QString& board) {
     m_isArduinoMode = true;
     const auto& def = db[board];
 
-    // Auto-configure from board definition
     setMcuModel(def.mcuModel);
     setClockFrequency(def.defaultClock);
 
-    // Build pin list with Arduino aliases
-    m_pinList.clear();
+    // Build lookup: ext_id -> Arduino alias
+    QMap<int, QString> aliasMap;
+    QMap<int, int> adcMap;
     for (const auto& p : def.pins) {
-        AvrPinDef pin;
-        pin.name = p.label.isEmpty() ? QString("D%1").arg(p.digitalPin) : p.label;
-        pin.dir = (p.analogChannel >= 0) ? AvrPinDef::AnalogInOut : AvrPinDef::Bidirectional;
-        m_pinList.append(pin);
+        if (p.mcuPin.length() >= 3) {
+            QChar portLetter = p.mcuPin[1];
+            int portIdx = portLetter.toUpper().toLatin1() - 'A';
+            if (portIdx >= 0 && portIdx < 4) {
+                bool ok;
+                int bitNum = p.mcuPin.mid(2).toInt(&ok);
+                if (ok) {
+                    int extId = portIdx * 8 + bitNum;
+                    aliasMap[extId] = p.label.isEmpty() ? QString("D%1").arg(p.digitalPin) : p.label;
+                    if (p.analogChannel >= 0) adcMap[extId] = p.analogChannel;
+                }
+            }
+        }
     }
+
+    // Build full 32-pin list: Arduino pins first, then remaining MCU pins
+    static const QStringList portNames = {"PA", "PB", "PC", "PD"};
+    m_pinList.clear();
+    QMap<int, QString> usedExtIds;
+
+    // Arduino pins in order (D0, D1, D2, ...)
+    for (int i = 0; i < 40; ++i) {
+        bool found = false;
+        for (const auto& p : def.pins) {
+            if (p.digitalPin == i) {
+                AvrPinDef pin;
+                pin.name = p.label.isEmpty() ? QString("D%1").arg(i) : p.label;
+                pin.dir = (p.analogChannel >= 0) ? AvrPinDef::AnalogInOut : AvrPinDef::Bidirectional;
+                m_pinList.append(pin);
+                if (p.mcuPin.length() >= 3) {
+                    int portIdx = p.mcuPin[1].toUpper().toLatin1() - 'A';
+                    if (portIdx >= 0 && portIdx < 4) {
+                        int bitNum = p.mcuPin.mid(2).toInt();
+                        usedExtIds[portIdx * 8 + bitNum] = pin.name;
+                    }
+                }
+                found = true;
+                break;
+            }
+        }
+        if (!found) break;
+    }
+
+    // Remaining MCU pins
+    for (int port = 0; port < 4; ++port) {
+        for (int bit = 0; bit < 8; ++bit) {
+            int extId = port * 8 + bit;
+            if (!usedExtIds.contains(extId)) {
+                AvrPinDef pin;
+                pin.name = QString("%1%2").arg(portNames[port]).arg(bit);
+                pin.dir = AvrPinDef::Bidirectional;
+                m_pinList.append(pin);
+            }
+        }
+    }
+
     updateSize();
     setParamExpression("boardType", board);
     update();
