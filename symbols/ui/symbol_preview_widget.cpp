@@ -39,17 +39,37 @@ void SymbolPreviewWidget::setAvrPreview(const QString& mcuModel, const QString& 
 }
 
 void SymbolPreviewWidget::drawMiniAvrBlock(QPainter* painter, const QRectF& rect) {
-    // Scale the 140x80 AVR block to fit the preview area
-    qreal scale = qMin(rect.width() / 140.0, rect.height() / 80.0);
-    qreal blockW = 140 * scale;
-    qreal blockH = 80 * scale;
-    QRectF blockRect(rect.center().x() - blockW/2, rect.center().y() - blockH/2 + 10, blockW, blockH);
+    // Query actual dimensions from MCU database (matches schematic item logic)
+    const auto& mcuDb = AvrMicrocontrollerItem::mcuDatabase();
+    int totalPins = 28; // default
+    if (mcuDb.contains(m_avrModel)) {
+        totalPins = mcuDb[m_avrModel].pins.size();
+    }
+    int halfPins = (totalPins + 1) / 2;
+    int blockW = 140;
+    int blockH = qMax(80, halfPins * 16 + 40);
 
-    // Background gradient (dark theme)
+    // Scale to fit preview area
+    qreal scale = qMin(rect.width() / (qreal)blockW, rect.height() / (qreal)blockH);
+    qreal scaledW = blockW * scale;
+    qreal scaledH = blockH * scale;
+    QRectF blockRect(rect.center().x() - scaledW/2, rect.center().y() - scaledH/2 + 10, scaledW, scaledH);
+
+    PCBTheme* theme = ThemeManager::theme();
+    const QColor txtColor = theme ? theme->textColor() : QColor(244, 244, 245);
+    const QColor lineClr = theme ? theme->schematicLine() : QColor(200, 200, 210);
+    const bool isDark = theme ? theme->type() == PCBTheme::Dark : true;
+
+    // Background gradient (theme-aware)
     QLinearGradient bgGrad(blockRect.topLeft(), blockRect.bottomLeft());
-    bgGrad.setColorAt(0, QColor(45, 45, 50));
-    bgGrad.setColorAt(1, QColor(30, 30, 35));
-    painter->setPen(QPen(QColor(200, 200, 210), 1.5));
+    if (isDark) {
+        bgGrad.setColorAt(0, QColor(45, 45, 50));
+        bgGrad.setColorAt(1, QColor(30, 30, 35));
+    } else {
+        bgGrad.setColorAt(0, QColor(240, 240, 242));
+        bgGrad.setColorAt(1, QColor(225, 225, 228));
+    }
+    painter->setPen(QPen(lineClr, 1.5));
     painter->setBrush(bgGrad);
     painter->drawRoundedRect(blockRect, 6, 6);
 
@@ -72,25 +92,69 @@ void SymbolPreviewWidget::drawMiniAvrBlock(QPainter* painter, const QRectF& rect
     painter->setFont(f);
     painter->drawText(displayRect, Qt::AlignCenter, displayName.toUpper());
 
-    // Pin stubs — query actual pin count from MCU database
+    // Pin stubs with labels — query actual pin data from MCU database
     qreal pinTail = 20 * scale;
-    int pinCount = 14; // default
-    const auto& mcuDb = AvrMicrocontrollerItem::mcuDatabase();
+    int leftCount = 0, rightCount = 0;
+
     if (mcuDb.contains(m_avrModel)) {
         const auto& mcu = mcuDb[m_avrModel];
-        pinCount = (mcu.pins.size() + 1) / 2; // Half on each side
+        // Count power/ground vs GPIO pins
+        for (const auto& pin : mcu.pins) {
+            if (pin.dir == AvrPinDef::Power || pin.dir == AvrPinDef::Ground) leftCount++;
+            else rightCount++;
+        }
     }
-    pinCount = qBound(4, pinCount, 20); // Clamp for visual clarity
-    qreal pinSpacing = qMin(16.0 * scale, (blockH - 40) / pinCount);
+    if (leftCount == 0) leftCount = 3;
+    if (rightCount == 0) rightCount = 7;
+    leftCount = qMin(leftCount, 10);
+    rightCount = qMin(rightCount, 10);
 
-    for (int i = 0; i < pinCount; ++i) {
-        qreal y = blockRect.top() + 20*scale + i * pinSpacing;
-        // Left side (power)
-        painter->setPen(QPen(QColor(255, 80, 80), 1));
-        painter->drawLine(QPointF(blockRect.left() - pinTail, y), QPointF(blockRect.left(), y));
-        // Right side (GPIO)
-        painter->setPen(QPen(QColor(100, 180, 255), 1));
-        painter->drawLine(QPointF(blockRect.right(), y), QPointF(blockRect.right() + pinTail, y));
+    qreal leftSpacing = qMin(16.0 * scale, (scaledH - 40) / leftCount);
+    qreal rightSpacing = qMin(14.0 * scale, (scaledH - 40) / rightCount);
+    qreal startY = blockRect.top() + 20 * scale;
+
+    // Left pins (power/ground)
+    int li = 0;
+    if (mcuDb.contains(m_avrModel)) {
+        const auto& mcu = mcuDb[m_avrModel];
+        for (const auto& pin : mcu.pins) {
+            if (li >= leftCount) break;
+            if (pin.dir == AvrPinDef::Power || pin.dir == AvrPinDef::Ground) {
+                qreal y = startY + li * leftSpacing;
+                QColor pinColor = (pin.dir == AvrPinDef::Power) ? QColor(255, 80, 80) : QColor(100, 100, 105);
+                painter->setPen(QPen(pinColor, 1));
+                painter->drawLine(QPointF(blockRect.left() - pinTail, y), QPointF(blockRect.left(), y));
+                // Pin label
+                painter->setPen(txtColor);
+                QFont labelFont("Monospace", qMax(4, (int)(5 * scale)));
+                painter->setFont(labelFont);
+                painter->drawText(QRectF(blockRect.left() - pinTail - 30*scale, y - 6*scale, 28*scale, 12*scale),
+                                  Qt::AlignRight | Qt::AlignVCenter, pin.name);
+                li++;
+            }
+        }
+    }
+
+    // Right pins (GPIO/analog)
+    int ri = 0;
+    if (mcuDb.contains(m_avrModel)) {
+        const auto& mcu = mcuDb[m_avrModel];
+        for (const auto& pin : mcu.pins) {
+            if (ri >= rightCount) break;
+            if (pin.dir != AvrPinDef::Power && pin.dir != AvrPinDef::Ground) {
+                qreal y = startY + ri * rightSpacing;
+                QColor pinColor = (pin.dir == AvrPinDef::AnalogInOut) ? QColor(100, 180, 255) : QColor(100, 100, 105);
+                painter->setPen(QPen(pinColor, 1));
+                painter->drawLine(QPointF(blockRect.right(), y), QPointF(blockRect.right() + pinTail, y));
+                // Pin label
+                painter->setPen(txtColor);
+                QFont labelFont("Monospace", qMax(4, (int)(5 * scale)));
+                painter->setFont(labelFont);
+                painter->drawText(QRectF(blockRect.right() + pinTail + 2*scale, y - 6*scale, 28*scale, 12*scale),
+                                  Qt::AlignLeft | Qt::AlignVCenter, pin.name);
+                ri++;
+            }
+        }
     }
 
     // Chip notch
