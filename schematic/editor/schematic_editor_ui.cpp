@@ -173,7 +173,7 @@ QIcon SchematicEditor::createComponentIcon(const QString& name) {
         painter.drawRect(22, 10, 4, 12); // Vertical bar (door/up)
     } else if (name == "Wire") {
         return getThemeIcon(":/icons/tool_wire.svg");
-    } else if (name == "Probe" || name == "Voltage Probe" || name == "Current Probe" || name == "Power Probe" || name == "Logic Probe" || name == "Flux Measurement Probe" || name == "Simulator") {
+    } else if (name == "Voltage Probe" || name == "Current Probe" || name == "Power Probe" || name == "Logic Probe" || name == "Flux Measurement Probe" || name == "Simulator") {
         QString iconPath = ":/icons/tool_probe.svg";
         if (name == "Voltage Probe") iconPath = ":/icons/tool_voltage_probe.svg";
         else if (name == "Current Probe") iconPath = ":/icons/tool_current_probe.svg";
@@ -1112,7 +1112,6 @@ void SchematicEditor::createToolBar() {
     // Wiring Tools
     addSchTool("Hand", "Pan (Hand Tool)", "tool_select"); // Hand tool toggle via H key handled in SchematicView::keyPressEvent
     addSchTool("Select", "Select", "tool_select", "Esc");
-    addSchTool("Probe", "Probe Signal", "tool_probe", "K");
     addSchTool("Voltage Probe", "Voltage Probe", "tool_voltage_probe", "Shift+K");
     addSchTool("Current Probe", "Current Probe", "tool_current_probe", "Alt+K");
     addSchTool("Power Probe", "Power Probe", "tool_power_probe", "Ctrl+Shift+P");
@@ -1177,7 +1176,7 @@ void SchematicEditor::createToolBar() {
     connect(moreMenu, &QMenu::aboutToShow, this, [this, moreMenu]() {
         moreMenu->clear();
         QStringList ordered = {
-            "Select", "Probe", "Voltage Probe", "Current Probe", "Power Probe",
+            "Select", "Voltage Probe", "Current Probe", "Power Probe",
             "Flux Measurement Probe",
             "Zoom Area", "Wire", "Bus", "Bus Entry", "Net Label", "Global Label",            "Hierarchical Port", "Sheet", "No-Connect", "GND", "VCC",
             "Voltmeter (DC)", "Voltmeter (AC)", "Ammeter (DC)", "Ammeter (AC)",
@@ -1697,14 +1696,14 @@ void SchematicEditor::createDockWidgets() {
         connect(m_simulationPanel, &SimulationPanel::realTimeBatchReady, this, &SchematicEditor::onRealTimeDataBatchReceived);
         connect(m_simulationPanel, &SimulationPanel::timeSnapshotReady, this, &SchematicEditor::onTimeTravelSnapshot);
         connect(m_simulationPanel, &SimulationPanel::probeRequested, this, [this]() {
-            m_view->setCurrentTool("Probe");
+            m_view->setCurrentTool("Voltage Probe");
             ensureProbeToolConnected();
-            statusBar()->showMessage("Click on a net or pin to probe signal", 5000);
+            statusBar()->showMessage("Click on a net or pin to probe voltage", 5000);
         });
         connect(m_simulationPanel, &SimulationPanel::placementToolRequested, this, [this](const QString& toolName) {
             if (!m_view) return;
             m_view->setCurrentTool(toolName);
-            if (toolName == "Probe" ||
+            if (toolName == "Voltage Probe" ||
                 toolName == "Oscilloscope Instrument" ||
                 toolName == "Voltmeter (DC)" ||
                 toolName == "Voltmeter (AC)" ||
