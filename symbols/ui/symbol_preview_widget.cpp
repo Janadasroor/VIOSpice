@@ -165,6 +165,9 @@ void SymbolPreviewWidget::drawMiniAvrBlock(QPainter* painter, const QRectF& rect
 
 void SymbolPreviewWidget::setSymbol(const SymbolDefinition& sym) {
     m_symbol = sym;
+    m_avrModel.clear();
+    m_avrBoardName.clear();
+    m_infoText.clear();
     update();
 }
 
