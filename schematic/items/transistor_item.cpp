@@ -271,3 +271,25 @@ QList<QPointF> TransistorItem::connectionPoints() const {
     }
     return points;
 }
+
+void TransistorItem::setSimState(const QMap<QString, double>& nodeVoltages, const QMap<QString, double>& branchCurrents) {
+    Q_UNUSED(branchCurrents)
+    if (m_transistorType == NPN || m_transistorType == PNP) {
+        // BJT: P = Vce × Ic
+        QString nC = pinNet(1); // Collector
+        QString nE = pinNet(2); // Emitter
+        if (nC.isEmpty() || nE.isEmpty()) { m_powerDissipation = 0; return; }
+        double vce = qAbs(nodeVoltages.value(nC, 0.0) - nodeVoltages.value(nE, 0.0));
+        double ic = qAbs(branchCurrents.value(reference(), 0.0));
+        m_powerDissipation = vce * ic;
+    } else {
+        // MOSFET: P = Vds × Id
+        QString nD = pinNet(1); // Drain
+        QString nS = pinNet(2); // Source
+        if (nD.isEmpty() || nS.isEmpty()) { m_powerDissipation = 0; return; }
+        double vds = qAbs(nodeVoltages.value(nD, 0.0) - nodeVoltages.value(nS, 0.0));
+        double id = qAbs(branchCurrents.value(reference(), 0.0));
+        m_powerDissipation = vds * id;
+    }
+    update();
+}
