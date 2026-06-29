@@ -601,15 +601,10 @@ void SchematicComponentsWidget::onItemHovered(const QModelIndex& index) {
         return;
     }
 
-    // Check if this is an MCU name — show AVR info
+    // Check if this is an MCU name — show AVR chip preview
     const auto& mcuDb = AvrMicrocontrollerItem::mcuDatabase();
     if (mcuDb.contains(sym.name())) {
-        const auto& mcu = mcuDb[sym.name()];
-        QString info = QString("%1\nMCU: %2\nClock: %3 MHz\nPins: %4")
-            .arg(sym.name(), mcu.name)
-            .arg(mcu.defaultClock / 1e6, 0, 'f', 0)
-            .arg(mcu.pins.size());
-        m_previewPopup->setInfoText(info);
+        m_previewPopup->setAvrPreview(sym.name());
         QPoint pos = QCursor::pos() + QPoint(20, -10);
         m_previewPopup->move(pos);
         m_previewPopup->show();

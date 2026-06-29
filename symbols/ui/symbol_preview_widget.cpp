@@ -24,7 +24,72 @@ SymbolPreviewWidget::SymbolPreviewWidget(QWidget* parent, Qt::WindowFlags f)
 void SymbolPreviewWidget::setInfoText(const QString& html) {
     m_infoText = html;
     m_symbol = SymbolDefinition();
+    m_avrModel.clear();
+    m_avrBoardName.clear();
     update();
+}
+
+void SymbolPreviewWidget::setAvrPreview(const QString& mcuModel, const QString& boardName) {
+    m_avrModel = mcuModel;
+    m_avrBoardName = boardName;
+    m_infoText.clear();
+    m_symbol = SymbolDefinition();
+    update();
+}
+
+void SymbolPreviewWidget::drawMiniAvrBlock(QPainter* painter, const QRectF& rect) {
+    // Scale the 140x80 AVR block to fit the preview area
+    qreal scale = qMin(rect.width() / 140.0, rect.height() / 80.0);
+    qreal blockW = 140 * scale;
+    qreal blockH = 80 * scale;
+    QRectF blockRect(rect.center().x() - blockW/2, rect.center().y() - blockH/2 + 10, blockW, blockH);
+
+    // Background gradient (dark theme)
+    QLinearGradient bgGrad(blockRect.topLeft(), blockRect.bottomLeft());
+    bgGrad.setColorAt(0, QColor(45, 45, 50));
+    bgGrad.setColorAt(1, QColor(30, 30, 35));
+    painter->setPen(QPen(QColor(200, 200, 210), 1.5));
+    painter->setBrush(bgGrad);
+    painter->drawRoundedRect(blockRect, 6, 6);
+
+    // Green header accent
+    painter->setBrush(QColor(34, 197, 94));
+    painter->setPen(Qt::NoPen);
+    painter->drawRoundedRect(QRectF(blockRect.left(), blockRect.top(), blockRect.width(), 14 * scale), 6, 6);
+    painter->fillRect(QRectF(blockRect.left(), blockRect.top() + 10 * scale, blockRect.width(), 4 * scale), QColor(34, 197, 94));
+
+    // Display area
+    QRectF displayRect(blockRect.left() + 10*scale, blockRect.top() + 25*scale, blockRect.width() - 20*scale, 28*scale);
+    painter->setBrush(QColor(10, 14, 10));
+    painter->setPen(QPen(QColor(34, 197, 94, 80), 1));
+    painter->drawRect(displayRect);
+
+    // MCU name in display
+    QString displayName = m_avrBoardName.isEmpty() ? m_avrModel : m_avrBoardName;
+    painter->setPen(QColor(34, 197, 94));
+    QFont f("Monospace", qMax(6, (int)(9 * scale)), QFont::Bold);
+    painter->setFont(f);
+    painter->drawText(displayRect, Qt::AlignCenter, displayName.toUpper());
+
+    // Pin stubs
+    qreal pinTail = 20 * scale;
+    int pinCount = 10; // Show a few representative pins
+    qreal pinSpacing = qMin(16.0 * scale, (blockH - 40) / pinCount);
+
+    for (int i = 0; i < pinCount; ++i) {
+        qreal y = blockRect.top() + 20*scale + i * pinSpacing;
+        // Left side (power)
+        painter->setPen(QPen(QColor(255, 80, 80), 1));
+        painter->drawLine(QPointF(blockRect.left() - pinTail, y), QPointF(blockRect.left(), y));
+        // Right side (GPIO)
+        painter->setPen(QPen(QColor(100, 180, 255), 1));
+        painter->drawLine(QPointF(blockRect.right(), y), QPointF(blockRect.right() + pinTail, y));
+    }
+
+    // Chip notch
+    painter->setPen(QPen(QColor(80, 80, 85), 1));
+    painter->setBrush(Qt::NoBrush);
+    painter->drawArc(QRectF(blockRect.center().x() - 6*scale, blockRect.top() - 3*scale, 12*scale, 12*scale), 0, 180*16);
 }
 
 void SymbolPreviewWidget::setSymbol(const SymbolDefinition& sym) {
@@ -64,6 +129,12 @@ void SymbolPreviewWidget::paintEvent(QPaintEvent* event) {
         QTextOption opt;
         opt.setWrapMode(QTextOption::WrapAnywhere);
         painter.drawText(textRect, m_infoText, opt);
+        return;
+    }
+
+    // Render AVR chip preview
+    if (!m_avrModel.isEmpty()) {
+        drawMiniAvrBlock(&painter, rect().adjusted(10, 10, -10, -10));
         return;
     }
 
