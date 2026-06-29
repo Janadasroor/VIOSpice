@@ -9,6 +9,7 @@
 #include "../../symbols/symbol_library.h"
 #include "../../symbols/symbol_editor.h"
 #include "../../symbols/models/symbol_definition.h"
+#include "../items/avr_microcontroller_item.h"
 #include "library_browser_dialog.h"
 #include <QPushButton>
 #include <QHeaderView>
@@ -597,6 +598,21 @@ void SchematicComponentsWidget::onItemHovered(const QModelIndex& index) {
     const auto& sym = m_symbolListModel->symbolDefinition(sourceIndex);
     if (sym.name().isEmpty()) {
         m_previewPopup->hide();
+        return;
+    }
+
+    // Check if this is an MCU name — show AVR info
+    const auto& mcuDb = AvrMicrocontrollerItem::mcuDatabase();
+    if (mcuDb.contains(sym.name())) {
+        const auto& mcu = mcuDb[sym.name()];
+        QString info = QString("%1\nMCU: %2\nClock: %3 MHz\nPins: %4")
+            .arg(sym.name(), mcu.name)
+            .arg(mcu.defaultClock / 1e6, 0, 'f', 0)
+            .arg(mcu.pins.size());
+        m_previewPopup->setInfoText(info);
+        QPoint pos = QCursor::pos() + QPoint(20, -10);
+        m_previewPopup->move(pos);
+        m_previewPopup->show();
         return;
     }
 

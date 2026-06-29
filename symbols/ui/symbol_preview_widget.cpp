@@ -57,12 +57,13 @@ void SymbolPreviewWidget::paintEvent(QPaintEvent* event) {
 
     // Render info text (for MCU previews)
     if (!m_infoText.isEmpty()) {
-        QTextDocument doc;
-        doc.setHtml(m_infoText);
-        doc.setDefaultFont(QFont("Inter", 9));
-        doc.setTextWidth(width() - 20);
-        painter.translate(10, 10);
-        doc.drawContents(&painter);
+        painter.setPen(fg);
+        QFont infoFont("Monospace", 9);
+        painter.setFont(infoFont);
+        QRectF textRect(10, 10, width() - 20, height() - 20);
+        QTextOption opt;
+        opt.setWrapMode(QTextOption::WrapAnywhere);
+        painter.drawText(textRect, m_infoText, opt);
         return;
     }
 
