@@ -5,6 +5,7 @@
 
 #include "symbol_list_model.h"
 #include "../symbols/symbol_library.h"
+#include "../schematic/items/avr_microcontroller_item.h"
 #include <QIcon>
 #include <QFont>
 
@@ -68,6 +69,17 @@ QVariant SymbolListModel::data(const QModelIndex& index, int role) const {
     const Item* item = static_cast<const Item*>(index.internalPointer());
 
     if (role == Qt::DisplayRole || role == NameRole) {
+        // Append MCU info for AVR devices
+        if (!item->isCategory) {
+            const auto& mcuDb = AvrMicrocontrollerItem::mcuDatabase();
+            if (mcuDb.contains(item->name)) {
+                const auto& mcu = mcuDb[item->name];
+                return QString("%1  ·  %2  ·  %3 MHz  ·  %4 pins")
+                    .arg(item->name, mcu.name)
+                    .arg(mcu.defaultClock / 1e6, 0, 'f', 0)
+                    .arg(mcu.pins.size());
+            }
+        }
         return item->name;
     }
 

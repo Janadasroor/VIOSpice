@@ -15,6 +15,7 @@ public:
     
     void setSymbol(const Flux::Model::SymbolDefinition& sym);
     void setInfoText(const QString& html);
+    void setAvrPreview(const QString& mcuModel, const QString& boardName = QString());
     void setStaticMode(bool enabled) { m_staticMode = enabled; update(); }
 
 protected:
@@ -22,8 +23,11 @@ protected:
 
 private:
     void drawPrimitive(QPainter * p, const Flux::Model::SymbolPrimitive & prim, const QColor & fg, qreal scale);
+    void drawMiniAvrBlock(QPainter* painter, const QRectF& rect);
 
     Flux::Model::SymbolDefinition m_symbol;
     QString m_infoText;
+    QString m_avrModel;
+    QString m_avrBoardName;
     bool m_staticMode = false;
 };
