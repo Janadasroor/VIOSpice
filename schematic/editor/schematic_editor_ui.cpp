@@ -32,6 +32,7 @@
 #include <QHeaderView>
 #include <QFileDialog>
 #include <QMessageBox>
+#include <QShortcut>
 #include "../dialogs/spice_directive_dialog.h"
 #include "../../core/flux/extensions/extension_manager.h"
 #include "../../simulator/bridge/sim_manager.h"
@@ -490,7 +491,16 @@ void SchematicEditor::createToolBar() {
     viewMenu->addAction(getThemeIcon(":/icons/view_zoom_in.svg"), "Zoom In", QKeySequence::ZoomIn, this, &SchematicEditor::onZoomIn);
     viewMenu->addAction(getThemeIcon(":/icons/view_zoom_out.svg"), "Zoom Out", QKeySequence::ZoomOut, this, &SchematicEditor::onZoomOut);
     viewMenu->addAction(getThemeIcon(":/icons/view_fit.svg"), "Fit All", QKeySequence("F"), this, &SchematicEditor::onZoomFit);
+    viewMenu->addAction(getThemeIcon(":/icons/view_fit.svg"), "Fit All (Home)", QKeySequence("Home"), this, &SchematicEditor::onZoomFit);
     viewMenu->addAction(getThemeIcon(":/icons/view_zoom_components.svg"), "Zoom to Components", QKeySequence("Alt+F"), this, &SchematicEditor::onZoomAllComponents);
+    viewMenu->addAction("Reset Zoom (100%)", QKeySequence("Ctrl+0"), this, [this]() {
+        if (m_view) { m_view->resetTransform(); }
+    });
+    viewMenu->addSeparator();
+    viewMenu->addAction("Focus Component Search", this, &SchematicEditor::focusComponentSearch);
+    auto* focusSearchShortcut = new QShortcut(QKeySequence("/"), this);
+    focusSearchShortcut->setContext(Qt::WindowShortcut);
+    connect(focusSearchShortcut, &QShortcut::activated, this, &SchematicEditor::focusComponentSearch);
     viewMenu->addSeparator();
     viewMenu->addAction(getThemeIcon(":/icons/toolbar_new.png"), "Show Netlist", QKeySequence("Ctrl+G"), this, &SchematicEditor::onOpenNetlistEditor);
     m_showDetailedLogAction = viewMenu->addAction("Show Detailed Log");
@@ -886,7 +896,7 @@ void SchematicEditor::createToolBar() {
     simLayout->setSpacing(4);
 
     m_runSimToolbarAction = new QAction(getThemeIcon(":/icons/tool_run.svg"), "Run Simulation (F8)", this);
-    m_runSimToolbarAction->setShortcut(QKeySequence("F8"));
+    // F8 shortcut owned by m_runSimMenuAction; toolbar button is click-only
     m_runSimToolbarAction->setToolTip("Run Analysis (F8)");
     connect(m_runSimToolbarAction, &QAction::triggered, this, &SchematicEditor::onRunSimulation);
     
@@ -899,7 +909,7 @@ void SchematicEditor::createToolBar() {
     simLayout->addWidget(mainBtn);
 
     m_stopSimToolbarAction = new QAction(getThemeIcon(":/icons/tool_stop.svg"), "Stop", this);
-    m_stopSimToolbarAction->setShortcut(QKeySequence("Shift+F8"));
+    // Shift+F8 shortcut owned by m_stopSimMenuAction; toolbar button is click-only
     connect(m_stopSimToolbarAction, &QAction::triggered, this, [this]() {
         if (m_simulationPanel) {
             m_simulationPanel->cancelPendingRun();
@@ -1879,7 +1889,7 @@ void SchematicEditor::createDrawingToolbar() {
     addTool("Bezier", "Draw Bezier Curve");
     addTool("Text", "Add Text");
     addTool("Net Label", "Place Net Label (Local)");
-    addTool("Scissors", "Scissors Items (F5)")->setShortcut(QKeySequence("F5"));
+    addTool("Scissors", "Scissors Items (F5)");
     addTool("Spice Directive", "SPICE Directive (S)")->setShortcut(QKeySequence("S"));
 
     drawToolbar->addSeparator();

@@ -9,6 +9,7 @@
 #include <QAbstractItemModel>
 #include <QVector>
 #include <QStringList>
+#include <QMimeData>
 #include "../symbols/models/symbol_definition.h"
 
 using Flux::Model::SymbolDefinition;
@@ -51,6 +52,9 @@ public:
     void setSymbols(const QVector<SymbolMetadata>& builtIn, const QMap<QString, QStringList>& libraries);
 
     SymbolDefinition symbolDefinition(const QModelIndex& index) const;
+
+    QStringList mimeTypes() const override;
+    QMimeData* mimeData(const QModelIndexList& indexes) const override;
 
 private:
     QVector<Item> m_items;

@@ -92,6 +92,9 @@ static SymbolLibrary* ensureDefaultUserSymbolLibrary() {
 #include "../dialogs/virtual_terminal_properties_dialog.h"
 #include "schematic_menu_registry.h"
 #include "../../core/flux/bridges/flux_workspace_bridge.h"
+#include "../items/generic_component_item.h"
+#include "../items/avr_microcontroller_item.h"
+#include "schematic_commands.h"
 
 using namespace Flux::Core;
 
@@ -701,6 +704,38 @@ void SchematicEditor::addSchematicTab(const QString& name) {
         // (Logic to handle netlist at pos if possible)
     });
 
+    connect(view, &SchematicView::componentDropped, this, [this](const QString& componentName, const QPointF& pos) {
+        if (!m_scene || !m_undoStack) return;
+
+        // Try to create the component at the drop position
+        // For AVR MCUs, create AvrMicrocontrollerItem
+        const auto& mcuDb = AvrMicrocontrollerItem::mcuDatabase();
+        if (mcuDb.contains(componentName)) {
+            auto* item = new AvrMicrocontrollerItem();
+            item->setPos(pos);
+            item->setMcuModel(componentName);
+            m_undoStack->push(new AddItemCommand(m_scene, item));
+            statusBar()->showMessage(componentName + " placed", 2000);
+            return;
+        }
+
+        // For library symbols, try to find and create a GenericComponentItem
+        SymbolDefinition* def = SymbolLibraryManager::instance().findSymbol(componentName);
+        if (def) {
+            auto* item = new GenericComponentItem(*def);
+            item->setPos(pos);
+            m_undoStack->push(new AddItemCommand(m_scene, item));
+            statusBar()->showMessage(componentName + " placed", 2000);
+            return;
+        }
+
+        // Fallback: activate the tool for manual placement
+        if (m_view) {
+            m_view->setCurrentTool(componentName);
+            statusBar()->showMessage(componentName + " tool selected - click to place", 2000);
+        }
+    });
+
     int idx = m_workspaceTabs->addTab(view, getThemeIcon(":/icons/comp_ic.svg"), name);
     m_workspaceTabs->setCurrentIndex(idx);
 
@@ -1044,6 +1079,14 @@ void SchematicEditor::onZoomFit() {
         m_view->viewport()->update();
         if (m_miniMap) m_miniMap->updateViewportRect();
     });
+}
+
+void SchematicEditor::focusComponentSearch() {
+    if (m_componentsPanel) {
+        m_componentDock->raise();
+        m_componentDock->show();
+        m_componentsPanel->focusSearch();
+    }
 }
 
 void SchematicEditor::onZoomAllComponents() {

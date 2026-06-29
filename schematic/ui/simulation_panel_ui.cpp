@@ -139,6 +139,8 @@ void SimulationPanel::createToolbar(QVBoxLayout* layout) {
     connect(m_runButton, &QPushButton::clicked, this, &SimulationPanel::onRunSimulation);
     toolbar->addWidget(m_runButton);
 
+    // F8 shortcut already exists in editor menu — no need to add here
+
     QPushButton* exportReportBtn = new QPushButton("Report");
     exportReportBtn->setStyleSheet(buttonStyle("#0f766e", "white"));
     connect(exportReportBtn, &QPushButton::clicked, this, &SimulationPanel::onExportResultsReport);
