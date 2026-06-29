@@ -132,7 +132,6 @@ QStringList ConfigManager::modelPaths() const {
         paths.append(QDir(root).filePath("sub"));
         paths.append(QDir(root).filePath("cmp"));
         paths.append(QDir(root).filePath("lib"));
-        paths.append(QDir(root).filePath("mod"));  // Vendor model libraries
     }
     return uniquePaths(paths);
 }
