@@ -10,6 +10,7 @@
 #include <QScrollArea>
 #include <QToolTip>
 #include <QRegularExpression>
+#include <QShortcut>
 
 SmartPropertiesDialog::SmartPropertiesDialog(const QList<SchematicItem*>& items, QUndoStack* undoStack, QGraphicsScene* scene, QWidget* parent)
     : QDialog(parent), m_items(items), m_undoStack(undoStack), m_scene(scene) {
@@ -35,6 +36,10 @@ SmartPropertiesDialog::SmartPropertiesDialog(const QList<SchematicItem*>& items,
     connect(m_buttonBox, &QDialogButtonBox::accepted, this, &QDialog::accept);
     connect(m_buttonBox, &QDialogButtonBox::rejected, this, &QDialog::reject);
     connect(m_buttonBox->button(QDialogButtonBox::Apply), &QPushButton::clicked, this, &SmartPropertiesDialog::onApply);
+
+    // Ctrl+Enter → apply without closing
+    auto* applyShortcut = new QShortcut(QKeySequence(Qt::CTRL | Qt::Key_Return), this);
+    connect(applyShortcut, &QShortcut::activated, this, &SmartPropertiesDialog::onApply);
 }
 
 void SmartPropertiesDialog::addTab(const PropertyTab& tab) {

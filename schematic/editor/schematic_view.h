@@ -92,6 +92,7 @@ Q_SIGNALS:
     void netHovered(const QString& netName);
     void snippetDropped(const QString& json, const QPointF& pos);
     void netlistDropped(const QString& netlist, const QPointF& pos);
+    void componentDropped(const QString& componentName, const QPointF& pos);
     void editSimulationDirective(const QString& commandText);
     void transformationChanged();
 

@@ -2088,7 +2088,8 @@ void SchematicView::clearHints() {
 
 void SchematicView::dragEnterEvent(QDragEnterEvent* event) {
     if (event->mimeData()->hasFormat("application/x-viospice-snippet") ||
-        event->mimeData()->hasFormat("application/x-viospice-netlist")) {
+        event->mimeData()->hasFormat("application/x-viospice-netlist") ||
+        event->mimeData()->hasFormat("application/x-viospice-component")) {
         event->setDropAction(Qt::CopyAction);
         event->accept();
     } else {
@@ -2107,6 +2108,10 @@ void SchematicView::dropEvent(QDropEvent* event) {
     } else if (mime->hasFormat("application/x-viospice-netlist")) {
         QString netlistText = QString::fromUtf8(mime->data("application/x-viospice-netlist"));
         Q_EMIT netlistDropped(netlistText, scenePos);
+        event->acceptProposedAction();
+    } else if (mime->hasFormat("application/x-viospice-component")) {
+        QString componentName = QString::fromUtf8(mime->data("application/x-viospice-component"));
+        Q_EMIT componentDropped(componentName, scenePos);
         event->acceptProposedAction();
     } else {
         QGraphicsView::dropEvent(event);

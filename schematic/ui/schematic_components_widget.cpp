@@ -31,6 +31,10 @@
 #include <QCursor>
 #include <QEvent>
 #include <QTimer>
+#include <QSettings>
+#include <QMimeData>
+#include <QDrag>
+#include <QKeyEvent>
 
 using Flux::Model::SymbolDefinition;
 using Flux::Model::SymbolPrimitive;
@@ -118,15 +122,31 @@ public:
         setRecursiveFilteringEnabled(true);
     }
 
+    void setCategoryFilter(const QString& category) {
+        m_categoryFilter = category;
+        invalidateFilter();
+    }
+
+    QString categoryFilter() const { return m_categoryFilter; }
+
 protected:
     bool filterAcceptsRow(int sourceRow, const QModelIndex& sourceParent) const override {
         const QString query = filterRegularExpression().pattern().trimmed().toLower();
-        if (query.isEmpty()) return true;
+        if (query.isEmpty() && m_categoryFilter.isEmpty()) return true;
 
         QModelIndex index = sourceModel()->index(sourceRow, 0, sourceParent);
         const QString name = sourceModel()->data(index, Qt::DisplayRole).toString().toLower();
         const QString category = sourceModel()->data(index, SymbolListModel::CategoryRole).toString().toLower();
         const QString library = sourceModel()->data(index, SymbolListModel::LibraryRole).toString().toLower();
+        const bool isCategory = sourceModel()->data(index, SymbolListModel::IsCategoryRole).toBool();
+
+        // Category filter: if active, only accept items in that category (or category headers themselves)
+        if (!m_categoryFilter.isEmpty()) {
+            if (isCategory) {
+                return category == m_categoryFilter.toLower();
+            }
+            if (category != m_categoryFilter.toLower()) return false;
+        }
 
         // 1. Check if this item matches
         if (matchSmarter(name, category, library, query)) return true;
@@ -142,6 +162,9 @@ protected:
 
         return false;
     }
+
+private:
+    QString m_categoryFilter;
 
 private:
     bool matchSmarter(const QString& name, const QString& category, const QString& library, const QString& query) const {
@@ -166,6 +189,18 @@ private:
             if (category.contains("power") || name.contains("vcc") || name.contains("gnd")) return true;
         }
 
+        // Synonym: MCU/microcontroller/avr/arduino/cosim match Co-Simulation
+        if (query == "mcu" || query == "µc" || query == "microcontroller" ||
+            query == "cosim" || query == "cosimulation" || query == "embedded") {
+            if (category == "co-simulation") return true;
+        }
+        if (query == "avr") {
+            if (category == "co-simulation" || name.contains("atmega")) return true;
+        }
+        if (query == "arduino") {
+            if (category == "co-simulation" || name.contains("arduino")) return true;
+        }
+
         // Substring common abbreviations
         if (query == "cap") return name.contains("capacitor");
         if (query == "res") return name.contains("resistor");
@@ -179,8 +214,53 @@ private:
 
 } // namespace
 
-// Replaced by SymbolPreviewWidget
+// ─── Section Header Factory ────────────────────────────────────────────────
+QWidget* SchematicComponentsWidget::createSectionHeader(const QString& title, bool expanded, std::function<void()> toggleFn) {
+    PCBTheme* theme = ThemeManager::theme();
+    QString headerBg = (theme && theme->type() == PCBTheme::Light) ? "#f1f5f9" : "#1a1a1a";
+    QString border = theme ? theme->panelBorder().name() : "#cccccc";
+    QString fg = theme ? theme->textSecondary().name() : "#555";
 
+    auto* header = new QWidget(this);
+    header->setFixedHeight(28);
+    header->setStyleSheet(QString(
+        "background-color: %1; border-bottom: 1px solid %2;"
+    ).arg(headerBg, border));
+
+    auto* layout = new QHBoxLayout(header);
+    layout->setContentsMargins(0, 0, 0, 0);
+    layout->setSpacing(0);
+
+    auto* indicator = new QPushButton(header);
+    indicator->setIcon(QIcon(expanded ? ":/icons/chevron_down.svg" : ":/icons/chevron_right.svg"));
+    indicator->setIconSize(QSize(12, 12));
+    indicator->setFixedSize(24, 28);
+    indicator->setCursor(Qt::PointingHandCursor);
+    indicator->setStyleSheet(
+        "QPushButton { border: none; background: transparent; padding: 4px; }"
+        "QPushButton:hover { background: rgba(59,130,246,0.15); border-radius: 4px; }"
+    );
+    connect(indicator, &QPushButton::clicked, toggleFn);
+    layout->addWidget(indicator);
+
+    auto* label = new QLabel(title, header);
+    label->setStyleSheet(QString(
+        "color: %1; font-size: 10px; font-weight: 700; background: transparent;"
+    ).arg(fg));
+    layout->addWidget(label);
+    layout->addStretch();
+
+    // Store indicator for later update
+    header->setProperty("indicator", QVariant::fromValue(reinterpret_cast<quintptr>(indicator)));
+
+    return header;
+}
+
+void SchematicComponentsWidget::updateSectionHeader(QPushButton* indicator, bool expanded) {
+    if (indicator) {
+        indicator->setIcon(QIcon(expanded ? ":/icons/chevron_down.svg" : ":/icons/chevron_right.svg"));
+    }
+}
 
 // ─── Constructor ────────────────────────────────────────────────────────────
 SchematicComponentsWidget::SchematicComponentsWidget(QWidget *parent)
@@ -192,6 +272,24 @@ SchematicComponentsWidget::SchematicComponentsWidget(QWidget *parent)
     m_proxyModel->setSourceModel(m_symbolListModel);
     connect(&SymbolLibraryManager::instance(), &SymbolLibraryManager::librariesChanged,
             this, &SchematicComponentsWidget::populate);
+
+    // Search debounce timer (300ms)
+    m_searchDebounceTimer = new QTimer(this);
+    m_searchDebounceTimer->setSingleShot(true);
+    m_searchDebounceTimer->setInterval(300);
+    connect(m_searchDebounceTimer, &QTimer::timeout, this, [this]() {
+        m_proxyModel->setFilterFixedString(m_pendingSearchText);
+        if (!m_pendingSearchText.isEmpty()) {
+            m_componentList->expandAll();
+        } else {
+            for (int i = 0; i < m_proxyModel->rowCount(); ++i) {
+                QModelIndex idx = m_proxyModel->index(i, 0);
+                if (m_proxyModel->data(idx, SymbolListModel::LibraryRole).toString().isEmpty()) {
+                    m_componentList->expand(idx);
+                }
+            }
+        }
+    });
 
     // 2. Setup Base UI
     PCBTheme* theme = ThemeManager::theme();
@@ -240,10 +338,16 @@ SchematicComponentsWidget::SchematicComponentsWidget(QWidget *parent)
     symbolLayout->setContentsMargins(0, 0, 0, 0);
     symbolLayout->setSpacing(0);
 
-    // ── Search bar ──────────────────────────────────────────────────────
+    // ── Search bar with compact toggle ───────────────────────────────────
+    QWidget* searchBarContainer = new QWidget(m_symbolTab);
+    QHBoxLayout* searchBarLayout = new QHBoxLayout(searchBarContainer);
+    searchBarLayout->setContentsMargins(0, 0, 0, 0);
+    searchBarLayout->setSpacing(0);
+
     m_searchBox = new QLineEdit(m_symbolTab);
     m_searchBox->setPlaceholderText("Search components...");
     m_searchBox->setClearButtonEnabled(true);
+    m_searchBox->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
     
     m_searchBox->setStyleSheet(QString(
         "QLineEdit {"
@@ -263,12 +367,58 @@ SchematicComponentsWidget::SchematicComponentsWidget(QWidget *parent)
         "}"
     ).arg(inputBg, border, fg, bg));
     
+    searchBarLayout->addWidget(m_searchBox);
+
+    // Compact mode toggle
+    m_compactToggle = new QPushButton(m_symbolTab);
+    m_compactToggle->setIcon(QIcon(":/icons/view_rows.svg"));
+    m_compactToggle->setIconSize(QSize(18, 18));
+    m_compactToggle->setFixedSize(36, 44);
+    m_compactToggle->setCursor(Qt::PointingHandCursor);
+    m_compactToggle->setToolTip("Toggle compact mode");
+    {
+        QPalette pal = m_compactToggle->palette();
+        pal.setBrush(QPalette::Button, Qt::transparent);
+        pal.setBrush(QPalette::ButtonText, QColor(fg));
+        m_compactToggle->setPalette(pal);
+    }
+    m_compactToggle->setStyleSheet(
+        "QPushButton { border: none; background: transparent; }"
+        "QPushButton:hover { background: rgba(128,128,128,0.15); border-radius: 4px; }"
+    );
+    connect(m_compactToggle, &QPushButton::clicked, this, &SchematicComponentsWidget::onToggleCompactMode);
+    searchBarLayout->addWidget(m_compactToggle);
+
+    // Hide action cards toggle
+    m_actionCardsToggle = new QPushButton(m_symbolTab);
+    m_actionCardsToggle->setIcon(QIcon(":/icons/eye.svg"));
+    m_actionCardsToggle->setIconSize(QSize(18, 18));
+    m_actionCardsToggle->setFixedSize(36, 44);
+    m_actionCardsToggle->setCursor(Qt::PointingHandCursor);
+    m_actionCardsToggle->setToolTip("Toggle action cards");
+    {
+        QPalette pal = m_actionCardsToggle->palette();
+        pal.setBrush(QPalette::Button, Qt::transparent);
+        pal.setBrush(QPalette::ButtonText, QColor(fg));
+        m_actionCardsToggle->setPalette(pal);
+    }
+    m_actionCardsToggle->setStyleSheet(
+        "QPushButton { border: none; background: transparent; }"
+        "QPushButton:hover { background: rgba(128,128,128,0.15); border-radius: 4px; }"
+    );
+    connect(m_actionCardsToggle, &QPushButton::clicked, this, &SchematicComponentsWidget::onToggleActionCards);
+    searchBarLayout->addWidget(m_actionCardsToggle);
+
     connect(m_searchBox, &QLineEdit::textChanged, this, &SchematicComponentsWidget::onSearchTextChanged);
-    symbolLayout->addWidget(m_searchBox);
+    symbolLayout->addWidget(searchBarContainer);
+
+    // ── Filter Dropdown ─────────────────────────────────────────────────
+    setupFilterChips();
+    symbolLayout->addWidget(m_filterCombo);
 
     // ── Action Cards Container ──────────────────────────────────────────
-    QWidget* actionContainer = new QWidget(m_symbolTab);
-    QVBoxLayout* actionLayout = new QVBoxLayout(actionContainer);
+    m_actionContainer = new QWidget(m_symbolTab);
+    QVBoxLayout* actionLayout = new QVBoxLayout(m_actionContainer);
     actionLayout->setContentsMargins(0, 0, 0, 0);
     actionLayout->setSpacing(0); 
 
@@ -313,20 +463,18 @@ SchematicComponentsWidget::SchematicComponentsWidget(QWidget *parent)
     createActionCard("Create Custom Symbol", "Open symbol editor to draw new parts", SLOT(onCreateSymbol()));
     createActionCard("Browse Libraries", "Search millions of symbols and footprints", SLOT(onOpenLibraryBrowser()));
 
-    symbolLayout->addWidget(actionContainer);
+    symbolLayout->addWidget(m_actionContainer);
 
-    // ── Section Header ──────────────────────────────────────────────────
-    QLabel* listHeader = new QLabel("   STANDARD COMPONENTS", m_symbolTab);
-    listHeader->setFixedHeight(28);
-    QString headerBg = (theme && theme->type() == PCBTheme::Light) ? "#f1f5f9" : "#1a1a1a";
-    listHeader->setStyleSheet(QString(
-        "background-color: %1;"
-        "color: %2;"
-        "font-size: 10px;"
-        "font-weight: 700;"
-        "border-bottom: 1px solid %3;"
-    ).arg(headerBg, theme ? theme->textSecondary().name() : "#555", border));
-    symbolLayout->addWidget(listHeader);
+    // ── Recently Placed Section ─────────────────────────────────────────
+    setupRecentSection();
+    symbolLayout->addWidget(m_recentHeader);
+    symbolLayout->addWidget(m_recentContainer);
+
+    // ── Standard Components Section (collapsible) ────────────────────────
+    m_standardHeader = createSectionHeader("STANDARD COMPONENTS", m_standardExpanded, [this]() {
+        onToggleStandardSection();
+    });
+    symbolLayout->addWidget(m_standardHeader);
 
     // ── Component Tree ──────────────────────────────────────────────────
     m_componentList = new QTreeView(this);
@@ -373,6 +521,7 @@ SchematicComponentsWidget::SchematicComponentsWidget(QWidget *parent)
     ).arg(bg, fg, treeHoverBg, selBg));
 
     m_componentList->setMouseTracking(true);
+    m_componentList->setDragEnabled(true);
     m_componentList->installEventFilter(this);
     connect(m_componentList, &QTreeView::entered, this, &SchematicComponentsWidget::onItemHovered);
     connect(m_componentList, &QTreeView::clicked, this, &SchematicComponentsWidget::onItemClicked);
@@ -394,6 +543,13 @@ SchematicComponentsWidget::SchematicComponentsWidget(QWidget *parent)
 
     mainLayout->addWidget(m_tabs);
 
+    // Load saved preferences
+    QSettings settings;
+    m_compactMode = settings.value("Components/CompactMode", false).toBool();
+    m_actionsVisible = settings.value("Components/HideActionCards", true).toBool();
+    m_actionContainer->setVisible(m_actionsVisible);
+    if (m_compactMode) applyCompactMode(true);
+
     populate();
 }
 
@@ -405,10 +561,276 @@ bool SchematicComponentsWidget::eventFilter(QObject* watched, QEvent* event) {
     if (watched == m_componentList && event->type() == QEvent::Leave) {
         if (m_previewPopup) m_previewPopup->hide();
     }
+    // Enter/Return on selected component → place it
+    if (watched == m_componentList && event->type() == QEvent::KeyPress) {
+        auto* ke = static_cast<QKeyEvent*>(event);
+        if (ke->key() == Qt::Key_Return || ke->key() == Qt::Key_Enter) {
+            QModelIndex idx = m_componentList->currentIndex();
+            if (idx.isValid()) {
+                QModelIndex sourceIndex = m_proxyModel->mapToSource(idx);
+                if (!m_symbolListModel->data(sourceIndex, SymbolListModel::IsCategoryRole).toBool()) {
+                    const auto& sym = m_symbolListModel->symbolDefinition(sourceIndex);
+                    if (!sym.name().isEmpty()) {
+                        addRecentComponent(sym.name());
+                        Q_EMIT toolSelected(sym.name());
+                        m_previewPopup->hide();
+                    }
+                }
+            }
+            return true; // consumed
+        }
+    }
     return QWidget::eventFilter(watched, event);
 }
 
 SchematicComponentsWidget::~SchematicComponentsWidget() {}
+
+// ─── Filter Dropdown ─────────────────────────────────────────────────────────
+void SchematicComponentsWidget::setupFilterChips() {
+    PCBTheme* theme = ThemeManager::theme();
+    QString bg = theme ? theme->panelBackground().name() : "#ffffff";
+    QString fg = theme ? theme->textColor().name() : "#000000";
+    QString border = theme ? theme->panelBorder().name() : "#cccccc";
+    QString inputBg = (theme && theme->type() == PCBTheme::Light) ? "#f1f5f9" : "#1a1a1a";
+
+    m_filterCombo = new QComboBox(this);
+    m_filterCombo->setFixedHeight(32);
+    m_filterCombo->addItems({"All", "Passives", "Semiconductors", "Logic", "Power", "MCU", "Instruments", "Simulation", "XSPICE"});
+    m_filterCombo->setStyleSheet(QString(
+        "QComboBox {"
+        "   background-color: %1;"
+        "   border: none;"
+        "   border-bottom: 1px solid %2;"
+        "   border-radius: 0px;"
+        "   padding: 4px 10px;"
+        "   color: %3;"
+        "   font-size: 11px;"
+        "}"
+        "QComboBox::drop-down {"
+        "   border: none;"
+        "   width: 20px;"
+        "}"
+        "QComboBox::down-arrow {"
+        "   image: none;"
+        "   border-left: 4px solid transparent;"
+        "   border-right: 4px solid transparent;"
+        "   border-top: 5px solid %3;"
+        "   margin-right: 8px;"
+        "}"
+        "QComboBox QAbstractItemView {"
+        "   background-color: %1;"
+        "   color: %3;"
+        "   border: 1px solid %2;"
+        "   selection-background-color: #3b82f6;"
+        "   selection-color: #ffffff;"
+        "   font-size: 11px;"
+        "}"
+    ).arg(inputBg, border, fg));
+
+    connect(m_filterCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
+            this, &SchematicComponentsWidget::onFilterChipClicked);
+}
+
+void SchematicComponentsWidget::onFilterChipClicked(int chipIndex) {
+    if (chipIndex == m_activeChipIndex) return;
+    m_activeChipIndex = chipIndex;
+
+    // Map index to category name (empty = show all)
+    static const QStringList categories = {
+        "", "Passives", "Semiconductors", "Logic", "Power Symbols",
+        "Co-Simulation", "Instruments", "Simulation", "XSPICE"
+    };
+
+    QString category = (chipIndex < categories.size()) ? categories[chipIndex] : "";
+    auto* proxy = static_cast<ComponentFilterProxyModel*>(m_proxyModel);
+    if (proxy) proxy->setCategoryFilter(category);
+
+    // Clear search when switching filter
+    if (!category.isEmpty()) {
+        m_searchBox->clear();
+    }
+
+    // Expand all visible categories
+    m_componentList->expandAll();
+}
+
+// ─── Recently Placed Section ────────────────────────────────────────────────
+void SchematicComponentsWidget::setupRecentSection() {
+    PCBTheme* theme = ThemeManager::theme();
+    QString bg = theme ? theme->panelBackground().name() : "#ffffff";
+    QString fg = theme ? theme->textColor().name() : "#000000";
+    QString border = theme ? theme->panelBorder().name() : "#cccccc";
+    QString headerBg = (theme && theme->type() == PCBTheme::Light) ? "#f1f5f9" : "#1a1a1a";
+    QString hoverBg = (theme && theme->type() == PCBTheme::Light) ? "#f8fafc" : "#2d2d2d";
+
+    // Collapsible header with clear button
+    m_recentHeader = new QWidget(this);
+    m_recentHeader->setFixedHeight(28);
+    m_recentHeader->setStyleSheet(QString(
+        "background-color: %1; border-bottom: 1px solid %2;"
+    ).arg(headerBg, border));
+
+    auto* headerLayout = new QHBoxLayout(m_recentHeader);
+    headerLayout->setContentsMargins(0, 0, 0, 0);
+    headerLayout->setSpacing(0);
+
+    // Triangle indicator
+    m_recentIndicator = new QPushButton(m_recentHeader);
+    m_recentIndicator->setIcon(QIcon(m_recentExpanded ? ":/icons/chevron_down.svg" : ":/icons/chevron_right.svg"));
+    m_recentIndicator->setIconSize(QSize(12, 12));
+    m_recentIndicator->setFixedSize(24, 28);
+    m_recentIndicator->setCursor(Qt::PointingHandCursor);
+    m_recentIndicator->setStyleSheet(
+        "QPushButton { border: none; background: transparent; padding: 4px; }"
+        "QPushButton:hover { background: rgba(59,130,246,0.15); border-radius: 4px; }"
+    );
+    connect(m_recentIndicator, &QPushButton::clicked, this, &SchematicComponentsWidget::onToggleRecentSection);
+    headerLayout->addWidget(m_recentIndicator);
+
+    auto* headerLabel = new QLabel("RECENT", m_recentHeader);
+    headerLabel->setStyleSheet(QString(
+        "color: %1; font-size: 10px; font-weight: 700; background: transparent;"
+    ).arg(theme ? theme->textSecondary().name() : "#555"));
+    headerLayout->addWidget(headerLabel);
+    headerLayout->addStretch();
+
+    auto* clearBtn = new QPushButton("Clear", m_recentHeader);
+    clearBtn->setCursor(Qt::PointingHandCursor);
+    clearBtn->setStyleSheet(QString(
+        "QPushButton { color: %1; font-size: 10px; border: none; background: transparent; padding: 0 8px; }"
+        "QPushButton:hover { color: #3b82f6; }"
+    ).arg(theme ? theme->textSecondary().name() : "#555"));
+    connect(clearBtn, &QPushButton::clicked, this, &SchematicComponentsWidget::onClearRecent);
+    headerLayout->addWidget(clearBtn);
+
+    // Recent items container
+    m_recentContainer = new QWidget(this);
+    m_recentLayout = new QVBoxLayout(m_recentContainer);
+    m_recentLayout->setContentsMargins(0, 0, 0, 0);
+    m_recentLayout->setSpacing(0);
+
+    // Load from settings
+    QSettings settings;
+    m_recentList = settings.value("Components/RecentPlacements").toStringList();
+    m_recentList = m_recentList.mid(0, 15); // Enforce max 15
+
+    updateRecentSection();
+}
+
+void SchematicComponentsWidget::updateRecentSection() {
+    // Clear existing items
+    QLayoutItem* item;
+    while ((item = m_recentLayout->takeAt(0)) != nullptr) {
+        if (item->widget()) item->widget()->deleteLater();
+        delete item;
+    }
+
+    PCBTheme* theme = ThemeManager::theme();
+    QString bg = theme ? theme->panelBackground().name() : "#ffffff";
+    QString fg = theme ? theme->textColor().name() : "#000000";
+    QString hoverBg = (theme && theme->type() == PCBTheme::Light) ? "#f8fafc" : "#2d2d2d";
+
+    bool hasRecent = !m_recentList.isEmpty();
+    m_recentHeader->setVisible(hasRecent);
+    m_recentContainer->setVisible(hasRecent && m_recentExpanded);
+
+    for (const QString& name : m_recentList) {
+        auto* btn = new QPushButton(name, m_recentContainer);
+        btn->setCursor(Qt::PointingHandCursor);
+        btn->setFixedHeight(m_compactMode ? 22 : 28);
+        btn->setStyleSheet(QString(
+            "QPushButton {"
+            "   background-color: %1; border: none; border-bottom: 1px solid %2;"
+            "   text-align: left; padding: 0 12px; font-size: %4; color: %3;"
+            "}"
+            "QPushButton:hover { background-color: %5; }"
+        ).arg(bg, name.isEmpty() ? "transparent" : "transparent", fg, m_compactMode ? "10px" : "11px", hoverBg));
+        connect(btn, &QPushButton::clicked, this, [this, name]() {
+            addRecentComponent(name);
+            Q_EMIT toolSelected(name);
+        });
+        m_recentLayout->addWidget(btn);
+    }
+}
+
+void SchematicComponentsWidget::addRecentComponent(const QString& name) {
+    if (name.isEmpty()) return;
+    m_recentList.removeAll(name);
+    m_recentList.prepend(name);
+    if (m_recentList.size() > 15) m_recentList = m_recentList.mid(0, 15);
+
+    QSettings settings;
+    settings.setValue("Components/RecentPlacements", m_recentList);
+
+    updateRecentSection();
+}
+
+void SchematicComponentsWidget::onClearRecent() {
+    m_recentList.clear();
+    QSettings settings;
+    settings.remove("Components/RecentPlacements");
+    updateRecentSection();
+}
+
+// ─── Section Collapse/Expand ─────────────────────────────────────────────────
+void SchematicComponentsWidget::onToggleRecentSection() {
+    m_recentExpanded = !m_recentExpanded;
+    updateSectionHeader(m_recentIndicator, m_recentExpanded);
+    m_recentContainer->setVisible(m_recentExpanded && !m_recentList.isEmpty());
+}
+
+void SchematicComponentsWidget::onToggleStandardSection() {
+    m_standardExpanded = !m_standardExpanded;
+    auto* indicator = reinterpret_cast<QPushButton*>(m_standardHeader->property("indicator").value<quintptr>());
+    updateSectionHeader(indicator, m_standardExpanded);
+    m_componentList->setVisible(m_standardExpanded);
+}
+
+// ─── Compact Mode ────────────────────────────────────────────────────────────
+void SchematicComponentsWidget::onToggleCompactMode() {
+    m_compactMode = !m_compactMode;
+    QSettings settings;
+    settings.setValue("Components/CompactMode", m_compactMode);
+    applyCompactMode(m_compactMode);
+}
+
+void SchematicComponentsWidget::applyCompactMode(bool compact) {
+    PCBTheme* theme = ThemeManager::theme();
+    QString bg = theme ? theme->panelBackground().name() : "#ffffff";
+    QString fg = theme ? theme->textColor().name() : "#000000";
+    QString treeHoverBg = (theme && theme->type() == PCBTheme::Light) ? "#f1f5f9" : "#2a2a2a";
+    QString selBg = theme ? theme->accentColor().name() : "#007acc";
+
+    if (compact) {
+        m_componentList->setIconSize(QSize(12, 12));
+        m_componentList->setStyleSheet(QString(
+            "QTreeView { background-color: %1; border: none; color: %2; outline: none; padding: 0px; font-size: 10px; }"
+            "QTreeView::item { padding: 1px 4px; border-radius: 2px; margin: 0px 2px; border: none; }"
+            "QTreeView::item:hover { background-color: %3; }"
+            "QTreeView::item:selected { background-color: %4; color: #ffffff; }"
+            "QTreeView::branch { background: transparent; }"
+        ).arg(bg, fg, treeHoverBg, selBg));
+    } else {
+        m_componentList->setIconSize(QSize(16, 16));
+        m_componentList->setStyleSheet(QString(
+            "QTreeView { background-color: %1; border: none; color: %2; outline: none; padding: 2px; font-size: 12px; }"
+            "QTreeView::item { padding: 4px 6px; border-radius: 4px; margin: 1px 4px; border: none; }"
+            "QTreeView::item:hover { background-color: %3; }"
+            "QTreeView::item:selected { background-color: %4; color: #ffffff; }"
+            "QTreeView::branch { background: transparent; }"
+        ).arg(bg, fg, treeHoverBg, selBg));
+    }
+    updateRecentSection();
+}
+
+// ─── Hide Action Cards ───────────────────────────────────────────────────────
+void SchematicComponentsWidget::onToggleActionCards() {
+    m_actionsVisible = !m_actionsVisible;
+    QSettings settings;
+    settings.setValue("Components/HideActionCards", m_actionsVisible);
+    m_actionContainer->setVisible(m_actionsVisible);
+    m_actionCardsToggle->setIcon(QIcon(m_actionsVisible ? ":/icons/eye.svg" : ":/icons/eye_off.svg"));
+}
 
 // ─── focusSearch ───────────────────────────────────────────────────────────
 void SchematicComponentsWidget::focusSearch() {
@@ -546,9 +968,6 @@ void SchematicComponentsWidget::populate() {
         }
     }
 
-//            << simulatableLibrarySymbols << "of" << totalLibrarySymbols
-//            << "library symbols.";
-
     m_symbolListModel->setSymbols(builtIn, libs);
     
     // Expand top-level built-in categories by default
@@ -562,10 +981,8 @@ void SchematicComponentsWidget::populate() {
 
 // ─── Slots ──────────────────────────────────────────────────────────────────
 void SchematicComponentsWidget::onSearchTextChanged(const QString &text) {
-    m_proxyModel->setFilterFixedString(text);
-    if (!text.isEmpty()) {
-        m_componentList->expandAll();
-    }
+    m_pendingSearchText = text;
+    m_searchDebounceTimer->start();
 }
 
 void SchematicComponentsWidget::onItemClicked(const QModelIndex& index) {
@@ -578,6 +995,7 @@ void SchematicComponentsWidget::onItemClicked(const QModelIndex& index) {
 
     const auto& sym = m_symbolListModel->symbolDefinition(sourceIndex);
     m_selectedSymbol = sym;
+    addRecentComponent(sym.name());
     Q_EMIT toolSelected(sym.name());
     
     m_previewPopup->hide();

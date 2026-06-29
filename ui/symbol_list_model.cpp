@@ -70,31 +70,32 @@ QVariant SymbolListModel::data(const QModelIndex& index, int role) const {
     const Item* item = static_cast<const Item*>(index.internalPointer());
 
     if (role == Qt::DisplayRole || role == NameRole) {
-        if (!item->isCategory) {
-            const auto& mcuDb = AvrMicrocontrollerItem::mcuDatabase();
-            if (mcuDb.contains(item->name)) {
-                const auto& mcu = mcuDb[item->name];
-                // Count ADC channels
-                int adcCount = 0;
-                for (const auto& pin : mcu.pins) {
-                    if (pin.dir == AvrPinDef::AnalogInOut) adcCount++;
-                }
-                // Find compatible Arduino boards
-                const auto& boardDb = arduinoBoardDatabase();
-                QStringList boards;
-                for (auto it = boardDb.constBegin(); it != boardDb.constEnd(); ++it) {
-                    if (it.value().mcuModel == item->name) boards.append(it.key());
-                }
-                QString info = QString("%1  ·  %2 MHz  ·  %3 pins")
-                    .arg(item->name)
-                    .arg(mcu.defaultClock / 1e6, 0, 'f', 0)
-                    .arg(mcu.pins.size());
-                if (adcCount > 0)
-                    info += QString("  ·  %1 ADC").arg(adcCount);
-                if (!boards.isEmpty())
-                    info += QString("  ·  %1").arg(boards.first());
-                return info;
+        if (item->isCategory) {
+            return QString("%1 (%2)").arg(item->name).arg(item->children.size());
+        }
+        const auto& mcuDb = AvrMicrocontrollerItem::mcuDatabase();
+        if (mcuDb.contains(item->name)) {
+            const auto& mcu = mcuDb[item->name];
+            // Count ADC channels
+            int adcCount = 0;
+            for (const auto& pin : mcu.pins) {
+                if (pin.dir == AvrPinDef::AnalogInOut) adcCount++;
             }
+            // Find compatible Arduino boards
+            const auto& boardDb = arduinoBoardDatabase();
+            QStringList boards;
+            for (auto it = boardDb.constBegin(); it != boardDb.constEnd(); ++it) {
+                if (it.value().mcuModel == item->name) boards.append(it.key());
+            }
+            QString info = QString("%1  ·  %2 MHz  ·  %3 pins")
+                .arg(item->name)
+                .arg(mcu.defaultClock / 1e6, 0, 'f', 0)
+                .arg(mcu.pins.size());
+            if (adcCount > 0)
+                info += QString("  ·  %1 ADC").arg(adcCount);
+            if (!boards.isEmpty())
+                info += QString("  ·  %1").arg(boards.first());
+            return info;
         }
         return item->name;
     }
@@ -199,4 +200,22 @@ SymbolDefinition SymbolListModel::symbolDefinition(const QModelIndex& index) con
     }
     
     return def ? *def : SymbolDefinition(item->name);
+}
+
+QStringList SymbolListModel::mimeTypes() const {
+    return {"application/x-viospice-component"};
+}
+
+QMimeData* SymbolListModel::mimeData(const QModelIndexList& indexes) const {
+    if (indexes.isEmpty()) return nullptr;
+
+    QModelIndex index = indexes.first();
+    if (!index.isValid()) return nullptr;
+
+    const Item* item = static_cast<const Item*>(index.internalPointer());
+    if (item->isCategory) return nullptr;
+
+    auto* mimeData = new QMimeData();
+    mimeData->setData("application/x-viospice-component", item->name.toUtf8());
+    return mimeData;
 }

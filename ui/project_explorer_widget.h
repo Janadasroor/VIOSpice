@@ -35,6 +35,9 @@ public:
 Q_SIGNALS:
     void fileDoubleClicked(const QString& filePath);
 
+protected:
+    bool eventFilter(QObject* obj, QEvent* event) override;
+
 private Q_SLOTS:
     void onDoubleClicked(const QModelIndex& index);
     void onFilterChanged(const QString& text);
@@ -51,6 +54,7 @@ private:
     void createNewFolder(const QString& dirPath);
     void duplicateItem(const QString& path);
     void undoLastDelete();
+    void startInlineRename(const QModelIndex& proxyIndex);
     QString trashDir() const;
 
     QTreeView* m_treeView;

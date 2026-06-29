@@ -38,6 +38,7 @@ private:
     qreal m_currentRotation = 0;
     bool m_flippedH = false;
     bool m_flippedV = false;
+    bool m_stickyRotation = false;
     void clearPreviewWires();
     void applyPreviewTransforms();
 };
