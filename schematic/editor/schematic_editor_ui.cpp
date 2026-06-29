@@ -744,6 +744,13 @@ void SchematicEditor::createToolBar() {
     undoAct->setToolTip("Undo last action (Ctrl+Z)");
     mainToolbar->addAction(undoAct);
 
+    // Quick Redo button (Primary Ctrl+Shift+Z handler)
+    QAction* redoAct = m_undoStack->createRedoAction(this);
+    redoAct->setIcon(getThemeIcon(":/icons/redo.svg"));
+    redoAct->setShortcut(QKeySequence::Redo);
+    redoAct->setToolTip("Redo last action (Ctrl+Shift+Z)");
+    mainToolbar->addAction(redoAct);
+
     mainToolbar->addSeparator();
 
     mainToolbar->setStyleSheet(
