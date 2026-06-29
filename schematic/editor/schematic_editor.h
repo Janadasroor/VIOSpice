@@ -94,9 +94,10 @@ public:
 
 public:
     void onPlaceSymbolInSchematic(const class SymbolDefinition& symbol);
+    void focusComponentSearch();
+    void onZoomFit();
 
 private Q_SLOTS:
-    void onZoomFit();
     void onZoomAllComponents();
     void onZoomSelection();
     void onZoomArea();

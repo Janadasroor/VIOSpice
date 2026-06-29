@@ -13,6 +13,7 @@
 #include <QHeaderView>
 #include <QFileInfo>
 #include <QGroupBox>
+#include <QShortcut>
 #include <QApplication>
 
 ModelBrowserWidget::ModelBrowserWidget(QWidget* parent)
@@ -91,6 +92,10 @@ void ModelBrowserWidget::setupUI() {
     connect(m_treeView->selectionModel(), &QItemSelectionModel::currentChanged, this, &ModelBrowserWidget::onItemSelectionChanged);
     connect(m_applyBtn, &QPushButton::clicked, this, &ModelBrowserWidget::onApplyClicked);
     connect(reloadBtn, &QPushButton::clicked, this, &ModelBrowserWidget::onReloadClicked);
+
+    // Enter → apply selected model
+    auto* enterShortcut = new QShortcut(QKeySequence(Qt::Key_Return), m_treeView);
+    connect(enterShortcut, &QShortcut::activated, this, &ModelBrowserWidget::onApplyClicked);
 }
 
 

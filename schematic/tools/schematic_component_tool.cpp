@@ -174,10 +174,12 @@ void SchematicComponentTool::mousePressEvent(QMouseEvent* event) {
         view()->itemPlaced(component);
         event->accept();
 
-        // Reset rotation and flip state so next placement starts fresh
-        m_currentRotation = 0;
-        m_flippedH = false;
-        m_flippedV = false;
+        // Reset rotation and flip state (unless sticky rotation is enabled)
+        if (!m_stickyRotation) {
+            m_currentRotation = 0;
+            m_flippedH = false;
+            m_flippedV = false;
+        }
         applyPreviewTransforms();
     }
 }
@@ -208,6 +210,13 @@ void SchematicComponentTool::keyPressEvent(QKeyEvent* event) {
             event->accept();
             return;
         }
+    }
+
+    // Ctrl+R → toggle sticky rotation (persists rotation across placements)
+    if (event->key() == Qt::Key_R && (event->modifiers() & Qt::ControlModifier)) {
+        m_stickyRotation = !m_stickyRotation;
+        event->accept();
+        return;
     }
 
     SchematicTool::keyPressEvent(event);

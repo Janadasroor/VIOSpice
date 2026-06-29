@@ -8,6 +8,7 @@
 #include "../core/visuals/theme_manager.h"
 #include <QHeaderView>
 #include <QSortFilterProxyModel>
+#include <QKeyEvent>
 #include <QMenu>
 #include <QClipboard>
 #include <QApplication>
@@ -271,6 +272,28 @@ ProjectExplorerWidget::~ProjectExplorerWidget() {
     }
 }
 
+bool ProjectExplorerWidget::eventFilter(QObject* obj, QEvent* event) {
+    if (obj == m_treeView && event->type() == QEvent::KeyPress) {
+        auto* ke = static_cast<QKeyEvent*>(event);
+        if (ke->key() == Qt::Key_F2) {
+            QModelIndex idx = m_treeView->currentIndex();
+            if (idx.isValid()) {
+                startInlineRename(idx);
+            }
+            return true;
+        }
+    }
+    return QWidget::eventFilter(obj, event);
+}
+
+void ProjectExplorerWidget::startInlineRename(const QModelIndex& proxyIndex) {
+    m_model->setReadOnly(false);
+    m_treeView->edit(proxyIndex);
+    // Restore read-only after edit closes (via any path)
+    connect(m_treeView->itemDelegate(), &QAbstractItemDelegate::closeEditor,
+            this, [this]() { m_model->setReadOnly(true); }, Qt::UniqueConnection);
+}
+
 void ProjectExplorerWidget::setupUi() {
     QVBoxLayout* layout = new QVBoxLayout(this);
     layout->setContentsMargins(0, 0, 0, 0);
@@ -343,6 +366,8 @@ void ProjectExplorerWidget::setupUi() {
     m_treeView->setUniformRowHeights(true);
     m_treeView->setAlternatingRowColors(true);
     m_treeView->setItemDelegate(new ProjectExplorerDelegate(m_model, m_proxyModel, &m_gitStatusMap, this));
+    m_treeView->setEditTriggers(QAbstractItemView::DoubleClicked | QAbstractItemView::EditKeyPressed);
+    m_treeView->installEventFilter(this);
     
     // Hide size, type, date columns
     for (int i = 1; i < 4; ++i) m_treeView->hideColumn(i);

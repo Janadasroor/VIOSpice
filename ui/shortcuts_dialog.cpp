@@ -60,6 +60,18 @@ ShortcutsDialog::ShortcutsDialog(QWidget* parent)
         }
     }
     
+    // Add non-QAction shortcuts (handled via QShortcut, keyPressEvent, eventFilter)
+    shortcuts.insert("Focus Component Search", "/");
+    shortcuts.insert("Toggle Sticky Rotation (Placement)", "Ctrl+R");
+    shortcuts.insert("Inline Rename (Project Explorer)", "F2");
+    shortcuts.insert("Rotate CW (During Placement)", "R");
+    shortcuts.insert("Rotate CCW (During Placement)", "Shift+R");
+    shortcuts.insert("Flip Horizontal (During Placement)", "H");
+    shortcuts.insert("Flip Vertical (During Placement)", "Shift+V");
+    shortcuts.insert("Rotate Selected / Hand Tool", "Space");
+    shortcuts.insert("Delete Selected / Hovered Item", "Del");
+    shortcuts.insert("Cancel Placement / Deselect", "Esc");
+    
     // Sort alphabetically
     QStringList sortedActions = shortcuts.keys();
     sortedActions.sort();

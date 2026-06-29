@@ -26,6 +26,10 @@
         <file>icons/tool_text.png</file>
         <file>icons/chevron_right.svg</file>
         <file>icons/chevron_down.svg</file>
+        <file>icons/view_rows.svg</file>
+        <file>icons/layout_sidebar.svg</file>
+        <file>icons/eye.svg</file>
+        <file>icons/eye_off.svg</file>
         <file>icons/arrow_down.svg</file>
         <file>icons/tool_select.svg</file>
         <file>icons/tool_wire.svg</file>
