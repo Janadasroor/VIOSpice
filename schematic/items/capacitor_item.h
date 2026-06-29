@@ -35,6 +35,7 @@ public:
     // Properties
     QString value() const { return m_value; }
     void setValue(const QString& value);
+    void setSimState(const QMap<QString, double>& nodeVoltages, const QMap<QString, double>& branchCurrents) override;
 
     // QGraphicsItem interface
     QRectF boundingRect() const override;

@@ -29,6 +29,14 @@ void LEDItem::setSimState(const QMap<QString, double>& nodeVoltages, const QMap<
     if (nCathode.isEmpty()) vCathode = nodeVoltages.value(m_reference + ".2", 0.0);
 
     m_voltage = vAnode - vCathode;
+    // P = Vf × If (forward voltage × current through LED)
+    // Approximate: P ≈ Vf² / Rled (assume ~100Ω dynamic resistance)
+    if (m_voltage > m_threshold) {
+        double vf = m_voltage - m_threshold;
+        m_powerDissipation = vf * vf / 100.0;
+    } else {
+        m_powerDissipation = 0;
+    }
     update();
 }
 

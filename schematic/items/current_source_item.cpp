@@ -520,3 +520,14 @@ QList<QPointF> CurrentSourceItem::connectionPoints() const {
     }
     return { QPointF(0, -45), QPointF(0, 45) };
 }
+
+void CurrentSourceItem::setSimState(const QMap<QString, double>& nodeVoltages, const QMap<QString, double>&) {
+    // P = V × I (delivered power)
+    QString n1 = pinNet(0);
+    QString n2 = pinNet(1);
+    if (n1.isEmpty() || n2.isEmpty()) { m_powerDissipation = 0; return; }
+    double v = qAbs(nodeVoltages.value(n1, 0.0) - nodeVoltages.value(n2, 0.0));
+    double i = qAbs(parseValue(value()));
+    m_powerDissipation = v * i;
+    update();
+}

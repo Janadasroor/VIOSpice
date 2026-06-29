@@ -35,6 +35,7 @@ public:
 
     QString value() const { return m_value; }
     void setValue(const QString& value);
+    void setSimState(const QMap<QString, double>& nodeVoltages, const QMap<QString, double>& branchCurrents) override;
     
     TransistorType transistorType() const { return m_transistorType; }
     void setTransistorType(TransistorType type);

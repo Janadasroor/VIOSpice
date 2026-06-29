@@ -149,3 +149,11 @@ SchematicItem* InductorItem::clone() const {
 QList<QPointF> InductorItem::connectionPoints() const {
     return { QPointF(-60, 0), QPointF(60, 0) };
 }
+
+void InductorItem::setSimState(const QMap<QString, double>&, const QMap<QString, double>& branchCurrents) {
+    // P = I² × DCR (DC resistance of inductor)
+    double i = qAbs(branchCurrents.value(reference(), 0.0));
+    double dcr = 0.1; // Default DCR ~0.1Ω
+    m_powerDissipation = i * i * dcr;
+    update();
+}

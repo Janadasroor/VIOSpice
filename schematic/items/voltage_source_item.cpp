@@ -571,3 +571,11 @@ QList<QPointF> VoltageSourceItem::connectionPoints() const {
     }
     return { QPointF(0, -45), QPointF(0, 45) }; // [0] is positive, [1] is negative
 }
+
+void VoltageSourceItem::setSimState(const QMap<QString, double>&, const QMap<QString, double>& branchCurrents) {
+    // P = V × I (delivered power)
+    double i = qAbs(branchCurrents.value(reference(), 0.0));
+    double v = qAbs(parseValue(value()));
+    m_powerDissipation = v * i;
+    update();
+}

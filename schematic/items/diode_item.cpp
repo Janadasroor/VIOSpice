@@ -170,3 +170,21 @@ SchematicItem* DiodeItem::clone() const {
     newItem->fromJson(state);
     return newItem;
 }
+
+void DiodeItem::setSimState(const QMap<QString, double>& nodeVoltages, const QMap<QString, double>& branchCurrents) {
+    Q_UNUSED(branchCurrents)
+    QString n1 = pinNet(0); // Anode
+    QString n2 = pinNet(1); // Cathode
+    if (n1.isEmpty() || n2.isEmpty()) { m_powerDissipation = 0; return; }
+    double v1 = nodeVoltages.value(n1, 0.0);
+    double v2 = nodeVoltages.value(n2, 0.0);
+    double vf = v1 - v2;
+    // P = Vf × If, approximate If from voltage drop (simplified)
+    double rSeries = 1.0; // Assume ~1Ω series resistance for power estimation
+    if (vf > 0) {
+        m_powerDissipation = vf * vf / rSeries;
+    } else {
+        m_powerDissipation = 0;
+    }
+    update();
+}
