@@ -401,7 +401,7 @@ void SchematicEditor::createToolBar() {
     // File Menu
     QMenu* fileMenu = mainAppMenu->addMenu("&File");
     fileMenu->addAction(createComponentIcon("New"), "New Schematic", QKeySequence::New, this, &SchematicEditor::onNewSchematic);
-    fileMenu->addAction(getThemeIcon(":/icons/tool_run.svg"), "New FluxScript", QKeySequence("Ctrl+Shift+N"), this, [this]() { addScriptTab(); });
+    fileMenu->addAction(getThemeIcon(":/icons/file_fluxscript.svg"), "New FluxScript", QKeySequence("Ctrl+Shift+N"), this, [this]() { addScriptTab(); });
     fileMenu->addSeparator();
     fileMenu->addAction(createComponentIcon("Open"), "Open Schematic...", QKeySequence::Open, this, &SchematicEditor::onOpenSchematic);
     QAction* openTemplateAct = fileMenu->addAction(createComponentIcon("Open"), "Open Template...");
@@ -730,7 +730,7 @@ void SchematicEditor::createToolBar() {
     mainToolbar->addWidget(openFileBtn);
 
     QToolButton* newScriptBtn = new QToolButton(this);
-    newScriptBtn->setIcon(getThemeIcon(":/icons/tool_run.svg"));
+    newScriptBtn->setIcon(getThemeIcon(":/icons/file_fluxscript.svg"));
     newScriptBtn->setToolTip("New FluxScript (Ctrl+Shift+N)");
     connect(newScriptBtn, &QToolButton::clicked, this, [this]() { addScriptTab(); });
     mainToolbar->addWidget(newScriptBtn);
@@ -1110,7 +1110,7 @@ void SchematicEditor::createToolBar() {
     };
 
     // Wiring Tools
-    addSchTool("Hand", "Pan (Hand Tool)", "tool_select"); // Hand tool toggle via H key handled in SchematicView::keyPressEvent
+    addSchTool("Hand", "Pan (Hand Tool)", "tool_hand"); // Hand tool toggle via H key handled in SchematicView::keyPressEvent
     addSchTool("Select", "Select", "tool_select", "Esc");
     addSchTool("Voltage Probe", "Voltage Probe", "tool_voltage_probe", "Shift+K");
     addSchTool("Current Probe", "Current Probe", "tool_current_probe", "Alt+K");

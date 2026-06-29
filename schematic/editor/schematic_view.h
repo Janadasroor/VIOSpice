@@ -203,6 +203,8 @@ private:
     SchematicProbeTool::ProbeKind m_probeCursorKind = SchematicProbeTool::ProbeKind::Voltage;
     bool m_spacePressed = false;
     bool m_handToolActive = false;
+    QString m_handToolPreviousTool;
+    bool m_hKeyHeld = false;
     SelectionFilter m_selectionFilter = SelectAll;
     bool m_heatmapEnabled = false;
 
