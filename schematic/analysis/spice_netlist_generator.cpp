@@ -3387,9 +3387,10 @@ SpiceNetlistGenerator::GeneratedNetlist SpiceNetlistGenerator::generate(QGraphic
                    comp.reference.startsWith("X", Qt::CaseInsensitive) || 
                    typeLower.contains("amplifier") || typeLower.contains("opamp") || typeLower.contains("ic") ||
                    (SymbolLibraryManager::instance().findSymbol(comp.typeName) && 
-                    !SymbolLibraryManager::instance().findSymbol(comp.typeName)->spiceNodeMapping().isEmpty())) {
+                    !SymbolLibraryManager::instance().findSymbol(comp.typeName)->spiceNodeMapping().isEmpty()) ||
+                   // Standalone .viosym symbols with spiceNodeMapping (e.g. LT1221 from project)
+                   (!modelName.isEmpty() && !isJfet && !isMos && !isBjt)) {
             // If it's a subcircuit, we MUST ensure we have its pin names/order from the model library
-            fprintf(stderr, "[SPICE] Subcircuit detected: ref=%s type=%s model=%s\n", comp.reference.toStdString().c_str(), comp.typeName.toStdString().c_str(), modelName.toStdString().c_str());
             const SimSubcircuit* sub = ModelLibraryManager::instance().findSubcircuit(modelName);
             QString subLib = ModelLibraryManager::instance().findLibraryPath(modelName);
             if (!subLib.isEmpty()) {
