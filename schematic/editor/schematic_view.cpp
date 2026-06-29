@@ -1231,16 +1231,15 @@ void SchematicView::keyPressEvent(QKeyEvent *event) {
         // Do not let the global Hand toggle steal `H` while placing parts.
         if (SchematicEditor* editor = qobject_cast<SchematicEditor*>(window())) {
             if (editor->isPlacementModeActive()) {
-                // Placement mode key handling is owned by SchematicEditor::eventFilter.
-                // Consume here as a safety net so it never toggles Hand/cancels placement.
                 event->accept();
                 return;
-            } else {
-                setHandToolActive(!m_handToolActive);
-                event->accept();
             }
-        } else {
-            setHandToolActive(!m_handToolActive);
+        }
+        // Hold-H-to-pan: activate hand tool, restore previous tool on release
+        if (!m_hKeyHeld) {
+            m_hKeyHeld = true;
+            m_handToolPreviousTool = m_currentTool ? m_currentTool->name() : "Select";
+            setHandToolActive(true);
             event->accept();
         }
         if (event->isAccepted()) return;
@@ -1381,6 +1380,18 @@ void SchematicView::keyReleaseEvent(QKeyEvent *event) {
         setDragMode(QGraphicsView::NoDrag);
         if (m_currentTool) viewport()->setCursor(m_currentTool->cursor());
         else viewport()->unsetCursor();
+        event->accept();
+        return;
+    }
+    // Hold-H-to-pan: restore previous tool when H is released
+    if (event->key() == Qt::Key_H && !event->isAutoRepeat() && m_hKeyHeld) {
+        m_hKeyHeld = false;
+        setHandToolActive(false);
+        // Restore previous tool
+        if (!m_handToolPreviousTool.isEmpty() && m_handToolPreviousTool != "Hand") {
+            setCurrentTool(m_handToolPreviousTool);
+        }
+        m_handToolPreviousTool.clear();
         event->accept();
         return;
     }

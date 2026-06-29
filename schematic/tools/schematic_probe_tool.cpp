@@ -12,7 +12,6 @@
 #include <QGraphicsItem>
 #include <QGraphicsEllipseItem>
 #include <QGraphicsSimpleTextItem>
-#include "schematic_waveform_marker.h"
 #include <QToolTip>
 #include <QPainter>
 
@@ -89,18 +88,6 @@ QString signalNameFor(const QString& netName, const QString& kindTag) {
     return "V(" + netName + ")";
 }
 
-SchematicWaveformMarker* findProbeMarker(QGraphicsScene* scene, const QString& markerKey) {
-    if (!scene) return nullptr;
-    for (QGraphicsItem* item : scene->items()) {
-        if (auto* marker = dynamic_cast<SchematicWaveformMarker*>(item)) {
-            if ((marker->kind() + ":" + marker->netName()).toUpper() == markerKey) {
-                return marker;
-            }
-        }
-    }
-    return nullptr;
-}
-
 QGraphicsItem* findProbeDot(QGraphicsScene* scene, const QString& markerKey) {
     if (!scene) return nullptr;
     for (QGraphicsItem* item : scene->items()) {
@@ -111,26 +98,18 @@ QGraphicsItem* findProbeDot(QGraphicsScene* scene, const QString& markerKey) {
     return nullptr;
 }
 
-void removeProbeMarker(QGraphicsScene* scene, const QString& markerKey) {
+void removeProbeDot(QGraphicsScene* scene, const QString& markerKey) {
     if (!scene) return;
-    if (auto* marker = findProbeMarker(scene, markerKey)) {
-        scene->removeItem(marker);
-        delete marker;
-    }
     if (auto* dot = findProbeDot(scene, markerKey)) {
         scene->removeItem(dot);
         delete dot;
     }
 }
 
-void removeAllProbeMarkers(QGraphicsScene* scene) {
+void removeAllProbeDots(QGraphicsScene* scene) {
     if (!scene) return;
     QList<QGraphicsItem*> toDelete;
     for (QGraphicsItem* item : scene->items()) {
-        if (dynamic_cast<SchematicWaveformMarker*>(item)) {
-            toDelete.append(item);
-            continue;
-        }
         if (item->data(0).toString() == "probe_dot") {
             toDelete.append(item);
         }
@@ -144,22 +123,14 @@ void removeAllProbeMarkers(QGraphicsScene* scene) {
 void placeProbeMarker(QGraphicsScene* scene, const QPointF& pos, const QString& netName, const QString& kindTag) {
     if (!scene || netName.isEmpty()) return;
     const QString markerKey = markerKeyFor(netName, kindTag);
-    const QPointF markerPos = pos + QPointF(12.0, -34.0);
 
-    // Check for existing marker
-    if (auto* marker = findProbeMarker(scene, markerKey)) {
-        marker->setPos(markerPos);
-        if (auto* dotItem = findProbeDot(scene, markerKey)) {
-            dotItem->setPos(pos);
-        }
+    // Toggle: if dot exists, remove it
+    if (findProbeDot(scene, markerKey)) {
+        removeProbeDot(scene, markerKey);
         return;
     }
 
-    auto* marker = new SchematicWaveformMarker(netName, kindTag);
-    marker->setPos(markerPos);
-    scene->addItem(marker);
-
-    // Professional locator dot (test point style)
+    // Place a colored dot
     QColor dotColor(34, 197, 94); // V
     if (kindTag == "I") dotColor = QColor(245, 158, 11);
     else if (kindTag == "P") dotColor = QColor(239, 68, 68);
@@ -170,7 +141,6 @@ void placeProbeMarker(QGraphicsScene* scene, const QPointF& pos, const QString& 
     dot->setZValue(1199);
     dot->setPos(pos);
     
-    // Add a concentric inner circle for a 'technical' look
     QGraphicsEllipseItem* inner = new QGraphicsEllipseItem(-2, -2, 4, 4, dot);
     inner->setBrush(Qt::white);
     inner->setPen(Qt::NoPen);
@@ -180,6 +150,7 @@ void placeProbeMarker(QGraphicsScene* scene, const QPointF& pos, const QString& 
     dot->setAcceptedMouseButtons(Qt::NoButton);
     scene->addItem(dot);
 }
+
 } // namespace
 
 QString SchematicProbeTool::tooltip() const {
@@ -344,17 +315,9 @@ void SchematicProbeTool::mousePressEvent(QMouseEvent* event) {
                 // Current/Power probe - single point
                 QString kindTag = (m_kind == ProbeKind::Current) ? "I" : "P";
                 const QString signalName = signalNameFor(netName, kindTag);
-                const QString markerKey = markerKeyFor(netName, kindTag);
 
-                if (findProbeMarker(view()->scene(), markerKey)) {
-                    Q_EMIT signalClearFocusedPaneProbes();
-                    // Don't remove all markers here anymore, let SimulationPanel handle selective removal
-                    Q_EMIT signalProbed(signalName);
-                    placeProbeMarker(view()->scene(), scenePos, netName, kindTag);
-                } else {
-                    Q_EMIT signalProbed(signalName);
-                    placeProbeMarker(view()->scene(), scenePos, netName, kindTag);
-                }
+                Q_EMIT signalProbed(signalName);
+                placeProbeMarker(view()->scene(), scenePos, netName, kindTag);
             }
             event->accept();
         } else if (m_kind == ProbeKind::Current || m_kind == ProbeKind::Power) {
@@ -413,18 +376,9 @@ void SchematicProbeTool::mouseReleaseEvent(QMouseEvent* event) {
             } else {
                 // Single point Voltage Probe (treat as if it was a single click)
                 const QString signalName = signalNameFor(m_startNetName, "V");
-                const QString markerKey = markerKeyFor(m_startNetName, "V");
 
-                if (findProbeMarker(view()->scene(), markerKey)) {
-                    Q_EMIT signalClearFocusedPaneProbes();
-                    // Don't remove all markers here anymore
-                    Q_EMIT signalProbed(signalName);
-                    placeProbeMarker(view()->scene(), scenePos, m_startNetName, "V");
-                } else {
-                    Q_EMIT signalProbed(signalName);
-                    // Place marker at the START point for single probe
-                    placeProbeMarker(view()->scene(), scenePos, m_startNetName, "V");
-                }
+                Q_EMIT signalProbed(signalName);
+                placeProbeMarker(view()->scene(), scenePos, m_startNetName, "V");
             }
         }
         
