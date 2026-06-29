@@ -12,6 +12,7 @@
 #include <QBuffer>
 #include <QTextDocument>
 #include "theme_manager.h"
+#include "../schematic/items/avr_microcontroller_item.h"
 
 using namespace Flux::Model;
 
@@ -71,9 +72,15 @@ void SymbolPreviewWidget::drawMiniAvrBlock(QPainter* painter, const QRectF& rect
     painter->setFont(f);
     painter->drawText(displayRect, Qt::AlignCenter, displayName.toUpper());
 
-    // Pin stubs
+    // Pin stubs — query actual pin count from MCU database
     qreal pinTail = 20 * scale;
-    int pinCount = 10; // Show a few representative pins
+    int pinCount = 14; // default
+    const auto& mcuDb = AvrMicrocontrollerItem::mcuDatabase();
+    if (mcuDb.contains(m_avrModel)) {
+        const auto& mcu = mcuDb[m_avrModel];
+        pinCount = (mcu.pins.size() + 1) / 2; // Half on each side
+    }
+    pinCount = qBound(4, pinCount, 20); // Clamp for visual clarity
     qreal pinSpacing = qMin(16.0 * scale, (blockH - 40) / pinCount);
 
     for (int i = 0; i < pinCount; ++i) {
