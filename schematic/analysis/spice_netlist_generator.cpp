@@ -2812,6 +2812,25 @@ QString normalizeIncludePathForNetlist(const QString& includePath, const QString
                         break;
                     }
                 }
+
+                // Try mod/ subdirectory for model libraries (e.g. LinearTech.lib)
+                if (!found) {
+                    QString candidate = QDir(root).absoluteFilePath("mod/" + resolvedPath);
+                    if (QFileInfo::exists(candidate)) {
+                        resolvedPath = QDir::cleanPath(candidate);
+                        found = true;
+                        break;
+                    }
+                    // Extension fallback
+                    QFileInfo fic(candidate);
+                    const QString altExt = fic.suffix().toLower() == "lib" ? ".sub" : ".lib";
+                    candidate = fic.dir().filePath(fic.completeBaseName() + altExt);
+                    if (QFileInfo::exists(candidate)) {
+                        resolvedPath = QDir::cleanPath(candidate);
+                        found = true;
+                        break;
+                    }
+                }
             }
             Q_UNUSED(found);
         }
@@ -3366,8 +3385,11 @@ SpiceNetlistGenerator::GeneratedNetlist SpiceNetlistGenerator::generate(QGraphic
             }
         } else if (ModelLibraryManager::instance().findSubcircuit(modelName) || 
                    comp.reference.startsWith("X", Qt::CaseInsensitive) || 
-                   typeLower.contains("amplifier") || typeLower.contains("opamp") || typeLower.contains("ic")) {
+                   typeLower.contains("amplifier") || typeLower.contains("opamp") || typeLower.contains("ic") ||
+                   (SymbolLibraryManager::instance().findSymbol(comp.typeName) && 
+                    !SymbolLibraryManager::instance().findSymbol(comp.typeName)->spiceNodeMapping().isEmpty())) {
             // If it's a subcircuit, we MUST ensure we have its pin names/order from the model library
+            fprintf(stderr, "[SPICE] Subcircuit detected: ref=%s type=%s model=%s\n", comp.reference.toStdString().c_str(), comp.typeName.toStdString().c_str(), modelName.toStdString().c_str());
             const SimSubcircuit* sub = ModelLibraryManager::instance().findSubcircuit(modelName);
             QString subLib = ModelLibraryManager::instance().findLibraryPath(modelName);
             if (!subLib.isEmpty()) {
@@ -4485,13 +4507,26 @@ SpiceNetlistGenerator::GeneratedNetlist SpiceNetlistGenerator::generate(QGraphic
                             subPinToSymbolPin.insert(it.value().trimmed().toUpper(), it.key());
                         }
 
+                        // Build reverse mapping: symbol pin number -> symbol pin name
+                        // pins map is keyed by pin NAME, not pin number
+                        QMap<int, QString> symbolPinNoToName;
+                        for (auto it = pins.constBegin(); it != pins.constEnd(); ++it) {
+                            bool ok = false;
+                            int pinNum = it.key().toInt(&ok);
+                            if (ok) {
+                                symbolPinNoToName[pinNum] = it.key();
+                            }
+                        }
+
                         for (const std::string& sp : activeSub->pinNames) {
                             const QString subPin = QString::fromStdString(sp).trimmed();
                             QString net = "0";
 
                             const int symbolPinNo = subPinToSymbolPin.value(subPin.toUpper(), -1);
                             if (symbolPinNo >= 0) {
-                                net = pins.value(QString::number(symbolPinNo), QString());
+                                // Look up by pin name (the key in pins map), not by number
+                                const QString symbolPinName = symbolPinNoToName.value(symbolPinNo, QString::number(symbolPinNo));
+                                net = pins.value(symbolPinName, QString());
                             }
                             // Fallbacks for symbol sets that key by pin names/tokens.
                             if (net.isEmpty()) net = fuzzyMatchPin(pins, subPin);
@@ -4501,26 +4536,23 @@ SpiceNetlistGenerator::GeneratedNetlist SpiceNetlistGenerator::generate(QGraphic
                             nodes.append(net.replace(" ", "_"));
                         }
                     } else {
+                        // activeSub not found — fall back to mapping
+                        // pins map is keyed by symbol pin NUMBER ("1","2",...)
+                        // mapping values are subcircuit node names which may differ
                         QList<int> sortedIndices = mapping.keys();
                         std::sort(sortedIndices.begin(), sortedIndices.end());
                         for (int idx : sortedIndices) {
-                            QString pinName = mapping[idx];
-                            QString net = pins.value(pinName, "0").replace(" ", "_");
-                            if (net == "0") {
-                                net = pins.value(QString::number(idx), "0").replace(" ", "_");
-                            }
+                            // Look up by symbol pin number directly
+                            QString net = pins.value(QString::number(idx), "0").replace(" ", "_");
                             nodes.append(net);
                         }
                     }
                 } else {
+                    // Non-subcircuit: look up by symbol pin number directly
                     QList<int> sortedIndices = mapping.keys();
                     std::sort(sortedIndices.begin(), sortedIndices.end());
                     for (int idx : sortedIndices) {
-                        QString pinName = mapping[idx];
-                        QString net = pins.value(pinName, "0").replace(" ", "_");
-                        if (net == "0") {
-                            net = pins.value(QString::number(idx), "0").replace(" ", "_");
-                        }
+                        QString net = pins.value(QString::number(idx), "0").replace(" ", "_");
                         nodes.append(net);
                     }
                 }

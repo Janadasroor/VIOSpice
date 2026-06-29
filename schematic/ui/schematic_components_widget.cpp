@@ -35,6 +35,8 @@
 #include <QMimeData>
 #include <QDrag>
 #include <QKeyEvent>
+#include <QApplication>
+#include <QScreen>
 
 using Flux::Model::SymbolDefinition;
 using Flux::Model::SymbolPrimitive;
@@ -1023,16 +1025,17 @@ void SchematicComponentsWidget::onItemHovered(const QModelIndex& index) {
     const auto& mcuDb = AvrMicrocontrollerItem::mcuDatabase();
     if (mcuDb.contains(sym.name())) {
         m_previewPopup->setAvrPreview(sym.name());
-        QPoint pos = QCursor::pos() + QPoint(20, -10);
-        m_previewPopup->move(pos);
-        m_previewPopup->show();
-        return;
+    } else {
+        m_previewPopup->setSymbol(sym);
     }
 
-    m_previewPopup->setSymbol(sym);
-    
-    // Position to the right of the cursor
+    // Position to the right of the cursor, clamped to screen bounds
     QPoint pos = QCursor::pos() + QPoint(20, -10);
+    QRect screenGeometry = QApplication::primaryScreen()->availableGeometry();
+    pos.setX(qMin(pos.x(), screenGeometry.right() - m_previewPopup->width() - 5));
+    pos.setY(qMin(pos.y(), screenGeometry.bottom() - m_previewPopup->height() - 5));
+    pos.setX(qMax(pos.x(), screenGeometry.left() + 5));
+    pos.setY(qMax(pos.y(), screenGeometry.top() + 5));
     m_previewPopup->move(pos);
     m_previewPopup->show();
 }
