@@ -10,6 +10,7 @@
 #include <QJsonObject>
 #include <QPixmap>
 #include <QBuffer>
+#include <QTextDocument>
 #include "theme_manager.h"
 
 using namespace Flux::Model;
@@ -18,6 +19,12 @@ SymbolPreviewWidget::SymbolPreviewWidget(QWidget* parent, Qt::WindowFlags f)
     : QWidget(parent, f) {
     setBackgroundRole(QPalette::Base);
     setAutoFillBackground(true);
+}
+
+void SymbolPreviewWidget::setInfoText(const QString& html) {
+    m_infoText = html;
+    m_symbol = SymbolDefinition();
+    update();
 }
 
 void SymbolPreviewWidget::setSymbol(const SymbolDefinition& sym) {
@@ -46,6 +53,17 @@ void SymbolPreviewWidget::paintEvent(QPaintEvent* event) {
         painter.drawRoundedRect(rect().adjusted(2, 2, -2, -2), 12, 12);
     } else {
         painter.fillRect(rect(), bg);
+    }
+
+    // Render info text (for MCU previews)
+    if (!m_infoText.isEmpty()) {
+        QTextDocument doc;
+        doc.setHtml(m_infoText);
+        doc.setDefaultFont(QFont("Inter", 9));
+        doc.setTextWidth(width() - 20);
+        painter.translate(10, 10);
+        doc.drawContents(&painter);
+        return;
     }
 
     if (m_symbol.name().isEmpty() && m_symbol.effectivePrimitives().isEmpty()) return;

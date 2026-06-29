@@ -14,6 +14,7 @@ public:
     explicit SymbolPreviewWidget(QWidget* parent = nullptr, Qt::WindowFlags f = Qt::WindowFlags());
     
     void setSymbol(const Flux::Model::SymbolDefinition& sym);
+    void setInfoText(const QString& html);
     void setStaticMode(bool enabled) { m_staticMode = enabled; update(); }
 
 protected:
@@ -23,5 +24,6 @@ private:
     void drawPrimitive(QPainter * p, const Flux::Model::SymbolPrimitive & prim, const QColor & fg, qreal scale);
 
     Flux::Model::SymbolDefinition m_symbol;
+    QString m_infoText;
     bool m_staticMode = false;
 };
