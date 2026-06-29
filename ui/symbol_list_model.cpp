@@ -6,6 +6,7 @@
 #include "symbol_list_model.h"
 #include "../symbols/symbol_library.h"
 #include "../schematic/items/avr_microcontroller_item.h"
+#include "../schematic/items/arduino_board_def.h"
 #include <QIcon>
 #include <QFont>
 
@@ -73,10 +74,26 @@ QVariant SymbolListModel::data(const QModelIndex& index, int role) const {
             const auto& mcuDb = AvrMicrocontrollerItem::mcuDatabase();
             if (mcuDb.contains(item->name)) {
                 const auto& mcu = mcuDb[item->name];
-                return QString("%1  ·  %2 MHz  ·  %3 pins")
+                // Count ADC channels
+                int adcCount = 0;
+                for (const auto& pin : mcu.pins) {
+                    if (pin.dir == AvrPinDef::AnalogInOut) adcCount++;
+                }
+                // Find compatible Arduino boards
+                const auto& boardDb = arduinoBoardDatabase();
+                QStringList boards;
+                for (auto it = boardDb.constBegin(); it != boardDb.constEnd(); ++it) {
+                    if (it.value().mcuModel == item->name) boards.append(it.key());
+                }
+                QString info = QString("%1  ·  %2 MHz  ·  %3 pins")
                     .arg(item->name)
                     .arg(mcu.defaultClock / 1e6, 0, 'f', 0)
                     .arg(mcu.pins.size());
+                if (adcCount > 0)
+                    info += QString("  ·  %1 ADC").arg(adcCount);
+                if (!boards.isEmpty())
+                    info += QString("  ·  %1").arg(boards.first());
+                return info;
             }
         }
         return item->name;
