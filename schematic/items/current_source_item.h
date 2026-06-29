@@ -52,6 +52,7 @@ public:
 
     QString value() const override { return m_value; }
     void setValue(const QString& val) override;
+    void setSimState(const QMap<QString, double>& nodeVoltages, const QMap<QString, double>& branchCurrents) override;
 
     SourceType sourceType() const { return m_sourceType; }
     void setSourceType(SourceType type);

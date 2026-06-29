@@ -2034,6 +2034,15 @@ void SchematicEditor::connectSimulationSignals() {
         m_simPaused = false;
         m_simulationRunning = false;
         updateSimulationUiState(false, "Simulation stopped.");
+        // Clear stale heatmap data
+        if (m_view) m_view->clearSimulationResults();
+        if (m_scene) {
+            for (auto* item : m_scene->items()) {
+                if (auto* si = dynamic_cast<SchematicItem*>(item)) {
+                    si->setSimState({}, {});
+                }
+            }
+        }
     });
 
     connect(&sim, &SimManager::simulationPaused, this, &SchematicEditor::onSimulationPaused);

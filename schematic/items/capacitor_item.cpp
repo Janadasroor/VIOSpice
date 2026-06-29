@@ -168,3 +168,24 @@ SchematicItem* CapacitorItem::clone() const {
 QList<QPointF> CapacitorItem::connectionPoints() const {
     return { QPointF(-45, 0), QPointF(45, 0) };
 }
+
+void CapacitorItem::setSimState(const QMap<QString, double>& nodeVoltages, const QMap<QString, double>&) {
+    QString n1 = pinNet(0);
+    QString n2 = pinNet(1);
+    if (n1.isEmpty() || n2.isEmpty()) { m_powerDissipation = 0; return; }
+    // Capacitors ideally dissipate 0W (reactive only)
+    // Small ESR loss: P = I² × ESR (assume 0.01Ω default ESR)
+    double v1 = nodeVoltages.value(n1, 0.0);
+    double v2 = nodeVoltages.value(n2, 0.0);
+    double dv = v1 - v2;
+    double c = parseValue(value());
+    double esr = 0.01; // Default ESR
+    if (c > 1e-12) {
+        // Simplified: P ≈ V² × ω² × C² × ESR (for AC)
+        // For DC, P ≈ 0. Use voltage drop as rough indicator.
+        m_powerDissipation = (dv * dv) * esr * 1e-6; // Very small
+    } else {
+        m_powerDissipation = 0;
+    }
+    update();
+}
