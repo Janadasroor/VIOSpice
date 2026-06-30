@@ -11,6 +11,8 @@
 #include <QPainterPath>
 #include "../core/visuals/theme_manager.h"
 
+#include <QGuiApplication>
+
 SplashScreen::SplashScreen(QWidget* parent) : QWidget(parent, Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint) {
     setAttribute(Qt::WA_TranslucentBackground);
     setFixedSize(500, 350);
@@ -83,7 +85,9 @@ SplashScreen::SplashScreen(QWidget* parent) : QWidget(parent, Qt::FramelessWindo
     layout->addWidget(m_progressBar);
 
     // Center on screen
-    move(QGuiApplication::primaryScreen()->availableGeometry().center() - rect().center());
+    if (auto* screen = QGuiApplication::primaryScreen()) {
+        move(screen->availableGeometry().center() - rect().center());
+    }
 }
 
 void SplashScreen::setStatus(const QString& status) {
