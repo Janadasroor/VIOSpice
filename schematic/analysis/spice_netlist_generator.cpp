@@ -62,7 +62,8 @@ struct PassiveCompanionParams {
 
 bool isLikelyLogicInputPinName(const QString& rawPinName) {
     QString pin = rawPinName.trimmed().toLower();
-    pin.remove(QRegularExpression("(\\[[0-9]+\\]|<[0-9]+>|[0-9]+)$"));
+    static const QRegularExpression re("(\\[[0-9]+\\]|<[0-9]+>|[0-9]+)$");
+    pin.remove(re);
     if (pin.isEmpty()) return false;
     if (pin.contains("out") || pin == "q" || pin == "qn" || pin == "qbar" || pin == "y" || pin == "z" || pin == "f")
         return false;
@@ -77,27 +78,27 @@ PassiveCompanionParams parsePassiveCompanionParams(const QString& rawValue) {
     const QString text = rawValue.trimmed();
     if (text.isEmpty()) return out;
 
-    const QStringList tokens = text.split(QRegularExpression("\\s+"), Qt::SkipEmptyParts);
+    static const QRegularExpression whitespaceRe("\\s+");
+    const QStringList tokens = text.split(whitespaceRe, Qt::SkipEmptyParts);
     if (!tokens.isEmpty()) out.baseValue = tokens.first().trimmed();
 
-    auto extract = [&](const char* key, QString* target) {
-        const QRegularExpression re(
-            QString("\\b%1\\s*=\\s*([^\\s]+)").arg(QRegularExpression::escape(QString::fromLatin1(key))),
-            QRegularExpression::CaseInsensitiveOption);
-        const QRegularExpressionMatch match = re.match(text);
-        if (match.hasMatch()) *target = match.captured(1).trimmed();
-    };
+    static const QRegularExpression rserRe("\\bRser\\s*=\\s*([^\\s]+)", QRegularExpression::CaseInsensitiveOption);
+    static const QRegularExpression rparRe("\\bRpar\\s*=\\s*([^\\s]+)", QRegularExpression::CaseInsensitiveOption);
+    static const QRegularExpression cparRe("\\bCpar\\s*=\\s*([^\\s]+)", QRegularExpression::CaseInsensitiveOption);
+    static const QRegularExpression icRe("\\bic\\s*=\\s*([^\\s]+)", QRegularExpression::CaseInsensitiveOption);
 
-    extract("Rser", &out.rser);
-    extract("Rpar", &out.rpar);
-    extract("Cpar", &out.cpar);
-    extract("ic", &out.ic);
+    if (auto match = rserRe.match(text); match.hasMatch()) out.rser = match.captured(1).trimmed();
+    if (auto match = rparRe.match(text); match.hasMatch()) out.rpar = match.captured(1).trimmed();
+    if (auto match = cparRe.match(text); match.hasMatch()) out.cpar = match.captured(1).trimmed();
+    if (auto match = icRe.match(text); match.hasMatch()) out.ic = match.captured(1).trimmed();
+
     return out;
 }
 
 bool isLikelyLogicOutputPinName(const QString& rawPinName) {
     QString pin = rawPinName.trimmed().toLower();
-    pin.remove(QRegularExpression("(\\[[0-9]+\\]|<[0-9]+>|[0-9]+)$"));
+    static const QRegularExpression re("(\\[[0-9]+\\]|<[0-9]+>|[0-9]+)$");
+    pin.remove(re);
     if (pin.isEmpty()) return false;
     return pin.contains("out") || pin == "q" || pin == "qn" || pin == "qbar" ||
            pin == "y" || pin == "z" || pin == "f" || pin == "sum" || pin == "carry";
@@ -105,9 +106,12 @@ bool isLikelyLogicOutputPinName(const QString& rawPinName) {
 
 QString sanitizeMixedModeToken(const QString& raw) {
     QString out = raw.trimmed();
-    out.replace(QRegularExpression("[^A-Za-z0-9_]+"), "_");
-    out.remove(QRegularExpression("^_+"));
-    out.remove(QRegularExpression("_+$"));
+    static const QRegularExpression nonAlphaNumRe("[^A-Za-z0-9_]+");
+    static const QRegularExpression leadingUnderscoresRe("^_+");
+    static const QRegularExpression trailingUnderscoresRe("_+$");
+    out.replace(nonAlphaNumRe, "_");
+    out.remove(leadingUnderscoresRe);
+    out.remove(trailingUnderscoresRe);
     return out.isEmpty() ? QStringLiteral("MM") : out;
 }
 
@@ -138,7 +142,7 @@ VectorPinInfo vectorPinInfo(const SymbolDefinition* sym, const QString& pinIdent
     }
 
     const QString pinName = fallbackName.trimmed();
-    const QRegularExpression patterns[] = {
+    static const QRegularExpression patterns[] = {
         QRegularExpression("^(.+)\\[(\\d+)\\]$"),
         QRegularExpression("^(.+)<(\\d+)>$"),
         QRegularExpression("^([A-Za-z_]+)(\\d+)$")
