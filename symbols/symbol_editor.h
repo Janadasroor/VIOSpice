@@ -223,6 +223,7 @@ public:
     // Properties panel
     class QTabWidget* m_propsTabWidget = nullptr;
     QDockWidget* m_propsDock = nullptr;
+    class SymbolPropertiesPanel* m_propertiesPanel = nullptr;
     
     // Library Browser
     QLineEdit* m_libSearchEdit = nullptr;
@@ -271,6 +272,7 @@ public:
     friend class RemovePrimitiveCommand;
     friend class UpdateSymbolCommand;
     friend class SymbolCanvas;
+    friend class SymbolPropertiesPanel;
 };
 
 #endif // SYMBOL_EDITOR_H
