@@ -123,7 +123,7 @@ QString decodeEscapes(QString s) {
 }
 
 QString parseFootprintName(const QString& sexpr) {
-    QRegularExpression re("^\\((?:footprint|module)\\s+(?:\"([^\"]+)\"|([^\\s\\)]+))");
+    static const QRegularExpression re("^\\((?:footprint|module)\\s+(?:\"([^\"]+)\"|([^\\s\\)]+))");
     QRegularExpressionMatch m = re.match(sexpr);
     if (!m.hasMatch()) return QString();
     return stripQuotes(m.captured(1).isEmpty() ? m.captured(2) : m.captured(1));
@@ -141,14 +141,14 @@ FootprintPrimitive::Layer mapLayer(const QString& kicadLayer, FootprintPrimitive
 }
 
 FootprintPrimitive::Layer extractLayer(const QString& expr, FootprintPrimitive::Layer fallback = FootprintPrimitive::Top_Silkscreen) {
-    QRegularExpression re("\\(layer\\s+\"([^\"]+)\"\\)");
+    static const QRegularExpression re("\\(layer\\s+\"([^\"]+)\"\\)");
     QRegularExpressionMatch m = re.match(expr);
     if (!m.hasMatch()) return fallback;
     return mapLayer(m.captured(1), fallback);
 }
 
 qreal parseStrokeWidth(const QString& expr, qreal fallback = 0.12) {
-    QRegularExpression re("\\(stroke[\\s\\S]*?\\(width\\s+([\\-0-9.]+)\\)");
+    static const QRegularExpression re("\\(stroke[\\s\\S]*?\\(width\\s+([\\-0-9.]+)\\)");
     QRegularExpressionMatch m = re.match(expr);
     return m.hasMatch() ? m.captured(1).toDouble() : fallback;
 }
@@ -200,7 +200,7 @@ KicadFootprintImporter::ImportReport parseFootprintExpr(const QString& fpExpr) {
     FootprintDefinition& def = report.footprint;
     if (fpName.isEmpty()) return report;
 
-    QRegularExpression descrRe("\\(descr\\s+\"([^\"]*)\"\\)");
+    static const QRegularExpression descrRe("\\(descr\\s+\"([^\"]*)\"\\)");
     QRegularExpressionMatch mDescr = descrRe.match(fpExpr);
     if (mDescr.hasMatch()) def.setDescription(decodeEscapes(mDescr.captured(1)));
 
@@ -212,7 +212,7 @@ KicadFootprintImporter::ImportReport parseFootprintExpr(const QString& fpExpr) {
         int end = -1;
         QString e = extractBalancedSExpr(fpExpr, pos, &end);
         if (e.isEmpty()) break;
-        QRegularExpression re("\\(start\\s+([\\-0-9.]+)\\s+([\\-0-9.]+)\\)[\\s\\S]*?\\(end\\s+([\\-0-9.]+)\\s+([\\-0-9.]+)\\)");
+        static const QRegularExpression re("\\(start\\s+([\\-0-9.]+)\\s+([\\-0-9.]+)\\)[\\s\\S]*?\\(end\\s+([\\-0-9.]+)\\s+([\\-0-9.]+)\\)");
         QRegularExpressionMatch m = re.match(e);
         if (m.hasMatch()) {
             FootprintPrimitive p = FootprintPrimitive::createLine(
@@ -234,7 +234,7 @@ KicadFootprintImporter::ImportReport parseFootprintExpr(const QString& fpExpr) {
         int end = -1;
         QString e = extractBalancedSExpr(fpExpr, pos, &end);
         if (e.isEmpty()) break;
-        QRegularExpression re("\\(start\\s+([\\-0-9.]+)\\s+([\\-0-9.]+)\\)[\\s\\S]*?\\(end\\s+([\\-0-9.]+)\\s+([\\-0-9.]+)\\)");
+        static const QRegularExpression re("\\(start\\s+([\\-0-9.]+)\\s+([\\-0-9.]+)\\)[\\s\\S]*?\\(end\\s+([\\-0-9.]+)\\s+([\\-0-9.]+)\\)");
         QRegularExpressionMatch m = re.match(e);
         if (m.hasMatch()) {
             QRectF r(QPointF(kx(m.captured(1)), ky(m.captured(2))), QPointF(kx(m.captured(3)), ky(m.captured(4))));
@@ -254,7 +254,7 @@ KicadFootprintImporter::ImportReport parseFootprintExpr(const QString& fpExpr) {
         int end = -1;
         QString e = extractBalancedSExpr(fpExpr, pos, &end);
         if (e.isEmpty()) break;
-        QRegularExpression re("\\(center\\s+([\\-0-9.]+)\\s+([\\-0-9.]+)\\)[\\s\\S]*?\\(end\\s+([\\-0-9.]+)\\s+([\\-0-9.]+)\\)");
+        static const QRegularExpression re("\\(center\\s+([\\-0-9.]+)\\s+([\\-0-9.]+)\\)[\\s\\S]*?\\(end\\s+([\\-0-9.]+)\\s+([\\-0-9.]+)\\)");
         QRegularExpressionMatch m = re.match(e);
         if (m.hasMatch()) {
             QPointF c(kx(m.captured(1)), ky(m.captured(2)));
@@ -275,7 +275,7 @@ KicadFootprintImporter::ImportReport parseFootprintExpr(const QString& fpExpr) {
         int end = -1;
         QString e = extractBalancedSExpr(fpExpr, pos, &end);
         if (e.isEmpty()) break;
-        QRegularExpression re("\\(start\\s+([\\-0-9.]+)\\s+([\\-0-9.]+)\\)[\\s\\S]*?\\(mid\\s+([\\-0-9.]+)\\s+([\\-0-9.]+)\\)[\\s\\S]*?\\(end\\s+([\\-0-9.]+)\\s+([\\-0-9.]+)\\)");
+        static const QRegularExpression re("\\(start\\s+([\\-0-9.]+)\\s+([\\-0-9.]+)\\)[\\s\\S]*?\\(mid\\s+([\\-0-9.]+)\\s+([\\-0-9.]+)\\)[\\s\\S]*?\\(end\\s+([\\-0-9.]+)\\s+([\\-0-9.]+)\\)");
         QRegularExpressionMatch m = re.match(e);
         if (m.hasMatch()) {
             QPointF p1(kx(m.captured(1)), ky(m.captured(2)));
@@ -303,9 +303,9 @@ KicadFootprintImporter::ImportReport parseFootprintExpr(const QString& fpExpr) {
         int end = -1;
         QString e = extractBalancedSExpr(fpExpr, pos, &end);
         if (e.isEmpty()) break;
-        QRegularExpression headRe("^\\(fp_text\\s+([^\\s\\)]+)\\s+\"([^\"]*)\"");
-        QRegularExpression atRe("\\(at\\s+([\\-0-9.]+)\\s+([\\-0-9.]+)\\s*([\\-0-9.]*)\\)");
-        QRegularExpression sizeRe("\\(size\\s+([\\-0-9.]+)\\s+([\\-0-9.]+)\\)");
+        static const QRegularExpression headRe("^\\(fp_text\\s+([^\\s\\)]+)\\s+\"([^\"]*)\"");
+        static const QRegularExpression atRe("\\(at\\s+([\\-0-9.]+)\\s+([\\-0-9.]+)\\s*([\\-0-9.]*)\\)");
+        static const QRegularExpression sizeRe("\\(size\\s+([\\-0-9.]+)\\s+([\\-0-9.]+)\\)");
         QRegularExpressionMatch mh = headRe.match(e);
         QRegularExpressionMatch ma = atRe.match(e);
         if (mh.hasMatch() && ma.hasMatch()) {
@@ -333,12 +333,12 @@ KicadFootprintImporter::ImportReport parseFootprintExpr(const QString& fpExpr) {
         QString e = extractBalancedSExpr(fpExpr, pos, &end);
         if (e.isEmpty()) break;
 
-        QRegularExpression headRe("^\\(pad\\s+(\"[^\"]*\"|[^\\s\\)]+)\\s+([^\\s\\)]+)\\s+([^\\s\\)]+)");
-        QRegularExpression atRe("\\(at\\s+([\\-0-9.]+)\\s+([\\-0-9.]+)\\s*([\\-0-9.]*)\\)");
-        QRegularExpression sizeRe("\\(size\\s+([\\-0-9.]+)\\s+([\\-0-9.]+)\\)");
-        QRegularExpression drillRe("\\(drill\\s+(?:oval\\s+)?([\\-0-9.]+)(?:\\s+([\\-0-9.]+))?\\)");
-        QRegularExpression layersRe("\\(layers\\s+([^\\)]*)\\)");
-        QRegularExpression rrRe("\\(roundrect_rratio\\s+([\\-0-9.]+)\\)");
+        static const QRegularExpression headRe("^\\(pad\\s+(\"[^\"]*\"|[^\\s\\)]+)\\s+([^\\s\\)]+)\\s+([^\\s\\)]+)");
+        static const QRegularExpression atRe("\\(at\\s+([\\-0-9.]+)\\s+([\\-0-9.]+)\\s*([\\-0-9.]*)\\)");
+        static const QRegularExpression sizeRe("\\(size\\s+([\\-0-9.]+)\\s+([\\-0-9.]+)\\)");
+        static const QRegularExpression drillRe("\\(drill\\s+(?:oval\\s+)?([\\-0-9.]+)(?:\\s+([\\-0-9.]+))?\\)");
+        static const QRegularExpression layersRe("\\(layers\\s+([^\\)]*)\\)");
+        static const QRegularExpression rrRe("\\(roundrect_rratio\\s+([\\-0-9.]+)\\)");
 
         QRegularExpressionMatch mh = headRe.match(e);
         QRegularExpressionMatch ma = atRe.match(e);
@@ -406,11 +406,11 @@ KicadFootprintImporter::ImportReport parseFootprintExpr(const QString& fpExpr) {
         if (e.isEmpty()) break;
 
         Footprint3DModel model;
-        QRegularExpression fileRe("^\\(model\\s+\"([^\"]+)\"");
-        QRegularExpression xyzRe("\\(xyz\\s+([\\-0-9.]+)\\s+([\\-0-9.]+)\\s+([\\-0-9.]+)\\)");
-        QRegularExpression offRe("\\(offset\\s*\\(xyz\\s+([\\-0-9.]+)\\s+([\\-0-9.]+)\\s+([\\-0-9.]+)\\)\\)");
-        QRegularExpression sclRe("\\(scale\\s*\\(xyz\\s+([\\-0-9.]+)\\s+([\\-0-9.]+)\\s+([\\-0-9.]+)\\)\\)");
-        QRegularExpression rotRe("\\(rotate\\s*\\(xyz\\s+([\\-0-9.]+)\\s+([\\-0-9.]+)\\s+([\\-0-9.]+)\\)\\)");
+        static const QRegularExpression fileRe("^\\(model\\s+\"([^\"]+)\"");
+        static const QRegularExpression xyzRe("\\(xyz\\s+([\\-0-9.]+)\\s+([\\-0-9.]+)\\s+([\\-0-9.]+)\\)");
+        static const QRegularExpression offRe("\\(offset\\s*\\(xyz\\s+([\\-0-9.]+)\\s+([\\-0-9.]+)\\s+([\\-0-9.]+)\\)\\)");
+        static const QRegularExpression sclRe("\\(scale\\s*\\(xyz\\s+([\\-0-9.]+)\\s+([\\-0-9.]+)\\s+([\\-0-9.]+)\\)\\)");
+        static const QRegularExpression rotRe("\\(rotate\\s*\\(xyz\\s+([\\-0-9.]+)\\s+([\\-0-9.]+)\\s+([\\-0-9.]+)\\)\\)");
 
         QRegularExpressionMatch mf = fileRe.match(e);
         if (mf.hasMatch()) model.filename = decodeEscapes(mf.captured(1));
@@ -432,7 +432,7 @@ KicadFootprintImporter::ImportReport parseFootprintExpr(const QString& fpExpr) {
         "fp_line", "fp_rect", "fp_circle", "fp_arc", "fp_text", "pad", "model"
     };
     QMap<QString, int> unknownKinds;
-    QRegularExpression anyPrimRe("\\((fp_[a-z_]+|pad|model)\\b");
+    static const QRegularExpression anyPrimRe("\\((fp_[a-z_]+|pad|model)\\b");
     QRegularExpressionMatchIterator it = anyPrimRe.globalMatch(fpExpr);
     while (it.hasNext()) {
         const QString kind = it.next().captured(1);
