@@ -7,6 +7,7 @@
 #include "passes/component_extractor.h"
 #include "passes/xspice_block_translator.h"
 #include "passes/connectivity_evaluator.h"
+#include "passes/model_injector.h"
 #include "../items/schematic_item.h"
 #include "../items/smart_signal_item.h"
 #include "../items/virtual_terminal_item.h"
@@ -1798,7 +1799,9 @@ QString fuzzyMatchPin(const QMap<QString, QString>& pins, const QString& subPinN
     return QString();
 }
 
-QString sanitizeModelIncludeForNgspice(const QString& path) {
+} // namespace
+
+QString SpiceNetlistGenerator::sanitizeModelIncludeForNgspice(const QString& path) {
     const QFileInfo fi(path);
     if (!fi.exists() || !fi.isFile()) return path;
 
@@ -1860,6 +1863,8 @@ QString sanitizeModelIncludeForNgspice(const QString& path) {
     }
     return path;
 }
+
+namespace {
 
 
 struct PwlPoint {
@@ -2494,7 +2499,9 @@ static VoltageParasitics stripVoltageParasitics(const QString& value) {
     return out;
 }
 
-QString normalizeIncludePathForNetlist(const QString& includePath, const QString& projectDir) {
+} // namespace
+
+QString SpiceNetlistGenerator::normalizeIncludePathForNetlist(const QString& includePath, const QString& projectDir) {
     QString resolvedPath = QDir::fromNativeSeparators(includePath.trimmed());
     if (resolvedPath.isEmpty()) return resolvedPath;
 
@@ -2593,6 +2600,8 @@ QString normalizeIncludePathForNetlist(const QString& includePath, const QString
 
     return QDir::fromNativeSeparators(QDir::cleanPath(resolvedPath));
 }
+
+namespace {
 
 QString sanitizeDirectiveName(const QString& raw) {
     QString s = raw;
@@ -2754,7 +2763,7 @@ UserSpiceContentSummary summarizeUserSpiceText(const QString& text, const QStrin
                 const QString rawPath = includeMatch.captured(2).isEmpty()
                     ? includeMatch.captured(3)
                     : includeMatch.captured(2);
-                const QString normalized = normalizeIncludePathForNetlist(rawPath, projectDir);
+                const QString normalized = SpiceNetlistGenerator::normalizeIncludePathForNetlist(rawPath, projectDir);
                 if (!normalized.isEmpty()) {
                     summary.declaredModelFiles.insert(normalized);
                 }
@@ -2999,7 +3008,7 @@ SpiceNetlistGenerator::GeneratedNetlist SpiceNetlistGenerator::generate(QGraphic
                                     const QString rawPath = m.captured(2).isEmpty() ? m.captured(3) : m.captured(2);
                                     QFileInfo rfInfo(rawPath);
                                     if (!rfInfo.isAbsolute()) {
-                                        const QString absPath = normalizeIncludePathForNetlist(rawPath, projectDir);
+                                        const QString absPath = SpiceNetlistGenerator::normalizeIncludePathForNetlist(rawPath, projectDir);
                                         if (!absPath.isEmpty() && absPath != rawPath && QFileInfo::exists(absPath)) {
                                             lineToWrite = QString("%1\"%2\"").arg(keyword.trimmed() + " ", absPath);
                                             directiveWarnings.append(QString("Resolved relative include '%1' to '%2'.").arg(rawPath, absPath));
@@ -3071,61 +3080,13 @@ SpiceNetlistGenerator::GeneratedNetlist SpiceNetlistGenerator::generate(QGraphic
     QStringList runtimeWarnings = extraction.runtimeWarnings;
     runtimeWarnings.append(connResult.runtimeWarnings);
 
-    // Write .include and .lib directives (subcircuit/model files from symbol metadata)
-    if (!includePaths.isEmpty() || !libPaths.isEmpty()) {
-        QStringList includeList = includePaths.values();
-        includeList.sort();
-        QStringList libList = libPaths.values();
-        libList.sort();
-
-        netlist += "* Model Includes\n";
-        QSet<QString> emittedModelFiles = userDeclaredModelFiles;
-        auto processPath = [&](const QString& inc, const QString& directive) {
-            QString resolvedPath = normalizeIncludePathForNetlist(inc, projectDir);
-            if (resolvedPath.isEmpty()) return;
-
-            if (emittedModelFiles.contains(resolvedPath)) return;
-
-            QString emittedPath = resolvedPath;
-            QString emittedDirective = directive;
-            if (QFileInfo::exists(resolvedPath)) {
-                emittedPath = sanitizeModelIncludeForNgspice(resolvedPath);
-                emittedPath = QDir::fromNativeSeparators(QDir::cleanPath(emittedPath));
-                // ngspice accepts plain model/subckt files via .include. Using
-                // .lib for standalone cached files causes parse failures because
-                // there is no section selector.
-                emittedDirective = "include";
-                if (emittedModelFiles.contains(emittedPath)) return;
-            }
-
-            netlist += QString(".%1 \"%2\"\n").arg(emittedDirective, emittedPath);
-            emittedModelFiles.insert(resolvedPath);
-            emittedModelFiles.insert(emittedPath);
-        };
-
-        for (const QString& inc : includeList) processPath(inc, "include");
-        for (const QString& lib : libList) processPath(lib, "lib");
-        netlist += "\n";
-    }
-
-    // Write embedded .model lines
-    if (!embeddedModelLines.isEmpty()) {
-        netlist += "* Embedded Models\n";
-        for (const QString& ml : embeddedModelLines) {
-            netlist += ml + "\n";
-        }
-        netlist += "\n";
-    }
-
-    // Write embedded subcircuit definitions from symbol metadata
-    if (!embeddedSubcircuits.isEmpty()) {
-        netlist += "* Embedded Subcircuits (from symbol definitions)\n";
-        for (auto it = embeddedSubcircuits.constBegin(); it != embeddedSubcircuits.constEnd(); ++it) {
-            netlist += it.value();
-            if (!it.value().endsWith('\n')) netlist += '\n';
-            netlist += '\n';
-        }
-    }
+    ModelInjector::inject(includePaths,
+                          libPaths,
+                          embeddedModelLines,
+                          embeddedSubcircuits,
+                          projectDir,
+                          userDeclaredModelFiles,
+                          netlist);
 
     // 3. Global Power Net Mapping for hidden pin auto-connection
     QMap<QString, QString>& powerNetMapping = connResult.powerNetMapping;

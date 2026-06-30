@@ -108,6 +108,8 @@ static QStringList buildXspiceNodeTokensForPins(const QMap<QString, QString>& pi
                                                      const Flux::Model::SymbolDefinition* symbol = nullptr,
                                                      bool collapseScalarInputsToVector = false);
     static QString generateCompatibilityLayer(const QString& rawNetlist);
+    static QString normalizeIncludePathForNetlist(const QString& includePath, const QString& projectDir);
+    static QString sanitizeModelIncludeForNgspice(const QString& path);
 
 private:
     static QString formatComponent(const class SchematicComponentItem* item, const QMap<QString, QString>& netMap);
