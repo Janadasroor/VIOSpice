@@ -839,6 +839,7 @@ MappingResult mapComponentToSimType(const ECOComponent& comp) {
             r.reason = QString("unsupported item type enum %1 (%2)").arg(comp.type).arg(comp.typeName);
             return r;
     }
+    return r;
 }
 
 QString compDebugLabel(const ECOComponent& comp) {
