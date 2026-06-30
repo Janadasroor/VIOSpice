@@ -5,6 +5,7 @@
 
 #include "symbol_commands.h"
 #include "symbol_editor.h"
+#include "editor/symbol_canvas.h"
 #include <QGraphicsScene>
 
 using Flux::Model::SymbolDefinition;
@@ -29,31 +30,30 @@ AddPrimitiveCommand::~AddPrimitiveCommand() {
 }
 
 void AddPrimitiveCommand::redo() {
-    if (!m_editor || !m_visual) return;
+    if (!m_editor || !m_visual || !m_editor->m_canvas) return;
     m_insertedIndex = m_editor->m_symbol.primitives().size();
     
-    // The m_prim passed during construction already has the correct unit
     m_editor->m_symbol.addPrimitive(m_prim);
     m_visual->setData(1, m_insertedIndex);
-    m_editor->m_scene->addItem(m_visual);
-    m_editor->m_drawnItems.append(m_visual);
-    m_editor->updateOverlayLabels();
+    m_editor->m_canvas->scene()->addItem(m_visual);
+    m_editor->m_canvas->m_drawnItems.append(m_visual);
+    m_editor->m_canvas->updateOverlayLabels();
     m_editor->updateCodePreview();
-    m_editor->updateGuideAnchors();
+    m_editor->m_canvas->updateGuideAnchors();
 }
 
 void AddPrimitiveCommand::undo() {
-    if (!m_editor || !m_visual) return;
-    m_editor->m_scene->removeItem(m_visual);
-    int idx = m_editor->m_drawnItems.indexOf(m_visual);
+    if (!m_editor || !m_visual || !m_editor->m_canvas) return;
+    m_editor->m_canvas->scene()->removeItem(m_visual);
+    int idx = m_editor->m_canvas->m_drawnItems.indexOf(m_visual);
     if (idx != -1) {
-        m_editor->m_drawnItems.removeAt(idx);
+        m_editor->m_canvas->m_drawnItems.removeAt(idx);
         if (idx < m_editor->m_symbol.primitives().size())
             m_editor->m_symbol.removePrimitive(idx);
     }
-    m_editor->updateOverlayLabels();
+    m_editor->m_canvas->updateOverlayLabels();
     m_editor->updateCodePreview();
-    m_editor->updateGuideAnchors();
+    m_editor->m_canvas->updateGuideAnchors();
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -63,8 +63,8 @@ void AddPrimitiveCommand::undo() {
 RemovePrimitiveCommand::RemovePrimitiveCommand(QPointer<SymbolEditor> editor, int index)
     : m_editor(editor), m_index(index) {
     setText("Delete Item");
-    if (editor && index >= 0 && index < editor->m_drawnItems.size()) {
-        m_visual = editor->m_drawnItems.at(index);
+    if (editor && editor->m_canvas && index >= 0 && index < editor->m_canvas->m_drawnItems.size()) {
+        m_visual = editor->m_canvas->m_drawnItems.at(index);
         m_prim   = editor->m_symbol.primitives().at(index);
     }
 }
@@ -77,29 +77,29 @@ RemovePrimitiveCommand::~RemovePrimitiveCommand() {
 }
 
 void RemovePrimitiveCommand::redo() {
-    if (!m_editor || !m_visual) return;
-    m_editor->m_scene->removeItem(m_visual);
-    int idx = m_editor->m_drawnItems.indexOf(m_visual);
+    if (!m_editor || !m_visual || !m_editor->m_canvas) return;
+    m_editor->m_canvas->scene()->removeItem(m_visual);
+    int idx = m_editor->m_canvas->m_drawnItems.indexOf(m_visual);
     if (idx != -1) {
-        m_editor->m_drawnItems.removeAt(idx);
+        m_editor->m_canvas->m_drawnItems.removeAt(idx);
         m_editor->m_symbol.removePrimitive(idx);
-        for (int i = idx; i < m_editor->m_drawnItems.size(); ++i)
-            m_editor->m_drawnItems[i]->setData(1, i);
+        for (int i = idx; i < m_editor->m_canvas->m_drawnItems.size(); ++i)
+            m_editor->m_canvas->m_drawnItems[i]->setData(1, i);
     }
-    m_editor->updateOverlayLabels();
+    m_editor->m_canvas->updateOverlayLabels();
     m_editor->updateCodePreview();
 }
 
 void RemovePrimitiveCommand::undo() {
-    if (!m_editor || !m_visual) return;
-    int safeIdx = qBound(0, m_index, m_editor->m_drawnItems.size());
+    if (!m_editor || !m_visual || !m_editor->m_canvas) return;
+    int safeIdx = qBound(0, m_index, m_editor->m_canvas->m_drawnItems.size());
     m_editor->m_symbol.insertPrimitive(safeIdx, m_prim);
-    m_editor->m_drawnItems.insert(safeIdx, m_visual);
+    m_editor->m_canvas->m_drawnItems.insert(safeIdx, m_visual);
     m_visual->setData(1, safeIdx);
-    m_editor->m_scene->addItem(m_visual);
-    for (int i = safeIdx + 1; i < m_editor->m_drawnItems.size(); ++i)
-        m_editor->m_drawnItems[i]->setData(1, i);
-    m_editor->updateOverlayLabels();
+    m_editor->m_canvas->scene()->addItem(m_visual);
+    for (int i = safeIdx + 1; i < m_editor->m_canvas->m_drawnItems.size(); ++i)
+        m_editor->m_canvas->m_drawnItems[i]->setData(1, i);
+    m_editor->m_canvas->updateOverlayLabels();
     m_editor->updateCodePreview();
 }
 
