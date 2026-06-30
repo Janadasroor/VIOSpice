@@ -20,6 +20,9 @@ public:
                        const QString& projectDir,
                        const QSet<QString>& userDeclaredModelFiles,
                        QString& netlist);
+
+    static QString normalizeIncludePathForNetlist(const QString& includePath, const QString& projectDir);
+    static QString sanitizeModelIncludeForNgspice(const QString& path);
 };
 
 #endif // MODEL_INJECTOR_H

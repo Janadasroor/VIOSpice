@@ -21,11 +21,25 @@ struct ConnectivityResult {
     QStringList runtimeWarnings;
 };
 
+namespace Flux {
+namespace Model {
+class SymbolDefinition;
+}
+}
+
 class ConnectivityEvaluator {
 public:
     static ConnectivityResult evaluate(const ECOPackage& pkg, const QSet<QString>& userDrivenRailNets);
     static QString pickPowerNetName(const QMap<QString, QString>& pins, const QString& fallbackValue);
     static QString inferPowerVoltage(const QString& netName, const QString& valueText);
+
+    static bool isLikelyLogicOutputPinName(const QString& rawPinName);
+    static QString pinNameForHeuristics(const Flux::Model::SymbolDefinition* sym, const QString& pinIdentifier);
+    static NetlistManager::PinDirection pinDirectionFromMetadata(const Flux::Model::SymbolDefinition* sym, const QString& pinName, bool* hasExplicitMetadata = nullptr);
+    static NodeType pinDomainFromMetadata(const Flux::Model::SymbolDefinition* sym, const QString& pinName, bool* hasExplicitMetadata = nullptr);
+    static bool isXspiceLogicComponent(const QString& rawToken, const QString& typeName, const QString& reference);
+    static QString normalizeXspiceModelAlias(const QString& rawToken, const QString& typeName);
+    static bool usesNativeLogicADevice(const QString& codeModel);
 };
 
 #endif // CONNECTIVITY_EVALUATOR_H

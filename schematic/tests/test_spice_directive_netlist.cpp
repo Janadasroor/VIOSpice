@@ -6,6 +6,7 @@
 #include <QtTest/QtTest>
 
 #include "../analysis/spice_netlist_generator.h"
+#include "../analysis/passes/xspice_block_translator.h"
 #include "../items/inductor_item.h"
 #include "../items/power_item.h"
 #include "../items/schematic_spice_directive_item.h"
@@ -2002,25 +2003,25 @@ void SpiceDirectiveNetlistTest::builtInGateAliasesMapToExpectedXspiceModels() {
 
     for (const GateExpectation& gateCase : cases) {
         const QString symbolName = QString::fromLatin1(gateCase.symbolName);
-        QCOMPARE(SpiceNetlistGenerator::normalizeXspiceGateModelAlias(symbolName, symbolName),
+        QCOMPARE(XSpiceBlockTranslator::normalizeXspiceGateModelAlias(symbolName, symbolName),
                  QString::fromLatin1(gateCase.expectedModel));
     }
 
-    QCOMPARE(SpiceNetlistGenerator::normalizeXspiceGateModelAlias("AND", QString()), QString("d_and"));
-    QCOMPARE(SpiceNetlistGenerator::normalizeXspiceGateModelAlias("NAND", QString()), QString("d_nand"));
-    QCOMPARE(SpiceNetlistGenerator::normalizeXspiceGateModelAlias("OR", QString()), QString("d_or"));
-    QCOMPARE(SpiceNetlistGenerator::normalizeXspiceGateModelAlias("NOR", QString()), QString("d_nor"));
-    QCOMPARE(SpiceNetlistGenerator::normalizeXspiceGateModelAlias("XOR", QString()), QString("d_xor"));
-    QCOMPARE(SpiceNetlistGenerator::normalizeXspiceGateModelAlias("XNOR", QString()), QString("d_xnor"));
-    QCOMPARE(SpiceNetlistGenerator::normalizeXspiceGateModelAlias("NOT", QString()), QString("d_inverter"));
-    QCOMPARE(SpiceNetlistGenerator::normalizeXspiceGateModelAlias("BUF", QString()), QString("d_buffer"));
-    QCOMPARE(SpiceNetlistGenerator::normalizeXspiceGateModelAlias("DFF", QString()), QString("d_dff"));
-    QCOMPARE(SpiceNetlistGenerator::normalizeXspiceGateModelAlias("JKFF", QString()), QString("d_jkff"));
-    QCOMPARE(SpiceNetlistGenerator::normalizeXspiceGateModelAlias("TFF", QString()), QString("d_tff"));
-    QCOMPARE(SpiceNetlistGenerator::normalizeXspiceGateModelAlias("SRFF", QString()), QString("d_srff"));
-    QCOMPARE(SpiceNetlistGenerator::normalizeXspiceGateModelAlias("DLATCH", QString()), QString("d_dlatch"));
-    QCOMPARE(SpiceNetlistGenerator::normalizeXspiceGateModelAlias("SRLATCH", QString()), QString("d_srlatch"));
-    QCOMPARE(SpiceNetlistGenerator::normalizeXspiceGateModelAlias("RAM", QString()), QString("d_ram"));
+    QCOMPARE(XSpiceBlockTranslator::normalizeXspiceGateModelAlias("AND", QString()), QString("d_and"));
+    QCOMPARE(XSpiceBlockTranslator::normalizeXspiceGateModelAlias("NAND", QString()), QString("d_nand"));
+    QCOMPARE(XSpiceBlockTranslator::normalizeXspiceGateModelAlias("OR", QString()), QString("d_or"));
+    QCOMPARE(XSpiceBlockTranslator::normalizeXspiceGateModelAlias("NOR", QString()), QString("d_nor"));
+    QCOMPARE(XSpiceBlockTranslator::normalizeXspiceGateModelAlias("XOR", QString()), QString("d_xor"));
+    QCOMPARE(XSpiceBlockTranslator::normalizeXspiceGateModelAlias("XNOR", QString()), QString("d_xnor"));
+    QCOMPARE(XSpiceBlockTranslator::normalizeXspiceGateModelAlias("NOT", QString()), QString("d_inverter"));
+    QCOMPARE(XSpiceBlockTranslator::normalizeXspiceGateModelAlias("BUF", QString()), QString("d_buffer"));
+    QCOMPARE(XSpiceBlockTranslator::normalizeXspiceGateModelAlias("DFF", QString()), QString("d_dff"));
+    QCOMPARE(XSpiceBlockTranslator::normalizeXspiceGateModelAlias("JKFF", QString()), QString("d_jkff"));
+    QCOMPARE(XSpiceBlockTranslator::normalizeXspiceGateModelAlias("TFF", QString()), QString("d_tff"));
+    QCOMPARE(XSpiceBlockTranslator::normalizeXspiceGateModelAlias("SRFF", QString()), QString("d_srff"));
+    QCOMPARE(XSpiceBlockTranslator::normalizeXspiceGateModelAlias("DLATCH", QString()), QString("d_dlatch"));
+    QCOMPARE(XSpiceBlockTranslator::normalizeXspiceGateModelAlias("SRLATCH", QString()), QString("d_srlatch"));
+    QCOMPARE(XSpiceBlockTranslator::normalizeXspiceGateModelAlias("RAM", QString()), QString("d_ram"));
 }
 
 void SpiceDirectiveNetlistTest::xspiceBusPinsCollapseIntoVectorTokens() {
@@ -2054,7 +2055,7 @@ void SpiceDirectiveNetlistTest::xspiceBusPinsCollapseIntoVectorTokens() {
     pins["8"] = "DOUT2";
     pins["9"] = "DOUT3";
 
-    const QStringList tokens = SpiceNetlistGenerator::buildXspiceNodeTokensForPins(pins, &symbol);
+    const QStringList tokens = XSpiceBlockTranslator::buildXspiceNodeTokensForPins(pins, &symbol);
 
     QCOMPARE(tokens.size(), 3);
     QCOMPARE(tokens.at(0), QString("[DIN0 DIN1 DIN2 DIN3]"));
@@ -2081,7 +2082,7 @@ void SpiceDirectiveNetlistTest::xspiceGateInputsCollapseIntoArrayToken() {
     pins["2"] = "__mm_adc_u1_2";
     pins["3"] = "net3";
 
-    const QStringList tokens = SpiceNetlistGenerator::buildXspiceNodeTokensForPins(pins, &symbol, true);
+    const QStringList tokens = XSpiceBlockTranslator::buildXspiceNodeTokensForPins(pins, &symbol, true);
 
     QCOMPARE(tokens.size(), 2);
     QCOMPARE(tokens.at(0), QString("[__mm_adc_u1_1 __mm_adc_u1_2]"));

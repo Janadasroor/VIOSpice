@@ -24,17 +24,7 @@ class NetManager;
 
 class SpiceNetlistGenerator {
 public:
-    static bool isLikelyLogicOutputPinName(const QString& rawPinName);
-    static QString pinNameForHeuristics(const Flux::Model::SymbolDefinition* sym, const QString& pinIdentifier);
-    static NetlistManager::PinDirection pinDirectionFromMetadata(const Flux::Model::SymbolDefinition* sym, const QString& pinName, bool* hasExplicitMetadata = nullptr);
-    static NodeType pinDomainFromMetadata(const Flux::Model::SymbolDefinition* sym, const QString& pinName, bool* hasExplicitMetadata = nullptr);
-    static bool isXspiceLogicComponent(const QString& rawToken, const QString& typeName, const QString& reference);
-    static QString normalizeXspiceModelAlias(const QString& rawToken, const QString& typeName);
-    static bool usesNativeLogicADevice(const QString& codeModel);
-    static bool naturalPinLessThan(const QString& s1, const QString& s2);
-    static QString sanitizeMixedModeToken(const QString& raw);
-    static QString mixedModeAdcBridgeLine(const QString& ref, const QString& pinName, const QString& analogNet, const QString& digitalNet);
-    static QString mixedModeDacBridgeLine(const QString& ref, const QString& pinName, const QString& digitalNet, const QString& analogNet);
+
     enum SimulationType {
         Transient,
         DC,
@@ -103,13 +93,9 @@ public:
 
     static GeneratedNetlist generate(QGraphicsScene* scene, const QString& projectDir, NetManager* netManager, const SimulationParams& params);
     static QString buildCommand(const SimulationParams& params);
-    static QString normalizeXspiceGateModelAlias(const QString& rawToken, const QString& typeName = QString());
-static QStringList buildXspiceNodeTokensForPins(const QMap<QString, QString>& pins,
-                                                     const Flux::Model::SymbolDefinition* symbol = nullptr,
-                                                     bool collapseScalarInputsToVector = false);
+
     static QString generateCompatibilityLayer(const QString& rawNetlist);
-    static QString normalizeIncludePathForNetlist(const QString& includePath, const QString& projectDir);
-    static QString sanitizeModelIncludeForNgspice(const QString& path);
+
 
 private:
     static QString formatComponent(const class SchematicComponentItem* item, const QMap<QString, QString>& netMap);
