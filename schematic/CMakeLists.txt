@@ -61,6 +61,8 @@ target_sources(VioSchematic PRIVATE
     analysis/passes/model_injector.h
     analysis/passes/xspice_block_translator.cpp
     analysis/passes/xspice_block_translator.h
+    analysis/passes/netlist_formatter.cpp
+    analysis/passes/netlist_formatter.h
 )
 
 if(VIOSPICE_ENGINE_FOUND)
