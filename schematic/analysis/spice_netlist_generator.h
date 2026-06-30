@@ -11,6 +11,7 @@
 #include <QList>
 #include <QMap>
 #include "../../simulator/core/sim_results.h"
+#include "../../simulator/mixedmode/NetlistManager.h"
 
 namespace Flux {
 namespace Model {
@@ -23,6 +24,13 @@ class NetManager;
 
 class SpiceNetlistGenerator {
 public:
+    static bool isLikelyLogicOutputPinName(const QString& rawPinName);
+    static QString pinNameForHeuristics(const Flux::Model::SymbolDefinition* sym, const QString& pinIdentifier);
+    static NetlistManager::PinDirection pinDirectionFromMetadata(const Flux::Model::SymbolDefinition* sym, const QString& pinName, bool* hasExplicitMetadata = nullptr);
+    static NodeType pinDomainFromMetadata(const Flux::Model::SymbolDefinition* sym, const QString& pinName, bool* hasExplicitMetadata = nullptr);
+    static bool isXspiceLogicComponent(const QString& rawToken, const QString& typeName, const QString& reference);
+    static QString normalizeXspiceModelAlias(const QString& rawToken, const QString& typeName);
+    static bool usesNativeLogicADevice(const QString& codeModel);
     enum SimulationType {
         Transient,
         DC,
