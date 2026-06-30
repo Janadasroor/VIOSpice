@@ -4,6 +4,7 @@
  */
 
 #include "symbol_canvas.h"
+#include "symbol_tool_manager.h"
 #include "../symbol_editor.h"
 #include "theme_manager.h"
 #include "../symbol_commands.h"
@@ -135,6 +136,8 @@ SymbolCanvas::SymbolCanvas(SymbolEditor* editor, QWidget* parent)
     setScene(m_scene);
     setGridSize(15.0);
 
+    m_toolManager = new SymbolToolManager(this, this);
+
     connect(m_scene, &QGraphicsScene::selectionChanged, this, &SymbolCanvas::onSelectionChanged);
     connect(this, &SymbolEditorView::pointClicked, this, &SymbolCanvas::onPointClicked);
     connect(this, &SymbolEditorView::mouseMoved, this, &SymbolCanvas::onMouseMoved);
@@ -157,16 +160,8 @@ SymbolCanvas::SymbolCanvas(SymbolEditor* editor, QWidget* parent)
 
     // Right click / escape to clear/finalize path and switch tool
     connect(this, &SymbolEditorView::rightClicked, this, [this]() {
-        if (currentTool() == 7 && m_polyPoints.size() > 2) { // Polygon
-            SymbolPrimitive prim = SymbolPrimitive::createPolygon(m_polyPoints, false);
-            prim.setUnit(m_editor->m_currentUnit);
-            prim.setBodyStyle(m_editor->m_currentStyle);
-            QGraphicsItem* visual = buildVisual(prim, m_editor->m_symbol.primitives().size());
-            if (visual) m_editor->m_undoStack->push(new AddPrimitiveCommand(m_editor, prim, visual));
-        } else if (currentTool() == 11 && m_polyPoints.size() >= 2) { // Bezier
-            // If we have at least start and end, we could finalize but Bezier really needs 4.
-        } else if (currentTool() == 13 && m_penPoints.size() >= 2) { // Pen
-            finalizePenPath();
+        if (m_toolManager && m_toolManager->activeTool()) {
+            m_toolManager->activeTool()->onRightClicked();
         }
 
         // Switch to select tool
@@ -182,127 +177,30 @@ SymbolCanvas::SymbolCanvas(SymbolEditor* editor, QWidget* parent)
     });
 
     connect(this, &SymbolEditorView::pinRotateRequested, this, [this]() {
-        if (currentTool() != 6) return; // Pin tool
-        if (m_previewOrientation == "Right") m_previewOrientation = "Down";
-        else if (m_previewOrientation == "Down") m_previewOrientation = "Left";
-        else if (m_previewOrientation == "Left") m_previewOrientation = "Up";
-        else m_previewOrientation = "Right";
-        updatePinPreview(snapToGrid(mapToScene(mapFromGlobal(QCursor::pos()))));
-        if (m_editor) {
-            m_editor->statusBar()->showMessage("Pin orientation: " + m_previewOrientation, 1200);
+        if (m_toolManager && m_toolManager->activeTool()) {
+            m_toolManager->activeTool()->rotatePin();
         }
     });
 
     connect(this, &SymbolEditorView::pinFlipHRequested, this, [this]() {
-        if (currentTool() != 6) return; // Pin tool
-        if (m_previewOrientation == "Right") m_previewOrientation = "Left";
-        else if (m_previewOrientation == "Left") m_previewOrientation = "Right";
-        updatePinPreview(snapToGrid(mapToScene(mapFromGlobal(QCursor::pos()))));
-        if (m_editor) {
-            m_editor->statusBar()->showMessage("Pin orientation: " + m_previewOrientation, 1200);
+        if (m_toolManager && m_toolManager->activeTool()) {
+            m_toolManager->activeTool()->flipPin();
         }
     });
 
     // Items dragged in Select mode -> move primitives via undo command
     connect(this, &SymbolEditorView::itemsMoved, this, [this](QPointF delta) {
-        QList<int> indices;
-        bool referenceMoved = false;
-        bool nameMoved = false;
-        QPointF newRefPos, newNamePos;
-
-        for (QGraphicsItem* item : m_scene->selectedItems()) {
-            if (item->data(0).toString() == "label") {
-                QString type = item->data(1).toString();
-                if (type == "reference") { referenceMoved = true; newRefPos = item->pos(); }
-                else if (type == "name") { nameMoved = true; newNamePos = item->pos(); }
-                continue;
-            }
-
-            int idx = primitiveIndex(item);
-            if (idx != -1 && !indices.contains(idx))
-                indices.append(idx);
+        if (m_toolManager && m_toolManager->activeTool()) {
+            m_toolManager->activeTool()->onItemsMoved(delta);
         }
-        
-        if (indices.isEmpty() && !referenceMoved && !nameMoved) return;
-
-        SymbolDefinition oldDef = m_editor->symbolDefinition();
-        SymbolDefinition newDef = oldDef;
-        const QSet<int> selectedSet = QSet<int>(indices.begin(), indices.end());
-
-        if (referenceMoved) newDef.setReferencePos(newRefPos);
-        if (nameMoved) newDef.setNamePos(newNamePos);
-
-        for (int idx : indices) {
-            SymbolPrimitive& prim = newDef.primitives()[idx];
-            qreal localDx = delta.x();
-            qreal localDy = delta.y();
-
-            // Smart guide snap for moved pins: align to nearby unselected pin X/Y.
-            if (prim.type == SymbolPrimitive::Pin) {
-                const qreal oldX = oldDef.primitives()[idx].data.value("x").toDouble();
-                const qreal oldY = oldDef.primitives()[idx].data.value("y").toDouble();
-                qreal newX = oldX + localDx;
-                qreal newY = oldY + localDy;
-                const qreal threshold = qMax<qreal>(2.0, gridSize() * 0.4);
-                qreal bestX = threshold + 1.0;
-                qreal bestY = threshold + 1.0;
-                bool snapX = false;
-                bool snapY = false;
-                qreal targetX = newX;
-                qreal targetY = newY;
-
-                for (int j = 0; j < oldDef.primitives().size(); ++j) {
-                    if (selectedSet.contains(j)) continue;
-                    const SymbolPrimitive& other = oldDef.primitives().at(j);
-                    if (other.type != SymbolPrimitive::Pin) continue;
-                    const qreal ox = other.data.value("x").toDouble();
-                    const qreal oy = other.data.value("y").toDouble();
-
-                    const qreal dxAbs = qAbs(newX - ox);
-                    if (dxAbs < bestX && dxAbs <= threshold) {
-                        bestX = dxAbs;
-                        targetX = ox;
-                        snapX = true;
-                    }
-                    const qreal dyAbs = qAbs(newY - oy);
-                    if (dyAbs < bestY && dyAbs <= threshold) {
-                        bestY = dyAbs;
-                        targetY = oy;
-                        snapY = true;
-                    }
-                }
-
-                if (snapX) localDx = targetX - oldX;
-                if (snapY) localDy = targetY - oldY;
-            }
-
-            auto shift = [&](const char* k, qreal d) {
-                if (prim.data.contains(k)) prim.data[k] = prim.data[k].toDouble() + d;
-            };
-            shift("x",  localDx); shift("y",  localDy);
-            shift("x1", localDx); shift("y1", localDy);
-            shift("x2", localDx); shift("y2", localDy);
-            shift("cx", localDx); shift("cy", localDy);
-            shift("centerX", localDx); shift("centerY", localDy);
-
-            if (prim.type == SymbolPrimitive::Polygon) {
-                QJsonArray pts = prim.data["points"].toArray();
-                QJsonArray newPts;
-                for (auto v : pts) {
-                    QJsonObject o = v.toObject();
-                    o["x"] = o["x"].toDouble() + localDx;
-                    o["y"] = o["y"].toDouble() + localDy;
-                    newPts.append(o);
-                }
-                prim.data["points"] = newPts;
-            }
-        }
-        m_editor->m_undoStack->push(new UpdateSymbolCommand(m_editor, oldDef, newDef, "Move Items"));
     });
+
+    m_toolManager->setActiveTool(currentTool());
 }
 
 SymbolCanvas::~SymbolCanvas() {
     clearScene();
+    delete m_toolManager;
 }
 
 void SymbolCanvas::addVisualItem(QGraphicsItem* visual, int index) {
@@ -982,127 +880,8 @@ void SymbolCanvas::updatePinPreview(QPointF pos) {
 }
 
 void SymbolCanvas::onPointClicked(QPointF pos) {
-    pos = snapToGrid(pos);
-
-    if (currentTool() == 6) { // Pin tool
-        int pinCount = 0;
-        for (const auto& p : m_editor->m_symbol.primitives()) {
-            if (p.type == SymbolPrimitive::Pin) ++pinCount;
-        }
-        int pinNum = pinCount + 1;
-        SymbolPrimitive prim = SymbolPrimitive::createPin(pos, pinNum,
-                                                         QString::number(pinNum),
-                                                         m_previewOrientation);
-        prim.setUnit(m_editor->m_currentUnit);
-        prim.setBodyStyle(m_editor->m_currentStyle);
-        QGraphicsItem* visual = buildVisual(prim, m_editor->m_symbol.primitives().size());
-        if (visual)
-            m_editor->m_undoStack->push(new AddPrimitiveCommand(m_editor, prim, visual));
-
-    } else if (currentTool() == 5) { // Text tool
-        TextPropertiesDialog dlg(m_editor);
-        if (dlg.exec() == QDialog::Accepted && !dlg.text().isEmpty()) {
-            SymbolPrimitive prim = SymbolPrimitive::createText(dlg.text(), pos, dlg.fontSize(), dlg.color());
-            prim.setUnit(m_editor->m_currentUnit);
-            prim.setBodyStyle(m_editor->m_currentStyle);
-            QGraphicsItem* visual = buildVisual(prim, m_editor->m_symbol.primitives().size());
-            if (visual)
-                m_editor->m_undoStack->push(new AddPrimitiveCommand(m_editor, prim, visual));
-        }
-
-    } else if (currentTool() == 1 || currentTool() == 3 || currentTool() == 4 || currentTool() == 2) { // Line, Circle, Arc, Rect
-        m_polyPoints.append(pos);
-        if (m_polyPoints.size() == 2) {
-            QPointF p1 = m_polyPoints[0];
-            QPointF p2 = m_polyPoints[1];
-            SymbolPrimitive prim;
-            
-            if (currentTool() == 1) { // Line
-                prim = SymbolPrimitive::createLine(p1, p2);
-            } else if (currentTool() == 2) { // Rect
-                prim = SymbolPrimitive::createRect(QRectF(p1, p2).normalized(), false);
-            } else if (currentTool() == 3) { // Circle
-                prim = SymbolPrimitive::createCircle(p1, QLineF(p1, p2).length(), false);
-            } else { // Arc
-                qreal rx = qAbs(p2.x() - p1.x());
-                qreal ry = qAbs(p2.y() - p1.y());
-                prim = SymbolPrimitive::createArc(QRectF(p1.x()-rx, p1.y()-ry, rx*2, ry*2), 0, 180 * 16);
-            }
-            prim.setUnit(m_editor->m_currentUnit);
-            prim.setBodyStyle(m_editor->m_currentStyle);
-
-            QGraphicsItem* visual = buildVisual(prim, m_editor->m_symbol.primitives().size());
-            m_polyPoints.clear();
-            if (visual) m_editor->m_undoStack->push(new AddPrimitiveCommand(m_editor, prim, visual));
-        }
-
-    } else if (currentTool() == 7) { // Polygon
-        m_polyPoints.append(pos);
-        if (m_polyPoints.size() > 2
-            && QLineF(pos, m_polyPoints.first()).length() < 8.0) {
-            m_polyPoints.removeLast();
-            SymbolPrimitive prim = SymbolPrimitive::createPolygon(m_polyPoints, false);
-            prim.setUnit(m_editor->m_currentUnit);
-            prim.setBodyStyle(m_editor->m_currentStyle);
-            QGraphicsItem* visual = buildVisual(prim, m_editor->m_symbol.primitives().size());
-            m_polyPoints.clear();
-            if (m_previewItem) {
-                m_scene->removeItem(m_previewItem);
-                delete m_previewItem;
-                m_previewItem = nullptr;
-            }
-            if (visual)
-                m_editor->m_undoStack->push(new AddPrimitiveCommand(m_editor, prim, visual));
-        }
-
-    } else if (currentTool() == 11) { // Bezier
-        m_polyPoints.append(pos);
-        if (m_polyPoints.size() == 4) {
-            SymbolPrimitive prim = SymbolPrimitive::createBezier(m_polyPoints[0], m_polyPoints[2], m_polyPoints[3], m_polyPoints[1]);
-            prim.setUnit(m_editor->m_currentUnit);
-            prim.setBodyStyle(m_editor->m_currentStyle);
-            QGraphicsItem* visual = buildVisual(prim, m_editor->m_symbol.primitives().size());
-            m_polyPoints.clear();
-            if (m_previewItem) {
-                m_scene->removeItem(m_previewItem);
-                delete m_previewItem;
-                m_previewItem = nullptr;
-            }
-            if (visual) m_editor->m_undoStack->push(new AddPrimitiveCommand(m_editor, prim, visual));
-        }
-
-    } else if (currentTool() == 10) { // Anchor
-        SymbolDefinition oldDef = m_editor->symbolDefinition();
-        SymbolDefinition newDef = oldDef;
-        
-        newDef.setReferencePos(oldDef.referencePos() - pos);
-        newDef.setNamePos(oldDef.namePos() - pos);
-
-        for (SymbolPrimitive& prim : newDef.primitives()) {
-            auto shift = [&](const char* k, qreal d) {
-                if (prim.data.contains(k)) prim.data[k] = prim.data[k].toDouble() - d;
-            };
-            shift("x",  pos.x()); shift("y",  pos.y());
-            shift("x1", pos.x()); shift("y1", pos.y());
-            shift("x2", pos.x()); shift("y2", pos.y());
-            shift("x3", pos.x()); shift("y3", pos.y());
-            shift("x4", pos.x()); shift("y4", pos.y());
-            shift("cx", pos.x()); shift("cy", pos.y());
-            shift("centerX", pos.x()); shift("centerY", pos.y());
-            
-            if (prim.type == SymbolPrimitive::Polygon) {
-                QJsonArray pts = prim.data["points"].toArray();
-                QJsonArray newPts;
-                for (auto v : pts) {
-                    QJsonObject o = v.toObject();
-                    o["x"] = o["x"].toDouble() - pos.x();
-                    o["y"] = o["y"].toDouble() - pos.y();
-                    newPts.append(o);
-                }
-                prim.data["points"] = newPts;
-            }
-        }
-        m_editor->m_undoStack->push(new UpdateSymbolCommand(m_editor, oldDef, newDef, "Set Anchor"));
+    if (m_toolManager && m_toolManager->activeTool()) {
+        m_toolManager->activeTool()->onPointClicked(pos);
     }
 }
 
@@ -1113,167 +892,39 @@ void SymbolCanvas::onMouseMoved(QPointF pos) {
         m_previewItem = nullptr;
     }
     
-    if (currentTool() == 0 || currentTool() == 8 || currentTool() == 10) return; // Select, Erase, Anchor
-
-    const QPen previewPen(Qt::cyan, 1, Qt::DashLine);
-    QPointF start = m_polyPoints.isEmpty() ? pos : m_polyPoints.first();
-    QPointF end = pos;
-
-    switch (currentTool()) {
-    case 1: // Line
-        m_previewItem = m_scene->addLine(QLineF(start, end), previewPen);
-        break;
-    case 2: { // Rect
-        QRectF r = QRectF(start, end).normalized();
-        m_previewItem = m_scene->addRect(r, previewPen);
-        break;
-    }
-    case 3: { // Circle
-        qreal rad = QLineF(start, end).length();
-        m_previewItem = m_scene->addEllipse(
-            start.x()-rad, start.y()-rad, rad*2, rad*2, previewPen);
-        break;
-    }
-    case 11: { // Bezier
-        if (m_polyPoints.isEmpty()) {
-            m_previewItem = m_scene->addLine(QLineF(pos, pos), previewPen);
-        } else if (m_polyPoints.size() == 1) {
-            m_previewItem = m_scene->addLine(QLineF(m_polyPoints[0], pos), previewPen);
-        } else if (m_polyPoints.size() == 2) {
-            QPainterPath path;
-            path.moveTo(m_polyPoints[0]);
-            path.cubicTo(pos, pos, m_polyPoints[1]);
-            m_previewItem = m_scene->addPath(path, previewPen);
-        } else if (m_polyPoints.size() == 3) {
-            QPainterPath path;
-            path.moveTo(m_polyPoints[0]);
-            path.cubicTo(m_polyPoints[2], pos, m_polyPoints[1]);
-            m_previewItem = m_scene->addPath(path, previewPen);
-        }
-        break;
-    }
-    case 4: { // Arc
-        qreal rx = qAbs(end.x() - start.x());
-        qreal ry = qAbs(end.y() - start.y());
-        QRectF r(start.x()-rx, start.y()-ry, rx*2, ry*2);
-        QPainterPath path;
-        path.arcMoveTo(r, 0);
-        path.arcTo(r, 0, 180);
-        m_previewItem = m_scene->addPath(path, previewPen);
-        break;
-    }
-    case 7: { // Polygon
-        if (m_polyPoints.isEmpty()) break;
-        QPolygonF poly = m_polyPoints;
-        poly.append(end);
-        m_previewItem = m_scene->addPolygon(poly, previewPen);
-        break;
-    }
-    case 9: { // ZoomArea
-        QRectF r = QRectF(start, end).normalized();
-        m_previewItem = m_scene->addRect(r, previewPen);
-        break;
-    }
-    case 6: // Pin
-        updatePinPreview(pos);
-        break;
-    default: break;
+    if (m_toolManager && m_toolManager->activeTool()) {
+        m_toolManager->activeTool()->onMouseMoved(pos);
     }
 }
 
 void SymbolCanvas::onDrawingFinished(QPointF start, QPointF end) {
-    if (currentTool() == 9) { // ZoomArea
-        QRectF r = QRectF(start, end).normalized();
-        if (r.width() > 5 && r.height() > 5)
-            fitInView(r, Qt::KeepAspectRatio);
+    if (m_toolManager && m_toolManager->activeTool()) {
+        m_toolManager->activeTool()->onDrawingFinished(start, end);
     }
 }
 
 void SymbolCanvas::onPenPointAdded(QPointF pos) {
-    if (currentTool() != 13) return; // Pen tool
-    
-    if (m_penPoints.size() > 2) {
-        if (QLineF(pos, m_penPoints.first().pos).length() < 8.0) {
-            onPenPathClosed();
-            return;
-        }
+    if (m_toolManager && m_toolManager->activeTool()) {
+        m_toolManager->activeTool()->onPenPointAdded(pos);
     }
-    
-    PenPoint newPoint;
-    newPoint.pos = pos;
-    newPoint.handleIn = QPointF(0, 0);
-    newPoint.handleOut = QPointF(0, 0);
-    newPoint.smooth = false;
-    newPoint.corner = false;
-    m_penPoints.append(newPoint);
-    updatePenPreview();
 }
 
 void SymbolCanvas::onPenHandleDragged(QPointF handlePos) {
-     if (currentTool() != 13 || m_penPoints.isEmpty()) return; // Pen tool
-     
-     if (m_selectedPenMidpoint != -1) {
-         int segIdx = m_selectedPenMidpoint;
-         if (segIdx >= 0 && segIdx < m_penPoints.size()) {
-             PenPoint& p1 = m_penPoints[segIdx];
-             PenPoint& p2 = m_penPoints[(segIdx + 1) % m_penPoints.size()];
-             
-             QPointF midpoint = calculateBezierPoint(p1, p2, 0.5);
-             qreal dragDist = QLineF(handlePos, midpoint).length();
-             
-             if (dragDist > 2.0) {
-                 PenPoint newPoint;
-                 newPoint.pos = handlePos;
-                 newPoint.handleIn = QPointF(0, 0);
-                 newPoint.handleOut = QPointF(0, 0);
-                 newPoint.smooth = false;
-                 newPoint.corner = true;
-                 
-                 m_penPoints.insert(segIdx + 1, newPoint);
-                 m_selectedPenMidpoint = -1;
-                 updatePenPreview();
-             }
-         }
-     } else if (m_selectedPenPoint == -1) {
-         PenPoint& lastPoint = m_penPoints.last();
-         QPointF delta = handlePos - lastPoint.pos;
-         lastPoint.handleOut = delta;
-         if (lastPoint.smooth) {
-             lastPoint.handleIn = -delta;
-         }
-     } else if (m_selectedPenPoint >= 0 && m_selectedPenPoint < m_penPoints.size()) {
-         PenPoint& selectedPoint = m_penPoints[m_selectedPenPoint];
-         QPointF delta = handlePos - selectedPoint.pos;
-         
-         if (m_selectedPenHandle == 0) {
-             selectedPoint.handleIn = delta;
-             if (selectedPoint.smooth) {
-                 selectedPoint.handleOut = -delta;
-             }
-         } else if (m_selectedPenHandle == 1) {
-             selectedPoint.handleOut = delta;
-             if (selectedPoint.smooth) {
-                 selectedPoint.handleIn = -delta;
-             }
-         } else {
-             selectedPoint.handleOut = delta;
-             if (selectedPoint.smooth) {
-                 selectedPoint.handleIn = -delta;
-             }
-         }
-     }
-     
-     updatePenPreview();
+    if (m_toolManager && m_toolManager->activeTool()) {
+        m_toolManager->activeTool()->onPenHandleDragged(handlePos);
+    }
 }
 
 void SymbolCanvas::onPenPointFinished() {
-    if (currentTool() != 13) return; // Pen tool
-    updatePenPreview();
+    if (m_toolManager && m_toolManager->activeTool()) {
+        m_toolManager->activeTool()->onPenPointFinished();
+    }
 }
 
 void SymbolCanvas::onPenPathClosed() {
-    if (currentTool() != 13 || m_penPoints.size() < 3) return; // Pen tool
-    finalizePenPath();
+    if (m_toolManager && m_toolManager->activeTool()) {
+        m_toolManager->activeTool()->onPenPathClosed();
+    }
 }
 
 void SymbolCanvas::finalizePenPath() {
@@ -1489,129 +1140,14 @@ QPointF SymbolCanvas::calculateBezierPoint(const PenPoint& p1, const PenPoint& p
 }
 
 void SymbolCanvas::onPenClicked(QPointF pos, int pointIndex, int handleIndex) {
-     if (currentTool() != 13) return; // Pen tool
-     
-     const qreal HIT_RADIUS = 10.0;
-     int closestPoint = -1;
-     int closestHandle = -1;
-     int closestMidpoint = -1;
-     qreal closestDist = HIT_RADIUS + 1;
-     
-     for (int i = 0; i < m_penPoints.size(); ++i) {
-         qreal distToPos = QLineF(pos, m_penPoints[i].pos).length();
-         if (distToPos < closestDist) {
-             closestDist = distToPos;
-             closestPoint = i;
-             closestHandle = -1;
-             closestMidpoint = -1;
-         }
-         
-         if (m_penPoints[i].handleIn != QPointF(0, 0)) {
-             QPointF handlePos = m_penPoints[i].pos + m_penPoints[i].handleIn;
-             qreal dist = QLineF(pos, handlePos).length();
-             if (dist < closestDist) {
-                 closestDist = dist;
-                 closestPoint = i;
-                 closestHandle = 0;
-                 closestMidpoint = -1;
-             }
-         }
-         
-         if (m_penPoints[i].handleOut != QPointF(0, 0)) {
-             QPointF handlePos = m_penPoints[i].pos + m_penPoints[i].handleOut;
-             qreal dist = QLineF(pos, handlePos).length();
-             if (dist < closestDist) {
-                 closestDist = dist;
-                 closestPoint = i;
-                 closestHandle = 1;
-                 closestMidpoint = -1;
-             }
-         }
-     }
-     
-     if (m_penPoints.size() >= 2) {
-         for (int i = 0; i < m_penPoints.size(); ++i) {
-             PenPoint& p1 = m_penPoints[i];
-             PenPoint& p2 = m_penPoints[(i + 1) % m_penPoints.size()];
-             QPointF midpoint = calculateBezierPoint(p1, p2, 0.5);
-             qreal dist = QLineF(pos, midpoint).length();
-             
-             if (dist < closestDist) {
-                 closestDist = dist;
-                 closestPoint = -1;
-                 closestHandle = -1;
-                 closestMidpoint = i;
-             }
-         }
-     }
-     
-     if (closestMidpoint != -1) {
-         m_selectedPenMidpoint = closestMidpoint;
-         updatePenPreview();
-     } else if (closestPoint == -1) {
-         if (m_penPoints.size() > 2) {
-             if (QLineF(pos, m_penPoints.first().pos).length() < 8.0) {
-                 onPenPathClosed();
-                 return;
-             }
-         }
-         
-         PenPoint newPoint;
-         newPoint.pos = pos;
-         newPoint.handleIn = QPointF(0, 0);
-         newPoint.handleOut = QPointF(0, 0);
-         newPoint.smooth = false;
-         newPoint.corner = true;
-         m_penPoints.append(newPoint);
-         updatePenPreview();
-     } else {
-         bool isAltPressed = (handleIndex == 1);
-         
-         if (closestHandle == -1) {
-             if (isAltPressed) {
-                 m_penPoints[closestPoint].smooth = !m_penPoints[closestPoint].smooth;
-                 m_penPoints[closestPoint].corner = !m_penPoints[closestPoint].corner;
-                 if (m_penPoints[closestPoint].smooth && 
-                     m_penPoints[closestPoint].handleOut != QPointF(0, 0)) {
-                     m_penPoints[closestPoint].handleIn = -m_penPoints[closestPoint].handleOut;
-                 }
-             } else {
-                 if (m_selectedPenPoint == closestPoint) {
-                     m_selectedPenPoint = -1;
-                 } else {
-                     m_selectedPenPoint = closestPoint;
-                     m_selectedPenHandle = -1;
-                 }
-             }
-         } else {
-             m_selectedPenPoint = closestPoint;
-             m_selectedPenHandle = closestHandle;
-         }
-         updatePenPreview();
-     }
+    if (m_toolManager && m_toolManager->activeTool()) {
+        m_toolManager->activeTool()->onPenClicked(pos, pointIndex, handleIndex);
+    }
 }
 
 void SymbolCanvas::onPenDoubleClicked(QPointF pos, int pointIndex) {
-    if (currentTool() != 13) return; // Pen tool
-    
-    const qreal HIT_RADIUS = 10.0;
-    int closestPoint = -1;
-    qreal closestDist = HIT_RADIUS + 1;
-    
-    for (int i = 0; i < m_penPoints.size(); ++i) {
-        qreal dist = QLineF(pos, m_penPoints[i].pos).length();
-        if (dist < closestDist) {
-            closestDist = dist;
-            closestPoint = i;
-        }
-    }
-    
-    if (closestPoint != -1 && m_penPoints.size() > 2) {
-        m_penPoints.removeAt(closestPoint);
-        if (m_selectedPenPoint == closestPoint) {
-            m_selectedPenPoint = -1;
-        }
-        updatePenPreview();
+    if (m_toolManager && m_toolManager->activeTool()) {
+        m_toolManager->activeTool()->onPenDoubleClicked(pos, pointIndex);
     }
 }
 
@@ -1695,196 +1231,38 @@ void SymbolCanvas::updateBezierEditPreview() {
 }
 
 void SymbolCanvas::onBezierEditPointClicked(QPointF pos) {
-    if (m_editingBezierIndex < 0 || m_bezierEditPoints.isEmpty()) return;
-    
-    const double HIT_RADIUS = 10.0;
-    
-    int clickedPoint = -1;
-    for (int i = 0; i < m_bezierEditPoints.size(); ++i) {
-        QPointF delta = m_bezierEditPoints[i].pos - pos;
-        double dist = std::sqrt(delta.x() * delta.x() + delta.y() * delta.y());
-        if (dist <= HIT_RADIUS) {
-            clickedPoint = i;
-            break;
-        }
-    }
-    
-    if (clickedPoint >= 0) {
-        m_selectedBezierPoint = clickedPoint;
-        updateBezierEditPreview();
-    } else {
-        m_selectedBezierPoint = -1;
-        updateBezierEditPreview();
+    if (m_toolManager && m_toolManager->activeTool()) {
+        m_toolManager->activeTool()->onBezierEditPointClicked(pos);
     }
 }
 
 void SymbolCanvas::onBezierEditPointDragged(QPointF newPos) {
-    if (m_editingBezierIndex < 0 || m_selectedBezierPoint < 0) return;
-    if (m_editingBezierIndex >= m_editor->m_symbol.primitives().size()) return;
-    
-    SymbolPrimitive& prim = m_editor->m_symbol.primitives()[m_editingBezierIndex];
-    
-    const QStringList keys = {"x1", "y1", "x2", "y2", "x3", "y3", "x4", "y4"};
-    int pointType = m_selectedBezierPoint;
-    
-    if (pointType >= 0 && pointType < 4) {
-        int x_idx = pointType * 2;
-        int y_idx = pointType * 2 + 1;
-        
-        prim.data[keys[x_idx]] = newPos.x();
-        prim.data[keys[y_idx]] = newPos.y();
-        
-        updateVisualForPrimitive(m_editingBezierIndex, prim);
-        updateBezierEditPreview();
+    if (m_toolManager && m_toolManager->activeTool()) {
+        m_toolManager->activeTool()->onBezierEditPointDragged(newPos);
     }
 }
 
 void SymbolCanvas::onRectResizeStarted(const QString& corner, QPointF scenePos) {
-    if (!m_scene || currentTool() != 0) return; // Select tool
-    const QList<QGraphicsItem*> selected = m_scene->selectedItems();
-    if (selected.size() != 1) return;
-
-    const int idx = primitiveIndex(selected.first());
-    if (idx < 0 || idx >= m_editor->m_symbol.primitives().size()) return;
-    const SymbolPrimitive& prim = m_editor->m_symbol.primitives().at(idx);
-    m_rectResizeSessionActive = true;
-    m_rectResizePrimIdx = idx;
-    m_rectResizeCorner = corner;
-    m_rectResizeOldDef = m_editor->symbolDefinition();
-    m_rectResizeAnchor = QPointF();
-    m_resizeLineOtherEnd = QPointF();
-    m_resizeCircleCenter = QPointF();
-
-    if (prim.type == SymbolPrimitive::Rect || prim.type == SymbolPrimitive::Arc) {
-        const qreal x = prim.data.value("x").toDouble();
-        const qreal y = prim.data.value("y").toDouble();
-        const qreal w = prim.data.contains("width") ? prim.data.value("width").toDouble() : prim.data.value("w").toDouble();
-        const qreal h = prim.data.contains("height") ? prim.data.value("height").toDouble() : prim.data.value("h").toDouble();
-        QRectF r(x, y, w, h);
-        r = r.normalized();
-        if (r.isNull()) {
-            m_rectResizeSessionActive = false;
-            return;
-        }
-        if (corner == "tl") m_rectResizeAnchor = r.bottomRight();
-        else if (corner == "tr") m_rectResizeAnchor = r.bottomLeft();
-        else if (corner == "bl") m_rectResizeAnchor = r.topRight();
-        else m_rectResizeAnchor = r.topLeft(); // "br"
-    } else if (prim.type == SymbolPrimitive::Line) {
-        const QPointF p1(prim.data.value("x1").toDouble(), prim.data.value("y1").toDouble());
-        const QPointF p2(prim.data.value("x2").toDouble(), prim.data.value("y2").toDouble());
-        m_resizeLineOtherEnd = (corner == "p1") ? p2 : p1;
-    } else if (prim.type == SymbolPrimitive::Circle) {
-        const qreal cx = prim.data.contains("centerX") ? prim.data.value("centerX").toDouble() : prim.data.value("cx").toDouble();
-        const qreal cy = prim.data.contains("centerY") ? prim.data.value("centerY").toDouble() : prim.data.value("cy").toDouble();
-        m_resizeCircleCenter = QPointF(cx, cy);
-    } else {
-        m_rectResizeSessionActive = false;
-        return;
+    if (m_toolManager && m_toolManager->activeTool()) {
+        m_toolManager->activeTool()->onRectResizeStarted(corner, scenePos);
     }
-
-    onRectResizeUpdated(scenePos);
 }
 
 void SymbolCanvas::onRectResizeUpdated(QPointF scenePos) {
-    if (!m_rectResizeSessionActive) return;
-    if (m_rectResizePrimIdx < 0 || m_rectResizePrimIdx >= m_editor->m_symbol.primitives().size()) return;
-
-    SymbolPrimitive& prim = m_editor->m_symbol.primitives()[m_rectResizePrimIdx];
-    if (prim.type == SymbolPrimitive::Rect || prim.type == SymbolPrimitive::Arc) {
-        QPointF p = scenePos;
-        const qreal minSize = qMax<qreal>(1.0, gridSize() * 0.5);
-        QRectF r(m_rectResizeAnchor, p);
-        r = r.normalized();
-        if (r.width() < minSize) r.setWidth(minSize);
-        if (r.height() < minSize) r.setHeight(minSize);
-
-        prim.data["x"] = r.left();
-        prim.data["y"] = r.top();
-        prim.data["width"] = r.width();
-        prim.data["height"] = r.height();
-        prim.data["w"] = r.width();
-        prim.data["h"] = r.height();
-    } else if (prim.type == SymbolPrimitive::Line) {
-        if (m_rectResizeCorner == "p1") {
-            prim.data["x1"] = scenePos.x();
-            prim.data["y1"] = scenePos.y();
-            prim.data["x2"] = m_resizeLineOtherEnd.x();
-            prim.data["y2"] = m_resizeLineOtherEnd.y();
-        } else {
-            prim.data["x2"] = scenePos.x();
-            prim.data["y2"] = scenePos.y();
-            prim.data["x1"] = m_resizeLineOtherEnd.x();
-            prim.data["y1"] = m_resizeLineOtherEnd.y();
-        }
-    } else if (prim.type == SymbolPrimitive::Circle) {
-        qreal radius = 1.0;
-        if (m_rectResizeCorner == "east" || m_rectResizeCorner == "west") {
-            radius = qAbs(scenePos.x() - m_resizeCircleCenter.x());
-        } else if (m_rectResizeCorner == "north" || m_rectResizeCorner == "south") {
-            radius = qAbs(scenePos.y() - m_resizeCircleCenter.y());
-        } else {
-            radius = QLineF(scenePos, m_resizeCircleCenter).length();
-        }
-        const qreal minR = qMax<qreal>(0.5, gridSize() * 0.25);
-        if (radius < minR) radius = minR;
-        prim.data["centerX"] = m_resizeCircleCenter.x();
-        prim.data["centerY"] = m_resizeCircleCenter.y();
-        prim.data["cx"] = m_resizeCircleCenter.x();
-        prim.data["cy"] = m_resizeCircleCenter.y();
-        prim.data["radius"] = radius;
-        prim.data["r"] = radius;
-    } else {
-        return;
+    if (m_toolManager && m_toolManager->activeTool()) {
+        m_toolManager->activeTool()->onRectResizeUpdated(scenePos);
     }
-
-    updateVisualForPrimitive(m_rectResizePrimIdx, prim);
-    updateResizeHandles();
 }
 
 void SymbolCanvas::onRectResizeFinished(QPointF scenePos) {
-    if (!m_rectResizeSessionActive) return;
-    onRectResizeUpdated(scenePos);
-
-    SymbolDefinition newDef = m_editor->symbolDefinition();
-    const bool changed = (QJsonDocument(newDef.toJson()).toJson(QJsonDocument::Compact) !=
-                          QJsonDocument(m_rectResizeOldDef.toJson()).toJson(QJsonDocument::Compact));
-    if (changed) {
-        m_editor->m_undoStack->push(new UpdateSymbolCommand(m_editor, m_rectResizeOldDef, newDef, "Resize Rectangle"));
-    } else {
-        m_editor->applySymbolDefinition(m_rectResizeOldDef);
+    if (m_toolManager && m_toolManager->activeTool()) {
+        m_toolManager->activeTool()->onRectResizeFinished(scenePos);
     }
-
-    m_rectResizeSessionActive = false;
-    m_rectResizePrimIdx = -1;
-    m_rectResizeCorner.clear();
 }
 
 void SymbolCanvas::onSelectionChanged() {
-    if (currentTool() == 0) { // Select tool
-        m_editingBezierIndex = -1;
-        m_selectedBezierPoint = -1;
-        
-        int selectedBezierIndex = -1;
-        int selectedCount = 0;
-        
-        for (QGraphicsItem* item : m_scene->selectedItems()) {
-            bool isPrimitive = item->data(1).isValid();
-            if (isPrimitive) {
-                selectedCount++;
-                int primIndex = primitiveIndex(item);
-                if (primIndex >= 0 && primIndex < m_editor->m_symbol.primitives().size()) {
-                    if (m_editor->m_symbol.primitives()[primIndex].type == SymbolPrimitive::Bezier) {
-                        selectedBezierIndex = primIndex;
-                    }
-                }
-            }
-        }
-        
-        if (selectedCount == 1 && selectedBezierIndex >= 0) {
-            m_editingBezierIndex = selectedBezierIndex;
-            updateBezierEditPreview();
-        }
+    if (m_toolManager && m_toolManager->activeTool()) {
+        m_toolManager->activeTool()->onSelectionChanged();
     }
 
     for (QGraphicsItem* item : m_scene->items()) {
@@ -1906,5 +1284,13 @@ void SymbolCanvas::onSelectionChanged() {
                 }
             }
         }
+    }
+}
+
+
+void SymbolCanvas::setCurrentTool(int tool) {
+    SymbolEditorView::setCurrentTool(tool);
+    if (m_toolManager) {
+        m_toolManager->setActiveTool(tool);
     }
 }
