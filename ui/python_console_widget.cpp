@@ -188,11 +188,12 @@ void PythonConsoleWidget::executeLine(const QString& code) {
     int isError = 0;
     char* output = py_executor_execute(utf8.constData(), &isError);
 
-    if (output && strlen(output) > 0) {
-        QString qOutput = QString::fromUtf8(output);
-        printOutput(qOutput, isError != 0);
-        py_executor_free(output);
-    } else if (output) {
+    QString qOutput;
+    if (output) {
+        qOutput = QString::fromUtf8(output);
+        if (!qOutput.isEmpty()) {
+            printOutput(qOutput, isError != 0);
+        }
         py_executor_free(output);
     }
 
@@ -201,7 +202,7 @@ void PythonConsoleWidget::executeLine(const QString& code) {
         m_inContinuation = false;
     }
 
-    emit commandExecuted(code, QString::fromUtf8(output ? output : ""), isError != 0);
+    emit commandExecuted(code, qOutput, isError != 0);
     showPrompt();
 }
 
