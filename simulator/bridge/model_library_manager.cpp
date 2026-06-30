@@ -13,6 +13,7 @@
 #include <QDebug>
 #include <QVector>
 #include <QRegularExpression>
+#include <QCoreApplication>
 
 namespace {
 QString decodeSpiceTextInLibrary(const QByteArray& raw) {
@@ -105,10 +106,7 @@ void ModelLibraryManager::reload() {
     
     for (const QString& path : paths) {
         if (skipKicad && path.contains("kicad", Qt::CaseInsensitive)) continue;
-        if (isKicadModelPath(path)) {
-            qDebug() << "Skipping KiCad model path:" << path;
-            continue;
-        }
+        if (isKicadModelPath(path)) continue;
         
         if (QFileInfo(path).isDir()) {
             scanDirectory(path);
@@ -118,6 +116,42 @@ void ModelLibraryManager::reload() {
     }
     
     Q_EMIT libraryReloaded();
+}
+
+void ModelLibraryManager::scanDirectory(const QString& path) {
+    scanDirectoryAsync(path);
+}
+
+void ModelLibraryManager::scanDirectoryAsync(const QString& path) {
+    if (isKicadModelPath(path)) return;
+
+    QStringList filters;
+    filters << "*.lib" << "*.mod" << "*.sub" << "*.sp" << "*.inc" << "*.cmp" << "*.jft" << "*.bjt" << "*.mos";
+    
+    bool skipKicad = ConfigManager::instance().kicadDisabled();
+    
+    // Collect files first (fast)
+    QStringList files;
+    QDirIterator it(path, filters, QDir::Files, QDirIterator::Subdirectories);
+    while (it.hasNext()) {
+        QString f = it.next();
+        if (skipKicad && f.contains("kicad", Qt::CaseInsensitive)) continue;
+        if (isKicadModelPath(f)) continue;
+        files.append(f);
+    }
+    
+    int total = files.size();
+    int current = 0;
+    
+    // Index files, yielding to event loop periodically
+    for (const QString& f : files) {
+        current++;
+        if (current % 50 == 0 || current == total) {
+            QCoreApplication::processEvents();
+            Q_EMIT progressUpdated(QString("Indexing: %1 (%2/%3)").arg(QFileInfo(f).fileName()).arg(current).arg(total), current, total);
+        }
+        indexLibraryFile(f);
+    }
 }
 
 QVector<SpiceModelInfo> ModelLibraryManager::allModels() const {
@@ -133,7 +167,7 @@ QVector<SpiceModelInfo> ModelLibraryManager::search(const QString& query) const 
     for (const auto& info : m_modelIndex) {
         if (info.name.contains(query, Qt::CaseInsensitive) || 
             info.type.contains(query, Qt::CaseInsensitive) ||
-            info.description.contains(query, Qt::CaseInsensitive)) {
+            info.modelLevel.contains(query, Qt::CaseInsensitive)) {
             results.append(info);
         }
     }
@@ -184,48 +218,26 @@ QString ModelLibraryManager::findLibraryPath(const QString& name) const {
     return QString();
 }
 
-void ModelLibraryManager::scanDirectory(const QString& path) {
-    if (isKicadModelPath(path)) return;
-
-    QStringList filters;
-    filters << "*.lib" << "*.mod" << "*.sub" << "*.sp" << "*.inc" << "*.cmp" << "*.jft" << "*.bjt" << "*.mos";
-    
-    bool skipKicad = ConfigManager::instance().kicadDisabled();
-    QDirIterator countIt(path, filters, QDir::Files, QDirIterator::Subdirectories);
-    int total = 0;
-    while (countIt.hasNext()) {
-        QString f = countIt.next();
-        if (skipKicad && f.contains("kicad", Qt::CaseInsensitive)) continue;
-        if (isKicadModelPath(f)) continue;
-        total++;
-    }
-
-    QDirIterator it(path, filters, QDir::Files, QDirIterator::Subdirectories);
-    int current = 0;
-    while (it.hasNext()) {
-        QString f = it.next();
-        if (skipKicad && f.contains("kicad", Qt::CaseInsensitive)) continue;
-        if (isKicadModelPath(f)) continue;
-        
-        current++;
-        if (current % 10 == 0 || current == total) {
-            Q_EMIT progressUpdated(QString("Indexing library: %1").arg(QFileInfo(f).fileName()), current, total);
-        }
-        indexLibraryFile(f);
-    }
-}
-
 void ModelLibraryManager::indexLibraryFile(const QString& path) {
     QFile file(path);
     if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) return;
+
+    static const QRegularExpression whitespaceRe("\\s+");
+    static const QRegularExpression levelRe("LEVEL\\s*=\\s*(\\d+)", QRegularExpression::CaseInsensitiveOption);
+
+    QVector<SpiceModelInfo> localModels;
+    QSet<QString> localSeen;
 
     QTextStream in(&file);
     while (!in.atEnd()) {
         QString line = in.readLine().trimmed();
         if (line.startsWith(".model", Qt::CaseInsensitive)) {
-            QStringList parts = line.split(QRegularExpression("\\s+"), Qt::SkipEmptyParts);
+            QStringList parts = line.split(whitespaceRe, Qt::SkipEmptyParts);
             if (parts.size() >= 3) {
                 QString name = parts[1];
+                QString nameLower = name.toLower();
+                if (localSeen.contains(nameLower)) continue;
+
                 QString type = parts[2];
                 if (type.contains('(')) type = type.section('(', 0, 0);
                 
@@ -238,7 +250,6 @@ void ModelLibraryManager::indexLibraryFile(const QString& path) {
                     modelLevel = typeUpper;
                 } else {
                     // Try to extract LEVEL=N from the line
-                    QRegularExpression levelRe("LEVEL\\s*=\\s*(\\d+)", QRegularExpression::CaseInsensitiveOption);
                     auto levelMatch = levelRe.match(line);
                     if (levelMatch.hasMatch()) {
                         int lv = levelMatch.captured(1).toInt();
@@ -262,47 +273,35 @@ void ModelLibraryManager::indexLibraryFile(const QString& path) {
                     }
                 }
                 
-                QWriteLocker locker(&m_lock);
-                // Dedup: skip if same (name, path) already indexed
-                bool alreadyExists = false;
-                for (const auto& existing : m_modelIndex) {
-                    if (existing.name.compare(name, Qt::CaseInsensitive) == 0 &&
-                        existing.libraryPath == path) {
-                        alreadyExists = true;
-                        break;
-                    }
-                }
-                if (!alreadyExists) {
-                    SpiceModelInfo info;
-                    info.name = name;
-                    info.type = typeUpper;
-                    info.modelLevel = modelLevel;
-                    info.libraryPath = path;
-                    m_modelIndex.append(info);
-                }
+                localSeen.insert(nameLower);
+                SpiceModelInfo info;
+                info.name = name;
+                info.type = typeUpper;
+                info.modelLevel = modelLevel;
+                info.libraryPath = path;
+                localModels.append(info);
             }
         } else if (line.startsWith(".subckt", Qt::CaseInsensitive)) {
-            QStringList parts = line.split(QRegularExpression("\\s+"), Qt::SkipEmptyParts);
+            QStringList parts = line.split(whitespaceRe, Qt::SkipEmptyParts);
             if (parts.size() >= 2) {
                 QString name = parts[1];
-                QWriteLocker locker(&m_lock);
-                bool alreadyExists = false;
-                for (const auto& existing : m_modelIndex) {
-                    if (existing.name.compare(name, Qt::CaseInsensitive) == 0 &&
-                        existing.libraryPath == path) {
-                        alreadyExists = true;
-                        break;
-                    }
-                }
-                if (!alreadyExists) {
-                    SpiceModelInfo info;
-                    info.name = name;
-                    info.type = "Subcircuit";
-                    info.libraryPath = path;
-                    m_modelIndex.append(info);
-                }
+                QString nameLower = name.toLower();
+                if (localSeen.contains(nameLower)) continue;
+
+                localSeen.insert(nameLower);
+                SpiceModelInfo info;
+                info.name = name;
+                info.type = "Subcircuit";
+                info.libraryPath = path;
+                localModels.append(info);
             }
         }
+    }
+    file.close();
+
+    if (!localModels.isEmpty()) {
+        QWriteLocker locker(&m_lock);
+        m_modelIndex.append(localModels);
     }
 }
 

@@ -48,6 +48,7 @@ private:
     ~ModelLibraryManager();
     
     void scanDirectory(const QString& path);
+    void scanDirectoryAsync(const QString& path);
     void indexLibraryFile(const QString& path);
 
     mutable QReadWriteLock m_lock;
