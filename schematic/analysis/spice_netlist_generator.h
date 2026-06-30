@@ -31,6 +31,10 @@ public:
     static bool isXspiceLogicComponent(const QString& rawToken, const QString& typeName, const QString& reference);
     static QString normalizeXspiceModelAlias(const QString& rawToken, const QString& typeName);
     static bool usesNativeLogicADevice(const QString& codeModel);
+    static bool naturalPinLessThan(const QString& s1, const QString& s2);
+    static QString sanitizeMixedModeToken(const QString& raw);
+    static QString mixedModeAdcBridgeLine(const QString& ref, const QString& pinName, const QString& analogNet, const QString& digitalNet);
+    static QString mixedModeDacBridgeLine(const QString& ref, const QString& pinName, const QString& digitalNet, const QString& analogNet);
     enum SimulationType {
         Transient,
         DC,

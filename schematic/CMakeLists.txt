@@ -57,6 +57,8 @@ target_sources(VioSchematic PRIVATE
     analysis/passes/component_extractor.h
     analysis/passes/connectivity_evaluator.cpp
     analysis/passes/connectivity_evaluator.h
+    analysis/passes/xspice_block_translator.cpp
+    analysis/passes/xspice_block_translator.h
 )
 
 if(VIOSPICE_ENGINE_FOUND)
