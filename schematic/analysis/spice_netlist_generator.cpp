@@ -102,33 +102,11 @@ PassiveCompanionParams parsePassiveCompanionParams(const QString& rawValue) {
 
 } // namespace
 
-bool SpiceNetlistGenerator::isLikelyLogicOutputPinName(const QString& rawPinName) {
-    QString pin = rawPinName.trimmed().toLower();
-    static const QRegularExpression re("(\\[[0-9]+\\]|<[0-9]+>|[0-9]+)$");
-    pin.remove(re);
-    if (pin.isEmpty()) return false;
-    return pin.contains("out") || pin == "q" || pin == "qn" || pin == "qbar" ||
-           pin == "y" || pin == "z" || pin == "f" || pin == "sum" || pin == "carry";
-}
 
-QString SpiceNetlistGenerator::sanitizeMixedModeToken(const QString& raw) {
-    QString out = raw.trimmed();
-    static const QRegularExpression nonAlphaNumRe("[^A-Za-z0-9_]+");
-    static const QRegularExpression leadingUnderscoresRe("^_+");
-    static const QRegularExpression trailingUnderscoresRe("_+$");
-    out.replace(nonAlphaNumRe, "_");
-    out.remove(leadingUnderscoresRe);
-    out.remove(trailingUnderscoresRe);
-    return out.isEmpty() ? QStringLiteral("MM") : out;
-}
 
-QString SpiceNetlistGenerator::pinNameForHeuristics(const Flux::Model::SymbolDefinition* sym, const QString& pinIdentifier) {
-    if (!sym) return pinIdentifier;
-    const auto* pin = sym->pinPrimitive(pinIdentifier);
-    if (!pin) return pinIdentifier;
-    const QString name = pin->data.value("name").toString().trimmed();
-    return name.isEmpty() ? pinIdentifier : name;
-}
+
+
+
 
 namespace {
 
@@ -276,60 +254,18 @@ QStringList buildXspiceNodeTokens(const QList<XspicePinAssignment>& assignments,
 
 } // namespace
 
-QString SpiceNetlistGenerator::mixedModeAdcBridgeLine(const QString& ref, const QString& pinName, const QString& analogNet, const QString& digitalNet) {
-    return QString("XMM_ADC_%1_%2 %3 %4 __viospice_adc_wrap")
-        .arg(sanitizeMixedModeToken(ref), sanitizeMixedModeToken(pinName), analogNet, digitalNet);
-}
 
-QString SpiceNetlistGenerator::mixedModeDacBridgeLine(const QString& ref, const QString& pinName, const QString& digitalNet, const QString& analogNet) {
-    return QString("XMM_DAC_%1_%2 %3 %4 __viospice_dac_wrap")
-        .arg(sanitizeMixedModeToken(ref), sanitizeMixedModeToken(pinName), digitalNet, analogNet);
-}
 
-QString SpiceNetlistGenerator::normalizeXspiceModelAlias(const QString& rawToken, const QString& typeName) {
-    const QString token = rawToken.trimmed().toLower();
-    const QString type = typeName.trimmed().toLower();
 
-    auto matches = [&](std::initializer_list<const char*> vals) {
-        for (const char* v : vals) {
-            const QString q = QString::fromLatin1(v);
-            if (token == q || type == q) return true;
-        }
-        return false;
-    };
 
-    if (matches({"d_and", "and", "gate_and", "and_gate"})) return "d_and";
-    if (matches({"d_nand", "nand", "gate_nand", "nand_gate"})) return "d_nand";
-    if (matches({"d_or", "or", "gate_or", "or_gate"})) return "d_or";
-    if (matches({"d_nor", "nor", "gate_nor", "nor_gate"})) return "d_nor";
-    if (matches({"d_xor", "xor", "gate_xor", "xor_gate"})) return "d_xor";
-    if (matches({"d_xnor", "xnor", "gate_xnor", "xnor_gate"})) return "d_xnor";
-    if (matches({"d_buffer", "buffer", "buf", "gate_buf", "gate_buffer"})) return "d_buffer";
-    if (matches({"d_inverter", "inverter", "inv", "not", "gate_not", "not_gate"})) return "d_inverter";
-    if (matches({"d_dff", "dff", "flipflop", "flip_flop", "d_flipflop", "d_flip_flop", "dff_gate", "dflop"})) return "d_dff";
-    if (matches({"d_jkff", "jkff", "jk_flipflop", "jk_flip_flop", "jkflop"})) return "d_jkff";
-    if (matches({"d_tff", "tff", "toggle_flipflop", "toggle_flip_flop", "toggleflop", "t_flipflop", "t_flip_flop"})) return "d_tff";
-    if (matches({"d_srff", "srff", "sr_flipflop", "sr_flip_flop", "set_reset_flipflop", "set_reset_flip_flop"})) return "d_srff";
-    if (matches({"d_dlatch", "dlatch", "d_latch", "d_type_latch"})) return "d_dlatch";
-    if (matches({"d_srlatch", "srlatch", "sr_latch", "set_reset_latch"})) return "d_srlatch";
-    if (matches({"d_tristate", "tristate", "tri_state"})) return "d_tristate";
-    if (matches({"d_ram", "ram", "memory", "digital_ram"})) return "d_ram";
 
-    if (token.startsWith("d_")) return token;
-    return QString();
-}
 
-bool SpiceNetlistGenerator::isXspiceLogicComponent(const QString& rawToken, const QString& typeName, const QString& reference) {
-    if (reference.startsWith("A", Qt::CaseInsensitive)) {
-        return true;
-    }
-    return !normalizeXspiceModelAlias(rawToken, typeName).isEmpty();
-}
+
 
 namespace {
 
 QString defaultXspiceModelLine(const QString& ref, const QString& codeModel) {
-    const QString modelName = QString("__XSPICE_%1").arg(SpiceNetlistGenerator::sanitizeMixedModeToken(ref));
+    const QString modelName = QString("__XSPICE_%1").arg(XSpiceBlockTranslator::sanitizeMixedModeToken(ref));
 
     if (codeModel == "d_and" || codeModel == "d_nand" || codeModel == "d_or" ||
         codeModel == "d_nor" || codeModel == "d_xor" || codeModel == "d_xnor" ||
@@ -374,19 +310,7 @@ QString nativeLogicKeywordForCodeModel(const QString& codeModel) {
 
 } // namespace
 
-bool SpiceNetlistGenerator::usesNativeLogicADevice(const QString& codeModel) {
-    // Guardrail:
-    // Do not switch logic code models to native LT-style `A` devices based on
-    // symbol/model type alone. The runtime ngspice backend must also support
-    // VioMATRIXC's parse-time A-device transform. If this returns true on plain
-    // ngspice, generated netlists will load-fail with missing model/errors. If
-    // this returns false on VioMATRIXC, digital outputs will work only through
-    // explicit bridges and external schematic probes will expose internal nodes.
-    if (::nativeLogicKeywordForCodeModel(codeModel).isEmpty()) {
-        return false;
-    }
-    return SimulationManager::instance().isNativeSmartSignalMode();
-}
+
 
 namespace {
 bool xspiceModelUsesCollapsedInputVector(const QString& codeModel) {
@@ -396,43 +320,9 @@ bool xspiceModelUsesCollapsedInputVector(const QString& codeModel) {
 }
 } // namespace
 
-NetlistManager::PinDirection SpiceNetlistGenerator::pinDirectionFromMetadata(const Flux::Model::SymbolDefinition* sym, const QString& pinName, bool* hasExplicitMetadata) {
-    if (hasExplicitMetadata) *hasExplicitMetadata = false;
-    if (!sym) return NetlistManager::PinDirection::INPUT;
 
-    const QString direction = sym->pinSignalDirection(pinName);
-    if (direction == "input") {
-        if (hasExplicitMetadata) *hasExplicitMetadata = true;
-        return NetlistManager::PinDirection::INPUT;
-    }
-    if (direction == "output") {
-        if (hasExplicitMetadata) *hasExplicitMetadata = true;
-        return NetlistManager::PinDirection::OUTPUT;
-    }
-    if (direction == "bidirectional") {
-        if (hasExplicitMetadata) *hasExplicitMetadata = true;
-        return NetlistManager::PinDirection::BIDIRECTIONAL;
-    }
 
-    return NetlistManager::PinDirection::INPUT;
-}
 
-NodeType SpiceNetlistGenerator::pinDomainFromMetadata(const Flux::Model::SymbolDefinition* sym, const QString& pinName, bool* hasExplicitMetadata) {
-    if (hasExplicitMetadata) *hasExplicitMetadata = false;
-    if (!sym) return NodeType::ANALOG;
-
-    const QString domain = sym->pinSignalDomain(pinName);
-    if (domain == "digital" || domain == "digital_event" || domain == "event") {
-        if (hasExplicitMetadata) *hasExplicitMetadata = true;
-        return NodeType::DIGITAL_EVENT;
-    }
-    if (domain == "analog") {
-        if (hasExplicitMetadata) *hasExplicitMetadata = true;
-        return NodeType::ANALOG;
-    }
-
-    return NodeType::ANALOG;
-}
 
 namespace {
 
@@ -949,12 +839,12 @@ QString buildNgspiceOtaTranslation(const QString& line) {
 
     QStringList lines;
     lines << QString("* OTA_TRANSLATED %1").arg(ref);
-    lines << QString("B__OTA_%1 %2 %3 I={%4}").arg(SpiceNetlistGenerator::sanitizeMixedModeToken(ref), out, gnd, currentExpr);
+    lines << QString("B__OTA_%1 %2 %3 I={%4}").arg(XSpiceBlockTranslator::sanitizeMixedModeToken(ref), out, gnd, currentExpr);
     if (!rout.isEmpty()) {
-        lines << QString("R__OTA_%1 %2 %3 %4").arg(SpiceNetlistGenerator::sanitizeMixedModeToken(ref), out, gnd, rout);
+        lines << QString("R__OTA_%1 %2 %3 %4").arg(XSpiceBlockTranslator::sanitizeMixedModeToken(ref), out, gnd, rout);
     }
     if (!cout.isEmpty()) {
-        lines << QString("C__OTA_%1 %2 %3 %4").arg(SpiceNetlistGenerator::sanitizeMixedModeToken(ref), out, gnd, cout);
+        lines << QString("C__OTA_%1 %2 %3 %4").arg(XSpiceBlockTranslator::sanitizeMixedModeToken(ref), out, gnd, cout);
     }
     return lines.join('\n');
 }
@@ -1753,15 +1643,7 @@ QStringList collapseSpiceContinuationLines(const QString& text) {
 
 } // namespace
 
-bool SpiceNetlistGenerator::naturalPinLessThan(const QString& s1, const QString& s2) {
-    bool ok1, ok2;
-    int n1 = s1.toInt(&ok1);
-    int n2 = s2.toInt(&ok2);
-    if (ok1 && ok2) return n1 < n2;
-    if (ok1) return true;
-    if (ok2) return false;
-    return s1 < s2;
-}
+
 
 namespace {
 
@@ -1802,68 +1684,7 @@ QString fuzzyMatchPin(const QMap<QString, QString>& pins, const QString& subPinN
 
 } // namespace
 
-QString SpiceNetlistGenerator::sanitizeModelIncludeForNgspice(const QString& path) {
-    const QFileInfo fi(path);
-    if (!fi.exists() || !fi.isFile()) return path;
 
-    const QString ext = fi.suffix().toLower();
-    const QSet<QString> supportedExt = {"lib", "inc", "sub", "sp", "cir", "cmp", "mod"};
-    if (!supportedExt.contains(ext)) return path;
-
-    QFile in(path);
-    if (!in.open(QIODevice::ReadOnly | QIODevice::Text)) return path;
-
-    const QByteArray raw = in.readAll();
-    in.close();
-    if (raw.isEmpty()) return path;
-
-    QString content = QString::fromUtf8(raw);
-    if (content.contains(QChar::ReplacementCharacter)) {
-        content = QString::fromLatin1(raw);
-    }
-    // Strip comment-only lines. This works around ngspice parsing noise seen
-    // with some vendor libraries (e.g. LTspice-format comments in large .lib files).
-    QStringList outLines;
-    outLines.reserve(content.count('\n') + 1);
-    const QStringList lines = content.split('\n');
-    for (const QString& line : lines) {
-        const QString trimmed = line.trimmed();
-        if (trimmed.startsWith('*') || trimmed.startsWith(';') || trimmed.startsWith('$')) continue;
-
-        const QString otaTranslation = buildNgspiceOtaTranslation(line);
-        if (!otaTranslation.isEmpty()) {
-            outLines.append(otaTranslation);
-            continue;
-        }
-
-        QString sanitizedLine = line;
-        sanitizedLine = rewriteLtspiceBehavioralFunctions(sanitizedLine, nullptr);
-        sanitizedLine.replace(QRegularExpression("\\bnoiseless\\b", QRegularExpression::CaseInsensitiveOption), QString());
-        sanitizedLine.replace(QRegularExpression("\\s+;.*$"), QString());
-        sanitizedLine.replace(QRegularExpression("\\s{2,}"), QStringLiteral(" "));
-        outLines.append(sanitizedLine.trimmed());
-    }
-
-    const QString sanitized = outLines.join('\n');
-    QByteArray key = fi.absoluteFilePath().toUtf8();
-    key += QByteArrayLiteral("|sanitize_v3|");
-    key += QByteArray::number(fi.size());
-    key += QByteArray::number(fi.lastModified().toMSecsSinceEpoch());
-    const QString hash = QString::fromLatin1(QCryptographicHash::hash(key, QCryptographicHash::Sha1).toHex());
-
-    const QString cacheDirPath = QDir(QDir::tempPath()).filePath("viospice_model_cache");
-    QDir cacheDir(cacheDirPath);
-    if (!cacheDir.exists()) cacheDir.mkpath(".");
-
-    const QString outPath = cacheDir.filePath(hash + "_" + fi.fileName());
-    QFile out(outPath);
-    if (out.open(QIODevice::WriteOnly | QIODevice::Truncate | QIODevice::Text)) {
-        out.write(sanitized.toUtf8());
-        out.close();
-        return outPath;
-    }
-    return path;
-}
 
 namespace {
 
@@ -2502,105 +2323,7 @@ static VoltageParasitics stripVoltageParasitics(const QString& value) {
 
 } // namespace
 
-QString SpiceNetlistGenerator::normalizeIncludePathForNetlist(const QString& includePath, const QString& projectDir) {
-    QString resolvedPath = QDir::fromNativeSeparators(includePath.trimmed());
-    if (resolvedPath.isEmpty()) return resolvedPath;
 
-    QFileInfo fi(resolvedPath);
-    if (!fi.isAbsolute()) {
-        // Prefer project-relative resolution first.
-        const QString projectCandidate = QDir(projectDir).absoluteFilePath(resolvedPath);
-        if (QFileInfo::exists(projectCandidate)) {
-            resolvedPath = QDir::cleanPath(projectCandidate);
-        } else {
-            // Fall back to known library roots.
-            const QStringList roots = ConfigManager::instance().libraryRoots();
-            bool found = false;
-            for (const QString& root : roots) {
-                if (root.isEmpty()) continue;
-
-                // If path already starts with "sub/", resolve directly against the root
-                // to avoid a double "sub/sub/" when the root itself ends with /sub.
-                if (resolvedPath.startsWith("sub/", Qt::CaseInsensitive)) {
-                    QString candidate = QDir(root).absoluteFilePath(resolvedPath);
-                    if (QFileInfo::exists(candidate)) {
-                        resolvedPath = QDir::cleanPath(candidate);
-                        found = true;
-                        break;
-                    }
-                    // Extension fallback: .lib <-> .sub
-                    QFileInfo fic(candidate);
-                    const QString altExt = fic.suffix().toLower() == "lib" ? ".sub" : ".lib";
-                    candidate = fic.dir().filePath(fic.completeBaseName() + altExt);
-                    if (QFileInfo::exists(candidate)) {
-                        resolvedPath = QDir::cleanPath(candidate);
-                        found = true;
-                        break;
-                    }
-                } else {
-                    QString candidate = QDir(root).absoluteFilePath(resolvedPath);
-                    if (QFileInfo::exists(candidate)) {
-                        resolvedPath = QDir::cleanPath(candidate);
-                        found = true;
-                        break;
-                    }
-                    // Extension fallback
-                    QFileInfo fic(candidate);
-                    const QString altExt = fic.suffix().toLower() == "lib" ? ".sub" : ".lib";
-                    candidate = fic.dir().filePath(fic.completeBaseName() + altExt);
-                    if (QFileInfo::exists(candidate)) {
-                        resolvedPath = QDir::cleanPath(candidate);
-                        found = true;
-                        break;
-                    }
-                }
-
-                // Backwards compatibility: spice/X -> sub/X
-                if (resolvedPath.startsWith("spice/")) {
-                    const QString compat = "sub/" + resolvedPath.mid(6);
-                    QString candidate = QDir(root).absoluteFilePath(compat);
-                    if (QFileInfo::exists(candidate)) {
-                        resolvedPath = QDir::cleanPath(candidate);
-                        found = true;
-                        break;
-                    }
-                    QFileInfo fic(candidate);
-                    const QString altExt = fic.suffix().toLower() == "lib" ? ".sub" : ".lib";
-                    candidate = fic.dir().filePath(fic.completeBaseName() + altExt);
-                    if (QFileInfo::exists(candidate)) {
-                        resolvedPath = QDir::cleanPath(candidate);
-                        found = true;
-                        break;
-                    }
-                }
-
-                // Try mod/ subdirectory for model libraries (e.g. LinearTech.lib)
-                if (!found) {
-                    QString candidate = QDir(root).absoluteFilePath("mod/" + resolvedPath);
-                    if (QFileInfo::exists(candidate)) {
-                        resolvedPath = QDir::cleanPath(candidate);
-                        found = true;
-                        break;
-                    }
-                    // Extension fallback
-                    QFileInfo fic(candidate);
-                    const QString altExt = fic.suffix().toLower() == "lib" ? ".sub" : ".lib";
-                    candidate = fic.dir().filePath(fic.completeBaseName() + altExt);
-                    if (QFileInfo::exists(candidate)) {
-                        resolvedPath = QDir::cleanPath(candidate);
-                        found = true;
-                        break;
-                    }
-                }
-            }
-            Q_UNUSED(found);
-        }
-    } else if (QFileInfo::exists(resolvedPath)) {
-        resolvedPath = QFileInfo(resolvedPath).absoluteFilePath();
-    }
-
-    return QDir::fromNativeSeparators(QDir::cleanPath(resolvedPath));
-}
 
 namespace {
 
@@ -2764,7 +2487,7 @@ UserSpiceContentSummary summarizeUserSpiceText(const QString& text, const QStrin
                 const QString rawPath = includeMatch.captured(2).isEmpty()
                     ? includeMatch.captured(3)
                     : includeMatch.captured(2);
-                const QString normalized = SpiceNetlistGenerator::normalizeIncludePathForNetlist(rawPath, projectDir);
+                const QString normalized = ModelInjector::normalizeIncludePathForNetlist(rawPath, projectDir);
                 if (!normalized.isEmpty()) {
                     summary.declaredModelFiles.insert(normalized);
                 }
@@ -3009,7 +2732,7 @@ SpiceNetlistGenerator::GeneratedNetlist SpiceNetlistGenerator::generate(QGraphic
                                     const QString rawPath = m.captured(2).isEmpty() ? m.captured(3) : m.captured(2);
                                     QFileInfo rfInfo(rawPath);
                                     if (!rfInfo.isAbsolute()) {
-                                        const QString absPath = SpiceNetlistGenerator::normalizeIncludePathForNetlist(rawPath, projectDir);
+                                        const QString absPath = ModelInjector::normalizeIncludePathForNetlist(rawPath, projectDir);
                                         if (!absPath.isEmpty() && absPath != rawPath && QFileInfo::exists(absPath)) {
                                             lineToWrite = QString("%1\"%2\"").arg(keyword.trimmed() + " ", absPath);
                                             directiveWarnings.append(QString("Resolved relative include '%1' to '%2'.").arg(rawPath, absPath));
@@ -3263,7 +2986,7 @@ SpiceNetlistGenerator::GeneratedNetlist SpiceNetlistGenerator::generate(QGraphic
         else if (typeName == "XspiceBlock") {
             line = ensurePrefix(ref, "A"); // XSPICE A-device block
         }
-        else if (isXspiceLogicComponent(comp.spiceModel.trimmed().isEmpty() ? comp.value.trimmed() : comp.spiceModel.trimmed(),
+        else if (ConnectivityEvaluator::isXspiceLogicComponent(comp.spiceModel.trimmed().isEmpty() ? comp.value.trimmed() : comp.spiceModel.trimmed(),
                                         comp.typeName,
                                         ref)) {
             line = ensurePrefix(ref, "A"); // XSPICE A-device
@@ -3454,10 +3177,10 @@ SpiceNetlistGenerator::GeneratedNetlist SpiceNetlistGenerator::generate(QGraphic
         }
         const bool isADevice = line.startsWith("A", Qt::CaseInsensitive);
         const QString normalizedLogicCodeModel =
-            isADevice ? normalizeXspiceModelAlias(comp.spiceModel.trimmed().isEmpty() ? comp.value.trimmed() : comp.spiceModel.trimmed(),
+            isADevice ? ConnectivityEvaluator::normalizeXspiceModelAlias(comp.spiceModel.trimmed().isEmpty() ? comp.value.trimmed() : comp.spiceModel.trimmed(),
                                                   comp.typeName)
                       : QString();
-        const bool isNativeLogicADevice = isADevice && usesNativeLogicADevice(normalizedLogicCodeModel);
+        const bool isNativeLogicADevice = isADevice && ConnectivityEvaluator::usesNativeLogicADevice(normalizedLogicCodeModel);
 
         // ── XSPICE Behavioral/Digital Block & AVR Microcontroller Co-Simulation ──
         if (XSpiceBlockTranslator::translate(comp, pins, projectDir, digitalDrivenNets, netlist, runtimeWarnings, pkg.nets)) {
@@ -3694,7 +3417,7 @@ SpiceNetlistGenerator::GeneratedNetlist SpiceNetlistGenerator::generate(QGraphic
         if (nodes.isEmpty()) {
             // Default: Fallback to natural sorting of pins
             QStringList sortedKeys = pins.keys();
-            std::sort(sortedKeys.begin(), sortedKeys.end(), naturalPinLessThan);
+            std::sort(sortedKeys.begin(), sortedKeys.end(), XSpiceBlockTranslator::naturalPinLessThan);
             
             if (sortedKeys.isEmpty()) {
                 netlist += "* Skipping " + ref + " (no connections)\n";
@@ -3714,12 +3437,12 @@ SpiceNetlistGenerator::GeneratedNetlist SpiceNetlistGenerator::generate(QGraphic
                 for (const QString& pk : sortedKeys) {
                     QString net = pins[pk].replace(" ", "_");
                     if (net.isEmpty()) net = "NC_" + ref;
-                    const QString heuristicPinName = pinNameForHeuristics(sym, pk);
+                    const QString heuristicPinName = ConnectivityEvaluator::pinNameForHeuristics(sym, pk);
 
                     bool hasDomainMetadata = false;
-                    const NodeType domain = pinDomainFromMetadata(sym, pk, &hasDomainMetadata);
+                    const NodeType domain = ConnectivityEvaluator::pinDomainFromMetadata(sym, pk, &hasDomainMetadata);
                     bool hasDirectionMetadata = false;
-                    const NetlistManager::PinDirection direction = pinDirectionFromMetadata(sym, pk, &hasDirectionMetadata);
+                    const NetlistManager::PinDirection direction = ConnectivityEvaluator::pinDirectionFromMetadata(sym, pk, &hasDirectionMetadata);
                     const bool isExplicitDigitalInput = hasDomainMetadata && domain == NodeType::DIGITAL_EVENT &&
                                                         hasDirectionMetadata && direction == NetlistManager::PinDirection::INPUT;
                     const bool shouldTreatAsInput = isExplicitDigitalInput ||
@@ -3727,8 +3450,8 @@ SpiceNetlistGenerator::GeneratedNetlist SpiceNetlistGenerator::generate(QGraphic
 
                     if (shouldTreatAsInput && !isNativeLogicADevice) {
                         if (!digitalDrivenNets.contains(net)) {
-                            const QString bridgedNet = QString("__MM_ADC_%1_%2").arg(sanitizeMixedModeToken(ref), sanitizeMixedModeToken(pk));
-                            netlist += mixedModeAdcBridgeLine(ref, pk, net, bridgedNet) + "\n";
+                            const QString bridgedNet = QString("__MM_ADC_%1_%2").arg(XSpiceBlockTranslator::sanitizeMixedModeToken(ref), XSpiceBlockTranslator::sanitizeMixedModeToken(pk));
+                            netlist += XSpiceBlockTranslator::mixedModeAdcBridgeLine(ref, pk, net, bridgedNet) + "\n";
                             runtimeWarnings.append(QString("Inserted adc_bridge on %1.%2 so analog net %3 can drive XSPICE digital input.").arg(ref, pk, net));
                             net = bridgedNet;
                         }
@@ -3828,7 +3551,7 @@ SpiceNetlistGenerator::GeneratedNetlist SpiceNetlistGenerator::generate(QGraphic
 
                     nodes = nativeNodes;
                 } else {
-                    const QString pendingCodeModel = normalizeXspiceModelAlias(value, comp.typeName);
+                    const QString pendingCodeModel = ConnectivityEvaluator::normalizeXspiceModelAlias(value, comp.typeName);
                     nodes = buildXspiceNodeTokens(assignments, xspiceModelUsesCollapsedInputVector(pendingCodeModel));
                 }
             } else {
@@ -4378,10 +4101,10 @@ SpiceNetlistGenerator::GeneratedNetlist SpiceNetlistGenerator::generate(QGraphic
                 if (!digitalDrivenNets.contains(node)) continue;
 
                 const QString bridgedNode = QString("__MM_DAC_%1_%2")
-                                               .arg(sanitizeMixedModeToken(ref))
+                                               .arg(XSpiceBlockTranslator::sanitizeMixedModeToken(ref))
                                                .arg(nodeIdx + 1);
                 const QString pinLabel = QString::number(nodeIdx + 1);
-                netlist += mixedModeDacBridgeLine(ref, pinLabel, node, bridgedNode) + "\n";
+                netlist += XSpiceBlockTranslator::mixedModeDacBridgeLine(ref, pinLabel, node, bridgedNode) + "\n";
                 runtimeWarnings.append(QString("Inserted dac_bridge on %1 pin %2 so XSPICE digital net %3 can drive an analog/SPICE node.").arg(ref, pinLabel, node));
                 emittedNodes[nodeIdx] = bridgedNode;
             }
@@ -4603,17 +4326,17 @@ SpiceNetlistGenerator::GeneratedNetlist SpiceNetlistGenerator::generate(QGraphic
         }
 
         if (isADevice && !isNativeLogicADevice) {
-            const QString codeModel = normalizeXspiceModelAlias(value, comp.typeName);
+            const QString codeModel = ConnectivityEvaluator::normalizeXspiceModelAlias(value, comp.typeName);
             if (codeModel.isEmpty()) {
                 runtimeWarnings.append(QString("Unknown XSPICE gate model '%1' on %2; defaulted to d_and.").arg(value, ref));
-                value = QString("__XSPICE_%1").arg(sanitizeMixedModeToken(ref));
+                value = QString("__XSPICE_%1").arg(XSpiceBlockTranslator::sanitizeMixedModeToken(ref));
                 const QString modelLine = defaultXspiceModelLine(ref, "d_and");
                 if (!switchModelsAdded.contains(value.toLower())) {
                     netlist += modelLine + "\n";
                     switchModelsAdded.insert(value.toLower());
                 }
             } else {
-                const QString modelName = QString("__XSPICE_%1").arg(SpiceNetlistGenerator::sanitizeMixedModeToken(ref));
+                const QString modelName = QString("__XSPICE_%1").arg(XSpiceBlockTranslator::sanitizeMixedModeToken(ref));
                 const QString modelLine = defaultXspiceModelLine(ref, codeModel);
                 value = modelName;
                 if (!switchModelsAdded.contains(modelName.toLower())) {
@@ -4809,41 +4532,9 @@ QString SpiceNetlistGenerator::buildCommand(const SimulationParams& params) {
     return ".op";
 }
 
-QString SpiceNetlistGenerator::normalizeXspiceGateModelAlias(const QString& rawToken, const QString& typeName) {
-    return normalizeXspiceModelAlias(rawToken, typeName);
-}
 
-QStringList SpiceNetlistGenerator::buildXspiceNodeTokensForPins(const QMap<QString, QString>& pins,
-                                                                const Flux::Model::SymbolDefinition* symbol,
-                                                                bool collapseScalarInputsToVector) {
-    QStringList sortedKeys = pins.keys();
-    std::sort(sortedKeys.begin(), sortedKeys.end(), naturalPinLessThan);
 
-    QList<XspicePinAssignment> assignments;
-    assignments.reserve(sortedKeys.size());
 
-    int order = 0;
-    for (const QString& key : sortedKeys) {
-        XspicePinAssignment assignment;
-        assignment.pinIdentifier = key;
-        assignment.pinName = pinNameForHeuristics(symbol, key);
-        assignment.netName = pins.value(key).replace(" ", "_");
-        assignment.order = order++;
-
-        bool hasDomainMetadata = false;
-        const NodeType domain = pinDomainFromMetadata(symbol, key, &hasDomainMetadata);
-        bool hasDirectionMetadata = false;
-        const NetlistManager::PinDirection direction = pinDirectionFromMetadata(symbol, key, &hasDirectionMetadata);
-        const bool isExplicitDigitalInput = hasDomainMetadata && domain == NodeType::DIGITAL_EVENT &&
-                                            hasDirectionMetadata && direction == NetlistManager::PinDirection::INPUT;
-        assignment.isInput = isExplicitDigitalInput ||
-                             (!hasDirectionMetadata && isLikelyLogicInputPinName(assignment.pinName));
-        assignment.vector = vectorPinInfo(symbol, key, assignment.pinName);
-        assignments.append(assignment);
-    }
-
-    return buildXspiceNodeTokens(assignments, collapseScalarInputsToVector);
-}
 
 QString SpiceNetlistGenerator::formatValue(double value) {
     if (value == 0) return "0";

@@ -4,7 +4,9 @@
  */
 
 #include "xspice_block_translator.h"
-#include "spice_netlist_generator.h"
+#include "connectivity_evaluator.h"
+#include "../../../symbols/models/symbol_definition.h"
+#include <QRegularExpression>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QFileInfo>
@@ -32,7 +34,7 @@ bool XSpiceBlockTranslator::translate(const ECOComponent& comp,
 
         // Build pin nets sorted by pin index from raw pins map
         QStringList sortedKeys = pins.keys();
-        std::sort(sortedKeys.begin(), sortedKeys.end(), SpiceNetlistGenerator::naturalPinLessThan);
+        std::sort(sortedKeys.begin(), sortedKeys.end(), XSpiceBlockTranslator::naturalPinLessThan);
         QStringList rawNodes;
         for (const QString& pk : sortedKeys) {
             QString net = pins.value(pk, "0").replace(" ", "_");
@@ -78,8 +80,8 @@ bool XSpiceBlockTranslator::translate(const ECOComponent& comp,
                 if (i < inputPinCount && net != "0" && !net.startsWith("NC_")) {
                     if (!digitalDrivenNets.contains(net)) {
                         const QString bridgedNet = QString("__MM_ADC_%1_%2")
-                            .arg(SpiceNetlistGenerator::sanitizeMixedModeToken(ref), sortedKeys.value(i, QString::number(i)));
-                        netlist += SpiceNetlistGenerator::mixedModeAdcBridgeLine(ref, sortedKeys.value(i, QString::number(i)), net, bridgedNet) + "\n";
+                            .arg(XSpiceBlockTranslator::sanitizeMixedModeToken(ref), sortedKeys.value(i, QString::number(i)));
+                        netlist += XSpiceBlockTranslator::mixedModeAdcBridgeLine(ref, sortedKeys.value(i, QString::number(i)), net, bridgedNet) + "\n";
                         runtimeWarnings.append(QString("Inserted adc_bridge on %1.%2 so analog net %3 can drive XSPICE digital input.")
                             .arg(ref, sortedKeys.value(i, QString::number(i)), net));
                         net = bridgedNet;
@@ -276,4 +278,217 @@ bool XSpiceBlockTranslator::translate(const ECOComponent& comp,
     }
 
     return false;
+}
+
+namespace {
+
+struct VectorPinInfo {
+    QString groupName;
+    int index = -1;
+    bool valid = false;
+};
+
+VectorPinInfo vectorPinInfo(const Flux::Model::SymbolDefinition* sym, const QString& pinIdentifier, const QString& fallbackName) {
+    if (sym) {
+        if (const auto* pin = sym->pinPrimitive(pinIdentifier)) {
+            const QString metaGroup = pin->data.value("signalVectorGroup").toString().trimmed();
+            bool okIndex = false;
+            const int metaIndex = pin->data.value("signalVectorIndex").toString().toInt(&okIndex);
+            if (!metaGroup.isEmpty() && okIndex) {
+                return {metaGroup, metaIndex, true};
+            }
+        }
+    }
+
+    const QString pinName = fallbackName.trimmed();
+    static const QRegularExpression patterns[] = {
+        QRegularExpression("^(.+)\\[(\\d+)\\]$"),
+        QRegularExpression("^(.+)<(\\d+)>$"),
+        QRegularExpression("^([A-Za-z_]+)(\\d+)$")
+    };
+
+    for (const QRegularExpression& re : patterns) {
+        const QRegularExpressionMatch match = re.match(pinName);
+        if (!match.hasMatch()) continue;
+
+        bool okIndex = false;
+        const int index = match.captured(2).toInt(&okIndex);
+        if (!okIndex) continue;
+
+        QString group = match.captured(1).trimmed();
+        if (group.isEmpty()) continue;
+        return {group, index, true};
+    }
+
+    return {};
+}
+
+struct XspicePinAssignment {
+    QString pinIdentifier;
+    QString pinName;
+    QString netName;
+    bool isInput = true;
+    int order = 0;
+    VectorPinInfo vector;
+};
+
+QStringList buildXspiceNodeTokens(const QList<XspicePinAssignment>& assignments,
+                                  bool collapseScalarInputsToVector = false) {
+    struct GroupedVector {
+        bool isInput = true;
+        int firstOrder = 0;
+        QList<XspicePinAssignment> members;
+    };
+
+    QMap<QString, GroupedVector> groupedVectors;
+    QMap<QString, int> groupOrder;
+    QList<XspicePinAssignment> scalars;
+    int nextGroupOrder = 0;
+
+    for (const XspicePinAssignment& assignment : assignments) {
+        if (assignment.vector.valid) {
+            const QString key = QString("%1|%2").arg(assignment.isInput ? "I" : "O", assignment.vector.groupName);
+            if (!groupedVectors.contains(key)) {
+                GroupedVector group;
+                group.isInput = assignment.isInput;
+                group.firstOrder = assignment.order;
+                groupedVectors.insert(key, group);
+                groupOrder.insert(key, nextGroupOrder++);
+            }
+            groupedVectors[key].members.append(assignment);
+            continue;
+        }
+        scalars.append(assignment);
+    }
+
+    std::sort(scalars.begin(), scalars.end(), [](const XspicePinAssignment& a, const XspicePinAssignment& b) {
+        return a.order < b.order;
+    });
+
+    QList<QPair<int, QString>> orderedGroups;
+    for (auto it = groupedVectors.constBegin(); it != groupedVectors.constEnd(); ++it) {
+        orderedGroups.append(qMakePair(it.value().firstOrder, it.key()));
+    }
+    std::sort(orderedGroups.begin(), orderedGroups.end(), [](const auto& a, const auto& b) {
+        return a.first < b.first;
+    });
+
+    QStringList inputs;
+    QStringList outputs;
+
+    auto appendScalar = [&](const XspicePinAssignment& assignment) {
+        (assignment.isInput ? inputs : outputs).append(assignment.netName);
+    };
+
+    auto appendVector = [&](const GroupedVector& group) {
+        QList<XspicePinAssignment> members = group.members;
+        std::sort(members.begin(), members.end(), [](const XspicePinAssignment& a, const XspicePinAssignment& b) {
+            if (a.vector.index != b.vector.index) return a.vector.index < b.vector.index;
+            return a.order < b.order;
+        });
+
+        QStringList nets;
+        for (const XspicePinAssignment& member : members) {
+            nets.append(member.netName);
+        }
+
+        if (nets.size() == 1) {
+            if (group.isInput) inputs.append(nets.first());
+            else outputs.append(nets.first());
+            return;
+        }
+
+        const QString token = "[" + nets.join(" ") + "]";
+        if (group.isInput) inputs.append(token);
+        else outputs.append(token);
+    };
+
+    int scalarIndex = 0;
+    for (const auto& ordered : orderedGroups) {
+        while (scalarIndex < scalars.size() && scalars[scalarIndex].order < ordered.first) {
+            appendScalar(scalars[scalarIndex++]);
+        }
+        appendVector(groupedVectors.value(ordered.second));
+    }
+    while (scalarIndex < scalars.size()) {
+        appendScalar(scalars[scalarIndex++]);
+    }
+
+    if (collapseScalarInputsToVector && inputs.size() > 1) {
+        QStringList tokens;
+        tokens.append("[" + inputs.join(" ") + "]");
+        tokens.append(outputs);
+        return tokens;
+    }
+
+    return inputs + outputs;
+}
+
+} // namespace
+
+bool XSpiceBlockTranslator::naturalPinLessThan(const QString& s1, const QString& s2) {
+    bool ok1, ok2;
+    int n1 = s1.toInt(&ok1);
+    int n2 = s2.toInt(&ok2);
+    if (ok1 && ok2) return n1 < n2;
+    if (ok1) return true;
+    if (ok2) return false;
+    return s1 < s2;
+}
+
+QString XSpiceBlockTranslator::sanitizeMixedModeToken(const QString& raw) {
+    QString out = raw.trimmed();
+    static const QRegularExpression nonAlphaNumRe("[^A-Za-z0-9_]+");
+    static const QRegularExpression leadingUnderscoresRe("^_+");
+    static const QRegularExpression trailingUnderscoresRe("_+$");
+    out.replace(nonAlphaNumRe, "_");
+    out.remove(leadingUnderscoresRe);
+    out.remove(trailingUnderscoresRe);
+    return out.isEmpty() ? QStringLiteral("MM") : out;
+}
+
+QString XSpiceBlockTranslator::mixedModeAdcBridgeLine(const QString& ref, const QString& pinName, const QString& analogNet, const QString& digitalNet) {
+    return QString("XMM_ADC_%1_%2 %3 %4 __viospice_adc_wrap")
+        .arg(sanitizeMixedModeToken(ref), sanitizeMixedModeToken(pinName), analogNet, digitalNet);
+}
+
+QString XSpiceBlockTranslator::mixedModeDacBridgeLine(const QString& ref, const QString& pinName, const QString& digitalNet, const QString& analogNet) {
+    return QString("XMM_DAC_%1_%2 %3 %4 __viospice_dac_wrap")
+        .arg(sanitizeMixedModeToken(ref), sanitizeMixedModeToken(pinName), digitalNet, analogNet);
+}
+
+QString XSpiceBlockTranslator::normalizeXspiceGateModelAlias(const QString& rawToken, const QString& typeName) {
+    return ConnectivityEvaluator::normalizeXspiceModelAlias(rawToken, typeName);
+}
+
+QStringList XSpiceBlockTranslator::buildXspiceNodeTokensForPins(const QMap<QString, QString>& pins,
+                                                                const Flux::Model::SymbolDefinition* symbol,
+                                                                bool collapseScalarInputsToVector) {
+    QStringList sortedKeys = pins.keys();
+    std::sort(sortedKeys.begin(), sortedKeys.end(), naturalPinLessThan);
+
+    QList<XspicePinAssignment> assignments;
+    assignments.reserve(sortedKeys.size());
+
+    int order = 0;
+    for (const QString& key : sortedKeys) {
+        XspicePinAssignment assignment;
+        assignment.pinIdentifier = key;
+        assignment.pinName = ConnectivityEvaluator::pinNameForHeuristics(symbol, key);
+        assignment.netName = pins.value(key).replace(" ", "_");
+        assignment.order = order++;
+
+        bool hasDomainMetadata = false;
+        const NodeType domain = ConnectivityEvaluator::pinDomainFromMetadata(symbol, key, &hasDomainMetadata);
+        bool hasDirectionMetadata = false;
+        const NetlistManager::PinDirection direction = ConnectivityEvaluator::pinDirectionFromMetadata(symbol, key, &hasDirectionMetadata);
+        const bool isExplicitDigitalInput = hasDomainMetadata && domain == NodeType::DIGITAL_EVENT &&
+                                            hasDirectionMetadata && direction == NetlistManager::PinDirection::INPUT;
+        assignment.isInput = isExplicitDigitalInput ||
+                             (!hasDirectionMetadata && ConnectivityEvaluator::isLikelyLogicOutputPinName(assignment.pinName));
+        assignment.vector = vectorPinInfo(symbol, key, assignment.pinName);
+        assignments.append(assignment);
+    }
+
+    return buildXspiceNodeTokens(assignments, collapseScalarInputsToVector);
 }
