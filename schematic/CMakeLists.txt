@@ -53,6 +53,8 @@ target_sources(VioSchematic PRIVATE
     ui/virtual_terminal_window.h
     dialogs/virtual_terminal_properties_dialog.cpp
     dialogs/virtual_terminal_properties_dialog.h
+    analysis/passes/component_extractor.cpp
+    analysis/passes/component_extractor.h
 )
 
 if(VIOSPICE_ENGINE_FOUND)
