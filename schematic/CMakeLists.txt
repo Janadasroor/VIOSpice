@@ -55,6 +55,8 @@ target_sources(VioSchematic PRIVATE
     dialogs/virtual_terminal_properties_dialog.h
     analysis/passes/component_extractor.cpp
     analysis/passes/component_extractor.h
+    analysis/passes/connectivity_evaluator.cpp
+    analysis/passes/connectivity_evaluator.h
 )
 
 if(VIOSPICE_ENGINE_FOUND)
