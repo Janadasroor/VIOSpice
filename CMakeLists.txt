@@ -613,6 +613,13 @@ if(BUILD_VIOSPICE_CLI)
         cli/main.cpp
         cli/flux_command.cpp
         cli/extension_command.cpp
+        cli/command_registry.cpp
+        cli/commands/common.cpp
+        cli/commands/schematic_commands.cpp
+        cli/commands/netlist_commands.cpp
+        cli/commands/symbol_commands.cpp
+        cli/commands/plugin_commands.cpp
+        cli/commands/misc_commands.cpp
         resources/resources.qrc
     )
 
