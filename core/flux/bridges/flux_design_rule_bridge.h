@@ -10,6 +10,7 @@
 #include <QGraphicsScene>
 #include <QStringList>
 #include <QPointF>
+#include <deque>
 #include <vector>
 #include "../design_rules/design_rule.h"
 
@@ -54,7 +55,7 @@ private:
     QList<DesignRuleViolation> m_violations;
     
     // String cache for JIT pointers
-    mutable std::vector<std::string> m_stringPool;
+    mutable std::deque<std::string> m_stringPool;
     const char* poolString(const QString& s) const;
 };
 
