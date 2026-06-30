@@ -5,6 +5,7 @@
 
 #include "spice_netlist_generator.h"
 #include "passes/component_extractor.h"
+#include "passes/connectivity_evaluator.h"
 #include "../items/schematic_item.h"
 #include "../items/smart_signal_item.h"
 #include "../items/virtual_terminal_item.h"
@@ -96,7 +97,9 @@ PassiveCompanionParams parsePassiveCompanionParams(const QString& rawValue) {
     return out;
 }
 
-bool isLikelyLogicOutputPinName(const QString& rawPinName) {
+} // namespace
+
+bool SpiceNetlistGenerator::isLikelyLogicOutputPinName(const QString& rawPinName) {
     QString pin = rawPinName.trimmed().toLower();
     static const QRegularExpression re("(\\[[0-9]+\\]|<[0-9]+>|[0-9]+)$");
     pin.remove(re);
@@ -104,6 +107,8 @@ bool isLikelyLogicOutputPinName(const QString& rawPinName) {
     return pin.contains("out") || pin == "q" || pin == "qn" || pin == "qbar" ||
            pin == "y" || pin == "z" || pin == "f" || pin == "sum" || pin == "carry";
 }
+
+namespace {
 
 QString sanitizeMixedModeToken(const QString& raw) {
     QString out = raw.trimmed();
@@ -116,13 +121,17 @@ QString sanitizeMixedModeToken(const QString& raw) {
     return out.isEmpty() ? QStringLiteral("MM") : out;
 }
 
-QString pinNameForHeuristics(const SymbolDefinition* sym, const QString& pinIdentifier) {
+} // namespace
+
+QString SpiceNetlistGenerator::pinNameForHeuristics(const Flux::Model::SymbolDefinition* sym, const QString& pinIdentifier) {
     if (!sym) return pinIdentifier;
     const auto* pin = sym->pinPrimitive(pinIdentifier);
     if (!pin) return pinIdentifier;
     const QString name = pin->data.value("name").toString().trimmed();
     return name.isEmpty() ? pinIdentifier : name;
 }
+
+namespace {
 
 struct VectorPinInfo {
     QString groupName;
@@ -276,7 +285,9 @@ QString mixedModeDacBridgeLine(const QString& ref, const QString& pinName, const
         .arg(sanitizeMixedModeToken(ref), sanitizeMixedModeToken(pinName), digitalNet, analogNet);
 }
 
-QString normalizeXspiceModelAlias(const QString& rawToken, const QString& typeName) {
+} // namespace
+
+QString SpiceNetlistGenerator::normalizeXspiceModelAlias(const QString& rawToken, const QString& typeName) {
     const QString token = rawToken.trimmed().toLower();
     const QString type = typeName.trimmed().toLower();
 
@@ -309,12 +320,14 @@ QString normalizeXspiceModelAlias(const QString& rawToken, const QString& typeNa
     return QString();
 }
 
-bool isXspiceLogicComponent(const QString& rawToken, const QString& typeName, const QString& reference) {
+bool SpiceNetlistGenerator::isXspiceLogicComponent(const QString& rawToken, const QString& typeName, const QString& reference) {
     if (reference.startsWith("A", Qt::CaseInsensitive)) {
         return true;
     }
     return !normalizeXspiceModelAlias(rawToken, typeName).isEmpty();
 }
+
+namespace {
 
 QString defaultXspiceModelLine(const QString& ref, const QString& codeModel) {
     const QString modelName = QString("__XSPICE_%1").arg(sanitizeMixedModeToken(ref));
@@ -360,7 +373,9 @@ QString nativeLogicKeywordForCodeModel(const QString& codeModel) {
     return QString();
 }
 
-bool usesNativeLogicADevice(const QString& codeModel) {
+} // namespace
+
+bool SpiceNetlistGenerator::usesNativeLogicADevice(const QString& codeModel) {
     // Guardrail:
     // Do not switch logic code models to native LT-style `A` devices based on
     // symbol/model type alone. The runtime ngspice backend must also support
@@ -368,19 +383,21 @@ bool usesNativeLogicADevice(const QString& codeModel) {
     // ngspice, generated netlists will load-fail with missing model/errors. If
     // this returns false on VioMATRIXC, digital outputs will work only through
     // explicit bridges and external schematic probes will expose internal nodes.
-    if (nativeLogicKeywordForCodeModel(codeModel).isEmpty()) {
+    if (::nativeLogicKeywordForCodeModel(codeModel).isEmpty()) {
         return false;
     }
     return SimulationManager::instance().isNativeSmartSignalMode();
 }
 
+namespace {
 bool xspiceModelUsesCollapsedInputVector(const QString& codeModel) {
     return codeModel == "d_and" || codeModel == "d_nand" ||
            codeModel == "d_or" || codeModel == "d_nor" ||
            codeModel == "d_xor" || codeModel == "d_xnor";
 }
+} // namespace
 
-NetlistManager::PinDirection pinDirectionFromMetadata(const SymbolDefinition* sym, const QString& pinName, bool* hasExplicitMetadata = nullptr) {
+NetlistManager::PinDirection SpiceNetlistGenerator::pinDirectionFromMetadata(const Flux::Model::SymbolDefinition* sym, const QString& pinName, bool* hasExplicitMetadata) {
     if (hasExplicitMetadata) *hasExplicitMetadata = false;
     if (!sym) return NetlistManager::PinDirection::INPUT;
 
@@ -401,7 +418,7 @@ NetlistManager::PinDirection pinDirectionFromMetadata(const SymbolDefinition* sy
     return NetlistManager::PinDirection::INPUT;
 }
 
-NodeType pinDomainFromMetadata(const SymbolDefinition* sym, const QString& pinName, bool* hasExplicitMetadata = nullptr) {
+NodeType SpiceNetlistGenerator::pinDomainFromMetadata(const Flux::Model::SymbolDefinition* sym, const QString& pinName, bool* hasExplicitMetadata) {
     if (hasExplicitMetadata) *hasExplicitMetadata = false;
     if (!sym) return NodeType::ANALOG;
 
@@ -417,6 +434,8 @@ NodeType pinDomainFromMetadata(const SymbolDefinition* sym, const QString& pinNa
 
     return NodeType::ANALOG;
 }
+
+namespace {
 
 QStringList splitTopLevelSpiceArgs(const QString& text) {
     QStringList args;
@@ -1841,44 +1860,6 @@ QString sanitizeModelIncludeForNgspice(const QString& path) {
     return path;
 }
 
-QString pickPowerNetName(const QMap<QString, QString>& pins, const QString& fallbackValue) {
-    QString netName = pins.value("1").trimmed();
-    if (!netName.isEmpty()) return netName;
-
-    for (auto it = pins.constBegin(); it != pins.constEnd(); ++it) {
-        const QString candidate = it.value().trimmed();
-        if (!candidate.isEmpty()) return candidate;
-    }
-    return fallbackValue.trimmed();
-}
-
-QString inferPowerVoltage(const QString& netName, const QString& valueText) {
-    // Allow explicit numeric overrides such as "12", "3.3", "5V", "12v".
-    const QString raw = valueText.trimmed();
-    if (!raw.isEmpty()) {
-        static const QRegularExpression numWithOptionalV(
-            QStringLiteral("^([+-]?\\d*\\.?\\d+)\\s*[vV]?$"));
-        const QRegularExpressionMatch m = numWithOptionalV.match(raw);
-        if (m.hasMatch()) return m.captured(1);
-    }
-
-    const QString upperNet = netName.toUpper();
-    const QString upperVal = valueText.toUpper();
-    
-    // Explicit negative indicators
-    if (upperNet.contains("VEE") || upperNet.contains("VSS") || upperNet.contains("V-") ||
-        upperVal.contains("VEE") || upperVal.contains("VSS") || upperVal.contains("V-")) {
-        return "-5"; // Fallback to a negative value to trigger VEE mapping
-    }
-
-    if (upperNet.contains("12V")) return "12";
-    if (upperNet.contains("9V")) return "9";
-    if (upperNet.contains("5V")) return "5";
-    if (upperNet.contains("3.3V") || upperNet.contains("3V3")) return "3.3";
-    if (upperNet.contains("1.8V") || upperNet.contains("1V8")) return "1.8";
-    if (upperNet.contains("VBAT") || upperNet.contains("BAT")) return "3.7";
-    return "5";
-}
 
 struct PwlPoint {
     double time = 0.0;
@@ -3075,16 +3056,9 @@ SpiceNetlistGenerator::GeneratedNetlist SpiceNetlistGenerator::generate(QGraphic
     ECOPackage pkg = NetlistGenerator::generateECOPackage(scene, projectDir, nullptr);
     qDebug() << "[SpiceNetlistGenerator] ECO package generated. Components:" << pkg.components.size() << "Nets:" << pkg.nets.size();
     
-    // Build mapping: ComponentRef -> map(PinName -> NetName)
-    // Gather pins from ALL units of the same component reference across the entire scene/hierarchy.
-    QMap<QString, QMap<QString, QString>> componentPins;
-    for (const auto& net : pkg.nets) {
-        QString netName = net.name;
-        if (netName.toUpper() == "GND" || netName == "0") netName = "0";
-        for (const auto& pin : net.pins) {
-            componentPins[pin.componentRef][pin.pinName] = netName;
-        }
-    }
+    // Evaluate connectivity
+    ConnectivityResult connResult = ConnectivityEvaluator::evaluate(pkg, userDrivenRailNets);
+    QMap<QString, QMap<QString, QString>>& componentPins = connResult.componentPins;
     qDebug() << "[SpiceNetlistGenerator] Pin mapping built.";
 
         // Use ComponentExtractor to get include/lib paths, embedded subcircuits, and model lines
@@ -3094,6 +3068,7 @@ SpiceNetlistGenerator::GeneratedNetlist SpiceNetlistGenerator::generate(QGraphic
     QMap<QString, QString> embeddedSubcircuits = extraction.embeddedSubcircuits;
     QStringList embeddedModelLines = extraction.embeddedModelLines;
     QStringList runtimeWarnings = extraction.runtimeWarnings;
+    runtimeWarnings.append(connResult.runtimeWarnings);
 
     // Write .include and .lib directives (subcircuit/model files from symbol metadata)
     if (!includePaths.isEmpty() || !libPaths.isEmpty()) {
@@ -3152,85 +3127,14 @@ SpiceNetlistGenerator::GeneratedNetlist SpiceNetlistGenerator::generate(QGraphic
     }
 
     // 3. Global Power Net Mapping for hidden pin auto-connection
-    QMap<QString, QString> powerNetMapping; // "VCC" -> "Net5", "VEE" -> "Net6"
-    QSet<QString> emittedPowerSymbols; // Track power symbols to avoid processing duplicates
-    for (const auto& comp : pkg.components) {
-        if (comp.type == SchematicItem::PowerType) {
-            QString ref = comp.reference;
-            QMap<QString, QString> pins = componentPins.value(ref);
-            QString netName = pickPowerNetName(pins, comp.value);
-            
-            // For power symbols, we only skip if it's the SAME reference AND SAME net.
-            QString emitKey = ref + ":" + netName;
-            if (emittedPowerSymbols.contains(emitKey)) continue;
-            emittedPowerSymbols.insert(emitKey);
-            
-            if (netName.isEmpty()) continue;
-            
-            QString v = inferPowerVoltage(netName, comp.value);
-            double val = 0.0;
-            SimValueParser::parseSpiceNumber(v, val);
-            
-            const QString uNet = netName.trimmed().toUpper();
-            const QString uVal = comp.value.trimmed().toUpper();
-
-            if (val > 0) {
-                if (!powerNetMapping.contains("VCC") || uNet.contains("VCC"))
-                    powerNetMapping["VCC"] = netName;
-            } else if (val < 0) {
-                if (!powerNetMapping.contains("VEE") || uNet.contains("VEE"))
-                    powerNetMapping["VEE"] = netName;
-            }
-            
-            // Explicit name matching
-            if (uNet == "VCC" || uNet == "VDD" || uNet == "V+" || uVal == "VCC" || uVal == "V+") 
-                powerNetMapping["VCC"] = netName;
-            else if (uNet == "VEE" || uNet == "VSS" || uNet == "V-" || uVal == "VEE" || uVal == "V-") 
-                powerNetMapping["VEE"] = netName;
-            else if (uNet == "GND" || uNet == "0" || uVal == "GND" || uVal == "0") 
-                powerNetMapping["GND"] = "0";
-        }
-    }
+    QMap<QString, QString>& powerNetMapping = connResult.powerNetMapping;
 
     // 4. Export components
-    QMap<QString, QString> powerNetVoltages;
+    QMap<QString, QString>& powerNetVoltages = connResult.powerNetVoltages;
     QStringList savedCurrentVectors;
     QSet<QString> emittedRefs;
-    QSet<QString> digitalDrivenNets;
+    QSet<QString>& digitalDrivenNets = connResult.digitalDrivenNets;
     NetlistManager::BridgeModels mixedModeBridgeModels;
-    auto maybeDigitalNet = [&](const QString& netName) {
-        const QString net = netName.trimmed().replace(' ', '_');
-        if (!net.isEmpty() && net != "0") digitalDrivenNets.insert(net);
-    };
-    for (const auto& comp : pkg.components) {
-        if (comp.excludeFromSim) continue;
-        const QString ref = comp.reference;
-        const QString rawLogicToken = comp.spiceModel.trimmed().isEmpty() ? comp.value.trimmed() : comp.spiceModel.trimmed();
-        const bool isADevice = isXspiceLogicComponent(rawLogicToken, comp.typeName, ref);
-        const QString codeModel = normalizeXspiceModelAlias(rawLogicToken, comp.typeName);
-        if (!isADevice || (comp.typeName != "XspiceBlock" && usesNativeLogicADevice(codeModel))) continue;
-
-        SymbolDefinition* sym = SymbolLibraryManager::instance().findSymbol(comp.typeName);
-        const QMap<QString, QString> pins = componentPins.value(ref);
-        for (auto it = pins.constBegin(); it != pins.constEnd(); ++it) {
-            const QString heuristicPinName = pinNameForHeuristics(sym, it.key());
-            bool hasDomainMetadata = false;
-            const NodeType domain = pinDomainFromMetadata(sym, it.key(), &hasDomainMetadata);
-            bool hasDirectionMetadata = false;
-            const NetlistManager::PinDirection direction = pinDirectionFromMetadata(sym, it.key(), &hasDirectionMetadata);
-
-            if (hasDomainMetadata && domain == NodeType::DIGITAL_EVENT &&
-                hasDirectionMetadata &&
-                (direction == NetlistManager::PinDirection::OUTPUT || direction == NetlistManager::PinDirection::BIDIRECTIONAL)) {
-                maybeDigitalNet(it.value());
-                continue;
-            }
-
-            if (isLikelyLogicOutputPinName(heuristicPinName)) {
-                maybeDigitalNet(it.value());
-            }
-        }
-    }
 
     if (!digitalDrivenNets.isEmpty()) {
         netlist += "* Mixed-mode XSPICE bridges\n";
@@ -3283,14 +3187,6 @@ SpiceNetlistGenerator::GeneratedNetlist SpiceNetlistGenerator::generate(QGraphic
         // Power symbols often share the same '#' reference but represent different nets.
         // We handle them separately before the general duplicate check.
         if (type == SchematicItem::PowerType) {
-            QString netName = pickPowerNetName(pins, value);
-            if (!netName.isEmpty() && netName.toUpper() != "GND" && netName != "0") {
-                const QString v = inferPowerVoltage(netName, value);
-                powerNetVoltages[netName] = v;
-                if (userDrivenRailNets.contains(netName.toUpper())) {
-                    runtimeWarnings.append(QString("Manual directive source already drives schematic power rail %1; skipped auto-generated rail source.").arg(netName));
-                }
-            }
             continue;
         }
 
@@ -5388,7 +5284,7 @@ QString SpiceNetlistGenerator::buildCommand(const SimulationParams& params) {
 }
 
 QString SpiceNetlistGenerator::normalizeXspiceGateModelAlias(const QString& rawToken, const QString& typeName) {
-    return ::normalizeXspiceModelAlias(rawToken, typeName);
+    return normalizeXspiceModelAlias(rawToken, typeName);
 }
 
 QStringList SpiceNetlistGenerator::buildXspiceNodeTokensForPins(const QMap<QString, QString>& pins,
