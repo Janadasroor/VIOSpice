@@ -23,6 +23,7 @@ using Flux::Model::SymbolPrimitive;
 
 class SymbolEditor;
 class QAbstractGraphicsShapeItem;
+class SymbolToolManager;
 
 class SymbolCanvas : public SymbolEditorView {
     Q_OBJECT
@@ -30,6 +31,8 @@ class SymbolCanvas : public SymbolEditorView {
 public:
     explicit SymbolCanvas(SymbolEditor* editor, QWidget* parent = nullptr);
     ~SymbolCanvas() override;
+
+    void setCurrentTool(int tool);
 
     QGraphicsScene* scene() const { return m_scene; }
 
@@ -145,10 +148,18 @@ private:
     QPointF m_resizeCircleCenter;
     SymbolDefinition m_rectResizeOldDef;
 
+    SymbolToolManager* m_toolManager = nullptr;
+
     friend class SymbolEditor;
     friend class AddPrimitiveCommand;
     friend class RemovePrimitiveCommand;
     friend class UpdateSymbolCommand;
+    friend class SymbolTool;
+    friend class SelectTool;
+    friend class DrawPinTool;
+    friend class DrawLineTool;
+    friend class DrawShapeTool;
+    friend class SymbolToolManager;
 };
 
 #endif // SYMBOL_CANVAS_H

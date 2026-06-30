@@ -4,6 +4,8 @@ list(TRANSFORM VIOSYMBOLS_SOURCES PREPEND "${CMAKE_CURRENT_SOURCE_DIR}/../")
 list(APPEND VIOSYMBOLS_SOURCES
     "${CMAKE_CURRENT_SOURCE_DIR}/editor/symbol_canvas.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/editor/symbol_canvas.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/editor/symbol_tool_manager.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/editor/symbol_tool_manager.h"
 )
 
 add_library(VioSymbols STATIC ${VIOSYMBOLS_SOURCES})
