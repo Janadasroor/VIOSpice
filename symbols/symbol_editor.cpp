@@ -5,6 +5,7 @@
  */
 
 #include "symbol_editor.h"
+#include "editor/symbol_properties_panel.h"
 #include "../core/project/config_manager.h"
 #include "symbol_library.h"
 #include "kicad_symbol_importer.h"
@@ -1151,6 +1152,9 @@ void SymbolEditor::applyTheme() {
         m_canvas->viewport()->setPalette(vp);
         m_canvas->viewport()->update();
     }
+    if (m_propertiesPanel) {
+        m_propertiesPanel->applyTheme();
+    }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1178,35 +1182,11 @@ void SymbolEditor::applySymbolDefinition(const SymbolDefinition& def) {
 
     // Sync UI metadata — block signals to prevent reentrant updateCodePreview/
     // updateOverlayLabels while the scene is in an inconsistent state.
-    m_nameEdit->blockSignals(true);
-    m_descriptionEdit->blockSignals(true);
-    m_prefixEdit->blockSignals(true);
-    m_footprintEdit->blockSignals(true);
-    m_modelPathEdit->blockSignals(true);
-    m_modelNameEdit->blockSignals(true);
-    if (m_spiceSubcircuitEdit) m_spiceSubcircuitEdit->blockSignals(true);
-    m_nameEdit->setText(def.name());
-    m_descriptionEdit->setText(def.description());
-    m_categoryCombo->setCurrentText(def.category());
-    m_prefixEdit->setText(def.referencePrefix());
-    m_footprintEdit->setText(def.defaultFootprint());
-    {
-        const QString src = def.modelSource().isEmpty() ? "none" : def.modelSource().toLower();
-        int srcIdx = m_modelSourceCombo->findData(src);
-        if (srcIdx < 0) srcIdx = m_modelSourceCombo->findData("none");
-        m_modelSourceCombo->setCurrentIndex(srcIdx >= 0 ? srcIdx : 0);
+    if (m_propertiesPanel) {
+        m_propertiesPanel->blockAllSignals(true);
+        m_propertiesPanel->loadFromDefinition(def);
+        m_propertiesPanel->blockAllSignals(false);
     }
-    m_modelPathEdit->setText(def.modelPath());
-    m_modelNameEdit->setText(def.modelName());
-    if (m_spiceSubcircuitEdit)
-        m_spiceSubcircuitEdit->setPlainText(def.spiceSubcircuitCode());
-    m_nameEdit->blockSignals(false);
-    m_descriptionEdit->blockSignals(false);
-    m_prefixEdit->blockSignals(false);
-    m_footprintEdit->blockSignals(false);
-    m_modelPathEdit->blockSignals(false);
-    m_modelNameEdit->blockSignals(false);
-    if (m_spiceSubcircuitEdit) m_spiceSubcircuitEdit->blockSignals(false);
 
     // Update Unit Selector if needed
     if (m_unitCombo) {
@@ -1270,15 +1250,9 @@ void SymbolEditor::applySymbolDefinition(const SymbolDefinition& def) {
 
 SymbolDefinition SymbolEditor::symbolDefinition() const {
     SymbolDefinition def = m_symbol;
-    def.setName(m_nameEdit->text());
-    def.setDescription(m_descriptionEdit->text());
-    def.setCategory(m_categoryCombo->currentText());
-    def.setReferencePrefix(m_prefixEdit->text());
-    def.setModelSource(m_modelSourceCombo->currentData().toString());
-    def.setModelPath(m_modelPathEdit->text());
-    def.setModelName(m_modelNameEdit->text());
-    if (m_spiceSubcircuitEdit)
-        def.setSpiceSubcircuitCode(m_spiceSubcircuitEdit->toPlainText().trimmed());
+    if (m_propertiesPanel) {
+        m_propertiesPanel->saveToDefinition(def);
+    }
     if (m_subcktMappingTable) {
         QMap<int, QString> mapping;
         for (int row = 0; row < m_subcktMappingTable->rowCount(); ++row) {
@@ -1558,194 +1532,29 @@ void SymbolEditor::setupUI() {
 
     // ZONE 1: THE INSPECTOR (Right Side - Properties & Metadata)
     // ---------------------------------------------------------
-    createSymbolInfoPanel();
-    // ... metadata setup ...
-    auto* infoContainer = new QWidget();
-    auto* infoLayout = new QVBoxLayout(infoContainer);
-    auto* infoGroup = new QGroupBox("Identity");
-    auto* infoForm = new QFormLayout(infoGroup);
-    infoForm->addRow("Name:", m_nameEdit);
-    infoForm->addRow("Prefix:", m_prefixEdit);
-    infoForm->addRow("Category:", m_categoryCombo);
-    
-    QHBoxLayout* fpLayout = new QHBoxLayout();
-    m_footprintEdit = new QLineEdit();
-    m_footprintEdit->setPlaceholderText("Associated Footprint");
-    QPushButton* fpBrowse = new QPushButton("...");
-    fpBrowse->setFixedWidth(30);
-    fpLayout->addWidget(m_footprintEdit);
-    fpLayout->addWidget(fpBrowse);
-    infoForm->addRow("Footprint:", fpLayout);
-    connect(fpBrowse, &QPushButton::clicked, this, &SymbolEditor::onBrowseFootprint);
-    infoForm->addRow("Desc:", m_descriptionEdit);
-    infoLayout->addWidget(infoGroup);
-
-    auto* modelGroup = new QGroupBox("Model Binding");
-    auto* modelForm = new QFormLayout(modelGroup);
-    modelForm->addRow("Source:", m_modelSourceCombo);
-
-    auto* modelFileRow = new QWidget(modelGroup);
-    QHBoxLayout* modelPathLayout = new QHBoxLayout(modelFileRow);
-    modelPathLayout->setContentsMargins(0, 0, 0, 0);
-    QPushButton* modelBrowse = new QPushButton("...");
-    modelBrowse->setFixedWidth(30);
-    modelPathLayout->addWidget(m_modelPathEdit);
-    modelPathLayout->addWidget(modelBrowse);
-    modelForm->addRow("Model File:", modelFileRow);
-
-    auto* modelNameRow = new QWidget(modelGroup);
-    QHBoxLayout* modelNameLayout = new QHBoxLayout(modelNameRow);
-    modelNameLayout->setContentsMargins(0, 0, 0, 0);
-    QPushButton* pickSubckt = new QPushButton("Pick...");
-    modelNameLayout->addWidget(m_modelNameEdit);
-    modelNameLayout->addWidget(pickSubckt);
-    modelForm->addRow("Model Name:", modelNameRow);
-
-    m_embeddedCodeWidget = new QWidget();
-    auto* embeddedLayout = new QVBoxLayout(m_embeddedCodeWidget);
-    embeddedLayout->setContentsMargins(0, 0, 0, 0);
-    embeddedLayout->addWidget(m_spiceSubcircuitEdit);
-    modelForm->addRow("Subcircuit Code:", m_embeddedCodeWidget);
-
-    infoLayout->addWidget(modelGroup);
-
-    connect(modelBrowse, &QPushButton::clicked, this, [this]() {
-        QString path = runThemedOpenFileDialog(this, "Select Model File", "SPICE Models (*.lib *.sub *.cmp *.cir *.sp *.txt);;All Files (*)");
-        if (!path.isEmpty()) {
-            m_modelPathEdit->setText(path);
-            tryAutoDetectModelName();
-        }
-    });
-
-    connect(pickSubckt, &QPushButton::clicked, this, &SymbolEditor::openSubcircuitPicker);
-
-    auto updateModelPathState = [this, modelFileRow, modelNameRow]() {
-        const QString src = m_modelSourceCombo->currentData().toString();
-        const bool isEmbedded = (src == "embedded");
-        const bool isNone = (src == "none");
-        modelFileRow->setVisible(!isEmbedded && !isNone);
-        modelNameRow->setVisible(!isEmbedded);
-        m_embeddedCodeWidget->setVisible(isEmbedded);
-        m_modelPathEdit->setEnabled(!isNone && !isEmbedded);
-    };
-    connect(m_modelSourceCombo, &QComboBox::currentIndexChanged, this, updateModelPathState);
-    updateModelPathState();
-
-    auto* actionGroup = new QGroupBox("Component Actions");
-    auto* actionLayout = new QVBoxLayout(actionGroup);
-    
-    auto* placeBtn = new QPushButton("Place in Schematic");
-    connect(placeBtn, &QPushButton::clicked, this, &SymbolEditor::onPlaceInSchematic);
-    actionLayout->addWidget(placeBtn);
-
-    auto* importSubcktBtn = new QPushButton("Import SPICE Subcircuit");
-    connect(importSubcktBtn, &QPushButton::clicked, this, &SymbolEditor::onImportSpiceSubcircuit);
-    actionLayout->addWidget(importSubcktBtn);
-
-    auto* imgBtn = new QPushButton("Import Image");
-    connect(imgBtn, &QPushButton::clicked, this, &SymbolEditor::onImportImage);
-    actionLayout->addWidget(imgBtn);
-
-    auto* fieldsBtn = new QPushButton("Custom Fields");
-    connect(fieldsBtn, &QPushButton::clicked, this, &SymbolEditor::onManageCustomFields);
-    actionLayout->addWidget(fieldsBtn);
-    infoLayout->addWidget(actionGroup);
-    infoLayout->addStretch();
-    // Info panel is embedded into the right-side tab set (no separate dock).
-
-    // Create single Properties dock with tabs on the right side
     m_propsDock = new QDockWidget("Properties", this);
     m_propsDock->setObjectName("PropertiesDock");
     
-    m_propsTabWidget = new QTabWidget();
-    m_propsTabWidget->setTabPosition(QTabWidget::East);
-    m_propsTabWidget->setDocumentMode(true);
-    m_propsTabWidget->tabBar()->setExpanding(false);
-    m_propsTabWidget->tabBar()->setUsesScrollButtons(true);
-    m_propsTabWidget->tabBar()->setElideMode(Qt::ElideRight);
-    m_propsTabWidget->tabBar()->setFixedWidth(28);
-    
-    // Apply styling for vertical tabs on right
-    bool isLightTheme = ThemeManager::theme() && ThemeManager::theme()->type() == PCBTheme::Light;
-    QString tabStyle;
-    if (isLightTheme) {
-        tabStyle = R"(
-            QTabWidget::pane { border: 1px solid #cbd5e1; border-right: none; background-color: #ffffff; }
-            QTabBar::tab {
-                background-color: #f1f5f9;
-                color: #64748b;
-                border: 1px solid #cbd5e1;
-                border-left: none;
-                border-top-right-radius: 4px;
-                border-bottom-right-radius: 4px;
-                padding: 2px 2px;
-                min-width: 24px;
-                min-height: 64px;
-                font-weight: 600;
-                margin: 0;
-            }
-            QTabBar::tab:selected {
-                background-color: #ffffff;
-                color: #1f2937;
-                border-right: 3px solid #10b981;
-            }
-            QTabBar::tab:hover:!selected {
-                background-color: #e2e8f0;
-            }
-        )";
-    } else {
-        tabStyle = R"(
-            QTabWidget::pane { border: 1px solid #3f3f46; border-right: none; background-color: #1e1e1e; }
-            QTabBar::tab {
-                background-color: #2d2d2d;
-                color: #9ca3af;
-                border: 1px solid #3f3f46;
-                border-left: none;
-                border-top-right-radius: 4px;
-                border-bottom-right-radius: 4px;
-                padding: 2px 2px;
-                min-width: 24px;
-                min-height: 64px;
-                font-weight: 600;
-                margin: 0;
-            }
-            QTabBar::tab:selected {
-                background-color: #1e1e1e;
-                color: #e5e7eb;
-                border-right: 3px solid #10b981;
-            }
-            QTabBar::tab:hover:!selected {
-                background-color: #3f3f46;
-            }
-        )";
-    }
-    m_propsTabWidget->setStyleSheet(tabStyle);
-    
-    // Tab 1: Selection Properties
-    m_propertyEditor = new PropertyEditor();
-    connect(m_propertyEditor, &PropertyEditor::propertyChanged, this, &SymbolEditor::onPropertyChanged);
-    m_propsTabWidget->addTab(m_propertyEditor, "Selection");
-    
-    // Tab 2: Symbol Metadata (editable)
-    m_propsTabWidget->addTab(infoContainer, "Metadata");
-    
-    // Tab 3: Gemini Assistant
-    auto* aiWidget = new QWidget();
-    auto* aiLayout = new QVBoxLayout(aiWidget);
-    aiLayout->setContentsMargins(0, 0, 0, 0);
-    m_aiPanel = new GeminiPanel(m_canvas->scene(), this);
-    m_aiPanel->setMode("symbol");
-    connect(m_aiPanel, &GeminiPanel::symbolJsonGenerated, this, &SymbolEditor::onAiSymbolGenerated);
-    aiLayout->addWidget(m_aiPanel);
-    m_propsTabWidget->addTab(aiWidget, "Gemini AI");
-    
-    // Tab 4: Live Preview
-    m_livePreview = new SymbolPreviewWidget();
-    m_propsTabWidget->addTab(m_livePreview, "Live Preview");
-    
-    m_propsDock->setWidget(m_propsTabWidget);
+    m_propertiesPanel = new SymbolPropertiesPanel(this, this);
+    m_propsDock->setWidget(m_propertiesPanel);
     addDockWidget(Qt::RightDockWidgetArea, m_propsDock);
     m_propsDock->raise();
+
+    // Map legacy pointers to internal widgets of the properties panel
+    m_nameEdit = m_propertiesPanel->nameEdit();
+    m_descriptionEdit = m_propertiesPanel->descriptionEdit();
+    m_categoryCombo = m_propertiesPanel->categoryCombo();
+    m_prefixEdit = m_propertiesPanel->prefixEdit();
+    m_footprintEdit = m_propertiesPanel->footprintEdit();
+    m_modelSourceCombo = m_propertiesPanel->modelSourceCombo();
+    m_modelPathEdit = m_propertiesPanel->modelPathEdit();
+    m_modelNameEdit = m_propertiesPanel->modelNameEdit();
+    m_spiceSubcircuitEdit = m_propertiesPanel->spiceSubcircuitEdit();
+    m_embeddedCodeWidget = m_propertiesPanel->embeddedCodeWidget();
+    m_aiPanel = m_propertiesPanel->aiPanel();
+    m_livePreview = m_propertiesPanel->livePreview();
+    m_propertyEditor = m_propertiesPanel->propertyEditor();
+    m_propsTabWidget = m_propertiesPanel->tabWidget();
 
     // ZONE 2: THE NAVIGATOR (Left Side - Assets & Wizards)
     // ----------------------------------------------------
@@ -2434,48 +2243,7 @@ void SymbolEditor::onUnitChanged(int index) {
 }
 
 void SymbolEditor::createSymbolInfoPanel() {
-    m_nameEdit        = new QLineEdit();
-    m_descriptionEdit = new QLineEdit();
-    m_categoryCombo   = new QComboBox();
-    m_prefixEdit      = new QLineEdit("U");
-    m_modelSourceCombo = new QComboBox();
-    m_modelPathEdit = new QLineEdit();
-    m_modelNameEdit = new QLineEdit();
-
-    m_nameEdit->setPlaceholderText("Enter symbol name");
-    m_descriptionEdit->setPlaceholderText("Description");
-    m_categoryCombo->setEditable(true);
-    m_categoryCombo->addItems({"Passives", "Semiconductors",
-                               "Integrated Circuits", "Connectors",
-                               "Power", "Other"});
-    m_prefixEdit->setMaximumWidth(50);
-    m_modelPathEdit->setPlaceholderText("e.g. sub/my_model.lib or cmp/standard.cmp");
-    m_modelNameEdit->setPlaceholderText("Model/Subckt name (e.g. 2N3904)");
-    m_modelSourceCombo->addItem("None", "none");
-    m_modelSourceCombo->addItem("Library Root (sym/sub/cmp/lib)", "library");
-    m_modelSourceCombo->addItem("Project Relative", "project");
-    m_modelSourceCombo->addItem("Absolute File", "absolute");
-    m_modelSourceCombo->addItem("Embedded Subcircuit", "embedded");
-
-    m_spiceSubcircuitEdit = new QPlainTextEdit();
-    m_spiceSubcircuitEdit->setPlaceholderText(
-        "Paste SPICE .subckt definition here...\n\n"
-        "Example:\n"
-        ".subckt MY_AMP IN OUT VCC VEE\n"
-        "Q1 OUT IN VCC NPN\n"
-        "Q2 VEE OUT VEE PNP\n"
-        ".ends MY_AMP");
-    m_spiceSubcircuitEdit->setMinimumHeight(160);
-    connect(m_spiceSubcircuitEdit, &QPlainTextEdit::textChanged, this, &SymbolEditor::onSpiceSubcircuitCodeChanged);
-
-    // Live updates for canvas labels when sidebar edits change
-    connect(m_nameEdit, &QLineEdit::textChanged, m_canvas, &SymbolCanvas::updateOverlayLabels);
-    connect(m_prefixEdit, &QLineEdit::textChanged, m_canvas, &SymbolCanvas::updateOverlayLabels);
-    connect(m_nameEdit, &QLineEdit::textChanged, this, &SymbolEditor::updateCodePreview);
-    connect(m_prefixEdit, &QLineEdit::textChanged, this, &SymbolEditor::updateCodePreview);
-    connect(m_descriptionEdit, &QLineEdit::textChanged, this, &SymbolEditor::updateCodePreview);
-    connect(m_categoryCombo, &QComboBox::currentTextChanged, this, &SymbolEditor::updateCodePreview);
-    connect(m_modelNameEdit, &QLineEdit::textChanged, this, &SymbolEditor::refreshSubcktMappingStatus);
+    // Moved to SymbolPropertiesPanel
 }
 
 QWidget* SymbolEditor::createSymbolMetadataWidget() {
