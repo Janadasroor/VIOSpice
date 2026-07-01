@@ -3212,7 +3212,7 @@ QString FootprintEditor::resolveModelPathForPreview(const QString& rawPath) cons
     if (path.isEmpty()) return QString();
 
     auto expandEnv = [](QString in) -> QString {
-        QRegularExpression braceVar("\\$\\{([^}]+)\\}");
+        static const QRegularExpression braceVar("\\$\\{([^}]+)\\}");
         QRegularExpressionMatch m = braceVar.match(in);
         while (m.hasMatch()) {
             const QString var = m.captured(1).trimmed();
@@ -3220,7 +3220,7 @@ QString FootprintEditor::resolveModelPathForPreview(const QString& rawPath) cons
             in.replace(m.capturedStart(0), m.capturedLength(0), val);
             m = braceVar.match(in);
         }
-        QRegularExpression plainVar("\\$([A-Za-z_][A-Za-z0-9_]*)");
+        static const QRegularExpression plainVar("\\$([A-Za-z_][A-Za-z0-9_]*)");
         m = plainVar.match(in);
         while (m.hasMatch()) {
             const QString var = m.captured(1).trimmed();

@@ -124,10 +124,10 @@ QMap<QString, QPair<QString, QString>> LengthMeasurementEngine::detectDiffPairs(
     auto netNames = getNetNames(scene);
 
     // Pattern 1: NAME_P and NAME_N
-    QRegularExpression pattern1("^(.+)[_\\-](P|N|\\+|\\-)$");
+    static const QRegularExpression pattern1("^(.+)[_\\-](P|N|\\+|\\-)$");
 
     // Pattern 2: NAME_Px and NAME_Nx (with index)
-    QRegularExpression pattern2("^(.+)[_\\-](P|N)(\\d+)$");
+    static const QRegularExpression pattern2("^(.+)[_\\-](P|N)(\\d+)$");
 
     // Group nets by base name
     QMap<QString, QStringList> baseGroups;
