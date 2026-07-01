@@ -3223,6 +3223,30 @@ bool SymbolEditor::saveSymbolToLibrary() {
     SymbolLibrary* lib = SymbolLibraryManager::instance().findLibrary(libName);
     if (!lib) return false;
 
+    if (!lib->path().isEmpty() && QFileInfo(lib->path()).isDir()) {
+        QString dirPath = lib->path();
+        QString symFile = dirPath + "/" + m_symbol.name() + ".viosym";
+        QJsonDocument doc(m_symbol.toJson());
+        QFile file(symFile);
+        if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+            QMessageBox::warning(this, "Error",
+                QString("Failed to write:\n%1").arg(symFile));
+            return false;
+        }
+        file.write(doc.toJson(QJsonDocument::Indented));
+        file.close();
+
+        LibraryIndex::instance().addSymbol(m_symbol.name(), lib->name(), m_symbol.category());
+        QMessageBox::information(this, "Saved",
+            QString("Symbol '%1' saved to library '%2'.").arg(m_symbol.name(), libName));
+        SymbolLibraryManager::instance().reloadUserLibraries();
+        Q_EMIT symbolSaved(m_symbol);
+        if (m_undoStack) m_undoStack->setClean();
+        populateLibraryTree();
+        m_lastSaveTarget = SaveTarget::Library;
+        return true;
+    }
+
     lib->addSymbol(m_symbol);
     if (!lib->save()) return false;
 
