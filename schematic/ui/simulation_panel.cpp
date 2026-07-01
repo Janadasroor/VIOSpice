@@ -531,7 +531,7 @@ SimulationPanel::SimulationPanel(QGraphicsScene* scene, NetManager* netManager, 
         connect(&builtin, &SimManager::logMessage, this, &SimulationPanel::onLogReceived);
         connect(&builtin, &SimManager::simulationFinished, this, &SimulationPanel::onSimResultsReady);
         connect(&builtin, &SimManager::realTimeDataBatchReceived, this, &SimulationPanel::onRealTimeDataBatchReceived);
-        connect(&builtin, &SimManager::errorOccurred, this, &SimulationPanel::onLogReceived);
+        connect(&builtin, &SimManager::errorOccurred, this, &SimulationPanel::onSimulationError);
     });
 
     m_logFlushTimer = new QTimer(this);
@@ -2968,6 +2968,12 @@ void SimulationPanel::onLogReceived(const QString& msg) {
     if (m_logFlushTimer && !m_logFlushTimer->isActive()) {
         m_logFlushTimer->start();
     }
+}
+
+void SimulationPanel::onSimulationError(const QString& error) {
+    onLogReceived(error);
+    QMessageBox::critical(this, "Simulation Error",
+        QString("The simulation run failed with the following error:\n\n%1").arg(error));
 }
 
 void SimulationPanel::appendIssueItem(const QString& msg) {
