@@ -3207,6 +3207,7 @@ bool SymbolEditor::saveSymbolToLibrary() {
         LibraryIndex::instance().addSymbol(m_symbol.name(), dirName, dirName);
         QMessageBox::information(this, "Saved",
             QString("'%1' saved to %2/").arg(m_symbol.name(), dirName));
+        SymbolLibraryManager::instance().reloadUserLibraries();
         Q_EMIT symbolSaved(m_symbol);
         if (m_undoStack) m_undoStack->setClean();
         populateLibraryTree();
@@ -3228,6 +3229,7 @@ bool SymbolEditor::saveSymbolToLibrary() {
     LibraryIndex::instance().addSymbol(m_symbol.name(), lib->name(), m_symbol.category());
     QMessageBox::information(this, "Saved",
         QString("Symbol '%1' saved to library '%2'.").arg(m_symbol.name(), libName));
+    SymbolLibraryManager::instance().reloadUserLibraries();
     Q_EMIT symbolSaved(m_symbol);
     if (m_undoStack) m_undoStack->setClean();
     populateLibraryTree();
