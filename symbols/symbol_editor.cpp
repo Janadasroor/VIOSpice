@@ -78,7 +78,7 @@ static SymbolDefinition buildImportedSubcktSymbolForEditor(const SpiceSubcircuit
     def.setCategory("Integrated Circuits");
     def.setReferencePrefix("U");
     def.setDefaultValue(res.subcktName);
-    def.setModelSource("project");
+    def.setModelSource("library");
     def.setModelPath(res.relativeIncludePath);
     def.setModelName(res.subcktName);
     def.setSpiceModelName(res.subcktName);
