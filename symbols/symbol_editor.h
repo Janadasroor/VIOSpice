@@ -119,16 +119,7 @@ private Q_SLOTS:
     void onLibraryContextMenu(const QPoint& pos);
     void onCanvasContextMenu(const QPoint& pos);
     void onLibraryItemClicked(class QTreeWidgetItem* item, int column);
-    void onPinTableItemChanged(int row, int col);
     void onPropertyChanged(const QString& name, const QVariant& value);
-    
-    // Pin Management
-    void onPinRenumberSequential();
-    void onPinApplyOrientation();
-    void onPinApplyType();
-    void onPinDistributeSelected();
-    void onPinSortByNumber();
-    void onPinStackSelected();
 
 private:
     void applyTheme();
@@ -152,8 +143,6 @@ private:
     void createSymbolInfoPanel();
     void createLibraryBrowser();
 
-    void createPinTable();
-    void updatePinTable();
     void updateSubcktMappingTable();
     void refreshSubcktMappingStatus();
     QString currentSymbolPinSignature() const;
@@ -168,9 +157,7 @@ private:
     void populateLibraryTree();
     void updateCodePreview();
       
-    // Pin Table Helpers
-    QList<int> selectedPinRows() const;
-    void applyPinEditsToRows(const QList<int>& rows, const std::function<void(SymbolPrimitive&)>& edit, const QString& label);
+
 
 protected:
     void keyPressEvent(QKeyEvent* event) override;
@@ -224,16 +211,14 @@ public:
     // Library Browser
     QLineEdit* m_libSearchEdit = nullptr;
     QTreeWidget* m_libraryTree = nullptr;
-    QTableWidget* m_pinTable = nullptr;
+    class SymbolPinTablePanel* m_pinTablePanel = nullptr;
     QListWidget* m_srcList = nullptr;
     QGraphicsView* m_libPreviewView = nullptr;
     QGraphicsScene* m_libPreviewScene = nullptr;
     class GeminiPanel* m_aiPanel = nullptr;
     SymbolPreviewWidget* m_livePreview = nullptr;
     
-    // Bulk Pin Edits
-    QComboBox* m_pinBulkOrientation = nullptr;
-    QComboBox* m_pinBulkType = nullptr;
+
 
     // Wizard
     class SymbolWizardPanel* m_wizardPanel = nullptr;
@@ -260,6 +245,7 @@ public:
     friend class UpdateSymbolCommand;
     friend class SymbolCanvas;
     friend class SymbolPropertiesPanel;
+    friend class SymbolPinTablePanel;
 };
 
 #endif // SYMBOL_EDITOR_H
