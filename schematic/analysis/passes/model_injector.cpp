@@ -10,6 +10,7 @@
 #include "xspice_block_translator.h"
 #include <QFileInfo>
 #include <QDir>
+#include "../../../core/project/config_manager.h"
 
 void ModelInjector::inject(const QSet<QString>& includePaths,
                            const QSet<QString>& libPaths,
@@ -279,11 +280,103 @@ QString buildNgspiceOtaTranslation(const QString& line) {
 } // namespace
 
 QString ModelInjector::normalizeIncludePathForNetlist(const QString& includePath, const QString& projectDir) {
-    if (includePath.isEmpty()) return QString();
-    QFileInfo fi(includePath);
-    if (fi.isAbsolute()) return includePath;
-    if (projectDir.isEmpty()) return includePath;
-    return QDir(projectDir).absoluteFilePath(includePath);
+    QString resolvedPath = QDir::fromNativeSeparators(includePath.trimmed());
+    if (resolvedPath.isEmpty()) return resolvedPath;
+
+    QFileInfo fi(resolvedPath);
+    if (!fi.isAbsolute()) {
+        // Prefer project-relative resolution first.
+        const QString projectCandidate = QDir(projectDir).absoluteFilePath(resolvedPath);
+        if (QFileInfo::exists(projectCandidate)) {
+            resolvedPath = QDir::cleanPath(projectCandidate);
+        } else {
+            // Fall back to known library roots.
+            const QStringList roots = ConfigManager::instance().libraryRoots();
+            bool found = false;
+            for (const QString& root : roots) {
+                if (root.isEmpty()) continue;
+
+                // If path already starts with "sub/", resolve directly against the root
+                // to avoid a double "sub/sub/" when the root itself ends with /sub.
+                if (resolvedPath.startsWith("sub/", Qt::CaseInsensitive)) {
+                    QString candidate = QDir(root).absoluteFilePath(resolvedPath);
+                    if (QFileInfo::exists(candidate)) {
+                        resolvedPath = QDir::cleanPath(candidate);
+                        found = true;
+                        break;
+                    }
+                    // Extension fallback: .lib <-> .sub
+                    QFileInfo fic(candidate);
+                    const QString altExt = fic.suffix().toLower() == "lib" ? ".sub" : ".lib";
+                    candidate = fic.dir().filePath(fic.completeBaseName() + altExt);
+                    if (QFileInfo::exists(candidate)) {
+                        resolvedPath = QDir::cleanPath(candidate);
+                        found = true;
+                        break;
+                    }
+                } else {
+                    QString candidate = QDir(root).absoluteFilePath(resolvedPath);
+                    if (QFileInfo::exists(candidate)) {
+                        resolvedPath = QDir::cleanPath(candidate);
+                        found = true;
+                        break;
+                    }
+                    // Extension fallback
+                    QFileInfo fic(candidate);
+                    const QString altExt = fic.suffix().toLower() == "lib" ? ".sub" : ".lib";
+                    candidate = fic.dir().filePath(fic.completeBaseName() + altExt);
+                    if (QFileInfo::exists(candidate)) {
+                        resolvedPath = QDir::cleanPath(candidate);
+                        found = true;
+                        break;
+                    }
+                }
+
+                // Backwards compatibility: spice/X -> sub/X
+                if (resolvedPath.startsWith("spice/")) {
+                    const QString compat = "sub/" + resolvedPath.mid(6);
+                    QString candidate = QDir(root).absoluteFilePath(compat);
+                    if (QFileInfo::exists(candidate)) {
+                        resolvedPath = QDir::cleanPath(candidate);
+                        found = true;
+                        break;
+                    }
+                    QFileInfo fic(candidate);
+                    const QString altExt = fic.suffix().toLower() == "lib" ? ".sub" : ".lib";
+                    candidate = fic.dir().filePath(fic.completeBaseName() + altExt);
+                    if (QFileInfo::exists(candidate)) {
+                        resolvedPath = QDir::cleanPath(candidate);
+                        found = true;
+                        break;
+                    }
+                }
+
+                // Try mod/ subdirectory for model libraries (e.g. LinearTech.lib)
+                if (!found) {
+                    QString candidate = QDir(root).absoluteFilePath("mod/" + resolvedPath);
+                    if (QFileInfo::exists(candidate)) {
+                        resolvedPath = QDir::cleanPath(candidate);
+                        found = true;
+                        break;
+                    }
+                    // Extension fallback
+                    QFileInfo fic(candidate);
+                    const QString altExt = fic.suffix().toLower() == "lib" ? ".sub" : ".lib";
+                    candidate = fic.dir().filePath(fic.completeBaseName() + altExt);
+                    if (QFileInfo::exists(candidate)) {
+                        resolvedPath = QDir::cleanPath(candidate);
+                        found = true;
+                        break;
+                    }
+                }
+            }
+            Q_UNUSED(found);
+        }
+    } else if (QFileInfo::exists(resolvedPath)) {
+        resolvedPath = QFileInfo(resolvedPath).absoluteFilePath();
+    }
+
+    return QDir::fromNativeSeparators(QDir::cleanPath(resolvedPath));
 }
 
 QString ModelInjector::sanitizeModelIncludeForNgspice(const QString& path) {
