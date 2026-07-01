@@ -142,6 +142,7 @@ private Q_SLOTS:
     void onAnalysisChanged(int index);
     void onAcSweepTypeChanged();
     void onLogReceived(const QString& msg);
+    void onSimulationError(const QString& error);
     void onSimulationFinished();
     void onViewNetlist();
     void onSimResultsReady(const SimResults& results);
