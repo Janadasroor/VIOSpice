@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include "ltspice_rewriter.h"
+#include "lt_rewriter.h"
 #include "../../../simulator/core/sim_value_parser.h"
 #include "model_injector.h"
 #include "xspice_block_translator.h"
@@ -107,7 +107,7 @@ bool loadPwlPointsFromFile(const QString& fileToken, const QString& projectDir, 
 
     QFile file(path);
     if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
-        if (error) *error = QString("Could not open LTspice PWL file '%1'.").arg(fileToken);
+        if (error) *error = QString("Could not open LT PWL file '%1'.").arg(fileToken);
         return false;
     }
 
@@ -132,7 +132,7 @@ bool loadPwlPointsFromFile(const QString& fileToken, const QString& projectDir, 
 
     const QStringList tokens = tokenizePwlBody(allText);
     if (tokens.size() < 2 || (tokens.size() % 2) != 0) {
-        if (error) *error = QString("LTspice PWL file '%1' does not contain time/value pairs.").arg(fileToken);
+        if (error) *error = QString("LT PWL file '%1' does not contain time/value pairs.").arg(fileToken);
         return false;
     }
 
@@ -141,7 +141,7 @@ bool loadPwlPointsFromFile(const QString& fileToken, const QString& projectDir, 
         double timeValue = 0.0;
         double yValue = 0.0;
         if (!SimValueParser::parseSpiceNumber(tokens.at(i), timeValue) || !SimValueParser::parseSpiceNumber(tokens.at(i + 1), yValue)) {
-            if (error) *error = QString("LTspice PWL file '%1' contains non-numeric data unsupported by VioSpice.").arg(fileToken);
+            if (error) *error = QString("LT PWL file '%1' contains non-numeric data unsupported by VioSpice.").arg(fileToken);
             return false;
         }
         if (scopeData) {
@@ -172,7 +172,7 @@ bool loadCurrentTablePairsFromFile(const QString& fileToken, const QString& proj
 
     QFile file(path);
     if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
-        if (error) *error = QString("Could not open LTspice current-source table file '%1'.").arg(fileToken);
+        if (error) *error = QString("Could not open LT current-source table file '%1'.").arg(fileToken);
         return false;
     }
 
@@ -195,7 +195,7 @@ bool loadCurrentTablePairsFromFile(const QString& fileToken, const QString& proj
 
     *pairs = tokenizePwlBody(allText);
     if (pairs->size() < 2 || (pairs->size() % 2) != 0) {
-        if (error) *error = QString("LTspice current-source table file '%1' does not contain voltage/current pairs.").arg(fileToken);
+        if (error) *error = QString("LT current-source table file '%1' does not contain voltage/current pairs.").arg(fileToken);
         return false;
     }
     return true;
@@ -221,9 +221,9 @@ QString buildStepApproxPwl(const QString& initialValue, const QStringList& stepV
 bool appendPwlPointList(const QString& listText, double timeScale, double valueScale, double baseTime, QList<PwlPoint>* points,
                         QString* error) {
     if (!points) return false;
-    const QStringList items = LtspiceRewriter::splitTopLevelSpiceArgs(listText);
+    const QStringList items = LtRewriter::splitTopLevelSpiceArgs(listText);
     if (items.size() < 2 || (items.size() % 2) != 0) {
-        if (error) *error = "LTspice PWL point list must contain time/value pairs.";
+        if (error) *error = "LT PWL point list must contain time/value pairs.";
         return false;
     }
 
@@ -237,7 +237,7 @@ bool appendPwlPointList(const QString& listText, double timeScale, double valueS
         const QString normalizedTime = timeToken.startsWith('+') ? timeToken.mid(1).trimmed() : timeToken;
         const bool timeIsNumeric = SimValueParser::parseSpiceNumber(normalizedTime, parsedTime);
         if (!SimValueParser::parseSpiceNumber(valueToken, parsedValue)) {
-            if (error) *error = QString("Unsupported LTspice PWL expression '%1, %2'; VioSpice currently requires numeric values.").arg(timeToken, valueToken);
+            if (error) *error = QString("Unsupported LT PWL expression '%1, %2'; VioSpice currently requires numeric values.").arg(timeToken, valueToken);
             return false;
         }
 
@@ -250,7 +250,7 @@ bool appendPwlPointList(const QString& listText, double timeScale, double valueS
         }
 
         if (!(normalizedTime.startsWith('{') && normalizedTime.endsWith('}'))) {
-            if (error) *error = QString("Unsupported LTspice PWL time expression '%1'; VioSpice currently supports numeric times or brace expressions.").arg(timeToken);
+            if (error) *error = QString("Unsupported LT PWL time expression '%1'; VioSpice currently supports numeric times or brace expressions.").arg(timeToken);
             return false;
         }
 
@@ -300,14 +300,14 @@ bool appendExpandedPwlSpecs(const QStringList& tokens, int* index, double timeSc
             const QString fileToken = token.mid(scopeData ? 10 : 5);
             if (!loadPwlPointsFromFile(fileToken, projectDir, scopeData, &filePoints, error)) return false;
             if (filePoints.isEmpty()) {
-                if (error) *error = QString("LTspice PWL %1 file '%2' contained no usable points.").arg(scopeData ? "SCOPEDATA" : "FILE", fileToken);
+                if (error) *error = QString("LT PWL %1 file '%2' contained no usable points.").arg(scopeData ? "SCOPEDATA" : "FILE", fileToken);
                 return false;
             }
             const double origin = points->isEmpty() ? baseTime : points->last().time;
             for (const PwlPoint& point : filePoints) {
                 double scaledValue = 0.0;
                 if (!SimValueParser::parseSpiceNumber(point.value, scaledValue)) {
-                    if (error) *error = QString("LTspice PWL file '%1' contains unsupported non-numeric values.").arg(fileToken);
+                    if (error) *error = QString("LT PWL file '%1' contains unsupported non-numeric values.").arg(fileToken);
                     return false;
                 }
                 const double finalTime = origin + (point.time * timeScale);
@@ -319,7 +319,7 @@ bool appendExpandedPwlSpecs(const QStringList& tokens, int* index, double timeSc
         if (token.compare("REPEAT", Qt::CaseInsensitive) == 0) {
             ++(*index);
             if (*index >= tokens.size()) {
-                if (error) *error = "Incomplete LTspice PWL REPEAT block.";
+                if (error) *error = "Incomplete LT PWL REPEAT block.";
                 return false;
             }
             bool repeatForever = false;
@@ -330,12 +330,12 @@ bool appendExpandedPwlSpecs(const QStringList& tokens, int* index, double timeSc
             } else {
                 if (tokens.at(*index).compare("FOR", Qt::CaseInsensitive) == 0) ++(*index);
                 if (*index >= tokens.size()) {
-                    if (error) *error = "Incomplete LTspice PWL REPEAT FOR count.";
+                    if (error) *error = "Incomplete LT PWL REPEAT FOR count.";
                     return false;
                 }
                 double parsedCount = 0.0;
                 if (!SimValueParser::parseSpiceNumber(tokens.at(*index), parsedCount) || parsedCount < 0.0) {
-                    if (error) *error = QString("Unsupported LTspice PWL repeat count '%1'.").arg(tokens.at(*index));
+                    if (error) *error = QString("Unsupported LT PWL repeat count '%1'.").arg(tokens.at(*index));
                     return false;
                 }
                 repeatCount = static_cast<int>(std::llround(parsedCount));
@@ -349,12 +349,12 @@ bool appendExpandedPwlSpecs(const QStringList& tokens, int* index, double timeSc
             if (repeatedBody.isEmpty()) continue;
 
             if (repeatForever) {
-                if (warnings) warnings->append("LTspice PWL REPEAT FOREVER is not fully supported by VioSpice; keeping a single waveform period.");
+                if (warnings) warnings->append("LT PWL REPEAT FOREVER is not fully supported by VioSpice; keeping a single waveform period.");
                 repeatCount = 1;
             }
             if (repeatCount > 1 && !repeatedBody.isEmpty() && qFuzzyIsNull(repeatedBody.first().time) &&
                 !pwlValuesEquivalent(repeatedBody.first().value, repeatedBody.last().value)) {
-                if (error) *error = "Ill-formed LTspice PWL REPEAT block: first repeated time is zero but first and last values differ.";
+                if (error) *error = "Ill-formed LT PWL REPEAT block: first repeated time is zero but first and last values differ.";
                 return false;
             }
             const double span = repeatedBody.last().time;
@@ -364,7 +364,7 @@ bool appendExpandedPwlSpecs(const QStringList& tokens, int* index, double timeSc
                     points->append({origin + point.time, formatPwlNumber(origin + point.time), point.value});
                 }
                 if ((!std::isfinite(span) || span <= 0.0) && rep + 1 < repeatCount) {
-                    if (error) *error = "Ill-formed LTspice PWL REPEAT block with zero span.";
+                    if (error) *error = "Ill-formed LT PWL REPEAT block with zero span.";
                     return false;
                 }
             }
@@ -383,7 +383,7 @@ bool appendExpandedPwlSpecs(const QStringList& tokens, int* index, double timeSc
             continue;
         }
 
-        if (error) *error = QString("Unsupported LTspice PWL token '%1'.").arg(token);
+        if (error) *error = QString("Unsupported LT PWL token '%1'.").arg(token);
         return false;
     }
     return true;
@@ -391,7 +391,7 @@ bool appendExpandedPwlSpecs(const QStringList& tokens, int* index, double timeSc
 
 } // namespace
 
-bool LtspiceRewriter::rewriteLtspiceCurrentSourceSpecial(const QString& ref, const QString& nplus, const QString& nminus,
+bool LtRewriter::rewriteLtCurrentSourceSpecial(const QString& ref, const QString& nplus, const QString& nminus,
                                                         const QString& value, const QString& projectDir,
                                                         QString* replacement, QStringList* warnings) {
     if (!replacement) return false;
@@ -403,7 +403,7 @@ bool LtspiceRewriter::rewriteLtspiceCurrentSourceSpecial(const QString& ref, con
         if (m.hasMatch()) {
             const QString rval = m.captured(1).trimmed();
             *replacement = QString("R__ILOAD_%1 %2 %3 %4").arg(ref, nplus, nminus, rval);
-            if (warnings) warnings->append(QString("Rewrote LTspice current-source R= load on %1 into an equivalent resistor for ngspice.").arg(ref));
+            if (warnings) warnings->append(QString("Rewrote LT current-source R= load on %1 into an equivalent resistor for ngspice.").arg(ref));
             return true;
         }
     }
@@ -415,7 +415,7 @@ bool LtspiceRewriter::rewriteLtspiceCurrentSourceSpecial(const QString& ref, con
             QString spec = m.captured(1).trimmed();
             QStringList args;
             if (spec.startsWith('(') && spec.endsWith(')')) {
-                args = LtspiceRewriter::splitTopLevelSpiceArgs(spec.mid(1, spec.size() - 2));
+                args = LtRewriter::splitTopLevelSpiceArgs(spec.mid(1, spec.size() - 2));
             } else if ((spec.startsWith('"') && spec.endsWith('"')) || (!spec.contains(',') && !spec.contains('(') && !spec.contains('{'))) {
                 QString error;
                 if (!loadCurrentTablePairsFromFile(spec, projectDir, &args, &error)) {
@@ -423,12 +423,12 @@ bool LtspiceRewriter::rewriteLtspiceCurrentSourceSpecial(const QString& ref, con
                     return false;
                 }
             } else if (spec.startsWith('{') && spec.endsWith('}')) {
-                if (warnings) warnings->append(QString("LTspice current-source table filename parameter on %1 is not yet supported by VioSpice.").arg(ref));
+                if (warnings) warnings->append(QString("LT current-source table filename parameter on %1 is not yet supported by VioSpice.").arg(ref));
                 return false;
             }
 
             QString error;
-            const QString expr = LtspiceRewriter::buildCurrentTableExpr(QString("V(%1,%2)").arg(nplus, nminus), args, &error);
+            const QString expr = LtRewriter::buildCurrentTableExpr(QString("V(%1,%2)").arg(nplus, nminus), args, &error);
             if (expr.isEmpty()) {
                 if (warnings && !error.isEmpty()) warnings->append(error);
                 return false;
@@ -436,7 +436,7 @@ bool LtspiceRewriter::rewriteLtspiceCurrentSourceSpecial(const QString& ref, con
             QString bref = ref;
             if (!bref.startsWith('B', Qt::CaseInsensitive)) bref = "B__ITBL_" + ref;
             *replacement = QString("%1 %2 %3 I={%4}").arg(bref, nplus, nminus, expr);
-            if (warnings) warnings->append(QString("Rewrote LTspice current-source tbl/table on %1 into a behavioral current source for ngspice.").arg(ref));
+            if (warnings) warnings->append(QString("Rewrote LT current-source tbl/table on %1 into a behavioral current source for ngspice.").arg(ref));
             return true;
         }
     }
@@ -446,10 +446,10 @@ bool LtspiceRewriter::rewriteLtspiceCurrentSourceSpecial(const QString& ref, con
         const QRegularExpressionMatch m = stepRe.match(trimmed);
         if (m.hasMatch()) {
             const QString baseValue = m.captured(1).trimmed();
-            const QStringList stepValues = LtspiceRewriter::splitTopLevelSpiceArgs(m.captured(2));
+            const QStringList stepValues = LtRewriter::splitTopLevelSpiceArgs(m.captured(2));
             if (!stepValues.isEmpty()) {
                 *replacement = QString("%1 %2 %3 %4").arg(ref, nplus, nminus, buildStepApproxPwl(baseValue, stepValues));
-                if (warnings) warnings->append(QString("Approximated LTspice current-source step(...) on %1 with a heuristic PWL load sequence; LTspice steady-state step timing is not fully reproduced.").arg(ref));
+                if (warnings) warnings->append(QString("Approximated LT current-source step(...) on %1 with a heuristic PWL load sequence; LT steady-state step timing is not fully reproduced.").arg(ref));
                 return true;
             }
         }
@@ -458,7 +458,7 @@ bool LtspiceRewriter::rewriteLtspiceCurrentSourceSpecial(const QString& ref, con
     return false;
 }
 
-QString LtspiceRewriter::inlinePwlFileIfNeeded(const QString& value, const QString& projectDir, QStringList* warnings) {
+QString LtRewriter::inlinePwlFileIfNeeded(const QString& value, const QString& projectDir, QStringList* warnings) {
     const QString v = value.trimmed();
     if (!v.contains("PWL", Qt::CaseInsensitive)) return value;
 
@@ -517,7 +517,7 @@ QString LtspiceRewriter::inlinePwlFileIfNeeded(const QString& value, const QStri
     int index = 0;
     QString error;
     if (!appendExpandedPwlSpecs(tokens, &index, timeScale, valueScale, 0.0, &points, warnings, projectDir, &error) || index != tokens.size()) {
-        if (warnings && !error.isEmpty()) warnings->append(QString("Could not fully translate LTspice PWL syntax '%1': %2").arg(v, error));
+        if (warnings && !error.isEmpty()) warnings->append(QString("Could not fully translate LT PWL syntax '%1': %2").arg(v, error));
         return value;
     }
     if (points.isEmpty()) return value;
@@ -532,7 +532,7 @@ QString LtspiceRewriter::inlinePwlFileIfNeeded(const QString& value, const QStri
     return result;
 }
 
-bool LtspiceRewriter::convertLtspiceConditionToStepExpr(const QString& condition, QString* stepExpr) {
+bool LtRewriter::convertLtConditionToStepExpr(const QString& condition, QString* stepExpr) {
     if (!stepExpr) return false;
 
     int parenDepth = 0;
@@ -575,7 +575,7 @@ bool LtspiceRewriter::convertLtspiceConditionToStepExpr(const QString& condition
     return !condition.trimmed().isEmpty();
 }
 
-void LtspiceRewriter::updateSubcktDepthForLine(const QString& line, int& subcktDepth) {
+void LtRewriter::updateSubcktDepthForLine(const QString& line, int& subcktDepth) {
     const QString trimmed = line.trimmed();
     if (!trimmed.startsWith('.')) return;
     const QString card = trimmed.section(QRegularExpression("\\s+"), 0, 0).trimmed().toLower();
@@ -586,7 +586,7 @@ void LtspiceRewriter::updateSubcktDepthForLine(const QString& line, int& subcktD
     }
 }
 
-QString LtspiceRewriter::rewriteLtspiceBehavioralIf(const QString& line, QStringList* warnings) {
+QString LtRewriter::rewriteLtBehavioralIf(const QString& line, QStringList* warnings) {
     QString out = line;
 
     auto findTopLevelComparison = [](const QString& text, int* opPos, QString* op) {
@@ -660,15 +660,15 @@ QString LtspiceRewriter::rewriteLtspiceBehavioralIf(const QString& line, QString
     }
 
     if (changed && warnings) {
-        warnings->append(QString("Rewrote LTspice-style if(...) to ngspice-safe expression in: %1").arg(line.trimmed()));
+        warnings->append(QString("Rewrote LT-style if(...) to ngspice-safe expression in: %1").arg(line.trimmed()));
         if (rewroteNonZeroFalseBranch) {
-            warnings->append(QString("Rewrote LTspice-style if(..., true, false) into weighted u(...) form in: %1").arg(line.trimmed()));
+            warnings->append(QString("Rewrote LT-style if(..., true, false) into weighted u(...) form in: %1").arg(line.trimmed()));
         }
     }
     return out;
 }
 
-QString LtspiceRewriter::rewriteLtspiceVoltageSourceExtras(const QString& line, QStringList* warnings) {
+QString LtRewriter::rewriteLtVoltageSourceExtras(const QString& line, QStringList* warnings) {
     QString out = line;
 
     static const QRegularExpression voltageSourceExtrasRe(
@@ -714,17 +714,17 @@ QString LtspiceRewriter::rewriteLtspiceVoltageSourceExtras(const QString& line, 
     out = rewrittenLines.join("\n");
     if (warnings) {
         if (!rser.isEmpty() && !cpar.isEmpty()) {
-            warnings->append(QString("Expanded LTspice voltage source Rser=/Cpar= on %1 into explicit series resistor and shunt capacitor for ngspice.").arg(ref));
+            warnings->append(QString("Expanded LT voltage source Rser=/Cpar= on %1 into explicit series resistor and shunt capacitor for ngspice.").arg(ref));
         } else if (!rser.isEmpty()) {
-            warnings->append(QString("Expanded LTspice voltage source Rser= on %1 into explicit series resistor for ngspice.").arg(ref));
+            warnings->append(QString("Expanded LT voltage source Rser= on %1 into explicit series resistor for ngspice.").arg(ref));
         } else {
-            warnings->append(QString("Expanded LTspice voltage source Cpar= on %1 into explicit shunt capacitor for ngspice.").arg(ref));
+            warnings->append(QString("Expanded LT voltage source Cpar= on %1 into explicit shunt capacitor for ngspice.").arg(ref));
         }
     }
     return out;
 }
 
-QString LtspiceRewriter::rewriteLtspiceTriggeredPulseSource(const QString& line, QStringList* warnings) {
+QString LtRewriter::rewriteLtTriggeredPulseSource(const QString& line, QStringList* warnings) {
     static const QRegularExpression sourceRe(
         "^\\s*(V\\S*)\\s+(\\S+)\\s+(\\S+)\\s+(.+)$",
         QRegularExpression::CaseInsensitiveOption);
@@ -750,7 +750,7 @@ QString LtspiceRewriter::rewriteLtspiceTriggeredPulseSource(const QString& line,
 
     const QString triggerExpr = triggerMatch.captured(1).trimmed();
     QString stepExpr;
-    if (!convertLtspiceConditionToStepExpr(triggerExpr, &stepExpr)) return line;
+    if (!convertLtConditionToStepExpr(triggerExpr, &stepExpr)) return line;
 
     tail.remove(triggerRe);
     tail = tail.simplified();
@@ -766,13 +766,13 @@ QString LtspiceRewriter::rewriteLtspiceTriggeredPulseSource(const QString& line,
     rewrittenLines << QString("%1 %2 %3 V={(%4)*V(%5,%6)}").arg(bufferRef, nplus, nminus, stepExpr, hiddenNode, nminus);
 
     if (warnings) {
-        warnings->append(QString("Approximated LTspice PULSE Trigger= behavior on %1 by gating a hidden pulse source with the trigger expression.").arg(ref));
-        warnings->append(QString("LTspice triggered source restart semantics are only partially emulated for %1; the pulse is gated by the trigger but not restarted on each trigger event.").arg(ref));
+        warnings->append(QString("Approximated LT PULSE Trigger= behavior on %1 by gating a hidden pulse source with the trigger expression.").arg(ref));
+        warnings->append(QString("LT triggered source restart semantics are only partially emulated for %1; the pulse is gated by the trigger but not restarted on each trigger event.").arg(ref));
     }
     return rewrittenLines.join("\n");
 }
 
-QString LtspiceRewriter::rewriteLtspiceTriggeredPwlSource(const QString& line, QStringList* warnings) {
+QString LtRewriter::rewriteLtTriggeredPwlSource(const QString& line, QStringList* warnings) {
     static const QRegularExpression sourceRe(
         "^\\s*(V\\S*)\\s+(\\S+)\\s+(\\S+)\\s+(.+)$",
         QRegularExpression::CaseInsensitiveOption);
@@ -791,7 +791,7 @@ QString LtspiceRewriter::rewriteLtspiceTriggeredPwlSource(const QString& line, Q
 
     QString stepExpr;
     const QString triggerExpr = triggerMatch.captured(1).trimmed();
-    if (!convertLtspiceConditionToStepExpr(triggerExpr, &stepExpr)) return line;
+    if (!convertLtConditionToStepExpr(triggerExpr, &stepExpr)) return line;
 
     QString pwlExpr = rest;
     pwlExpr.remove(triggerRe);
@@ -806,13 +806,13 @@ QString LtspiceRewriter::rewriteLtspiceTriggeredPwlSource(const QString& line, Q
     rewrittenLines << QString("%1 %2 %3 V={(%4)*V(%5,%6)}").arg(bufferRef, nplus, nminus, stepExpr, hiddenNode, nminus);
 
     if (warnings) {
-        warnings->append(QString("Approximated LTspice PWL Trigger= behavior on %1 by gating a hidden PWL source with the trigger expression.").arg(ref));
-        warnings->append(QString("LTspice triggered PWL restart semantics are only partially emulated for %1; the waveform is gated by the trigger but not restarted on each trigger event.").arg(ref));
+        warnings->append(QString("Approximated LT PWL Trigger= behavior on %1 by gating a hidden PWL source with the trigger expression.").arg(ref));
+        warnings->append(QString("LT triggered PWL restart semantics are only partially emulated for %1; the waveform is gated by the trigger but not restarted on each trigger event.").arg(ref));
     }
     return rewrittenLines.join("\n");
 }
 
-QString LtspiceRewriter::rewriteLtspiceTriggeredWaveSource(const QString& line, const QString& kind, QStringList* warnings) {
+QString LtRewriter::rewriteLtTriggeredWaveSource(const QString& line, const QString& kind, QStringList* warnings) {
     static const QRegularExpression sourceRe(
         "^\\s*(V\\S*)\\s+(\\S+)\\s+(\\S+)\\s+(.+)$",
         QRegularExpression::CaseInsensitiveOption);
@@ -831,7 +831,7 @@ QString LtspiceRewriter::rewriteLtspiceTriggeredWaveSource(const QString& line, 
 
     QString stepExpr;
     const QString triggerExpr = triggerMatch.captured(1).trimmed();
-    if (!convertLtspiceConditionToStepExpr(triggerExpr, &stepExpr)) return line;
+    if (!convertLtConditionToStepExpr(triggerExpr, &stepExpr)) return line;
 
     QString sourceExpr = rest;
     sourceExpr.remove(triggerRe);
@@ -846,13 +846,13 @@ QString LtspiceRewriter::rewriteLtspiceTriggeredWaveSource(const QString& line, 
     rewrittenLines << QString("%1 %2 %3 V={(%4)*V(%5,%6)}").arg(bufferRef, nplus, nminus, stepExpr, hiddenNode, nminus);
 
     if (warnings) {
-        warnings->append(QString("Approximated LTspice %1 Trigger= behavior on %2 by gating a hidden %1 source with the trigger expression.").arg(kind.toUpper(), ref));
-        warnings->append(QString("LTspice triggered %1 restart semantics are only partially emulated for %2; the waveform is gated by the trigger but not restarted on each trigger event.").arg(kind.toUpper(), ref));
+        warnings->append(QString("Approximated LT %1 Trigger= behavior on %2 by gating a hidden %1 source with the trigger expression.").arg(kind.toUpper(), ref));
+        warnings->append(QString("LT triggered %1 restart semantics are only partially emulated for %2; the waveform is gated by the trigger but not restarted on each trigger event.").arg(kind.toUpper(), ref));
     }
     return rewrittenLines.join("\n");
 }
 
-QString LtspiceRewriter::rewriteLtspiceBehavioralFunctions(const QString& line, QStringList* warnings) {
+QString LtRewriter::rewriteLtBehavioralFunctions(const QString& line, QStringList* warnings) {
     struct RewriteRule {
         QString name;
         int minArgs;
@@ -920,18 +920,18 @@ QString LtspiceRewriter::rewriteLtspiceBehavioralFunctions(const QString& line, 
     }
 
     if (changed && warnings) {
-        warnings->append(QString("Rewrote LTspice behavioral helper functions for ngspice compatibility in: %1").arg(line.trimmed()));
+        warnings->append(QString("Rewrote LT behavioral helper functions for ngspice compatibility in: %1").arg(line.trimmed()));
     }
 
     return out;
 }
 
-QStringList LtspiceRewriter::tokenizeLtspiceOtaLine(const QString& line) {
+QStringList LtRewriter::tokenizeLtOtaLine(const QString& line) {
     return line.simplified().split(' ', Qt::SkipEmptyParts);
 }
 
-QString LtspiceRewriter::buildNgspiceOtaTranslation(const QString& line) {
-    const QStringList tokens = tokenizeLtspiceOtaLine(line);
+QString LtRewriter::buildNgspiceOtaTranslation(const QString& line) {
+    const QStringList tokens = tokenizeLtOtaLine(line);
     if (tokens.size() < 10) return QString();
     if (tokens.at(9).compare("OTA", Qt::CaseInsensitive) != 0) return QString();
     if (!tokens.at(0).startsWith('A', Qt::CaseInsensitive)) return QString();
@@ -1014,7 +1014,7 @@ QString LtspiceRewriter::buildNgspiceOtaTranslation(const QString& line) {
     return lines.join('\n');
 }
 
-QString LtspiceRewriter::rewriteUnsupportedLtspiceBehavioralTimeFunctions(const QString& line, QStringList* warnings) {
+QString LtRewriter::rewriteUnsupportedLtBehavioralTimeFunctions(const QString& line, QStringList* warnings) {
     QString out = line;
     struct FuncSpec { QString name; int minArgs; int maxArgs; };
     const QList<FuncSpec> funcs = {
@@ -1043,7 +1043,7 @@ QString LtspiceRewriter::rewriteUnsupportedLtspiceBehavioralTimeFunctions(const 
             changed = true;
             replaced = true;
             if (warnings) {
-                warnings->append(QString("Approximated LTspice %1(...) by passing through its input expression because this ngspice configuration does not support %1(...). Original line: %2")
+                warnings->append(QString("Approximated LT %1(...) by passing through its input expression because this ngspice configuration does not support %1(...). Original line: %2")
                                      .arg(func.name, line.trimmed()));
             }
             break;
@@ -1053,7 +1053,7 @@ QString LtspiceRewriter::rewriteUnsupportedLtspiceBehavioralTimeFunctions(const 
     return out;
 }
 
-QString LtspiceRewriter::rewriteUnsupportedLtspiceTableFunction(const QString& line, QStringList* warnings) {
+QString LtRewriter::rewriteUnsupportedLtTableFunction(const QString& line, QStringList* warnings) {
     QString out = line;
     bool changed = false;
 
@@ -1081,7 +1081,7 @@ QString LtspiceRewriter::rewriteUnsupportedLtspiceTableFunction(const QString& l
         } else {
             replacement = xExpr;
             if (warnings) {
-                warnings->append(QString("LTspice table(...) include/file form is not supported; approximated by passing through the lookup input expression in: %1").arg(line.trimmed()));
+                warnings->append(QString("LT table(...) include/file form is not supported; approximated by passing through the lookup input expression in: %1").arg(line.trimmed()));
             }
         }
 
@@ -1090,12 +1090,12 @@ QString LtspiceRewriter::rewriteUnsupportedLtspiceTableFunction(const QString& l
     }
 
     if (changed && warnings) {
-        warnings->append(QString("Approximated LTspice table(...) with nested conditional interpolation for ngspice compatibility in: %1").arg(line.trimmed()));
+        warnings->append(QString("Approximated LT table(...) with nested conditional interpolation for ngspice compatibility in: %1").arg(line.trimmed()));
     }
     return out;
 }
 
-QString LtspiceRewriter::buildCurrentTableExpr(const QString& xExpr, const QStringList& args, QString* error) {
+QString LtRewriter::buildCurrentTableExpr(const QString& xExpr, const QStringList& args, QString* error) {
     if (args.size() < 2 || (args.size() % 2) != 0) {
         if (error) *error = "Current-source table requires voltage/current pairs.";
         return QString();
@@ -1117,7 +1117,7 @@ QString LtspiceRewriter::buildCurrentTableExpr(const QString& xExpr, const QStri
     return expr;
 }
 
-QString LtspiceRewriter::rewriteUnsupportedLtspiceStochasticFunctions(const QString& line, QStringList* warnings) {
+QString LtRewriter::rewriteUnsupportedLtStochasticFunctions(const QString& line, QStringList* warnings) {
     QString out = line;
     struct FuncSpec { QString name; int minArgs; int maxArgs; QString replacement; };
     const QList<FuncSpec> funcs = {
@@ -1144,7 +1144,7 @@ QString LtspiceRewriter::rewriteUnsupportedLtspiceStochasticFunctions(const QStr
             out.replace(funcIndex, closeIndex - funcIndex + 1, func.replacement);
             replaced = true;
             if (warnings) {
-                warnings->append(QString("Approximated LTspice %1(...) as 0 because this ngspice configuration does not support %1(...). Original line: %2")
+                warnings->append(QString("Approximated LT %1(...) as 0 because this ngspice configuration does not support %1(...). Original line: %2")
                                      .arg(func.name, line.trimmed()));
             }
             break;
@@ -1154,7 +1154,7 @@ QString LtspiceRewriter::rewriteUnsupportedLtspiceStochasticFunctions(const QStr
     return out;
 }
 
-QString LtspiceRewriter::rewriteLtspiceBSourceLaplaceOptions(const QString& line, QStringList* warnings) {
+QString LtRewriter::rewriteLtBSourceLaplaceOptions(const QString& line, QStringList* warnings) {
     static const QRegularExpression bSourceRe(
         "^\\s*(B\\S+)\\s+\\S+\\s+\\S+\\s+(?:V|I|R|P)\\s*=.*$",
         QRegularExpression::CaseInsensitiveOption);
@@ -1179,14 +1179,14 @@ QString LtspiceRewriter::rewriteLtspiceBSourceLaplaceOptions(const QString& line
     out = out.simplified();
 
     if (warnings) {
-        warnings->append(QString("Dropped LTspice B-source laplace= transform from %1 because this ngspice configuration does not accept LTspice-style Laplace options on B-sources.").arg(original));
-        warnings->append(QString("Preserved the underlying behavioral source but removed laplace/window/nfft/mtol options; resulting behavior may differ from LTspice. Dropped Laplace expression: %1").arg(laplaceExpr));
+        warnings->append(QString("Dropped LT B-source laplace= transform from %1 because this ngspice configuration does not accept LT-style Laplace options on B-sources.").arg(original));
+        warnings->append(QString("Preserved the underlying behavioral source but removed laplace/window/nfft/mtol options; resulting behavior may differ from LT. Dropped Laplace expression: %1").arg(laplaceExpr));
     }
 
     return out;
 }
 
-QString LtspiceRewriter::rewriteLtspiceBehavioralSourceRpar(const QString& line, QStringList* warnings) {
+QString LtRewriter::rewriteLtBehavioralSourceRpar(const QString& line, QStringList* warnings) {
     static const QRegularExpression bSourceRe(
         "^\\s*(B\\S+)\\s+(\\S+)\\s+(\\S+)\\s+([IR])\\s*=\\s*(.+)$",
         QRegularExpression::CaseInsensitiveOption);
@@ -1215,12 +1215,12 @@ QString LtspiceRewriter::rewriteLtspiceBehavioralSourceRpar(const QString& line,
     out = rewrittenLines.join("\n");
 
     if (warnings) {
-        warnings->append(QString("Expanded LTspice behavioral source Rpar= on %1 into explicit shunt resistor for ngspice.").arg(ref));
+        warnings->append(QString("Expanded LT behavioral source Rpar= on %1 into explicit shunt resistor for ngspice.").arg(ref));
     }
     return out;
 }
 
-QString LtspiceRewriter::rewriteLtspiceSourceTripOptions(const QString& line, QStringList* warnings) {
+QString LtRewriter::rewriteLtSourceTripOptions(const QString& line, QStringList* warnings) {
     static const QRegularExpression sourceRe(
         "^\\s*([VI]\\S*)\\s+(\\S+)\\s+(\\S+)\\s+(.+)$",
         QRegularExpression::CaseInsensitiveOption);
@@ -1250,7 +1250,7 @@ QString LtspiceRewriter::rewriteLtspiceSourceTripOptions(const QString& line, QS
     const QString out = QString("%1 %2 %3 %4")
                             .arg(ref, match.captured(2).trimmed(), match.captured(3).trimmed(), rest);
     if (warnings) {
-        warnings->append(QString("Dropped LTspice source tripdv=/tripdt= options from %1 because this ngspice configuration rejects them on independent sources.").arg(ref));
+        warnings->append(QString("Dropped LT source tripdv=/tripdt= options from %1 because this ngspice configuration rejects them on independent sources.").arg(ref));
         warnings->append(QString("Removed step-rejection options from %1: tripdv=%2 tripdt=%3").arg(
             ref,
             tripdv.isEmpty() ? QString("<none>") : tripdv,
@@ -1259,7 +1259,7 @@ QString LtspiceRewriter::rewriteLtspiceSourceTripOptions(const QString& line, QS
     return out;
 }
 
-QString LtspiceRewriter::rewriteLtspiceBSourceTripOptions(const QString& line, QStringList* warnings) {
+QString LtRewriter::rewriteLtBSourceTripOptions(const QString& line, QStringList* warnings) {
     static const QRegularExpression bSourceRe(
         "^\\s*(B\\S+)\\s+(\\S+)\\s+(\\S+)\\s+([VIRP])\\s*=\\s*(.+)$",
         QRegularExpression::CaseInsensitiveOption);
@@ -1284,7 +1284,7 @@ QString LtspiceRewriter::rewriteLtspiceBSourceTripOptions(const QString& line, Q
     const QString out = QString("%1 %2 %3 %4=%5")
                             .arg(ref, match.captured(2).trimmed(), match.captured(3).trimmed(), match.captured(4).trimmed(), tail);
     if (warnings) {
-        warnings->append(QString("Dropped LTspice B-source tripdv=/tripdt= options from %1 because this ngspice configuration rejects them on behavioral sources.").arg(ref));
+        warnings->append(QString("Dropped LT B-source tripdv=/tripdt= options from %1 because this ngspice configuration rejects them on behavioral sources.").arg(ref));
         warnings->append(QString("Removed B-source step-rejection options from %1: tripdv=%2 tripdt=%3").arg(
             ref,
             tripdv.isEmpty() ? QString("<none>") : tripdv,
@@ -1293,7 +1293,7 @@ QString LtspiceRewriter::rewriteLtspiceBSourceTripOptions(const QString& line, Q
     return out;
 }
 
-void LtspiceRewriter::appendLtspiceBSourceOptionWarnings(const QString& line, QStringList* warnings) {
+void LtRewriter::appendLtBSourceOptionWarnings(const QString& line, QStringList* warnings) {
     if (!warnings) return;
 
     static const QRegularExpression bSourceRe(
@@ -1303,24 +1303,24 @@ void LtspiceRewriter::appendLtspiceBSourceOptionWarnings(const QString& line, QS
 
     const QString trimmed = line.trimmed();
     if (trimmed.contains(QRegularExpression("\\bic\\s*=", QRegularExpression::CaseInsensitiveOption))) {
-        warnings->append(QString("LTspice B-source instance option ic= detected and passed through unchanged: %1").arg(trimmed));
+        warnings->append(QString("LT B-source instance option ic= detected and passed through unchanged: %1").arg(trimmed));
     }
     if (trimmed.contains(QRegularExpression("\\bvprx\\s*=", QRegularExpression::CaseInsensitiveOption))) {
-        warnings->append(QString("LTspice behavioral power-source option vprx= detected and passed through unchanged; ngspice compatibility may differ: %1").arg(trimmed));
+        warnings->append(QString("LT behavioral power-source option vprx= detected and passed through unchanged; ngspice compatibility may differ: %1").arg(trimmed));
     }
     if (trimmed.contains(QRegularExpression("\\btripdv\\s*=", QRegularExpression::CaseInsensitiveOption)) ||
         trimmed.contains(QRegularExpression("\\btripdt\\s*=", QRegularExpression::CaseInsensitiveOption))) {
-        warnings->append(QString("LTspice B-source step-rejection options tripdv=/tripdt= detected; VioSpice will drop them if needed to keep ngspice loadable: %1").arg(trimmed));
+        warnings->append(QString("LT B-source step-rejection options tripdv=/tripdt= detected; VioSpice will drop them if needed to keep ngspice loadable: %1").arg(trimmed));
     }
     if (trimmed.contains(QRegularExpression("\\blaplace\\s*=", QRegularExpression::CaseInsensitiveOption)) ||
         trimmed.contains(QRegularExpression("\\bwindow\\s*=", QRegularExpression::CaseInsensitiveOption)) ||
         trimmed.contains(QRegularExpression("\\bnfft\\s*=", QRegularExpression::CaseInsensitiveOption)) ||
         trimmed.contains(QRegularExpression("\\bmtol\\s*=", QRegularExpression::CaseInsensitiveOption))) {
-        warnings->append(QString("LTspice B-source Laplace options detected; VioSpice will drop them if needed to keep ngspice loadable: %1").arg(trimmed));
+        warnings->append(QString("LT B-source Laplace options detected; VioSpice will drop them if needed to keep ngspice loadable: %1").arg(trimmed));
     }
 }
 
-void LtspiceRewriter::appendLtspiceSourceOptionWarnings(const QString& line, QStringList* warnings) {
+void LtRewriter::appendLtSourceOptionWarnings(const QString& line, QStringList* warnings) {
     if (!warnings) return;
 
     static const QRegularExpression sourceRe(
@@ -1339,24 +1339,24 @@ void LtspiceRewriter::appendLtspiceSourceOptionWarnings(const QString& line, QSt
 
     if (rest.contains(QRegularExpression("\\bTrigger\\s*=", QRegularExpression::CaseInsensitiveOption))) {
         if (rest.startsWith("PULSE", Qt::CaseInsensitive)) {
-            warnings->append(QString("LTspice PULSE Trigger= detected on %1; VioSpice will approximate it by gating a hidden pulse source.").arg(ref));
+            warnings->append(QString("LT PULSE Trigger= detected on %1; VioSpice will approximate it by gating a hidden pulse source.").arg(ref));
         } else if (rest.startsWith("PWL", Qt::CaseInsensitive)) {
-            warnings->append(QString("LTspice PWL Trigger= detected on %1; VioSpice will approximate it by gating a hidden PWL source.").arg(ref));
+            warnings->append(QString("LT PWL Trigger= detected on %1; VioSpice will approximate it by gating a hidden PWL source.").arg(ref));
         } else if (rest.startsWith("SINE", Qt::CaseInsensitive) || rest.startsWith("EXP", Qt::CaseInsensitive) ||
                    rest.startsWith("SFFM", Qt::CaseInsensitive)) {
-            warnings->append(QString("LTspice %1 Trigger= detected on %2; VioSpice will approximate it by gating a hidden %1 source.")
+            warnings->append(QString("LT %1 Trigger= detected on %2; VioSpice will approximate it by gating a hidden %1 source.")
                                  .arg(rest.section('(', 0, 0).trimmed().toUpper(), ref));
         } else {
-            warnings->append(QString("LTspice triggered source restart semantics are not yet emulated for %1; Trigger= is passed through unchanged: %2").arg(ref, line.trimmed()));
+            warnings->append(QString("LT triggered source restart semantics are not yet emulated for %1; Trigger= is passed through unchanged: %2").arg(ref, line.trimmed()));
         }
     }
     if (rest.contains(QRegularExpression("\\btripdv\\s*=", QRegularExpression::CaseInsensitiveOption)) ||
         rest.contains(QRegularExpression("\\btripdt\\s*=", QRegularExpression::CaseInsensitiveOption))) {
-        warnings->append(QString("LTspice source step-rejection options tripdv=/tripdt= detected on %1; VioSpice will drop them if needed to keep ngspice loadable: %2").arg(ref, line.trimmed()));
+        warnings->append(QString("LT source step-rejection options tripdv=/tripdt= detected on %1; VioSpice will drop them if needed to keep ngspice loadable: %2").arg(ref, line.trimmed()));
     }
 }
 
-QString LtspiceRewriter::rewriteLtspiceStartupSourceLine(const QString& line, QStringList* warnings) {
+QString LtRewriter::rewriteLtStartupSourceLine(const QString& line, QStringList* warnings) {
     static const QString startupScaleExpr = "min(1,max(0,time/20u))";
     static const QRegularExpression simpleValueRe(
         "^(?:DC\\s+)?(\\{[^}]+\\}|[-+]?\\d+(?:\\.\\d+)?(?:[eE][-+]?\\d+)?[a-zA-Z]*)$",
@@ -1380,7 +1380,7 @@ QString LtspiceRewriter::rewriteLtspiceStartupSourceLine(const QString& line, QS
             const QString targetValue = simpleValueMatch.captured(1).trimmed();
             const QString rewritten = QString("%1 %2 %3 PWL(0 0 20u %4)").arg(ref, nplus, nminus, targetValue);
             if (warnings) {
-                warnings->append(QString("Approximated LTspice startup behavior by ramping voltage source %1 from 0 to its target over 20us.").arg(ref));
+                warnings->append(QString("Approximated LT startup behavior by ramping voltage source %1 from 0 to its target over 20us.").arg(ref));
             }
             return rewritten;
         }
@@ -1393,7 +1393,7 @@ QString LtspiceRewriter::rewriteLtspiceStartupSourceLine(const QString& line, QS
         rewrittenLines << QString("%1 %2 %3 %4").arg(hiddenRef, hiddenNode, nminus, value);
         rewrittenLines << QString("%1 %2 %3 V={(%4)*V(%5,%6)}").arg(bufferRef, nplus, nminus, startupScaleExpr, hiddenNode, nminus);
         if (warnings) {
-            warnings->append(QString("Approximated LTspice startup behavior by scaling voltage source %1 from 0 to full amplitude over 20us.").arg(ref));
+            warnings->append(QString("Approximated LT startup behavior by scaling voltage source %1 from 0 to full amplitude over 20us.").arg(ref));
         }
         return rewrittenLines.join("\n");
     }
@@ -1407,27 +1407,27 @@ QString LtspiceRewriter::rewriteLtspiceStartupSourceLine(const QString& line, QS
     const QString value = currentMatch.captured(4).trimmed();
     const QString rewritten = QString("%1 %2 %3 PWL(0 0 20u %4)").arg(ref, nplus, nminus, value);
     if (warnings) {
-        warnings->append(QString("Approximated LTspice startup behavior by ramping current source %1 from 0 to its target over 20us.").arg(ref));
+        warnings->append(QString("Approximated LT startup behavior by ramping current source %1 from 0 to its target over 20us.").arg(ref));
     }
     return rewritten;
 }
 
-QString LtspiceRewriter::rewriteLtspiceDirectiveLine(const QString& line, QStringList* warnings, bool emulateStartup, const QString& projectDir) {
+QString LtRewriter::rewriteLtDirectiveLine(const QString& line, QStringList* warnings, bool emulateStartup, const QString& projectDir) {
     QString out = line;
 
-    appendLtspiceBSourceOptionWarnings(out, warnings);
-    appendLtspiceSourceOptionWarnings(out, warnings);
+    appendLtBSourceOptionWarnings(out, warnings);
+    appendLtSourceOptionWarnings(out, warnings);
 
-    out = rewriteLtspiceBSourceTripOptions(out, warnings);
-    out = rewriteLtspiceBSourceLaplaceOptions(out, warnings);
-    out = rewriteLtspiceBehavioralSourceRpar(out, warnings);
-    out = rewriteLtspiceSourceTripOptions(out, warnings);
-    out = rewriteLtspiceTriggeredPulseSource(out, warnings);
-    out = rewriteLtspiceTriggeredPwlSource(out, warnings);
-    out = rewriteLtspiceTriggeredWaveSource(out, "SINE", warnings);
-    out = rewriteLtspiceTriggeredWaveSource(out, "EXP", warnings);
-    out = rewriteLtspiceTriggeredWaveSource(out, "SFFM", warnings);
-    out = rewriteLtspiceVoltageSourceExtras(out, warnings);
+    out = rewriteLtBSourceTripOptions(out, warnings);
+    out = rewriteLtBSourceLaplaceOptions(out, warnings);
+    out = rewriteLtBehavioralSourceRpar(out, warnings);
+    out = rewriteLtSourceTripOptions(out, warnings);
+    out = rewriteLtTriggeredPulseSource(out, warnings);
+    out = rewriteLtTriggeredPwlSource(out, warnings);
+    out = rewriteLtTriggeredWaveSource(out, "SINE", warnings);
+    out = rewriteLtTriggeredWaveSource(out, "EXP", warnings);
+    out = rewriteLtTriggeredWaveSource(out, "SFFM", warnings);
+    out = rewriteLtVoltageSourceExtras(out, warnings);
 
     {
         static const QRegularExpression sourceRe(
@@ -1442,7 +1442,7 @@ QString LtspiceRewriter::rewriteLtspiceDirectiveLine(const QString& line, QStrin
             const QString rest = sourceMatch.captured(4).trimmed();
             if (ref.startsWith('I', Qt::CaseInsensitive)) {
                 QString rewritten;
-                if (rewriteLtspiceCurrentSourceSpecial(ref, nplus, nminus, rest, projectDir, &rewritten, warnings)) {
+                if (rewriteLtCurrentSourceSpecial(ref, nplus, nminus, rest, projectDir, &rewritten, warnings)) {
                     out = rewritten;
                     return out;
                 }
@@ -1462,7 +1462,7 @@ QString LtspiceRewriter::rewriteLtspiceDirectiveLine(const QString& line, QStrin
     if (emulateStartup) {
         QStringList startupLines;
         for (const QString& part : out.split('\n')) {
-            startupLines << rewriteLtspiceStartupSourceLine(part, warnings);
+            startupLines << rewriteLtStartupSourceLine(part, warnings);
         }
         out = startupLines.join("\n");
     }
@@ -1562,15 +1562,15 @@ QString LtspiceRewriter::rewriteLtspiceDirectiveLine(const QString& line, QStrin
                 rewrittenLines << QString("%1 %2 %3 V=%4").arg(ref, nplus, nminus, rewrittenExpr);
                 out = rewrittenLines.join("\n");
                 if (warnings) {
-                    warnings->append(QString("Expanded LTspice %1(...) in %2 into an explicit behavioral integrator for ngspice.").arg(funcName.toLower(), ref));
+                    warnings->append(QString("Expanded LT %1(...) in %2 into an explicit behavioral integrator for ngspice.").arg(funcName.toLower(), ref));
                     if (idtArgs.size() >= 2) {
-                        warnings->append(QString("Preserved LTspice %1 initial condition for %2 as %3.").arg(funcName.toLower(), ref, icExpr));
+                        warnings->append(QString("Preserved LT %1 initial condition for %2 as %3.").arg(funcName.toLower(), ref, icExpr));
                     }
                     if (!assertExpr.isEmpty()) {
-                        warnings->append(QString("Approximated LTspice %1 reset/assert argument for %2 using a behavioral reset clamp.").arg(funcName.toLower(), ref));
+                        warnings->append(QString("Approximated LT %1 reset/assert argument for %2 using a behavioral reset clamp.").arg(funcName.toLower(), ref));
                     }
                     if (isIdtMod) {
-                        warnings->append(QString("Approximated LTspice idtmod(...) for %1 by wrapping the explicit integrator output with modulus %2 and offset %3.").arg(ref, modulusExpr, offsetExpr));
+                        warnings->append(QString("Approximated LT idtmod(...) for %1 by wrapping the explicit integrator output with modulus %2 and offset %3.").arg(ref, modulusExpr, offsetExpr));
                     }
                 }
             }
@@ -1597,7 +1597,7 @@ QString LtspiceRewriter::rewriteLtspiceDirectiveLine(const QString& line, QStrin
                 if (!(expr.startsWith('{') && expr.endsWith('}'))) {
                     lines[i] = QString("%1%2={%3}").arg(head, kind, expr);
                     if (warnings && !out.contains("\n")) { // Only warn once for simple lines
-                        warnings->append(QString("Wrapped LTspice-style behavioral source expression in braces for ngspice: %1").arg(line.trimmed()));
+                        warnings->append(QString("Wrapped LT-style behavioral source expression in braces for ngspice: %1").arg(line.trimmed()));
                     }
                 }
             }
@@ -1606,31 +1606,31 @@ QString LtspiceRewriter::rewriteLtspiceDirectiveLine(const QString& line, QStrin
     }
 
     if (out.contains("if(", Qt::CaseInsensitive) && out.contains("={", Qt::CaseInsensitive)) {
-        out = rewriteLtspiceBehavioralIf(out, warnings);
+        out = rewriteLtBehavioralIf(out, warnings);
     }
 
     if ((out.contains("buf(", Qt::CaseInsensitive) || out.contains("inv(", Qt::CaseInsensitive) ||
          out.contains("uramp(", Qt::CaseInsensitive) || out.contains("limit(", Qt::CaseInsensitive) ||
          out.contains("dnlim(", Qt::CaseInsensitive) || out.contains("uplim(", Qt::CaseInsensitive) ||
          out.contains("idtmod(", Qt::CaseInsensitive)) && out.contains("={", Qt::CaseInsensitive)) {
-        out = rewriteLtspiceBehavioralFunctions(out, warnings);
+        out = rewriteLtBehavioralFunctions(out, warnings);
     }
 
     if ((out.contains("delay(", Qt::CaseInsensitive) || out.contains("absdelay(", Qt::CaseInsensitive)) && out.contains("={", Qt::CaseInsensitive)) {
-        out = rewriteUnsupportedLtspiceBehavioralTimeFunctions(out, warnings);
+        out = rewriteUnsupportedLtBehavioralTimeFunctions(out, warnings);
     }
 
     if (out.contains("table(", Qt::CaseInsensitive) && out.contains("={", Qt::CaseInsensitive)) {
-        out = rewriteUnsupportedLtspiceTableFunction(out, warnings);
+        out = rewriteUnsupportedLtTableFunction(out, warnings);
         if (out.contains("if(", Qt::CaseInsensitive)) {
-            out = rewriteLtspiceBehavioralIf(out, warnings);
+            out = rewriteLtBehavioralIf(out, warnings);
         }
     }
 
     if ((out.contains("rand(", Qt::CaseInsensitive) || out.contains("random(", Qt::CaseInsensitive) ||
          out.contains("white(", Qt::CaseInsensitive) || out.contains("smallsig(", Qt::CaseInsensitive)) &&
         out.contains("={", Qt::CaseInsensitive)) {
-        out = rewriteUnsupportedLtspiceStochasticFunctions(out, warnings);
+        out = rewriteUnsupportedLtStochasticFunctions(out, warnings);
     }
 
     if (out.contains(" V={", Qt::CaseInsensitive)) {
@@ -1644,7 +1644,7 @@ QString LtspiceRewriter::rewriteLtspiceDirectiveLine(const QString& line, QStrin
         out.replace(singleOrRe, " or ");
 
         if (out != original && warnings) {
-            warnings->append(QString("Rewrote LTspice-style boolean operators to ngspice-safe logical operators in: %1").arg(line.trimmed()));
+            warnings->append(QString("Rewrote LT-style boolean operators to ngspice-safe logical operators in: %1").arg(line.trimmed()));
         }
     }
 
@@ -1674,7 +1674,7 @@ QString LtspiceRewriter::rewriteLtspiceDirectiveLine(const QString& line, QStrin
             rewrittenLines << passiveLine;
             out = rewrittenLines.join("\n");
             if (warnings) {
-                warnings->append(QString("Expanded LTspice inline Rser= on %1 into explicit series resistor for ngspice.").arg(ref));
+                warnings->append(QString("Expanded LT inline Rser= on %1 into explicit series resistor for ngspice.").arg(ref));
             }
         }
     }
@@ -1700,7 +1700,7 @@ QString LtspiceRewriter::rewriteLtspiceDirectiveLine(const QString& line, QStrin
             body = body.simplified();
             out = QString(".model %1 D(%2)").arg(diodeMatch.captured(1), body);
             if (warnings && body != originalBody.simplified()) {
-                warnings->append(QString("Rewrote LTspice-style diode model parameters for ngspice in: %1").arg(line.trimmed()));
+                warnings->append(QString("Rewrote LT-style diode model parameters for ngspice in: %1").arg(line.trimmed()));
             }
         }
     }
@@ -1728,14 +1728,14 @@ QString LtspiceRewriter::rewriteLtspiceDirectiveLine(const QString& line, QStrin
             promoteModifierToken(tstart);
             promoteModifierToken(tmax);
 
-            // Strip LTspice-only 'startup'; source ramping is handled separately.
+            // Strip LT-only 'startup'; source ramping is handled separately.
             bool changed = false;
             if (tail.contains("startup", Qt::CaseInsensitive)) {
                 tail.remove("startup", Qt::CaseInsensitive);
                 tail = tail.trimmed();
                 changed = true;
                 if (warnings) {
-                    warnings->append(QString("Removed LTspice 'startup' keyword from .tran and approximated it by ramping top-level independent sources over the first 20us."));
+                    warnings->append(QString("Removed LT 'startup' keyword from .tran and approximated it by ramping top-level independent sources over the first 20us."));
                 }
             }
 
@@ -1745,7 +1745,7 @@ QString LtspiceRewriter::rewriteLtspiceDirectiveLine(const QString& line, QStrin
                 out += " " + tmax; // Re-add tmax as the 4th parameter for ngspice tmax behavior
                 if (!tail.isEmpty()) out += " " + tail;
                 if (warnings) {
-                    warnings->append(QString("Rewrote .tran with zero print step to preserve LTspice tmax behavior for ngspice: %1").arg(line.trimmed()));
+                    warnings->append(QString("Rewrote .tran with zero print step to preserve LT tmax behavior for ngspice: %1").arg(line.trimmed()));
                 }
             } else if (changed || !tail.isEmpty() || out != tranMatch.captured(0)) {
                 // Update the line to reflect stripped startup or other changes
@@ -1774,7 +1774,7 @@ QString LtspiceRewriter::rewriteLtspiceDirectiveLine(const QString& line, QStrin
     return out;
 }
 
-QStringList LtspiceRewriter::collapseSpiceContinuationLines(const QString& text) {
+QStringList LtRewriter::collapseSpiceContinuationLines(const QString& text) {
     QStringList collapsed;
     QString current;
 
@@ -1804,7 +1804,7 @@ QStringList LtspiceRewriter::collapseSpiceContinuationLines(const QString& text)
     return collapsed;
 }
 
-QStringList LtspiceRewriter::splitTopLevelSpiceArgs(const QString& text) {
+QStringList LtRewriter::splitTopLevelSpiceArgs(const QString& text) {
     QStringList args;
     QString current;
     int parenDepth = 0;
@@ -1826,7 +1826,7 @@ QStringList LtspiceRewriter::splitTopLevelSpiceArgs(const QString& text) {
     return args;
 }
 
-int LtspiceRewriter::findMatchingParen(const QString& text, int openIndex) {
+int LtRewriter::findMatchingParen(const QString& text, int openIndex) {
     if (openIndex < 0 || openIndex >= text.size() || text.at(openIndex) != '(') return -1;
     int depth = 0;
     for (int i = openIndex; i < text.size(); ++i) {
