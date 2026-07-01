@@ -1798,10 +1798,10 @@ PCB3DView::ObjMesh PCB3DView::loadObjMeshFromText(const QString& text) const {
 PCB3DView::ObjMesh PCB3DView::loadVrmlMeshFromText(const QString& text) const {
     ObjMesh out;
 
-    QRegularExpression pointBlockRe(
+    static const QRegularExpression pointBlockRe(
         "point\\s*\\[([^\\]]+)\\]",
         QRegularExpression::CaseInsensitiveOption | QRegularExpression::DotMatchesEverythingOption);
-    QRegularExpression coordIndexRe(
+    static const QRegularExpression coordIndexRe(
         "coordIndex\\s*\\[([^\\]]+)\\]",
         QRegularExpression::CaseInsensitiveOption | QRegularExpression::DotMatchesEverythingOption);
 
@@ -1810,7 +1810,7 @@ PCB3DView::ObjMesh PCB3DView::loadVrmlMeshFromText(const QString& text) const {
 
     QVector<QVector3D> points;
     const QString pointBlock = pm.captured(1);
-    QRegularExpression numRe("([\\-+]?\\d+(?:\\.\\d+)?(?:[EeDd][\\-+]?\\d+)?)");
+    static const QRegularExpression numRe("([\\-+]?\\d+(?:\\.\\d+)?(?:[EeDd][\\-+]?\\d+)?)");
     QRegularExpressionMatchIterator it = numRe.globalMatch(pointBlock);
     QVector<double> nums;
     while (it.hasNext()) {
@@ -1837,7 +1837,8 @@ PCB3DView::ObjMesh PCB3DView::loadVrmlMeshFromText(const QString& text) const {
     }
 
     QVector<int> indices;
-    it = QRegularExpression("-?\\d+").globalMatch(cm.captured(1));
+    static const QRegularExpression idxRe("-?\\d+");
+    it = idxRe.globalMatch(cm.captured(1));
     while (it.hasNext()) {
         indices.push_back(it.next().captured(0).toInt());
     }
@@ -1876,7 +1877,7 @@ PCB3DView::ObjMesh PCB3DView::loadVrmlMeshFromText(const QString& text) const {
 PCB3DView::ObjMesh PCB3DView::loadStepMeshFromText(const QString& text) const {
     ObjMesh out;
     QVector<QVector3D> points;
-    QRegularExpression ptRe(
+    static const QRegularExpression ptRe(
         "CARTESIAN_POINT\\s*\\([^\\(]*\\(\\s*([\\-+0-9.EeDd]+)\\s*,\\s*([\\-+0-9.EeDd]+)\\s*,\\s*([\\-+0-9.EeDd]+)\\s*\\)\\s*\\)",
         QRegularExpression::CaseInsensitiveOption);
     QRegularExpressionMatchIterator it = ptRe.globalMatch(text);
@@ -1923,7 +1924,7 @@ PCB3DView::ObjMesh PCB3DView::loadIgesMeshFromText(const QString& text) const {
     ObjMesh out;
     QVector<QVector3D> points;
     const QStringList lines = text.split('\n');
-    QRegularExpression numRe("([\\-+]?\\d+(?:\\.\\d+)?(?:[EeDd][\\-+]?\\d+)?)");
+    static const QRegularExpression numRe("([\\-+]?\\d+(?:\\.\\d+)?(?:[EeDd][\\-+]?\\d+)?)");
     for (const QString& line : lines) {
         if (!line.contains(',')) continue;
         QRegularExpressionMatchIterator it = numRe.globalMatch(line);
@@ -1974,7 +1975,7 @@ QString PCB3DView::expandModelEnvVars(const QString& rawPath) const {
     QString out = rawPath.trimmed();
     if (out.isEmpty()) return out;
 
-    QRegularExpression braceVar("\\$\\{([^}]+)\\}");
+    static const QRegularExpression braceVar("\\$\\{([^}]+)\\}");
     QRegularExpressionMatch m = braceVar.match(out);
     while (m.hasMatch()) {
         const QString var = m.captured(1).trimmed();
@@ -1983,7 +1984,7 @@ QString PCB3DView::expandModelEnvVars(const QString& rawPath) const {
         m = braceVar.match(out);
     }
 
-    QRegularExpression plainVar("\\$([A-Za-z_][A-Za-z0-9_]*)");
+    static const QRegularExpression plainVar("\\$([A-Za-z_][A-Za-z0-9_]*)");
     m = plainVar.match(out);
     while (m.hasMatch()) {
         const QString var = m.captured(1).trimmed();
