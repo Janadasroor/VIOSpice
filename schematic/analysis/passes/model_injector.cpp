@@ -8,7 +8,7 @@
 #include <QCryptographicHash>
 #include <QRegularExpression>
 #include "xspice_block_translator.h"
-#include "ltspice_rewriter.h"
+#include "lt_rewriter.h"
 #include <QFileInfo>
 #include <QDir>
 #include "../../../core/project/config_manager.h"
@@ -207,14 +207,14 @@ QString ModelInjector::sanitizeModelIncludeForNgspice(const QString& path) {
         const QString trimmed = line.trimmed();
         if (trimmed.startsWith('*') || trimmed.startsWith(';') || trimmed.startsWith('$')) continue;
 
-        const QString otaTranslation = LtspiceRewriter::buildNgspiceOtaTranslation(line);
+        const QString otaTranslation = LtRewriter::buildNgspiceOtaTranslation(line);
         if (!otaTranslation.isEmpty()) {
             outLines.append(otaTranslation);
             continue;
         }
 
         QString sanitizedLine = line;
-        sanitizedLine = LtspiceRewriter::rewriteLtspiceBehavioralFunctions(sanitizedLine, nullptr);
+        sanitizedLine = LtRewriter::rewriteLtBehavioralFunctions(sanitizedLine, nullptr);
         sanitizedLine.replace(QRegularExpression("\\bnoiseless\\b", QRegularExpression::CaseInsensitiveOption), QString());
         sanitizedLine.replace(QRegularExpression("\\s+;.*$"), QString());
         sanitizedLine.replace(QRegularExpression("\\s{2,}"), QStringLiteral(" "));

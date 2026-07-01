@@ -9,7 +9,7 @@
 #include "passes/connectivity_evaluator.h"
 #include "passes/model_injector.h"
 #include "passes/netlist_formatter.h"
-#include "passes/ltspice_rewriter.h"
+#include "passes/lt_rewriter.h"
 #include "../items/schematic_item.h"
 #include "../items/smart_signal_item.h"
 #include "../items/virtual_terminal_item.h"
@@ -52,7 +52,7 @@ struct UserSpiceContentSummary {
     QStringList warnings;
     bool hasExplicitAnalysisCard = false;
     bool hasElementCards = false;
-    bool hasLtspiceStartup = false;
+    bool hasLtStartup = false;
     bool hasExplicitSaveDirective = false;
     bool hasNetDirective = false;
     bool isSParameter = false;
@@ -553,14 +553,14 @@ QString sanitizeDirectiveName(const QString& raw) {
     return s.isEmpty() ? QString("m") : s.left(40);
 }
 
-QString normalizeLtspiceMeasDirective(const QString& cmd, QStringList* warnings = nullptr) {
+QString normalizeLtMeasDirective(const QString& cmd, QStringList* warnings = nullptr) {
     QString out = cmd;
 
     if (!out.startsWith(".meas", Qt::CaseInsensitive)) return out;
 
     if (out.contains("I(", Qt::CaseInsensitive)) {
         if (warnings) {
-            warnings->append(QString("LTspice-style .meas current reference detected: %1").arg(cmd.trimmed()));
+            warnings->append(QString("LT-style .meas current reference detected: %1").arg(cmd.trimmed()));
             warnings->append(QString("Consider measuring source current via I(Vsense) or converting resistor current measurements manually for ngspice."));
         }
     }
@@ -573,26 +573,26 @@ QString normalizeLtspiceMeasDirective(const QString& cmd, QStringList* warnings 
 
     if (out.contains(" FIND ", Qt::CaseInsensitive) && out.contains(" AT=", Qt::CaseInsensitive)) {
         if (warnings) {
-            warnings->append(QString(".meas FIND ... AT= detected; verify LTspice/ngspice syntax compatibility: %1").arg(cmd.trimmed()));
+            warnings->append(QString(".meas FIND ... AT= detected; verify LT/ngspice syntax compatibility: %1").arg(cmd.trimmed()));
         }
     }
 
     if (out.contains(QRegularExpression("\\bDERIV\\b", QRegularExpression::CaseInsensitiveOption))) {
         if (warnings) {
-            warnings->append(QString(".meas DERIV detected; verify LTspice/ngspice derivative measurement syntax compatibility: %1").arg(cmd.trimmed()));
+            warnings->append(QString(".meas DERIV detected; verify LT/ngspice derivative measurement syntax compatibility: %1").arg(cmd.trimmed()));
         }
     }
 
     if (out.contains(QRegularExpression("\\bTRIG\\b", QRegularExpression::CaseInsensitiveOption)) ||
         out.contains(QRegularExpression("\\bTARG\\b", QRegularExpression::CaseInsensitiveOption))) {
         if (warnings) {
-            warnings->append(QString(".meas TRIG/TARG interval form detected; verify LTspice/ngspice compatibility: %1").arg(cmd.trimmed()));
+            warnings->append(QString(".meas TRIG/TARG interval form detected; verify LT/ngspice compatibility: %1").arg(cmd.trimmed()));
         }
     }
 
     if (out.contains(QRegularExpression("\\b(RISE|FALL|CROSS)\\s*=\\s*(LAST|\\d+)", QRegularExpression::CaseInsensitiveOption))) {
         if (warnings) {
-            warnings->append(QString(".meas RISE/FALL/CROSS qualifier detected; verify LTspice/ngspice event counting compatibility: %1").arg(cmd.trimmed()));
+            warnings->append(QString(".meas RISE/FALL/CROSS qualifier detected; verify LT/ngspice event counting compatibility: %1").arg(cmd.trimmed()));
         }
     }
 
@@ -639,7 +639,7 @@ UserSpiceContentSummary summarizeUserSpiceText(const QString& text, const QStrin
         ".disto", ".meas", ".step", ".sens", ".sp", ".net"
     };
 
-    const QStringList lines = LtspiceRewriter::collapseSpiceContinuationLines(text);
+    const QStringList lines = LtRewriter::collapseSpiceContinuationLines(text);
     QSet<QString> analysisSeen;
     QMap<QString, int> modelSeen;
     QMap<QString, int> refSeen;
@@ -679,7 +679,7 @@ UserSpiceContentSummary summarizeUserSpiceText(const QString& text, const QStrin
             }
 
             if (card == ".tran" && line.contains("startup", Qt::CaseInsensitive)) {
-                summary.hasLtspiceStartup = true;
+                summary.hasLtStartup = true;
             }
 
             if (card == ".subckt") {
@@ -724,12 +724,12 @@ UserSpiceContentSummary summarizeUserSpiceText(const QString& text, const QStrin
 
                 if (line.contains(" D(", Qt::CaseInsensitive) &&
                     (line.contains("Ron=", Qt::CaseInsensitive) || line.contains("Roff=", Qt::CaseInsensitive) || line.contains("Vfwd=", Qt::CaseInsensitive))) {
-                    summary.warnings.append(QString("LTspice-style diode model parameters detected in line %1; ngspice may reject Ron/Roff/Vfwd on .model D.").arg(lineNo));
+                    summary.warnings.append(QString("LT-style diode model parameters detected in line %1; ngspice may reject Ron/Roff/Vfwd on .model D.").arg(lineNo));
                 }
             }
 
             if (card == ".meas" && line.contains("I(", Qt::CaseInsensitive)) {
-                summary.warnings.append(QString("Measurement current expression in line %1 may be LTspice-specific; ngspice is less reliable with I(R...) style expressions.").arg(lineNo));
+                summary.warnings.append(QString("Measurement current expression in line %1 may be LT-specific; ngspice is less reliable with I(R...) style expressions.").arg(lineNo));
             }
 
             if ((card == ".meas" || card == ".func" || card == ".param") && line.contains("table(", Qt::CaseInsensitive)) {
@@ -737,42 +737,42 @@ UserSpiceContentSummary summarizeUserSpiceText(const QString& text, const QStrin
             }
 
             if (card == ".func") {
-                summary.warnings.append(QString("LTspice .func detected in line %1; user-defined functions may rely on LTspice dynamic scoping, so verify ngspice compatibility when referenced inside subcircuits or with local .param overrides.").arg(lineNo));
+                summary.warnings.append(QString("LT .func detected in line %1; user-defined functions may rely on LT dynamic scoping, so verify ngspice compatibility when referenced inside subcircuits or with local .param overrides.").arg(lineNo));
             }
 
             if (card == ".step") {
-                summary.warnings.append(QString("LTspice .step detected in line %1; this ngspice configuration reports .step as unimplemented, so VioSpice will omit it from the active netlist.").arg(lineNo));
+                summary.warnings.append(QString("LT .step detected in line %1; this ngspice configuration reports .step as unimplemented, so VioSpice will omit it from the active netlist.").arg(lineNo));
             }
 
             if (card == ".four") {
-                summary.warnings.append(QString("LTspice .four detected in line %1; verify Fourier-analysis compatibility and output behavior in ngspice.").arg(lineNo));
+                summary.warnings.append(QString("LT .four detected in line %1; verify Fourier-analysis compatibility and output behavior in ngspice.").arg(lineNo));
             }
 
             if (card == ".wave") {
-                summary.warnings.append(QString("LTspice .wave detected in line %1; ngspice does not support LTspice WAV export directives.").arg(lineNo));
+                summary.warnings.append(QString("LT .wave detected in line %1; ngspice does not support LT WAV export directives.").arg(lineNo));
             }
 
             if ((card == ".param" || card == ".func") && line.contains("file=", Qt::CaseInsensitive)) {
-                summary.warnings.append(QString("LTspice file= syntax detected in line %1; verify ngspice compatibility for file-driven expressions or sweeps.").arg(lineNo));
+                summary.warnings.append(QString("LT file= syntax detected in line %1; verify ngspice compatibility for file-driven expressions or sweeps.").arg(lineNo));
             }
 
             continue;
         }
 
         summary.hasElementCards = true;
-        const bool emulateStartupOnLine = summary.hasLtspiceStartup && subcktStack.isEmpty();
-        const QString rewrittenLine = LtspiceRewriter::rewriteLtspiceDirectiveLine(line, &summary.warnings, emulateStartupOnLine, projectDir);
+        const bool emulateStartupOnLine = summary.hasLtStartup && subcktStack.isEmpty();
+        const QString rewrittenLine = LtRewriter::rewriteLtDirectiveLine(line, &summary.warnings, emulateStartupOnLine, projectDir);
         if (rewrittenLine.contains("if(", Qt::CaseInsensitive)) {
-            summary.warnings.append(QString("LTspice-style if(...) expression remains in line %1 and may fail in ngspice.").arg(lineNo));
+            summary.warnings.append(QString("LT-style if(...) expression remains in line %1 and may fail in ngspice.").arg(lineNo));
         }
         if (line.contains("table(", Qt::CaseInsensitive)) {
             summary.warnings.append(QString("table(...) detected in line %1; VioSpice will approximate inline point-pair forms for ngspice, but file/include-style forms may still differ.").arg(lineNo));
         }
         if (line.contains("wavefile=", Qt::CaseInsensitive)) {
-            summary.warnings.append(QString("LTspice wavefile= source detected in line %1; ngspice compatibility for WAV-backed sources is not implemented in VioSpice.").arg(lineNo));
+            summary.warnings.append(QString("LT wavefile= source detected in line %1; ngspice compatibility for WAV-backed sources is not implemented in VioSpice.").arg(lineNo));
         }
         if (line.contains("chan=", Qt::CaseInsensitive) && line.contains("wavefile=", Qt::CaseInsensitive)) {
-            summary.warnings.append(QString("LTspice chan= option for wavefile-backed sources detected in line %1; verify channel-selection compatibility manually.").arg(lineNo));
+            summary.warnings.append(QString("LT chan= option for wavefile-backed sources detected in line %1; verify channel-selection compatibility manually.").arg(lineNo));
         }
         const QStringList parts = line.split(QRegularExpression("\\s+"), Qt::SkipEmptyParts);
         if (parts.isEmpty()) continue;
@@ -909,7 +909,7 @@ SpiceNetlistGenerator::GeneratedNetlist SpiceNetlistGenerator::generate(QGraphic
                         hasNetDirective = hasNetDirective || summary.hasNetDirective;
                         isSParameterDirective = isSParameterDirective || summary.isSParameter;
 
-                        const QStringList cmdLines = LtspiceRewriter::collapseSpiceContinuationLines(cmd);
+                        const QStringList cmdLines = LtRewriter::collapseSpiceContinuationLines(cmd);
                         int subcktDepth = 0;
                         for (const QString& rawCmdLine : cmdLines) {
                             const QString trimmedCmdLine = rawCmdLine.trimmed();
@@ -934,8 +934,8 @@ SpiceNetlistGenerator::GeneratedNetlist SpiceNetlistGenerator::generate(QGraphic
                                 continue;
                             }
 
-                            const bool emulateStartupOnLine = summary.hasLtspiceStartup && subcktDepth == 0;
-                            QString lineToWrite = LtspiceRewriter::rewriteLtspiceDirectiveLine(trimmedCmdLine, &directiveWarnings, emulateStartupOnLine, projectDir);
+                            const bool emulateStartupOnLine = summary.hasLtStartup && subcktDepth == 0;
+                            QString lineToWrite = LtRewriter::rewriteLtDirectiveLine(trimmedCmdLine, &directiveWarnings, emulateStartupOnLine, projectDir);
 
                             // Resolve relative .include/.lib/.inc paths to absolute so ngspice can always
                             // find them regardless of its CWD.
@@ -963,27 +963,27 @@ SpiceNetlistGenerator::GeneratedNetlist SpiceNetlistGenerator::generate(QGraphic
             if (converted != trimmedCmdLine) {
                 netlist += "* " + trimmedCmdLine + "\n";
                 netlist += converted + "\n";
-                LtspiceRewriter::updateSubcktDepthForLine(trimmedCmdLine, subcktDepth);
+                LtRewriter::updateSubcktDepthForLine(trimmedCmdLine, subcktDepth);
                 continue;
             }
         }
 
         if (trimmedCmdLine.startsWith(".step", Qt::CaseInsensitive)) {
             netlist += "* " + trimmedCmdLine + "\n";
-            netlist += "* LTspice .step omitted: this ngspice configuration reports .step as unimplemented\n";
-            LtspiceRewriter::updateSubcktDepthForLine(trimmedCmdLine, subcktDepth);
+            netlist += "* LT .step omitted: this ngspice configuration reports .step as unimplemented\n";
+            LtRewriter::updateSubcktDepthForLine(trimmedCmdLine, subcktDepth);
             continue;
         }
 
                             if (trimmedCmdLine.startsWith(".meas", Qt::CaseInsensitive)) {
-                                lineToWrite = normalizeLtspiceMeasDirective(lineToWrite, &directiveWarnings);
+                                lineToWrite = normalizeLtMeasDirective(lineToWrite, &directiveWarnings);
                             }
 
                             if (lineToWrite != trimmedCmdLine) {
-                                netlist += "* LTspice rewrite: " + trimmedCmdLine + "\n";
+                                netlist += "* LT rewrite: " + trimmedCmdLine + "\n";
                             }
                             netlist += lineToWrite + "\n";
-                            LtspiceRewriter::updateSubcktDepthForLine(trimmedCmdLine, subcktDepth);
+                            LtRewriter::updateSubcktDepthForLine(trimmedCmdLine, subcktDepth);
                         }
                     }
                 }
@@ -1443,7 +1443,7 @@ SpiceNetlistGenerator::GeneratedNetlist SpiceNetlistGenerator::generate(QGraphic
             }
         }
 
-        value = LtspiceRewriter::inlinePwlFileIfNeeded(value, projectDir, nullptr);
+        value = LtRewriter::inlinePwlFileIfNeeded(value, projectDir, nullptr);
         value = formatPwlValueForNetlist(value);
         QString instanceSuffix;
         QStringList nodes;
@@ -1902,7 +1902,7 @@ SpiceNetlistGenerator::GeneratedNetlist SpiceNetlistGenerator::generate(QGraphic
             VoltageParasitics paras = stripVoltageParasitics(value);
             value = paras.value;
             QString rewrittenCurrentSource;
-            if (LtspiceRewriter::rewriteLtspiceCurrentSourceSpecial(ref, nodes.value(0, "0"), nodes.value(1, "0"), value, projectDir,
+            if (LtRewriter::rewriteLtCurrentSourceSpecial(ref, nodes.value(0, "0"), nodes.value(1, "0"), value, projectDir,
                                                    &rewrittenCurrentSource, &directiveWarnings)) {
                 netlist += rewrittenCurrentSource + "\n";
                 continue;
@@ -2395,12 +2395,12 @@ SpiceNetlistGenerator::GeneratedNetlist SpiceNetlistGenerator::generate(QGraphic
         // Add value
         if (value.isEmpty()) {
             if (isADevice) {
-                // LTspice digital symbols and generic logic symbols frequently store
+                // LT digital symbols and generic logic symbols frequently store
                 // aliases like AND, gate_and, DFF, BUF. XSPICE requires a .model
                 // instance whose type is the real code model, e.g. d_and or d_dff.
-                value = comp.paramExpressions.value("ltspice.SpiceModel").trimmed();
-                if (value.isEmpty()) value = comp.paramExpressions.value("ltspice.MODEL").trimmed();
-                if (value.isEmpty()) value = comp.paramExpressions.value("ltspice.Model").trimmed();
+                value = comp.paramExpressions.value("lt.SpiceModel").trimmed();
+                if (value.isEmpty()) value = comp.paramExpressions.value("lt.MODEL").trimmed();
+                if (value.isEmpty()) value = comp.paramExpressions.value("lt.Model").trimmed();
                 if (value.isEmpty() && sym) {
                     if (!sym->spiceModelName().trimmed().isEmpty()) value = sym->spiceModelName().trimmed();
                     else if (!sym->modelName().trimmed().isEmpty()) value = sym->modelName().trimmed();
@@ -2786,7 +2786,7 @@ QString SpiceNetlistGenerator::generateCompatibilityLayer(const QString& rawNetl
             continue;
         }
 
-        line = LtspiceRewriter::rewriteLtspiceDirectiveLine(line, &warnings);
+        line = LtRewriter::rewriteLtDirectiveLine(line, &warnings);
 
         outLines << line;
     }
