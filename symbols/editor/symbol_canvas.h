@@ -160,6 +160,7 @@ private:
     friend class DrawLineTool;
     friend class DrawShapeTool;
     friend class SymbolToolManager;
+    friend class SymbolLibraryBrowserPanel;
 };
 
 #endif // SYMBOL_CANVAS_H
