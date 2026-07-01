@@ -67,7 +67,7 @@ void GerberParser::parseContent(const QString& content, GerberLayer* layer) {
                 m_state.formatInt = extended.mid(5, 1).toInt();
                 m_state.formatDec = extended.mid(6, 1).toInt();
             } else if (extended.startsWith("AD")) {
-                QRegularExpression re("ADD(\\d+)([CRPOM]),?([\\d\\.]*)X?([\\d\\.]*)");
+                static const QRegularExpression re("ADD(\\d+)([CRPOM]),?([\\d\\.]*)X?([\\d\\.]*)");
                 QRegularExpressionMatch match = re.match(extended);
                 if (match.hasMatch()) {
                     int id = match.captured(1).toInt();
@@ -104,7 +104,7 @@ void GerberParser::parseLine(const QString& line, GerberLayer* layer) {
         
         // Tool Definition: T1C0.0276
         if (line.startsWith("T") && line.contains("C")) {
-            QRegularExpression re("T(\\d+)C([\\d\\.]+)");
+            static const QRegularExpression re("T(\\d+)C([\\d\\.]+)");
             QRegularExpressionMatch match = re.match(line);
             if (match.hasMatch()) {
                 int toolId = match.captured(1).toInt();
@@ -130,7 +130,7 @@ void GerberParser::parseLine(const QString& line, GerberLayer* layer) {
 
         // Coordinates: X...Y...
         if (line.startsWith("X") || line.startsWith("Y")) {
-            QRegularExpression re("X([+-]?[\\d\\.]+)Y([+-]?[\\d\\.]+)");
+            static const QRegularExpression re("X([+-]?[\\d\\.]+)Y([+-]?[\\d\\.]+)");
             QRegularExpressionMatch match = re.match(line);
             if (match.hasMatch()) {
                 // Excellon decimal format in file usually explicit (e.g. 4.5441)
@@ -179,7 +179,7 @@ void GerberParser::parseLine(const QString& line, GerberLayer* layer) {
     if (line.startsWith("G01")) m_state.interpolationLinear = true;
     if (line.startsWith("G02") || line.startsWith("G03")) m_state.interpolationLinear = false;
 
-    QRegularExpression re("X?([+-]?\\d+)?Y?([+-]?\\d+)?(D0[123]|D\\d+)?");
+    static const QRegularExpression re("X?([+-]?\\d+)?Y?([+-]?\\d+)?(D0[123]|D\\d+)?");
     QRegularExpressionMatch match = re.match(line);
     
     if (match.hasMatch()) {

@@ -126,7 +126,7 @@ QString PCBNetlistImporter::suggestFootprintForComponent(const NetlistImportComp
     // Resistors
     if (typeLower.contains("resistor") || comp.reference.startsWith("R")) {
         // Check value for size hint (0603, 0805, etc.)
-        QRegularExpression sizeRe("(0[24]02|0[68]03|1[28]06|1210|2010|2512)", QRegularExpression::CaseInsensitiveOption);
+        static const QRegularExpression sizeRe("(0[24]02|0[68]03|1[28]06|1210|2010|2512)", QRegularExpression::CaseInsensitiveOption);
         QRegularExpressionMatch match = sizeRe.match(comp.value);
         if (match.hasMatch()) {
             QString sizeCode = match.captured(0);
@@ -154,7 +154,7 @@ QString PCBNetlistImporter::suggestFootprintForComponent(const NetlistImportComp
 
     // Capacitors
     if (typeLower.contains("capacitor") || comp.reference.startsWith("C")) {
-        QRegularExpression sizeRe("(0[24]02|0[68]03|1[28]06|1210)", QRegularExpression::CaseInsensitiveOption);
+        static const QRegularExpression sizeRe("(0[24]02|0[68]03|1[28]06|1210)", QRegularExpression::CaseInsensitiveOption);
         QRegularExpressionMatch match = sizeRe.match(comp.value);
         if (match.hasMatch()) {
             QString sizeCode = match.captured(0);
@@ -436,7 +436,7 @@ NetlistImportPackage PCBNetlistImporter::loadFluxJSON(const QString& content, co
     // Build component list from nets if not explicitly provided
     if (pkg.components.isEmpty()) {
         QSet<QString> seenRefs;
-        QRegularExpression refRe("^([A-Za-z_]+)");
+        static const QRegularExpression refRe("^([A-Za-z_]+)");
         for (const auto& net : pkg.nets) {
             for (const auto& pin : net.pins) {
                 if (!seenRefs.contains(pin.componentRef)) {
@@ -468,7 +468,7 @@ NetlistImportPackage PCBNetlistImporter::loadProtel(const QString& content, cons
     pkg.format = "Protel";
 
     // Protel format: (net_name component pin_number) or similar parenthesized lines
-    QRegularExpression lineRe("\\(\\s*(\\S+)\\s+(\\S+)\\s+(\\S+)\\s*\\)");
+    static const QRegularExpression lineRe("\\(\\s*(\\S+)\\s+(\\S+)\\s+(\\S+)\\s*\\)");
     QRegularExpressionMatchIterator it = lineRe.globalMatch(content);
 
     QMap<QString, NetlistImportNet> netMap;
@@ -529,10 +529,10 @@ NetlistImportPackage PCBNetlistImporter::loadSPICE(const QString& content, const
     pkg.sourcePath = sourcePath;
     pkg.format = "SPICE";
 
-    QRegularExpression compRe("^([RrCcLlVvIiDdQqMjJxX])(\\S+)\\s+(\\S+)\\s+(\\S+)\\s*(.*)$", QRegularExpression::MultilineOption);
+    static const QRegularExpression compRe("^([RrCcLlVvIiDdQqMjJxX])(\\S+)\\s+(\\S+)\\s+(\\S+)\\s*(.*)$", QRegularExpression::MultilineOption);
     QRegularExpressionMatchIterator it = compRe.globalMatch(content);
 
-    QRegularExpression refRe("^[RrCcLlVvIiDdQqMjJxX]");
+    static const QRegularExpression refRe("^[RrCcLlVvIiDdQqMjJxX]");
 
     QMap<QString, QStringList> componentNets; // ref -> list of net names
 
