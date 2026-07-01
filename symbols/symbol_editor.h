@@ -107,10 +107,8 @@ private Q_SLOTS:
     void updateCoordinates(QPointF pos);
     void onLibSearchChanged(const QString& text);
     void onAiSymbolGenerated(const QString& json);
-    void onWizardGenerate();
+    void onWizardSymbolGenerated(const SymbolDefinition& def);
     void onWizardSaveTemplate();
-    void onWizardTemplateSearchChanged(const QString& text);
-    void onWizardApplyTemplate();
     void onImportKicadSymbol();
     void onImportLtspiceSymbol();
     void onImportImage();
@@ -153,9 +151,7 @@ private:
     void connectViewSignals();
     void createSymbolInfoPanel();
     void createLibraryBrowser();
-    void createWizardPanel();
-    void refreshWizardTemplateList(const QString& query = QString());
-    void updateWizardTemplatePreview();
+
     void createPinTable();
     void updatePinTable();
     void updateSubcktMappingTable();
@@ -240,16 +236,7 @@ public:
     QComboBox* m_pinBulkType = nullptr;
 
     // Wizard
-    class QSpinBox* m_pinCountSpin = nullptr;
-    class QDoubleSpinBox* m_pinSpacingSpin = nullptr;
-    class QDoubleSpinBox* m_bodyWidthSpin = nullptr;
-    class QComboBox* m_wizardStyleCombo = nullptr;
-    QLineEdit* m_wizardTemplateSearchEdit = nullptr;
-    class QComboBox* m_wizardTemplateCombo = nullptr;
-    QLabel* m_wizardTemplateInfoLabel = nullptr;
-    QLabel* m_wizardTemplateDescLabel = nullptr;
-    QGraphicsView* m_wizardPreviewView = nullptr;
-    QGraphicsScene* m_wizardPreviewScene = nullptr;
+    class SymbolWizardPanel* m_wizardPanel = nullptr;
     
     // Internal state
     SymbolDefinition m_symbol;
