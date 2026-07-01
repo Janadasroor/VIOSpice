@@ -96,6 +96,7 @@ private:
     QPushButton* m_aiGenerateBtn;
     QPushButton* m_pickFileBtn;
     QProgressBar* m_progressBar;
+    QComboBox* m_aiModelCombo;
     QProcess* m_aiProcess = nullptr;
     QString m_aiResponseBuffer;
     QString m_aiErrorBuffer;

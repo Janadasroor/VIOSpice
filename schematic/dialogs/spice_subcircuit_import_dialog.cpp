@@ -145,7 +145,22 @@ void SpiceSubcircuitImportDialog::setupUi() {
     m_progressBar->setTextVisible(false);
     m_progressBar->setMaximumHeight(4);
     m_progressBar->hide();
+
+    auto* modelLabel = new QLabel("AI Model:", this);
+    m_aiModelCombo = new QComboBox(this);
+    m_aiModelCombo->setMaximumWidth(200);
+    QStringList models = ConfigManager::instance().availableGeminiModels();
+    if (models.isEmpty()) {
+        models << "gemini-2.5-flash" << "gemini-2.5-pro" << "gemini-2.0-flash-thinking-exp";
+    }
+    m_aiModelCombo->addItems(models);
+    QString selected = ConfigManager::instance().geminiSelectedModel();
+    if (models.contains(selected)) {
+        m_aiModelCombo->setCurrentText(selected);
+    }
     
+    aiLayout->addWidget(modelLabel);
+    aiLayout->addWidget(m_aiModelCombo);
     aiLayout->addWidget(m_aiGenerateBtn);
     aiLayout->addStretch();
     aiLayout->addWidget(m_progressBar, 1);
@@ -574,6 +589,10 @@ void SpiceSubcircuitImportDialog::onAiGenerateClicked() {
 
     QStringList args;
     args << scriptPath << prompt.trimmed() << "--mode" << "subcircuit";
+    QString selectedModel = m_aiModelCombo->currentText().trimmed();
+    if (!selectedModel.isEmpty()) {
+        args << "--model" << selectedModel;
+    }
 
     m_aiProcess->start(pythonExec, args);
 }
