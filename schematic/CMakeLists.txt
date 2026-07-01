@@ -63,6 +63,8 @@ target_sources(VioSchematic PRIVATE
     analysis/passes/xspice_block_translator.h
     analysis/passes/netlist_formatter.cpp
     analysis/passes/netlist_formatter.h
+    analysis/passes/ltspice_rewriter.cpp
+    analysis/passes/ltspice_rewriter.h
 )
 
 if(VIOSPICE_ENGINE_FOUND)
