@@ -148,15 +148,6 @@ private Q_SLOTS:
     void onSimResultsReady(const SimResults& results);
     void onRealTimeDataBatchReceived(const std::vector<double>& times, const std::vector<std::vector<double>>& values, const QStringList& names);
     void onTimelineValueChanged(int value);
-    void onGeneratorTypeChanged(int index);
-    void onApplyGeneratorToSelection();
-    void onOpenPwlEditor();
-    void onOpenStepBuilder();
-    void onImportPwlCsv();
-    void onExportPwlCsv();
-    void onSaveGeneratorPreset();
-    void onDeleteGeneratorPreset();
-    void onGeneratorPresetActivated(int index);
     void onExportResultsCsv();
     void onExportResultsJson();
     void onExportResultsReport();
@@ -172,22 +163,11 @@ private:
     void createMainView(QSplitter* splitter);
     QWidget* createAnalysisSetupWidget();
     QWidget* createMonitorWidget();
-    QWidget* createGeneratorWidget();
     QWidget* createMeasurementsWidget();
     QString generateSpiceNetlist();
     void plotResults(const QString& rawData); 
     void plotBuiltinResults(const SimResults& results);
     void updateVirtualMeters(const SimResults& results);
-    QString buildGeneratorExpression() const;
-    QVariantMap collectGeneratorConfig() const;
-    void applyGeneratorConfig(const QVariantMap& cfg);
-    QString generatorPresetsPath() const;
-    void loadGeneratorLibrary();
-    void saveUserGeneratorPresets() const;
-    void refreshGeneratorPresetCombo();
-    void seedDefaultPwlPointsIfNeeded();
-    bool importPwlCsvFile(const QString& path);
-    bool exportPwlCsvFile(const QString& path) const;
     bool exportResultsCsvFile(const QString& path) const;
     bool exportResultsJsonFile(const QString& path) const;
     bool exportResultsReportFile(const QString& path) const;
@@ -252,24 +232,7 @@ private:
 
 
     // Source generator controls
-    QComboBox* m_generatorType = nullptr;
-    QComboBox* m_generatorPresetCombo = nullptr;
-    QLabel* m_genLabel1 = nullptr;
-    QLabel* m_genLabel2 = nullptr;
-    QLabel* m_genLabel3 = nullptr;
-    QLabel* m_genLabel4 = nullptr;
-    QLabel* m_genLabel5 = nullptr;
-    QLabel* m_genLabel6 = nullptr;
-    QLineEdit* m_genParam1 = nullptr;
-    QLineEdit* m_genParam2 = nullptr;
-    QLineEdit* m_genParam3 = nullptr;
-    QLineEdit* m_genParam4 = nullptr;
-    QLineEdit* m_genParam5 = nullptr;
-    QLineEdit* m_genParam6 = nullptr;
-    QVector<QPair<QString, QString>> m_pwlPoints;
-    QMap<QString, QVariantMap> m_generatorTemplates;
-    QMap<QString, QVariantMap> m_userGeneratorPresets;
-    QWidget* m_generatorTab = nullptr;
+    class SimulationGeneratorPanel* m_generatorPanel = nullptr;
     
     QTextEdit* m_logOutput = nullptr;
     QPushButton* m_runButton = nullptr;
