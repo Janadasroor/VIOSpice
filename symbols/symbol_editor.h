@@ -72,7 +72,6 @@ private Q_SLOTS:
     void onNewSymbol();
     void onAIDatasheetImport();
     void onImportSpiceSubcircuit();
-    void onCloneSymbol(class QTreeWidgetItem* item, int column);
     void onRotateCW();
     void onRotateCCW();
     void onFlipH();
@@ -105,7 +104,6 @@ private Q_SLOTS:
     void onUnitChanged(int index);
     void onCopyToAlternateStyle();
     void updateCoordinates(QPointF pos);
-    void onLibSearchChanged(const QString& text);
     void onAiSymbolGenerated(const QString& json);
     void onWizardSymbolGenerated(const SymbolDefinition& def);
     void onWizardSaveTemplate();
@@ -116,9 +114,7 @@ private Q_SLOTS:
     void onBrowseFootprint();
     void onPlaceInSchematic();
     void onRunSRC();
-    void onLibraryContextMenu(const QPoint& pos);
     void onCanvasContextMenu(const QPoint& pos);
-    void onLibraryItemClicked(class QTreeWidgetItem* item, int column);
     void onPropertyChanged(const QString& name, const QVariant& value);
 
 private:
@@ -141,7 +137,6 @@ private:
     bool promptForSaveTarget();
     void connectViewSignals();
     void createSymbolInfoPanel();
-    void createLibraryBrowser();
 
     void updateSubcktMappingTable();
     void refreshSubcktMappingStatus();
@@ -154,7 +149,6 @@ private:
     void openSubcircuitPicker();
     QStringList currentSymbolPinNames() const;
     bool validateCurrentSymbolForSave(QStringList* errors, QStringList* warnings) const;
-    void populateLibraryTree();
     void updateCodePreview();
       
 
@@ -209,12 +203,9 @@ public:
     class SymbolPropertiesPanel* m_propertiesPanel = nullptr;
     
     // Library Browser
-    QLineEdit* m_libSearchEdit = nullptr;
-    QTreeWidget* m_libraryTree = nullptr;
+    class SymbolLibraryBrowserPanel* m_libraryBrowser = nullptr;
     class SymbolPinTablePanel* m_pinTablePanel = nullptr;
     QListWidget* m_srcList = nullptr;
-    QGraphicsView* m_libPreviewView = nullptr;
-    QGraphicsScene* m_libPreviewScene = nullptr;
     class GeminiPanel* m_aiPanel = nullptr;
     SymbolPreviewWidget* m_livePreview = nullptr;
     
@@ -246,6 +237,7 @@ public:
     friend class SymbolCanvas;
     friend class SymbolPropertiesPanel;
     friend class SymbolPinTablePanel;
+    friend class SymbolLibraryBrowserPanel;
 };
 
 #endif // SYMBOL_EDITOR_H
