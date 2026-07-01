@@ -4,6 +4,7 @@
  */
 
 #include "simulation_panel.h"
+#include "simulation_generator_panel.h"
 #include "../items/voltage_source_item.h"
 #include "../items/schematic_spice_directive_item.h"
 #include "../items/schematic_page_item.h"
@@ -1916,6 +1917,10 @@ void SimulationPanel::setTargetScene(QGraphicsScene* scene, NetManager* netManag
     m_scene = scene;
     m_netManager = netManager;
     m_projectDir = projectDir;
+
+    if (m_generatorPanel) {
+        m_generatorPanel->setTargetScene(scene, netManager, projectDir);
+    }
 
     if (clearState) {
         clearAllProbes();
@@ -4523,105 +4528,6 @@ double SimulationPanel::estimateFftPeakHz(const SimWaveform& wave) const {
     return bestBin <= 0 ? 0.0 : bestBin * sampleRate / nfft;
 }
 
-QString SimulationPanel::buildGeneratorExpression() const {
-    const QString type = m_generatorType ? m_generatorType->currentText() : "DC";
-    if (type == "DC") return QString("DC %1").arg(m_genParam1->text().trimmed());
-    if (type == "SIN") return QString("SINE(%1 %2 %3 %4 %5)").arg(m_genParam1->text().trimmed(), m_genParam2->text().trimmed(), m_genParam3->text().trimmed(), m_genParam4->text().trimmed(), m_genParam5->text().trimmed());
-    if (type == "PULSE") return QString("PULSE(%1 %2 %3 %4 %5 %6 %7)").arg(m_genParam1->text().trimmed(), m_genParam2->text().trimmed(), m_genParam3->text().trimmed(), m_genParam4->text().trimmed(), m_genParam5->text().trimmed(), m_genParam6->text().trimmed(), "1m");
-    if (type == "EXP") return QString("EXP(%1 %2 %3 %4 %5 %6)").arg(m_genParam1->text().trimmed(), m_genParam2->text().trimmed(), m_genParam3->text().trimmed(), m_genParam4->text().trimmed(), m_genParam5->text().trimmed(), m_genParam6->text().trimmed());
-    if (type == "SFFM") return QString("SFFM(%1 %2 %3 %4 %5)").arg(m_genParam1->text().trimmed(), m_genParam2->text().trimmed(), m_genParam3->text().trimmed(), m_genParam4->text().trimmed(), m_genParam5->text().trimmed());
-    if (type == "PWL") {
-        QStringList pairs;
-        if (!m_pwlPoints.isEmpty()) { for (const auto& p : m_pwlPoints) pairs << p.first.trimmed() << p.second.trimmed(); }
-        else pairs << m_genParam1->text().trimmed() << m_genParam2->text().trimmed() << m_genParam3->text().trimmed() << m_genParam4->text().trimmed() << m_genParam5->text().trimmed() << m_genParam6->text().trimmed();
-        return QString("PWL(%1)").arg(pairs.join(' '));
-    }
-    if (type == "AM") return QString("AM(%1 %2 %3 %4 %5)").arg(m_genParam1->text().trimmed(), m_genParam2->text().trimmed(), m_genParam3->text().trimmed(), m_genParam4->text().trimmed(), m_genParam5->text().trimmed());
-    if (type == "FM") return QString("FM(%1 %2 %3 %4 %5)").arg(m_genParam1->text().trimmed(), m_genParam2->text().trimmed(), m_genParam3->text().trimmed(), m_genParam4->text().trimmed(), m_genParam5->text().trimmed());
-    return QString("DC %1").arg(m_genParam1->text().trimmed());
-}
-
-QVariantMap SimulationPanel::collectGeneratorConfig() const {
-    QVariantMap cfg;
-    cfg["type"] = m_generatorType ? m_generatorType->currentText() : "DC";
-    cfg["p1"] = m_genParam1->text().trimmed(); cfg["p2"] = m_genParam2->text().trimmed();
-    cfg["p3"] = m_genParam3->text().trimmed(); cfg["p4"] = m_genParam4->text().trimmed();
-    cfg["p5"] = m_genParam5->text().trimmed(); cfg["p6"] = m_genParam6->text().trimmed();
-    cfg["expression"] = buildGeneratorExpression();
-    QVariantList points;
-    for (const auto& p : m_pwlPoints) { QVariantMap pt; pt["t"] = p.first; pt["v"] = p.second; points.push_back(pt); }
-    cfg["pwl_points"] = points;
-    return cfg;
-}
-
-void SimulationPanel::applyGeneratorConfig(const QVariantMap& cfg) {
-    if (m_generatorType) { int idx = m_generatorType->findText(cfg.value("type", "DC").toString()); if (idx >= 0) m_generatorType->setCurrentIndex(idx); }
-    m_genParam1->setText(cfg.value("p1").toString()); m_genParam2->setText(cfg.value("p2").toString());
-    m_genParam3->setText(cfg.value("p3").toString()); m_genParam4->setText(cfg.value("p4").toString());
-    m_genParam5->setText(cfg.value("p5").toString()); m_genParam6->setText(cfg.value("p6").toString());
-    m_pwlPoints.clear();
-    for (const QVariant& v : cfg.value("pwl_points").toList()) { QVariantMap m = v.toMap(); m_pwlPoints.push_back({m.value("t").toString(), m.value("v").toString()}); }
-}
-
-QString SimulationPanel::generatorPresetsPath() const {
-    QString b = m_projectDir.isEmpty() ? QStandardPaths::writableLocation(QStandardPaths::AppDataLocation) : m_projectDir;
-    QDir(b).mkpath("."); return QDir(b).filePath("generator_presets.json");
-}
-
-void SimulationPanel::loadGeneratorLibrary() {
-    m_generatorTemplates["Template: DC 5V"] = QVariantMap{{"type", "DC"}, {"p1", "5"}};
-    m_generatorTemplates["Template: SIN 1kHz"] = QVariantMap{{"type", "SIN"}, {"p1", "0"}, {"p2", "5"}, {"p3", "1k"}, {"p4", "0"}, {"p5", "0"}};
-    m_generatorTemplates["Template: Pulse 0-5V"] = QVariantMap{{"type", "PULSE"}, {"p1", "0"}, {"p2", "5"}, {"p3", "0"}, {"p4", "1u"}, {"p5", "1u"}, {"p6", "500u"}};
-    QFile f(generatorPresetsPath());
-    if (f.open(QIODevice::ReadOnly)) {
-        QJsonObject root = QJsonDocument::fromJson(f.readAll()).object();
-        for (const QJsonValue& v : root.value("presets").toArray()) {
-            QJsonObject po = v.toObject(); m_userGeneratorPresets[po.value("name").toString()] = po.value("config").toObject().toVariantMap();
-        }
-    }
-    refreshGeneratorPresetCombo();
-}
-
-void SimulationPanel::saveUserGeneratorPresets() const {
-    QJsonArray arr;
-    for (auto it = m_userGeneratorPresets.constBegin(); it != m_userGeneratorPresets.constEnd(); ++it) {
-        QJsonObject p; p["name"] = it.key(); p["config"] = QJsonObject::fromVariantMap(it.value()); arr.append(p);
-    }
-    QJsonObject root; root["presets"] = arr;
-    QFile f(generatorPresetsPath()); if (f.open(QIODevice::WriteOnly)) f.write(QJsonDocument(root).toJson());
-}
-
-void SimulationPanel::refreshGeneratorPresetCombo() {
-    if (!m_generatorPresetCombo) return;
-    m_generatorPresetCombo->blockSignals(true); m_generatorPresetCombo->clear();
-    m_generatorPresetCombo->addItem("Select Template/Preset", "__none__");
-    for (auto it = m_generatorTemplates.constBegin(); it != m_generatorTemplates.constEnd(); ++it) m_generatorPresetCombo->addItem(it.key(), "T:" + it.key());
-    for (auto it = m_userGeneratorPresets.constBegin(); it != m_userGeneratorPresets.constEnd(); ++it) m_generatorPresetCombo->addItem("Preset: " + it.key(), "U:" + it.key());
-    m_generatorPresetCombo->blockSignals(false);
-}
-
-void SimulationPanel::seedDefaultPwlPointsIfNeeded() {
-    if (!m_pwlPoints.isEmpty()) return;
-    m_pwlPoints.push_back({"0", "0"}); m_pwlPoints.push_back({"1m", "5"}); m_pwlPoints.push_back({"2m", "0"});
-}
-
-bool SimulationPanel::importPwlCsvFile(const QString& path) {
-    QFile f(path); if (!f.open(QIODevice::ReadOnly)) return false;
-    m_pwlPoints.clear(); QTextStream in(&f);
-    while(!in.atEnd()) {
-        QStringList p = in.readLine().split(QRegularExpression("\\s*,\\s*|\\s+"), Qt::SkipEmptyParts);
-        if (p.size() >= 2) m_pwlPoints.push_back({p[0], p[1]});
-    }
-    return m_pwlPoints.size() >= 2;
-}
-
-bool SimulationPanel::exportPwlCsvFile(const QString& path) const {
-    QFile f(path); if (!f.open(QIODevice::WriteOnly)) return false;
-    QTextStream out(&f); out << "time,value\n";
-    for (const auto& p : m_pwlPoints) out << p.first << "," << p.second << "\n";
-    return true;
-}
-
 bool SimulationPanel::exportResultsCsvFile(const QString& path) const {
     if (!m_hasLastResults) return false;
     QFile f(path); if (!f.open(QIODevice::WriteOnly)) return false;
@@ -4691,25 +4597,6 @@ bool SimulationPanel::exportResultsReportFile(const QString& path) const {
         }
     }
     return true;
-}
-
-void SimulationPanel::onGeneratorPresetActivated(int index) {
-    if (index < 0 || !m_generatorPresetCombo) return;
-    QString tag = m_generatorPresetCombo->itemData(index).toString();
-    QVariantMap cfg = tag.startsWith("T:") ? m_generatorTemplates.value(tag.mid(2)) : m_userGeneratorPresets.value(tag.mid(2));
-    if (!cfg.isEmpty()) applyGeneratorConfig(cfg);
-}
-
-void SimulationPanel::onApplyGeneratorToSelection() {
-    if (!m_scene) return;
-    QString expr = buildGeneratorExpression();
-    int applied = 0;
-    for (QGraphicsItem* gi : m_scene->selectedItems()) {
-        if (auto* v = dynamic_cast<VoltageSourceItem*>(gi)) {
-            v->setValue(expr); v->update(); applied++;
-        }
-    }
-    m_logOutput->append(QString("Applied to %1 sources.").arg(applied));
 }
 
 void SimulationPanel::updateVirtualMeters(const SimResults& results) {
