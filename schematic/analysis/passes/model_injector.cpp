@@ -370,7 +370,9 @@ QString ModelInjector::normalizeIncludePathForNetlist(const QString& includePath
                     }
                 }
             }
-            Q_UNUSED(found);
+            if (!found && !projectDir.isEmpty()) {
+                resolvedPath = QDir::cleanPath(projectCandidate);
+            }
         }
     } else if (QFileInfo::exists(resolvedPath)) {
         resolvedPath = QFileInfo(resolvedPath).absoluteFilePath();
