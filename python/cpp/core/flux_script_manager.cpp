@@ -6,6 +6,7 @@
 #include "flux_script_manager.h"
 #include <QCoreApplication>
 #include <QDir>
+#include "../../../core/project/config_manager.h"
 #include <QFile>
 #include <QProcess>
 #include <QDebug>
@@ -97,6 +98,11 @@ QProcessEnvironment FluxScriptManager::getConfiguredEnvironment() {
     if (QDir(sitePkgs).exists()) {
         QString path = env.value("PYTHONPATH");
         env.insert("PYTHONPATH", sitePkgs + QDir::listSeparator() + path);
+    }
+
+    QString apiKey = ConfigManager::instance().geminiApiKey();
+    if (!apiKey.isEmpty()) {
+        env.insert("GEMINI_API_KEY", apiKey);
     }
     return env;
 }
