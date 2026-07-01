@@ -4,6 +4,7 @@
  */
 
 #include "simulation_panel.h"
+#include "simulation_generator_panel.h"
 #include "../items/voltage_source_item.h"
 #include "../items/schematic_spice_directive_item.h"
 #include "../items/schematic_page_item.h"
@@ -104,8 +105,6 @@ void SimulationPanel::setupUI() {
     mainLayout->addWidget(mainSplitter);
 
     onAnalysisChanged(m_analysisType->currentIndex());
-    onGeneratorTypeChanged(m_generatorType->currentIndex());
-    loadGeneratorLibrary();
     applyPlotQuality();
     updateCommandDisplay();
 }
@@ -451,8 +450,15 @@ void SimulationPanel::createMainView(QSplitter* splitter) {
     rfLay->addWidget(m_smithChart);
     m_viewTabs->addTab(m_rfTab, "RF Analysis");
 
-    m_generatorTab = createGeneratorWidget();
-    // m_viewTabs->addTab(m_generatorTab, "Generators"); // Removed redundant generator setup tab
+    m_generatorPanel = new SimulationGeneratorPanel(m_scene, m_netManager, m_projectDir, this);
+    connect(m_generatorPanel, &SimulationGeneratorPanel::commandLineTextRequested, this, [this](QString& text) {
+        if (m_commandLine) text = m_commandLine->text();
+    });
+    connect(m_generatorPanel, &SimulationGeneratorPanel::commandLineTextChanged, this, [this](const QString& text) {
+        if (m_commandLine) m_commandLine->setText(text);
+    });
+    connect(m_generatorPanel, &SimulationGeneratorPanel::logMessage, this, &SimulationPanel::onLogReceived);
+    m_viewTabs->addTab(m_generatorPanel, "Generators");
 
     QWidget* measTab = createMeasurementsWidget();
     m_viewTabs->addTab(measTab, "Measurements");
@@ -528,61 +534,6 @@ void SimulationPanel::createMainView(QSplitter* splitter) {
     });
     
     connect(m_timelineSlider, &QSlider::valueChanged, this, &SimulationPanel::onTimelineValueChanged);
-}
-
-QWidget* SimulationPanel::createGeneratorWidget() {
-    PCBTheme* theme = ThemeManager::theme();
-    QString textColor = theme ? theme->textColor().name() : "#cccccc";
-    QString borderColor = theme ? theme->panelBorder().name() : "#3c3c3c";
-    const bool isLight = theme && theme->type() == PCBTheme::Light;
-    const QString inputBg = isLight ? "#ffffff" : "#121214";
-    const QString inputStyle = QString("QLineEdit, QComboBox { background: %1; color: %2; border: 1px solid %3; padding: 2px; }")
-        .arg(inputBg, textColor, borderColor);
-
-    QWidget* widget = new QWidget();
-    QVBoxLayout* mainLay = new QVBoxLayout(widget);
-
-    QGroupBox* group = new QGroupBox("SOURCE GENERATOR CONFIGURATION");
-    group->setStyleSheet("QGroupBox { font-weight: bold; }");
-    QFormLayout* layout = new QFormLayout(group);
-
-    m_generatorType = new QComboBox();
-    m_generatorType->addItems({"DC", "SIN", "PULSE", "EXP", "SFFM", "PWL", "AM", "FM"});
-    m_generatorType->setStyleSheet(inputStyle);
-    layout->addRow("Type:", m_generatorType);
-
-    m_generatorPresetCombo = new QComboBox();
-    m_generatorPresetCombo->setStyleSheet(inputStyle);
-    layout->addRow("Template:", m_generatorPresetCombo);
-
-    m_genLabel1 = new QLabel("P1:"); m_genParam1 = new QLineEdit("5");
-    m_genLabel2 = new QLabel("P2:"); m_genParam2 = new QLineEdit("1");
-    m_genLabel3 = new QLabel("P3:"); m_genParam3 = new QLineEdit("1k");
-    m_genLabel4 = new QLabel("P4:"); m_genParam4 = new QLineEdit("0");
-    m_genLabel5 = new QLabel("P5:"); m_genParam5 = new QLineEdit("0");
-    m_genLabel6 = new QLabel("P6:"); m_genParam6 = new QLineEdit("0");
-
-    for (auto* l : {m_genParam1, m_genParam2, m_genParam3, m_genParam4, m_genParam5, m_genParam6}) l->setStyleSheet(inputStyle);
-
-    layout->addRow(m_genLabel1, m_genParam1);
-    layout->addRow(m_genLabel2, m_genParam2);
-    layout->addRow(m_genLabel3, m_genParam3);
-    layout->addRow(m_genLabel4, m_genParam4);
-    layout->addRow(m_genLabel5, m_genParam5);
-    layout->addRow(m_genLabel6, m_genParam6);
-
-    QPushButton* applyBtn = new QPushButton("Apply to Selected Source");
-    applyBtn->setStyleSheet("background: #0f766e; color: white; font-weight: bold; padding: 8px;");
-    connect(applyBtn, &QPushButton::clicked, this, &SimulationPanel::onApplyGeneratorToSelection);
-    layout->addRow("", applyBtn);
-
-    mainLay->addWidget(group);
-    mainLay->addStretch();
-
-    connect(m_generatorType, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &SimulationPanel::onGeneratorTypeChanged);
-    connect(m_generatorPresetCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &SimulationPanel::onGeneratorPresetActivated);
-
-    return widget;
 }
 
 QWidget* SimulationPanel::createMeasurementsWidget() {
@@ -718,135 +669,6 @@ void SimulationPanel::onAnalysisChanged(int index) {
     }
 }
 
-void SimulationPanel::onGeneratorTypeChanged(int index) {
-    Q_UNUSED(index)
-    if (!m_generatorType) return;
-    const QString type = m_generatorType->currentText();
-
-    auto showParam = [](QLabel* lbl, QLineEdit* edit, const QString& title, const QString& value) {
-        lbl->setVisible(true);
-        edit->setVisible(true);
-        lbl->setText(title);
-        if (edit->text().isEmpty()) {
-            edit->setText(value);
-        }
-    };
-    auto hideParam = [](QLabel* lbl, QLineEdit* edit) {
-        lbl->setVisible(false);
-        edit->setVisible(false);
-    };
-
-    if (type == "DC") {
-        showParam(m_genLabel1, m_genParam1, "Value:", "5");
-        hideParam(m_genLabel2, m_genParam2); hideParam(m_genLabel3, m_genParam3);
-        hideParam(m_genLabel4, m_genParam4); hideParam(m_genLabel5, m_genParam5);
-        hideParam(m_genLabel6, m_genParam6);
-    } else if (type == "SIN") {
-        showParam(m_genLabel1, m_genParam1, "Offset:", "0");
-        showParam(m_genLabel2, m_genParam2, "Amplitude (Peak):", "5");
-        showParam(m_genLabel3, m_genParam3, "Freq:", "1k");
-        showParam(m_genLabel4, m_genParam4, "Delay:", "0");
-        showParam(m_genLabel5, m_genParam5, "Phase:", "0");
-        hideParam(m_genLabel6, m_genParam6);
-    } else if (type == "PULSE") {
-        showParam(m_genLabel1, m_genParam1, "V1:", "0");
-        showParam(m_genLabel2, m_genParam2, "V2:", "5");
-        showParam(m_genLabel3, m_genParam3, "Delay:", "0");
-        showParam(m_genLabel4, m_genParam4, "Rise:", "1u");
-        showParam(m_genLabel5, m_genParam5, "Fall:", "1u");
-        showParam(m_genLabel6, m_genParam6, "Width:", "500u");
-    } else if (type == "PWL") {
-        showParam(m_genLabel1, m_genParam1, "T1:", "0");
-        showParam(m_genLabel2, m_genParam2, "V1:", "0");
-        showParam(m_genLabel3, m_genParam3, "T2:", "1m");
-        showParam(m_genLabel4, m_genParam4, "V2:", "5");
-        showParam(m_genLabel5, m_genParam5, "T3:", "2m");
-        showParam(m_genLabel6, m_genParam6, "V3:", "0");
-    }
-}
-
-void SimulationPanel::onOpenPwlEditor() {
-    seedDefaultPwlPointsIfNeeded();
-    QDialog dlg(this);
-    dlg.setWindowTitle("PWL Editor");
-    QVBoxLayout* layout = new QVBoxLayout(&dlg);
-    QTableWidget* table = new QTableWidget(static_cast<int>(m_pwlPoints.size()), 2, &dlg);
-    table->setHorizontalHeaderLabels({"Time", "Value"});
-    for (int i = 0; i < static_cast<int>(m_pwlPoints.size()); ++i) {
-        table->setItem(i, 0, new QTableWidgetItem(m_pwlPoints[i].first));
-        table->setItem(i, 1, new QTableWidgetItem(m_pwlPoints[i].second));
-    }
-    layout->addWidget(table);
-    QDialogButtonBox* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dlg);
-    layout->addWidget(buttons);
-    connect(buttons, &QDialogButtonBox::accepted, &dlg, &QDialog::accept);
-    connect(buttons, &QDialogButtonBox::rejected, &dlg, &QDialog::reject);
-    if (dlg.exec() == QDialog::Accepted) {
-        m_pwlPoints.clear();
-        for (int r = 0; r < table->rowCount(); ++r) {
-            m_pwlPoints.push_back({table->item(r, 0)->text(), table->item(r, 1)->text()});
-        }
-    }
-}
-
-void SimulationPanel::onOpenStepBuilder() {
-    QString currentStep;
-    if (m_scene) {
-        for (auto* gi : m_scene->items()) {
-            auto* directive = dynamic_cast<SchematicSpiceDirectiveItem*>(gi);
-            if (!directive) continue;
-            if (directive->text().trimmed().startsWith(".step", Qt::CaseInsensitive)) {
-                currentStep = directive->text().trimmed();
-                break;
-            }
-        }
-    }
-    if (currentStep.isEmpty() && m_commandLine && m_commandLine->text().trimmed().startsWith(".step", Qt::CaseInsensitive)) {
-        currentStep = m_commandLine->text().trimmed();
-    }
-
-    SpiceStepDialog dlg(currentStep, m_scene, this);
-    if (dlg.exec() != QDialog::Accepted) return;
-
-    const QString stepCommand = dlg.commandText();
-    if (m_commandLine) m_commandLine->setText(stepCommand);
-
-    if (!m_scene) return;
-    SchematicSpiceDirectiveItem* found = nullptr;
-    for (auto* gi : m_scene->items()) {
-        auto* directive = dynamic_cast<SchematicSpiceDirectiveItem*>(gi);
-        if (!directive) continue;
-        if (directive->text().trimmed().startsWith(".step", Qt::CaseInsensitive)) {
-            found = directive;
-            break;
-        }
-    }
-
-    if (found) {
-        found->setText(stepCommand);
-        found->update();
-        return;
-    }
-
-    QPointF cmdPos(100, 200);
-    if (!m_scene->views().isEmpty()) {
-        if (auto* view = m_scene->views().first()) {
-            cmdPos = view->mapToScene(view->viewport()->rect().center() + QPoint(120, -60));
-        }
-    }
-    auto* cmdItem = new SchematicSpiceDirectiveItem(stepCommand, cmdPos);
-    m_scene->addItem(cmdItem);
-}
-
-void SimulationPanel::onImportPwlCsv() {
-    QString path = QFileDialog::getOpenFileName(this, "Import PWL CSV", m_projectDir, "CSV Files (*.csv)");
-    if (!path.isEmpty()) importPwlCsvFile(path);
-}
-
-void SimulationPanel::onExportPwlCsv() {
-    QString path = QFileDialog::getSaveFileName(this, "Export PWL CSV", m_projectDir, "CSV Files (*.csv)");
-    if (!path.isEmpty()) exportPwlCsvFile(path);
-}
 
 void SimulationPanel::onExportResultsCsv() {
     QString path = QFileDialog::getSaveFileName(this, "Export Results CSV", m_projectDir, "CSV Files (*.csv)");
@@ -863,23 +685,6 @@ void SimulationPanel::onExportResultsReport() {
     if (!path.isEmpty()) exportResultsReportFile(path);
 }
 
-void SimulationPanel::onSaveGeneratorPreset() {
-    QString name = QInputDialog::getText(this, "Save Preset", "Preset Name:");
-    if (!name.isEmpty()) {
-        m_userGeneratorPresets[name] = collectGeneratorConfig();
-        saveUserGeneratorPresets();
-        refreshGeneratorPresetCombo();
-    }
-}
-
-void SimulationPanel::onDeleteGeneratorPreset() {
-    QString tag = m_generatorPresetCombo->currentData().toString();
-    if (tag.startsWith("U:")) {
-        m_userGeneratorPresets.remove(tag.mid(2));
-        saveUserGeneratorPresets();
-        refreshGeneratorPresetCombo();
-    }
-}
 
 void SimulationPanel::setAnalysisConfig(const AnalysisConfig& cfg) {
     if (!m_analysisType) return;
