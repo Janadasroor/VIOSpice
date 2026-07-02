@@ -38,6 +38,7 @@ class QGraphicsScene;
 class SchematicEditor;
 class NetManager;
 class SimulationNetTableItem;
+class SimulationDesignExplorerPanel;
 
 class SimulationPanel : public QWidget {
     Q_OBJECT
@@ -189,10 +190,6 @@ private:
     void updateTransientNetTableOverlay(const SimResults& results);
     void clearTransientNetTableOverlay(QGraphicsScene* scene = nullptr);
     void refreshEfficiencyReport(const SimResults& results);
-    void refreshSteppedMeasurementControls(const SimResults& results);
-    void rebuildSteppedMeasurementPlot(const SimResults& results);
-    void refreshDesignExplorer(const SimResults& results);
-    void refreshDesignExplorerSelection(const SimResults& results);
     bool shouldBuildStandardChart() const;
     bool shouldBuildSpectrumChart() const;
     void applyPlotQuality();
@@ -254,15 +251,8 @@ private:
     QWidget* m_spectrumTab = nullptr;
     QWidget* m_designExplorerTab = nullptr;
     QComboBox* m_plotQualityCombo = nullptr;
-    QComboBox* m_steppedMeasSeriesCombo = nullptr;
-    QComboBox* m_steppedMeasAxisCombo = nullptr;
-    QString m_selectedSteppedMeasurement;
-    QString m_selectedSteppedAxis;
-    QLabel* m_designExplorerSummaryLabel = nullptr;
-    QLabel* m_designExplorerDetailLabel = nullptr;
     QLabel* m_schematicNameLabel = nullptr;
-    QTableWidget* m_designExplorerTable = nullptr;
-    QPushButton* m_designExplorerCopyButton = nullptr;
+    SimulationDesignExplorerPanel* m_designExplorerPanel = nullptr;
     
     // Virtual Instruments
     class WaveformViewer* m_waveformViewer = nullptr;
