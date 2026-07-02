@@ -5,6 +5,7 @@
 
 #include "simulation_panel.h"
 #include "simulation_generator_panel.h"
+#include "simulation_design_explorer_panel.h"
 #include "../items/voltage_source_item.h"
 #include "../items/schematic_spice_directive_item.h"
 #include "../items/schematic_page_item.h"
@@ -1898,7 +1899,7 @@ void SimulationPanel::clearResults() {
     if (m_timelineLabel) m_timelineLabel->setText("t = 0");
     if (m_efficiencyTable) m_efficiencyTable->setRowCount(0);
     if (m_efficiencySummaryLabel) m_efficiencySummaryLabel->setText("No efficiency summary available for this run.");
-    refreshDesignExplorer(m_lastResults);
+    if (m_designExplorerPanel) m_designExplorerPanel->updateResults(m_lastResults);
 }
 
 void SimulationPanel::setTargetScene(QGraphicsScene* scene, NetManager* netManager, const QString& projectDir, bool clearState) {
@@ -3263,379 +3264,12 @@ void SimulationPanel::evaluateMeasStatements(const SimResults& results) {
     }
 }
 
-void SimulationPanel::refreshSteppedMeasurementControls(const SimResults& results) {
-    if (!m_steppedMeasSeriesCombo || !m_steppedMeasAxisCombo) return;
+// Design Explorer and Stepped Measurement methods have been extracted to SimulationDesignExplorerPanel.
 
-    const auto grouped = groupSteppedMeasurementEntries(results.measurements);
-    QStringList measurementNames;
-    for (auto it = grouped.cbegin(); it != grouped.cend(); ++it) {
-        if (it.value().size() >= 2) measurementNames.append(it.key());
-    }
-    if (m_viewTabs && m_spectrumTab) {
-        const int spectrumIndex = m_viewTabs->indexOf(m_spectrumTab);
-        if (spectrumIndex >= 0) {
-            m_viewTabs->setTabText(spectrumIndex, measurementNames.isEmpty() ? "FFT Spectrum" : "Stepped Measurements");
-        }
-    }
 
-    m_steppedMeasSeriesCombo->blockSignals(true);
-    m_steppedMeasSeriesCombo->clear();
-    m_steppedMeasSeriesCombo->addItems(measurementNames);
-    m_steppedMeasSeriesCombo->setEnabled(!measurementNames.isEmpty());
-    if (!measurementNames.contains(m_selectedSteppedMeasurement)) {
-        m_selectedSteppedMeasurement = measurementNames.isEmpty() ? QString() : measurementNames.first();
-    }
-    if (!m_selectedSteppedMeasurement.isEmpty()) {
-        m_steppedMeasSeriesCombo->setCurrentText(m_selectedSteppedMeasurement);
-    }
-    m_steppedMeasSeriesCombo->blockSignals(false);
 
-    QStringList axisNames;
-    if (!m_selectedSteppedMeasurement.isEmpty() && grouped.contains(m_selectedSteppedMeasurement)) {
-        axisNames = availableSweepAxes(grouped.value(m_selectedSteppedMeasurement));
-    }
-    if (!axisNames.contains("Sweep Point")) axisNames.prepend("Sweep Point");
 
-    m_steppedMeasAxisCombo->blockSignals(true);
-    m_steppedMeasAxisCombo->clear();
-    m_steppedMeasAxisCombo->addItems(axisNames);
-    m_steppedMeasAxisCombo->setEnabled(axisNames.size() > 1 || (axisNames.size() == 1 && axisNames.first() != "Sweep Point"));
-    if (!axisNames.contains(m_selectedSteppedAxis)) {
-        if (!m_selectedSteppedMeasurement.isEmpty() && grouped.contains(m_selectedSteppedMeasurement)) {
-            const SweepAxisSelection selection = chooseSweepAxis(grouped.value(m_selectedSteppedMeasurement));
-            m_selectedSteppedAxis = selection.valid ? selection.axisLabel : QString("Sweep Point");
-        } else {
-            m_selectedSteppedAxis = "Sweep Point";
-        }
-    }
-    if (!m_selectedSteppedAxis.isEmpty()) {
-        m_steppedMeasAxisCombo->setCurrentText(m_selectedSteppedAxis);
-    }
-    m_steppedMeasAxisCombo->blockSignals(false);
-}
 
-void SimulationPanel::rebuildSteppedMeasurementPlot(const SimResults& results) {
-    if (!m_spectrumChart) return;
-
-    const auto specSeriesList = m_spectrumChart->series();
-    for (auto* series : specSeriesList) {
-        m_spectrumChart->removeSeries(series);
-        series->deleteLater();
-    }
-    const auto specAxesList = m_spectrumChart->axes();
-    for (auto* axis : specAxesList) {
-        m_spectrumChart->removeAxis(axis);
-        axis->deleteLater();
-    }
-
-    const auto grouped = groupSteppedMeasurementEntries(results.measurements);
-    const bool showSteppedMeasurementPlot = !m_selectedSteppedMeasurement.isEmpty() && grouped.contains(m_selectedSteppedMeasurement) && grouped.value(m_selectedSteppedMeasurement).size() >= 2;
-    if (!showSteppedMeasurementPlot) {
-        m_spectrumChart->setTitle("FFT Spectrum Analysis");
-        return;
-    }
-
-    const QList<MeasurementDisplayEntry> entries = grouped.value(m_selectedSteppedMeasurement);
-    m_spectrumChart->setTitle(QString("Stepped .meas Results - %1").arg(m_selectedSteppedMeasurement));
-
-    struct MeasPoint { double x; double y; };
-    QVector<MeasPoint> points;
-    points.reserve(entries.size());
-    const QMap<QString, double> chosenAxisValues = (m_selectedSteppedAxis == "Sweep Point")
-        ? QMap<QString, double>()
-        : sweepAxisValues(entries, m_selectedSteppedAxis);
-    int pointIndex = 1;
-    for (const MeasurementDisplayEntry& entry : entries) {
-        double x = static_cast<double>(pointIndex++);
-        if (chosenAxisValues.contains(entry.stepLabel)) x = chosenAxisValues.value(entry.stepLabel);
-        points.append({x, entry.value});
-    }
-    std::sort(points.begin(), points.end(), [](const MeasPoint& a, const MeasPoint& b) { return a.x < b.x; });
-
-    QLineSeries* series = new QLineSeries();
-    series->setName(m_selectedSteppedMeasurement);
-    series->setPen(QPen(Qt::red, 1.6));
-    series->setPointsVisible(true);
-    for (const MeasPoint& point : points) series->append(point.x, point.y);
-    m_spectrumChart->addSeries(series);
-
-    QValueAxis* axisX = new QValueAxis();
-    axisX->setTitleText(m_selectedSteppedAxis.isEmpty() ? "Sweep Point" : m_selectedSteppedAxis);
-    m_spectrumChart->addAxis(axisX, Qt::AlignBottom);
-    series->attachAxis(axisX);
-
-    QValueAxis* axisY = new QValueAxis();
-    axisY->setTitleText(measurementYAxisTitle(results, entries.first().fullName));
-    m_spectrumChart->addAxis(axisY, Qt::AlignLeft);
-    series->attachAxis(axisY);
-}
-
-void SimulationPanel::refreshDesignExplorer(const SimResults& results) {
-    if (!m_designExplorerSummaryLabel || !m_designExplorerTable) return;
-
-    m_designExplorerTable->setSortingEnabled(false);
-    m_designExplorerTable->clearSelection();
-    m_designExplorerTable->clearContents();
-    m_designExplorerTable->setRowCount(0);
-    m_designExplorerTable->setColumnCount(0);
-
-    const auto groupedMeasurements = groupSteppedMeasurementEntries(results.measurements);
-    if (!groupedMeasurements.isEmpty()) {
-        QStringList measurementNames = groupedMeasurements.keys();
-        measurementNames.sort(Qt::CaseInsensitive);
-
-        QString objectiveMeasurement = m_selectedSteppedMeasurement;
-        if (!measurementNames.contains(objectiveMeasurement)) {
-            objectiveMeasurement = measurementNames.isEmpty() ? QString() : measurementNames.first();
-        }
-
-        QStringList stepLabels;
-        QSet<QString> seenStepLabels;
-        QStringList assignmentColumns;
-        QSet<QString> seenAssignments;
-        QMap<QString, QMap<QString, MeasurementDisplayEntry>> measurementsByStep;
-
-        for (auto it = groupedMeasurements.cbegin(); it != groupedMeasurements.cend(); ++it) {
-            for (const MeasurementDisplayEntry& entry : it.value()) {
-                measurementsByStep[entry.stepLabel][entry.baseName] = entry;
-                if (!entry.stepLabel.isEmpty() && !seenStepLabels.contains(entry.stepLabel)) {
-                    seenStepLabels.insert(entry.stepLabel);
-                    stepLabels.append(entry.stepLabel);
-                }
-                for (const auto& assignment : parseSweepAssignments(entry.stepLabel)) {
-                    if (!seenAssignments.contains(assignment.first)) {
-                        seenAssignments.insert(assignment.first);
-                        assignmentColumns.append(assignment.first);
-                    }
-                }
-            }
-        }
-
-        std::sort(stepLabels.begin(), stepLabels.end(), [&](const QString& lhs, const QString& rhs) {
-            const bool lhsHasObjective = measurementsByStep.value(lhs).contains(objectiveMeasurement);
-            const bool rhsHasObjective = measurementsByStep.value(rhs).contains(objectiveMeasurement);
-            if (lhsHasObjective && rhsHasObjective) {
-                return measurementsByStep.value(lhs).value(objectiveMeasurement).value >
-                       measurementsByStep.value(rhs).value(objectiveMeasurement).value;
-            }
-            if (lhsHasObjective != rhsHasObjective) return lhsHasObjective;
-            return lhs.compare(rhs, Qt::CaseInsensitive) < 0;
-        });
-
-        const int assignmentColumnOffset = 2;
-        const int measurementColumnOffset = assignmentColumnOffset + assignmentColumns.size();
-        const int columnCount = measurementColumnOffset + measurementNames.size();
-
-        m_designExplorerTable->setColumnCount(columnCount);
-        QStringList headers;
-        headers << "Rank" << "Case";
-        headers << assignmentColumns;
-        headers << measurementNames;
-        m_designExplorerTable->setHorizontalHeaderLabels(headers);
-        m_designExplorerTable->setRowCount(stepLabels.size());
-
-        for (int metricIndex = 0; metricIndex < measurementNames.size(); ++metricIndex) {
-            auto* headerItem = m_designExplorerTable->horizontalHeaderItem(measurementColumnOffset + metricIndex);
-            if (headerItem) {
-                headerItem->setData(Qt::UserRole, measurementNames[metricIndex]);
-                if (measurementNames[metricIndex] == objectiveMeasurement) {
-                    headerItem->setToolTip("Current explorer objective and stepped plot metric.");
-                } else {
-                    headerItem->setToolTip("Click to make this the current stepped plot metric.");
-                }
-            }
-        }
-
-        MeasurementDisplayEntry bestEntry;
-        bool haveBestEntry = false;
-
-        for (int row = 0; row < stepLabels.size(); ++row) {
-            const QString& stepLabel = stepLabels[row];
-            const auto rowMeasurements = measurementsByStep.value(stepLabel);
-            const auto assignments = parseSweepAssignments(stepLabel);
-            QMap<QString, double> assignmentMap;
-            for (const auto& assignment : assignments) assignmentMap[assignment.first] = assignment.second;
-
-            auto* rankItem = new QTableWidgetItem(QString::number(row + 1));
-            rankItem->setData(Qt::UserRole, row + 1);
-            m_designExplorerTable->setItem(row, 0, rankItem);
-
-            auto* caseItem = new QTableWidgetItem(stepLabel);
-            caseItem->setToolTip(stepLabel);
-            QString detailText = QString("Case: %1").arg(stepLabel);
-            QString copyText = QString("Case: %1").arg(stepLabel);
-            if (!assignmentMap.isEmpty()) {
-                detailText += "\nAssignments:";
-                copyText += "\nAssignments:";
-                for (auto it = assignmentMap.cbegin(); it != assignmentMap.cend(); ++it) {
-                    const QString line = QString("%1 = %2").arg(it.key(), QString::number(it.value(), 'g', 12));
-                    detailText += "\n" + line;
-                    copyText += "\n" + line;
-                }
-            }
-            if (!rowMeasurements.isEmpty()) {
-                detailText += "\nMetrics:";
-                copyText += "\nMetrics:";
-                QStringList measurementLines;
-                for (int metricIndex = 0; metricIndex < measurementNames.size(); ++metricIndex) {
-                    const QString& metricName = measurementNames[metricIndex];
-                    if (!rowMeasurements.contains(metricName)) continue;
-                    const MeasurementDisplayEntry metricEntry = rowMeasurements.value(metricName);
-                    measurementLines.append(QString("%1 = %2")
-                                                .arg(metricEntry.baseName,
-                                                     formatMeasuredNumber(results, metricEntry.fullName, metricEntry.baseName, metricEntry.value)));
-                }
-                for (const QString& line : measurementLines) {
-                    detailText += "\n" + line;
-                    copyText += "\n" + line;
-                }
-            }
-            caseItem->setData(Qt::UserRole + 1, detailText);
-            caseItem->setData(Qt::UserRole + 2, copyText);
-            m_designExplorerTable->setItem(row, 1, caseItem);
-
-            for (int assignmentIndex = 0; assignmentIndex < assignmentColumns.size(); ++assignmentIndex) {
-                const QString& axisName = assignmentColumns[assignmentIndex];
-                auto* item = new QTableWidgetItem(
-                    assignmentMap.contains(axisName)
-                        ? QString::number(assignmentMap.value(axisName), 'g', 12)
-                        : QString("-"));
-                if (assignmentMap.contains(axisName)) {
-                    item->setData(Qt::UserRole, assignmentMap.value(axisName));
-                }
-                m_designExplorerTable->setItem(row, assignmentColumnOffset + assignmentIndex, item);
-            }
-
-            for (int metricIndex = 0; metricIndex < measurementNames.size(); ++metricIndex) {
-                const QString& metricName = measurementNames[metricIndex];
-                auto* item = new QTableWidgetItem("-");
-                if (rowMeasurements.contains(metricName)) {
-                    const MeasurementDisplayEntry metricEntry = rowMeasurements.value(metricName);
-                    item->setText(formatMeasuredNumber(results, metricEntry.fullName, metricEntry.baseName, metricEntry.value));
-                    item->setData(Qt::UserRole, metricEntry.value);
-                    item->setToolTip(QString("%1\n%2").arg(metricEntry.baseName, metricEntry.stepLabel));
-                    if (!haveBestEntry && metricName == objectiveMeasurement) {
-                        bestEntry = metricEntry;
-                        haveBestEntry = true;
-                    }
-                }
-                m_designExplorerTable->setItem(row, measurementColumnOffset + metricIndex, item);
-            }
-        }
-
-        m_designExplorerTable->setSortingEnabled(true);
-        if (!objectiveMeasurement.isEmpty()) {
-            m_designExplorerTable->sortItems(measurementColumnOffset + measurementNames.indexOf(objectiveMeasurement), Qt::DescendingOrder);
-        }
-        if (m_designExplorerTable->rowCount() > 0) {
-            m_designExplorerTable->selectRow(0);
-        }
-
-        QString summary = QString("Design Explorer: %1 case(s)").arg(stepLabels.size());
-        if (!assignmentColumns.isEmpty()) {
-            summary += QString(" across %1 sweep axis column(s)").arg(assignmentColumns.size());
-        }
-        if (!objectiveMeasurement.isEmpty()) {
-            summary += QString(", objective %1").arg(objectiveMeasurement);
-        }
-        if (haveBestEntry) {
-            summary += QString(", best %1 = %2")
-                           .arg(bestEntry.stepLabel,
-                                formatMeasuredNumber(results, bestEntry.fullName, bestEntry.baseName, bestEntry.value));
-        }
-        m_designExplorerSummaryLabel->setText(summary);
-        refreshDesignExplorerSelection(results);
-        return;
-    }
-
-    if (!results.sensitivities.empty()) {
-        struct SensitivityRow {
-            QString component;
-            double value = 0.0;
-        };
-
-        QList<SensitivityRow> rows;
-        rows.reserve(static_cast<int>(results.sensitivities.size()));
-        for (const auto& [name, value] : results.sensitivities) {
-            rows.append({QString::fromStdString(name), value});
-        }
-        std::sort(rows.begin(), rows.end(), [](const SensitivityRow& a, const SensitivityRow& b) {
-            return std::abs(a.value) > std::abs(b.value);
-        });
-
-        m_designExplorerTable->setColumnCount(4);
-        m_designExplorerTable->setHorizontalHeaderLabels({"Rank", "Component", "Sensitivity", "|Sensitivity|"});
-        m_designExplorerTable->setRowCount(rows.size());
-
-        for (int row = 0; row < rows.size(); ++row) {
-            auto* rankItem = new QTableWidgetItem(QString::number(row + 1));
-            rankItem->setData(Qt::UserRole, row + 1);
-            m_designExplorerTable->setItem(row, 0, rankItem);
-            auto* componentItem = new QTableWidgetItem(rows[row].component);
-            const QString detailText = QString("Component: %1\nSensitivity = %2\n|Sensitivity| = %3")
-                                           .arg(rows[row].component,
-                                                QString::number(rows[row].value, 'g', 12),
-                                                QString::number(std::abs(rows[row].value), 'g', 12));
-            componentItem->setData(Qt::UserRole + 1, detailText);
-            componentItem->setData(Qt::UserRole + 2, detailText);
-            m_designExplorerTable->setItem(row, 1, componentItem);
-
-            auto* valueItem = new QTableWidgetItem(QString::number(rows[row].value, 'g', 12));
-            valueItem->setData(Qt::UserRole, rows[row].value);
-            m_designExplorerTable->setItem(row, 2, valueItem);
-
-            auto* absItem = new QTableWidgetItem(QString::number(std::abs(rows[row].value), 'g', 12));
-            absItem->setData(Qt::UserRole, std::abs(rows[row].value));
-            m_designExplorerTable->setItem(row, 3, absItem);
-        }
-
-        m_designExplorerTable->setSortingEnabled(true);
-        m_designExplorerTable->sortItems(3, Qt::DescendingOrder);
-        if (m_designExplorerTable->rowCount() > 0) {
-            m_designExplorerTable->selectRow(0);
-        }
-        m_designExplorerSummaryLabel->setText(
-            rows.isEmpty()
-                ? QString("Design Explorer: no sensitivity data")
-                : QString("Design Explorer: %1 sensitivity result(s), strongest %2 = %3")
-                      .arg(rows.size())
-                      .arg(rows.first().component,
-                           QString::number(rows.first().value, 'g', 12)));
-        refreshDesignExplorerSelection(results);
-        return;
-    }
-
-    m_designExplorerSummaryLabel->setText("Design Explorer: no sweep, optimization, or sensitivity candidates in the current run.");
-    refreshDesignExplorerSelection(results);
-    m_designExplorerTable->setSortingEnabled(true);
-}
-
-void SimulationPanel::refreshDesignExplorerSelection(const SimResults& results) {
-    Q_UNUSED(results)
-    if (!m_designExplorerDetailLabel || !m_designExplorerTable) return;
-
-    const int row = m_designExplorerTable->currentRow();
-    if (row < 0) {
-        m_designExplorerDetailLabel->setText("Select a case to inspect its assignments and metric values.");
-        if (m_designExplorerCopyButton) m_designExplorerCopyButton->setEnabled(false);
-        return;
-    }
-
-    auto* caseItem = m_designExplorerTable->item(row, 1);
-    if (!caseItem) {
-        m_designExplorerDetailLabel->setText("Select a case to inspect its assignments and metric values.");
-        if (m_designExplorerCopyButton) m_designExplorerCopyButton->setEnabled(false);
-        return;
-    }
-
-    const QString detailText = caseItem->data(Qt::UserRole + 1).toString();
-    m_designExplorerDetailLabel->setText(detailText.isEmpty()
-                                             ? QString("Selected case: %1").arg(caseItem->text())
-                                             : detailText);
-    if (m_designExplorerCopyButton) {
-        m_designExplorerCopyButton->setEnabled(!caseItem->data(Qt::UserRole + 2).toString().isEmpty());
-    }
-}
 
 void SimulationPanel::updateChartRealTime(const QString& name, double t, double value) {
     if (!m_chart) return;
@@ -4084,9 +3718,7 @@ void SimulationPanel::plotBuiltinResults(const SimResults& results) {
     if (m_efficiencySummaryLabel) m_efficiencySummaryLabel->setText("No efficiency summary available for this run.");
 
     if (results.waveforms.empty()) {
-        refreshSteppedMeasurementControls(results);
-        rebuildSteppedMeasurementPlot(results);
-        refreshDesignExplorer(results);
+        if (m_designExplorerPanel) m_designExplorerPanel->updateResults(results);
         if (!results.sensitivities.empty()) {
             m_logOutput->append("\n--- Sensitivity Analysis ---");
             for (const auto& [name, val] : results.sensitivities) {
@@ -4426,10 +4058,9 @@ void SimulationPanel::plotBuiltinResults(const SimResults& results) {
         }
     }
 
-    refreshSteppedMeasurementControls(results);
-    refreshDesignExplorer(results);
+    if (m_designExplorerPanel) m_designExplorerPanel->updateResults(results);
     if (buildSpectrumChart && showSteppedMeasurementPlot) {
-        rebuildSteppedMeasurementPlot(results);
+        // Stepped measurement plot is now handled by the design explorer panel
     } else if (buildSpectrumChart && !m_spectrumChart->series().isEmpty()) {
         QValueAxis* axisFreq = new QValueAxis();
         axisFreq->setTitleText("Frequency (Hz)");

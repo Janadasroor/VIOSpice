@@ -5,6 +5,7 @@
 
 #include "simulation_panel.h"
 #include "simulation_generator_panel.h"
+#include "simulation_design_explorer_panel.h"
 #include "../items/voltage_source_item.h"
 #include "../items/schematic_spice_directive_item.h"
 #include "../items/schematic_page_item.h"
@@ -430,15 +431,18 @@ void SimulationPanel::createMainView(QSplitter* splitter) {
     m_spectrumTab = new QWidget();
     QVBoxLayout* specLay = new QVBoxLayout(m_spectrumTab);
     
+    // Stepped measurement combos are now managed by the DesignExplorerPanel,
+    // but we still show them in the spectrum tab header for convenience.
+    m_designExplorerPanel = new SimulationDesignExplorerPanel(this);
+    m_designExplorerPanel->setSpectrumChart(m_spectrumChart);
+
     QHBoxLayout* specHeader = new QHBoxLayout();
-    m_steppedMeasSeriesCombo = new QComboBox();
-    m_steppedMeasAxisCombo = new QComboBox();
-    m_steppedMeasSeriesCombo->setStyleSheet(QString("QComboBox { background: %1; color: %2; }").arg(chartBg, textColor));
-    m_steppedMeasAxisCombo->setStyleSheet(QString("QComboBox { background: %1; color: %2; }").arg(chartBg, textColor));
+    m_designExplorerPanel->steppedMeasSeriesCombo()->setStyleSheet(QString("QComboBox { background: %1; color: %2; }").arg(chartBg, textColor));
+    m_designExplorerPanel->steppedMeasAxisCombo()->setStyleSheet(QString("QComboBox { background: %1; color: %2; }").arg(chartBg, textColor));
     specHeader->addWidget(new QLabel("Stepped:"));
-    specHeader->addWidget(m_steppedMeasSeriesCombo);
+    specHeader->addWidget(m_designExplorerPanel->steppedMeasSeriesCombo());
     specHeader->addWidget(new QLabel("Axis:"));
-    specHeader->addWidget(m_steppedMeasAxisCombo);
+    specHeader->addWidget(m_designExplorerPanel->steppedMeasAxisCombo());
     specLay->addLayout(specHeader);
     
     specLay->addWidget(m_spectrumView);
@@ -476,26 +480,7 @@ void SimulationPanel::createMainView(QSplitter* splitter) {
     effLay->addWidget(m_efficiencyTable);
     m_viewTabs->addTab(m_efficiencyTab, "Efficiency");
 
-    m_designExplorerTab = new QWidget();
-    QVBoxLayout* explorerLay = new QVBoxLayout(m_designExplorerTab);
-    
-    m_designExplorerSummaryLabel = new QLabel("Run sweep or optimization to explore design space.");
-    m_designExplorerSummaryLabel->setStyleSheet(QString("color: %1; font-weight: bold;").arg(textColor));
-    explorerLay->addWidget(m_designExplorerSummaryLabel);
-    
-    m_designExplorerTable = new QTableWidget(0, 5);
-    m_designExplorerTable->setStyleSheet(QString("QTableWidget { background: %1; color: %2; }").arg(chartBg, textColor));
-    explorerLay->addWidget(m_designExplorerTable);
-    
-    m_designExplorerDetailLabel = new QLabel("Select a case for details.");
-    m_designExplorerDetailLabel->setWordWrap(true);
-    m_designExplorerDetailLabel->setStyleSheet(QString("color: %1;").arg(textColor));
-    explorerLay->addWidget(m_designExplorerDetailLabel);
-    
-    m_designExplorerCopyButton = new QPushButton("Copy Configuration");
-    m_designExplorerCopyButton->setEnabled(false);
-    explorerLay->addWidget(m_designExplorerCopyButton);
-    
+    m_designExplorerTab = m_designExplorerPanel;
     m_viewTabs->addTab(m_designExplorerTab, "Explorer");
 
     m_scopeContainer = wavesStack; // Link only the waveform stack to remove tabs in dock mode
