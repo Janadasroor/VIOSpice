@@ -23,7 +23,7 @@ jobs:
       - name: Cache Qt (Linux)
         if: runner.os == 'Linux'
         id: cache-qt-linux
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ${{ runner.temp }}/Qt
           key: ${{ runner.os }}-qt-6.10.0-linux_gcc_64
@@ -44,7 +44,7 @@ jobs:
       - name: Cache Qt (macOS)
         if: runner.os == 'macOS'
         id: cache-qt-macos
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ${{ runner.temp }}/Qt
           key: ${{ runner.os }}-qt-6.10.0-clang_64
