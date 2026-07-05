@@ -53,7 +53,7 @@ NetlistProcessor::Result NetlistProcessor::process(const QString& netlistPath) {
 }
 
 void NetlistProcessor::resolveWavPaths(QStringList& lines, const QDir& baseDir) {
-    QRegularExpression wavRe(R"REGEX(WAVEFILE\s*=?\s*"([^"]+)")REGEX", QRegularExpression::CaseInsensitiveOption);
+    static const QRegularExpression wavRe(R"REGEX(WAVEFILE\s*=?\s*"([^"]+)")REGEX", QRegularExpression::CaseInsensitiveOption);
 
     for (int i = 0; i < lines.size(); ++i) {
         auto match = wavRe.match(lines[i]);
