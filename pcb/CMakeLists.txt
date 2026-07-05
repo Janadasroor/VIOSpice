@@ -9,6 +9,10 @@ set(PCB_SOURCES
     editor/pcb_commands.h
     editor/pcb_view.cpp
     editor/pcb_view.h
+    editor/pcb_panelizer.cpp
+    editor/pcb_panelizer.h
+    editor/pcb_export_manager.cpp
+    editor/pcb_export_manager.h
 
     # Items
     items/pcb_item.cpp
