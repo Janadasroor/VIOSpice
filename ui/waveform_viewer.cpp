@@ -835,8 +835,8 @@ void WaveformViewer::clear() {
     for (auto* p : m_panes) {
         if (p->chart) {
             p->chart->removeAllSeries();
-            if (p->axisY) p->axisY->setTitleText("Value"); // Default title
-            if (p->axisX) p->axisX->setTitleText("Time (s)"); // Default title
+            if (p->axisY) p->axisY->setTitleText(""); // Default title
+            if (p->axisX) p->axisX->setTitleText("s"); // Default title
         }
         if (p->view) p->view->setCursorPositions(m_cursor1X, 0, m_cursor2X, 0, nullptr);
     }
@@ -1497,7 +1497,7 @@ void WaveformViewer::updatePlot(bool autoScale) {
                 pane->axisX->setRange(globalMinX, globalMaxX);
             }
         }
-        pane->axisX->setTitleText(m_acMode ? "Frequency (Hz)" : "Time (s)");
+        pane->axisX->setTitleText(m_acMode ? "Hz" : "s");
         pane->axisX->setTitleVisible(true);
         pane->axisY->setTitleVisible(true);
         
@@ -1507,9 +1507,9 @@ void WaveformViewer::updatePlot(bool autoScale) {
             if (pad == 0) pad = 0.5;
             pane->axisY->setRange(stats.minY - pad, stats.maxY + pad);
         }
-        pane->axisY->setTitleText(m_acMode ? "Magnitude (dB)" : 
-            (pane->type == SignalType::VOLTAGE ? "Voltage (V)" : 
-             pane->type == SignalType::CURRENT ? "Current (A)" : "Value"));
+        pane->axisY->setTitleText(m_acMode ? "dB" : 
+            (pane->type == SignalType::VOLTAGE ? "V" : 
+             pane->type == SignalType::CURRENT ? "A" : ""));
 
         QString yUnit = m_acMode ? "dB" : 
             (pane->type == SignalType::VOLTAGE ? "V" : 
