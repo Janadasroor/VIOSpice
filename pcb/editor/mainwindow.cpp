@@ -197,6 +197,14 @@ MainWindow::MainWindow(QWidget *parent)
 
         ensureRightBottomDockTabs();
 
+        // Restore last open file if no file was set by caller
+        if (m_currentFilePath.isEmpty()) {
+            QString lastFile = ConfigManager::instance().toolProperty("PCBEditor", "openFile").toString();
+            if (!lastFile.isEmpty() && QFile::exists(lastFile)) {
+                openFile(lastFile);
+            }
+        }
+
         qDebug() << "PCB Editor UI state restored";
     });
 }
