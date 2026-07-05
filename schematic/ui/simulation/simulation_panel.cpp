@@ -3515,9 +3515,9 @@ void SimulationPanel::plotBuiltinResults(const SimResults& results) {
     QAbstractAxis* axisYBase = nullptr;
     QValueAxis* axisYPhase = nullptr;
 
-    auto formatValueSI = [](double val) {
+    auto formatValueSI = [](double val, const QString& unit = "") {
         const double absVal = std::abs(val);
-        if (absVal < 1e-18) return QString("0");
+        if (absVal < 1e-18) return QString("0") + unit;
         static const struct { double mult; const char* sym; } suffixes[] = {
             {1e12, "T"}, {1e9, "G"}, {1e6, "Meg"}, {1e3, "k"},
             {1.0, ""},
@@ -3526,22 +3526,22 @@ void SimulationPanel::plotBuiltinResults(const SimResults& results) {
         for (const auto& s : suffixes) {
             if (absVal >= s.mult * 0.999) {
                 QString num = QString::number(val / s.mult, 'f', 2).remove(QRegularExpression("\\.?0+$"));
-                return num + s.sym;
+                return num + s.sym + unit;
             }
         }
-        return QString::number(val, 'g', 4);
+        return QString::number(val, 'g', 4) + unit;
     };
 
     auto detectYUnit = [&]() {
         for (const auto& w : results.waveforms) {
             const QString n = QString::fromStdString(w.name).trimmed();
-            if (n.startsWith("I(", Qt::CaseInsensitive)) return QString("A");
-            if (n.startsWith("V(", Qt::CaseInsensitive)) return QString("V");
+            if (n.startsWith("I(", Qt::CaseInsensitive)) return QString("a");
+            if (n.startsWith("V(", Qt::CaseInsensitive)) return QString("v");
         }
-        return QString("V");
+        return QString("v");
     };
 
-    auto buildSIAxis = [&](double minVal, double maxVal, const QString& title) -> QCategoryAxis* {
+    auto buildSIAxis = [&](double minVal, double maxVal, const QString& title, const QString& unit) -> QCategoryAxis* {
         auto* axis = new QCategoryAxis();
         axis->setTitleText(title);
         if (minVal == maxVal) {
@@ -3556,7 +3556,7 @@ void SimulationPanel::plotBuiltinResults(const SimResults& results) {
         const double step = (maxVal - minVal) / (ticks - 1);
         for (int i = 0; i < ticks; ++i) {
             const double v = minVal + step * i;
-            axis->append(formatValueSI(v), v);
+            axis->append(formatValueSI(v, unit), v);
         }
         axis->setLabelsPosition(QCategoryAxis::AxisLabelsPositionOnValue);
         return axis;
@@ -3590,7 +3590,7 @@ void SimulationPanel::plotBuiltinResults(const SimResults& results) {
                 if (firstX) { minX = lo; maxX = hi; firstX = false; }
                 else { minX = std::min(minX, lo); maxX = std::max(maxX, hi); }
             }
-            axisX = buildSIAxis(minX, maxX, axisLabelFromSchema(results.xAxisName));
+            axisX = buildSIAxis(minX, maxX, axisLabelFromSchema(results.xAxisName), (results.analysisType == SimAnalysisType::AC) ? "hz" : "s");
         }
     }
     
@@ -3618,7 +3618,7 @@ void SimulationPanel::plotBuiltinResults(const SimResults& results) {
         const QString unit = detectYUnit();
         const QString title = (results.analysisType == SimAnalysisType::SParameter) ? axisLabelFromSchema(results.yAxisName)
                                                  : axisLabelFromSchema(results.yAxisName) + " (" + unit + ")";
-        auto* axisY = buildSIAxis(minY, maxY, title);
+        auto* axisY = buildSIAxis(minY, maxY, title, unit);
         axisY->setGridLinePen(QPen(QColor("#d0d0d0"), 1, Qt::DotLine));
         m_chart->addAxis(axisY, Qt::AlignLeft);
         axisYBase = axisY;
