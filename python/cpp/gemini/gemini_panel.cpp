@@ -27,6 +27,7 @@
 #include <QRegularExpression>
 #include <QDir>
 #include <QFile>
+#include <QFileSystemWatcher>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QJsonArray>
@@ -307,6 +308,7 @@ GeminiPanel::GeminiPanel(QGraphicsScene* scene, QWidget* parent)
         }
 
         m_quickWidget->setSource(QUrl::fromLocalFile(resolvedPath));
+        setupQmlWatcher(resolvedPath);
         refreshModelList();
         loadHistory();
     });
@@ -1457,3 +1459,59 @@ void GeminiPanel::appendErrorHistory(const QString& t, const QString& d) { Q_UNU
 void GeminiPanel::showErrorDialog(const QString& t, const QString& d) { Q_UNUSED(t); Q_UNUSED(d); }
 void GeminiPanel::showErrorBanner(const QString& s, const QString& d) { Q_UNUSED(s); Q_UNUSED(d); }
 void GeminiPanel::hideErrorBanner() {}
+
+void GeminiPanel::reloadQml() {
+    if (!m_quickWidget) return;
+    QUrl src = m_quickWidget->source();
+    if (src.isEmpty()) {
+        const QString appDir = QCoreApplication::applicationDirPath();
+        const QString qmlPath = "python/qml/GeminiRoot.qml";
+        QStringList candidates = {
+            QDir(appDir).absoluteFilePath("../" + qmlPath),
+            QDir(appDir).absoluteFilePath(qmlPath),
+            QDir::current().absoluteFilePath(qmlPath)
+        };
+        for (const QString& candidate : candidates) {
+            if (QFileInfo::exists(candidate)) {
+                src = QUrl::fromLocalFile(candidate);
+                break;
+            }
+        }
+    }
+    if (src.isEmpty()) return;
+
+    m_quickWidget->engine()->clearComponentCache();
+    m_quickWidget->setSource(QUrl());
+    m_quickWidget->setSource(src);
+    
+    m_quickWidget->engine()->rootContext()->setContextProperty("geminiBridge", m_bridge);
+    
+    refreshModelList();
+    loadHistory();
+}
+
+void GeminiPanel::setupQmlWatcher(const QString& rootQmlPath) {
+    if (!m_qmlWatcher) {
+        m_qmlWatcher = new QFileSystemWatcher(this);
+        connect(m_qmlWatcher, &QFileSystemWatcher::fileChanged, this, [this](const QString& path) {
+            Q_UNUSED(path);
+            static QTimer* qmlDebounce = nullptr;
+            if (!qmlDebounce) {
+                qmlDebounce = new QTimer(this);
+                qmlDebounce->setSingleShot(true);
+                connect(qmlDebounce, &QTimer::timeout, this, &GeminiPanel::reloadQml);
+            }
+            qmlDebounce->start(100);
+        });
+    }
+
+    if (!m_qmlWatcher->files().isEmpty()) {
+        m_qmlWatcher->removePaths(m_qmlWatcher->files());
+    }
+
+    QDir qmlDir(QFileInfo(rootQmlPath).absolutePath());
+    QStringList qmlFiles = qmlDir.entryList({"*.qml"}, QDir::Files);
+    for (const QString& f : qmlFiles) {
+        m_qmlWatcher->addPath(qmlDir.absoluteFilePath(f));
+    }
+}
