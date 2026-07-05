@@ -6,6 +6,7 @@
 #include "simulation_panel.h"
 #include "simulation_generator_panel.h"
 #include "simulation_design_explorer_panel.h"
+#include "simulation_analyzer.h"
 #include "../../items/voltage_source_item.h"
 #include "../../items/schematic_spice_directive_item.h"
 #include "../../items/schematic_page_item.h"
@@ -652,254 +653,19 @@ bool isEffectivelyEmptyResults(const SimResults& results) {
 } // namespace
 
 QStringList SimulationPanel::connectedNetsForItem(SchematicItem* item, bool updateNets) const {
-    QStringList nets;
-    if (!item || !m_netManager) return nets;
-    if (updateNets) m_netManager->updateNets(m_scene);
-
-    QSet<QString> seen;
-    const qreal pinTolerance = 2.0;
-
-    const QList<QPointF> pins = item->connectionPoints();
-    for (int i = 0; i < pins.size(); ++i) {
-        const QPointF pinScene = item->mapToScene(pins[i]);
-        QString net = m_netManager->findNetAtPoint(pinScene).trimmed();
-
-        // Fallback: use pinNet if findNetAtPoint returned nothing
-        if (net.isEmpty()) {
-            net = item->pinNet(i).trimmed();
-        }
-        if (net.isEmpty()) continue;
-
-        // Verify this pin belongs to the item
-        const QList<NetConnection> conns = m_netManager->getConnections(net);
-        bool pinBelongsToItem = false;
-        for (const auto& conn : conns) {
-            if (conn.item != item) continue;
-            if (QLineF(conn.connectionPoint, pinScene).length() <= pinTolerance) {
-                pinBelongsToItem = true;
-                break;
-            }
-        }
-        // Fallback: trust findNetAtPoint/pinNet even if connection verification fails
-        if (!pinBelongsToItem && !net.isEmpty()) {
-            pinBelongsToItem = true;
-        }
-
-        if (!pinBelongsToItem) continue;
-
-        const QString canonicalNet = net.toUpper();
-        if (seen.contains(canonicalNet)) continue;
-        seen.insert(canonicalNet);
-        nets.append(net);
-    }
-    return nets;
+    return SimulationAnalyzer::connectedNetsForItem(item, m_scene, m_netManager, updateNets);
 }
 
 bool SimulationPanel::buildDerivedPowerWaveform(const QString& signalName, QVector<double>& time, QVector<double>& values) const {
-    if (!signalName.startsWith("P(", Qt::CaseInsensitive) || !signalName.endsWith(")")) return false;
-    if (!m_scene) { qWarning() << "buildDerivedPowerWaveform: no scene"; return false; }
-
-    const QString ref = signalName.mid(2, signalName.length() - 3).trimmed();
-    if (ref.isEmpty()) return false;
-
-    SchematicItem* targetItem = nullptr;
-    for (QGraphicsItem* gi : m_scene->items()) {
-        auto* item = dynamic_cast<SchematicItem*>(gi);
-        if (!item) continue;
-        if (item->reference().compare(ref, Qt::CaseInsensitive) == 0) {
-            targetItem = item;
-            break;
-        }
-    }
-    if (!targetItem) { qWarning() << "buildDerivedPowerWaveform: no item with ref" << ref; return false; }
-
-    const QStringList nets = connectedNetsForItem(targetItem);
-    if (nets.size() < 2) { qWarning() << "buildDerivedPowerWaveform:" << ref << "has" << nets.size() << "nets, need >= 2"; return false; }
-
-    const SimWaveform* currentWave = nullptr;
-    const QString currentName = QString("I(%1)").arg(ref);
-    const QString posName = QString("V(%1)").arg(nets.value(0));
-    const QString negName = QString("V(%1)").arg(nets.value(1));
-
-    for (const auto& w : m_lastResults.waveforms) {
-        const QString wName = QString::fromStdString(w.name);
-        if (!currentWave && wName.compare(currentName, Qt::CaseInsensitive) == 0) currentWave = &w;
-    }
-    const SimWaveform* posWave = findWaveByNetAliases(m_lastResults.waveforms, nets.value(0));
-    const SimWaveform* negWave = findWaveByNetAliases(m_lastResults.waveforms, nets.value(1));
-    if (!currentWave || !posWave || !negWave) {
-        qWarning() << "buildDerivedPowerWaveform:" << ref
-                   << "current=" << (currentWave ? "OK" : "MISSING")
-                   << "pos=" << (posWave ? "OK" : "MISSING") << "(" << posName << ")"
-                   << "neg=" << (negWave ? "OK" : "MISSING") << "(" << negName << ")";
-        return false;
-    }
-
-    const size_t count = std::min({currentWave->xData.size(), currentWave->yData.size(), posWave->yData.size(), negWave->yData.size()});
-    if (count == 0) return false;
-
-    time.reserve(static_cast<int>(count));
-    values.reserve(static_cast<int>(count));
-    for (size_t i = 0; i < count; ++i) {
-        time.append(currentWave->xData[i]);
-        values.append((posWave->yData[i] - negWave->yData[i]) * currentWave->yData[i]);
-    }
-    return true;
+    return SimulationAnalyzer::buildDerivedPowerWaveform(signalName, time, values, m_scene, m_netManager, m_lastResults.waveforms);
 }
 
 void SimulationPanel::appendDerivedPowerWaveforms(SimResults& results) const {
-    if (!m_scene || !m_netManager) return;
-    m_netManager->updateNets(m_scene);
-
-    QSet<QString> existing;
-    for (const auto& w : results.waveforms) {
-        existing.insert(QString::fromStdString(w.name).toUpper());
-    }
-
-    std::vector<SimWaveform> powerWaves;
-    for (QGraphicsItem* gi : m_scene->items()) {
-        auto* item = dynamic_cast<SchematicItem*>(gi);
-        if (!item) continue;
-
-        const QString ref = item->reference().trimmed();
-        if (ref.isEmpty()) continue;
-
-        const QStringList nets = connectedNetsForItem(item, false);
-        if (nets.size() < 2) continue;
-
-        const QString baseCurrentName = QString("I(%1)").arg(ref);
-        const QString basePowerName = QString("P(%1)").arg(ref);
-
-        // Find all current traces for this component (could be multiple if swept)
-        for (const auto& w : results.waveforms) {
-            QString wName = QString::fromStdString(w.name);
-            if (!signalMatches(wName, baseCurrentName)) continue;
-
-            // Extract the step suffix if it exists
-            QString stepSuffix;
-            int bracketIdx = wName.indexOf(" [");
-            if (bracketIdx > 0) {
-                stepSuffix = wName.mid(bracketIdx);
-            }
-
-            const QString powerName = basePowerName + stepSuffix;
-            if (existing.contains(powerName.toUpper())) continue;
-
-            // Find matching voltage traces for the two nets, with the SAME step suffix
-            const SimWaveform* posWave = nullptr;
-            const SimWaveform* negWave = nullptr;
-
-            for (const auto& vw : results.waveforms) {
-                QString vwName = QString::fromStdString(vw.name);
-                
-                // For voltage, we must match the net name AND the exact step suffix
-                if (signalMatches(vwName, nets[0])) {
-                    int vBracketIdx = vwName.indexOf(" [");
-                    QString vSuffix = (vBracketIdx > 0) ? vwName.mid(vBracketIdx) : "";
-                    if (vSuffix == stepSuffix) posWave = &vw;
-                }
-                
-                if (signalMatches(vwName, nets[1])) {
-                    int vBracketIdx = vwName.indexOf(" [");
-                    QString vSuffix = (vBracketIdx > 0) ? vwName.mid(vBracketIdx) : "";
-                    if (vSuffix == stepSuffix) negWave = &vw;
-                }
-            }
-
-            if (!posWave || !negWave) continue;
-
-            const size_t count = std::min({w.xData.size(), w.yData.size(), posWave->yData.size(), negWave->yData.size()});
-            if (count == 0) continue;
-
-            SimWaveform pWave;
-            pWave.name = powerName.toStdString();
-            pWave.xData.reserve(count);
-            pWave.yData.reserve(count);
-            for (size_t i = 0; i < count; ++i) {
-                pWave.xData.push_back(w.xData[i]);
-                pWave.yData.push_back((posWave->yData[i] - negWave->yData[i]) * w.yData[i]);
-            }
-            powerWaves.push_back(std::move(pWave));
-        }
-    }
-    
-    if (!powerWaves.empty()) {
-        results.waveforms.insert(results.waveforms.end(), 
-                                 std::make_move_iterator(powerWaves.begin()), 
-                                 std::make_move_iterator(powerWaves.end()));
-    }
+    SimulationAnalyzer::appendDerivedPowerWaveforms(results, m_scene, m_netManager);
 }
 
 void SimulationPanel::appendEfficiencySummary(SimResults& results) const {
-    if (!m_scene || results.analysisType != SimAnalysisType::Transient) return;
-
-    auto findWave = [&](const QString& name) -> const SimWaveform* {
-        for (const auto& wave : results.waveforms) {
-            if (QString::fromStdString(wave.name).compare(name, Qt::CaseInsensitive) == 0) {
-                return &wave;
-            }
-        }
-        return nullptr;
-    };
-
-    auto averageTail = [](const SimWaveform* wave) -> double {
-        if (!wave || wave->yData.empty()) return 0.0;
-        const size_t count = wave->yData.size();
-        const size_t begin = (count > 10) ? (count * 9) / 10 : 0;
-        double sum = 0.0;
-        size_t used = 0;
-        for (size_t i = begin; i < count; ++i) {
-            sum += wave->yData[i];
-            ++used;
-        }
-        return used ? (sum / static_cast<double>(used)) : 0.0;
-    };
-
-    QStringList voltageSources;
-    QStringList loadRefs;
-    for (QGraphicsItem* gi : m_scene->items()) {
-        auto* item = dynamic_cast<SchematicItem*>(gi);
-        if (!item) continue;
-        const QString ref = item->reference().trimmed();
-        if (ref.isEmpty()) continue;
-        if (ref.startsWith('V', Qt::CaseInsensitive)) {
-            if (findWave(QString("P(%1)").arg(ref))) voltageSources.append(ref);
-        } else if (ref.compare("RLOAD", Qt::CaseInsensitive) == 0 ||
-                   ref.startsWith('I', Qt::CaseInsensitive)) {
-            if (findWave(QString("P(%1)").arg(ref))) loadRefs.append(ref);
-        }
-    }
-
-    if (voltageSources.size() != 1 || loadRefs.size() != 1) return;
-
-    const QString inputRef = voltageSources.first();
-    const QString outputRef = loadRefs.first();
-    const SimWaveform* inputWave = findWave(QString("P(%1)").arg(inputRef));
-    const SimWaveform* outputWave = findWave(QString("P(%1)").arg(outputRef));
-    if (!inputWave || !outputWave) return;
-
-    const double inputAvgRaw = averageTail(inputWave);
-    const double outputAvgRaw = averageTail(outputWave);
-    const double inputPower = std::abs(inputAvgRaw);
-    const double outputPower = std::abs(outputAvgRaw);
-    if (inputPower <= 0.0 || outputPower <= 0.0) return;
-
-    const double efficiencyPct = (outputPower / inputPower) * 100.0;
-    results.measurements["eff_input_power_w"] = inputPower;
-    results.measurements["eff_output_power_w"] = outputPower;
-    results.measurements["efficiency_pct"] = efficiencyPct;
-
-    results.measurementMetadata["eff_input_power_w"] = {"Input Power", "W"};
-    results.measurementMetadata["eff_output_power_w"] = {"Output Power", "W"};
-    results.measurementMetadata["efficiency_pct"] = {"Efficiency", "%"};
-    results.diagnostics.push_back(
-        QString("Efficiency summary: input=%1 W, output=%2 W, eta=%3 % using %4 as source and %5 as load.")
-            .arg(inputPower, 0, 'g', 6)
-            .arg(outputPower, 0, 'g', 6)
-            .arg(efficiencyPct, 0, 'g', 5)
-            .arg(inputRef)
-            .arg(outputRef)
-            .toStdString());
+    SimulationAnalyzer::appendEfficiencySummary(results, m_scene, m_netManager);
 }
 
 void SimulationPanel::refreshEfficiencyReport(const SimResults& results) {
