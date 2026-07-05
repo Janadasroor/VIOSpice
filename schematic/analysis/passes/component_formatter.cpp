@@ -402,8 +402,8 @@ struct VoltageParasitics {
 
 static VoltageParasitics stripVoltageParasitics(const QString& value) {
     VoltageParasitics out{value, "", ""};
-    QRegularExpression rserRe("\\bRser\\s*=\\s*([^\\s]+)", QRegularExpression::CaseInsensitiveOption);
-    QRegularExpression cparRe("\\bCpar\\s*=\\s*([^\\s]+)", QRegularExpression::CaseInsensitiveOption);
+    static const QRegularExpression rserRe("\\bRser\\s*=\\s*([^\\s]+)", QRegularExpression::CaseInsensitiveOption);
+    static const QRegularExpression cparRe("\\bCpar\\s*=\\s*([^\\s]+)", QRegularExpression::CaseInsensitiveOption);
 
     auto rserMatch = rserRe.match(out.value);
     if (rserMatch.hasMatch()) {
@@ -595,7 +595,7 @@ void ComponentFormatter::format(const ECOComponent& comp,
             QFile svFile(svPath);
             if (svFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
                 QString svText = QString::fromUtf8(svFile.readAll());
-                QRegularExpression portRe(R"((input|output)\s+(logic\s+)?(\w+))",
+                static const QRegularExpression portRe(R"((input|output)\s+(logic\s+)?(\w+))",
                     QRegularExpression::CaseInsensitiveOption);
                 for (auto m = portRe.globalMatch(svText); m.hasNext(); ) {
                     auto match = m.next();
@@ -785,8 +785,8 @@ void ComponentFormatter::format(const ECOComponent& comp,
         // Standardize WAVEFILE and CHAN to space-separated syntax for better parser compatibility
         if (value.contains("WAVEFILE", Qt::CaseInsensitive)) {
             // Resolve relative path if needed
-            QRegularExpression reFile(R"(WAVEFILE\s*=\s*\"([^\"]+)\")", QRegularExpression::CaseInsensitiveOption);
-            auto match = reFile.match(value);
+            static const QRegularExpression reFileWave(R"(WAVEFILE\s*=\s*\"([^\"]+)\")", QRegularExpression::CaseInsensitiveOption);
+            auto match = reFileWave.match(value);
             if (match.hasMatch()) {
                 QString rawPath = match.captured(1);
                 QString targetPath = rawPath;
@@ -797,7 +797,7 @@ void ComponentFormatter::format(const ECOComponent& comp,
                 value = QString("WAVEFILE \"%1\"").arg(targetPath);
             }
 
-            QRegularExpression reChan(R"(CHAN\s*=\s*(\d+))", QRegularExpression::CaseInsensitiveOption);
+            static const QRegularExpression reChan(R"(CHAN\s*=\s*(\d+))", QRegularExpression::CaseInsensitiveOption);
             auto matchChan = reChan.match(comp.value); // Check original comp.value if model didn't have it
             if (!matchChan.hasMatch()) matchChan = reChan.match(value);
             if (matchChan.hasMatch()) {
@@ -805,8 +805,8 @@ void ComponentFormatter::format(const ECOComponent& comp,
             }
         } else if (value.contains("FILE=", Qt::CaseInsensitive)) {
             // Resolve relative paths for other FILE= references
-            QRegularExpression reFile(R"(FILE\s*=\s*\"([^\"]+)\")", QRegularExpression::CaseInsensitiveOption);
-            auto match = reFile.match(value);
+            static const QRegularExpression reFileGeneric(R"(FILE\s*=\s*\"([^\"]+)\")", QRegularExpression::CaseInsensitiveOption);
+            auto match = reFileGeneric.match(value);
             if (match.hasMatch()) {
                 QString rawPath = match.captured(1);
                 QFileInfo fi(rawPath);
@@ -1414,8 +1414,8 @@ void ComponentFormatter::format(const ECOComponent& comp,
                 QString z0 = "50";
                 QString td = "50n";
                 const QString v = value.trimmed();
-                const QRegularExpression reZ0("\\bZ0\\s*=\\s*([^\\s]+)", QRegularExpression::CaseInsensitiveOption);
-                const QRegularExpression reTd("\\bTd\\s*=\\s*([^\\s]+)", QRegularExpression::CaseInsensitiveOption);
+                static const QRegularExpression reZ0("\\bZ0\\s*=\\s*([^\\s]+)", QRegularExpression::CaseInsensitiveOption);
+                static const QRegularExpression reTd("\\bTd\\s*=\\s*([^\\s]+)", QRegularExpression::CaseInsensitiveOption);
                 auto mz = reZ0.match(v);
                 auto mt = reTd.match(v);
                 if (mz.hasMatch()) z0 = mz.captured(1);
