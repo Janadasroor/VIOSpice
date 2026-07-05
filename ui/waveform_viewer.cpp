@@ -15,6 +15,7 @@
 #include <QtCharts/QLineSeries>
 #include <QtCharts/QValueAxis>
 #include <QtCharts/QLogValueAxis>
+#include <QtCharts/QCategoryAxis>
 #include <QLabel>
 #include <QMouseEvent>
 #include <QWheelEvent>
@@ -87,6 +88,39 @@ double toDb(double value) {
 
 QString formatDb(double value) {
     return QString::number(value, 'g', 4) + " dB";
+}
+
+void updateCategoryAxis(QValueAxis* axisVal, double minVal, double maxVal, const QString& unit) {
+    auto* axis = qobject_cast<QCategoryAxis*>(axisVal);
+    if (!axis) return;
+    
+    axis->blockSignals(true);
+    
+    // Clear previous categories
+    QStringList labels = axis->categoriesLabels();
+    for (const QString& label : labels) {
+        axis->remove(label);
+    }
+    
+    if (minVal == maxVal) {
+        double halfSpan = std::max(std::abs(minVal) * 0.1, 1e-6);
+        minVal -= halfSpan;
+        maxVal += halfSpan;
+    }
+    axis->setRange(minVal, maxVal);
+    
+    const int ticks = 6;
+    const double step = (maxVal - minVal) / (ticks - 1);
+    for (int i = 0; i < ticks; ++i) {
+        double v = minVal + step * i;
+        QString label = SiFormatter::format(v, unit);
+        while (axis->categoriesLabels().contains(label)) {
+            label += "\u200B";
+        }
+        axis->append(label, v);
+    }
+    
+    axis->blockSignals(false);
 }
 
 QList<QPointF> buildVisibleMinMaxSeries(const QVector<double>& time,
@@ -1476,6 +1510,12 @@ void WaveformViewer::updatePlot(bool autoScale) {
         pane->axisY->setTitleText(m_acMode ? "Magnitude (dB)" : 
             (pane->type == SignalType::VOLTAGE ? "Voltage (V)" : 
              pane->type == SignalType::CURRENT ? "Current (A)" : "Value"));
+
+        QString yUnit = m_acMode ? "dB" : 
+            (pane->type == SignalType::VOLTAGE ? "V" : 
+             pane->type == SignalType::CURRENT ? "A" : "");
+        updateCategoryAxis(pane->axisX, pane->axisX->min(), pane->axisX->max(), m_acMode ? "Hz" : "s");
+        updateCategoryAxis(pane->axisY, pane->axisY->min(), pane->axisY->max(), yUnit);
     }
 
     m_preserveXRangeOnce = false;
@@ -1658,13 +1698,13 @@ WaveformViewer::ChartPane* WaveformViewer::createPane(WaveformViewer::SignalType
     pane->view->setInteractive(true);
     pane->view->setCursorsEnabled(m_cursorsEnabled);
     
-    pane->axisX = new QValueAxis();
+    pane->axisX = new QCategoryAxis();
     pane->axisX->setLabelsBrush(QBrush(Qt::white));
     pane->axisX->setTitleBrush(QBrush(Qt::white));
     pane->axisX->setGridLinePen(QPen(QColor("#333"), 1, Qt::DotLine));
     pane->axisX->setTitleVisible(true);
     
-    pane->axisY = new QValueAxis();
+    pane->axisY = new QCategoryAxis();
     pane->axisY->setLabelsBrush(QBrush(Qt::white));
     pane->axisY->setTitleBrush(QBrush(Qt::white));
     pane->axisY->setGridLinePen(QPen(QColor("#333"), 1, Qt::DotLine));
@@ -1676,8 +1716,16 @@ WaveformViewer::ChartPane* WaveformViewer::createPane(WaveformViewer::SignalType
     m_panes.append(pane);
     m_splitter->addWidget(pane->view);
     
-    connect(pane->axisX, &QValueAxis::rangeChanged, this, [this, pane](){
+    connect(pane->axisX, &QValueAxis::rangeChanged, this, [this, pane](qreal min, qreal max){
+        updateCategoryAxis(pane->axisX, min, max, m_acMode ? "Hz" : "s");
         syncAxesX(pane->axisX);
+    });
+    
+    connect(pane->axisY, &QValueAxis::rangeChanged, this, [this, pane](qreal min, qreal max){
+        QString unit = m_acMode ? "dB" : 
+            (pane->type == SignalType::VOLTAGE ? "V" : 
+             pane->type == SignalType::CURRENT ? "A" : "");
+        updateCategoryAxis(pane->axisY, min, max, unit);
     });
     
     connect(pane->view, &VioChartView::mouseMoved, this, &WaveformViewer::onMouseMoved);
