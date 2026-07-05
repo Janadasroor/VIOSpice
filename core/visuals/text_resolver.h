@@ -17,7 +17,7 @@ class TextResolver {
 public:
     static QString resolve(const QString& input, const QMap<QString, QString>& variables) {
         QString result = input;
-        QRegularExpression re("\\$\\{([^\\}]+)\\}");
+        static const QRegularExpression re(R"(\$\{([^\}]+)\})");
         QRegularExpressionMatchIterator it = re.globalMatch(input);
         
         // We iterate backwards to replace without affecting earlier match positions
