@@ -8,6 +8,18 @@
 #include <QStandardPaths>
 #include <QSysInfo>
 
+static ConfigManager::SessionSaveCallback s_sessionSaveCb = nullptr;
+
+void ConfigManager::setSessionSaveCallback(SessionSaveCallback cb) {
+    s_sessionSaveCb = cb;
+}
+
+void ConfigManager::triggerSessionSave(void* excluding) {
+    if (s_sessionSaveCb) {
+        s_sessionSaveCb(excluding);
+    }
+}
+
 ConfigManager& ConfigManager::instance() {
     static ConfigManager instance;
     return instance;

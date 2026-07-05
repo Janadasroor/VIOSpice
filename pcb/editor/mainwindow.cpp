@@ -1247,6 +1247,7 @@ bool MainWindow::openFile(const QString& filePath) {
         setProperty("unsavedChanges", false);
         setWindowTitle("Viora EDA - PCB Editor [" + QFileInfo(filePath).fileName() + "]");
         statusBar()->showMessage("Loaded PCB: " + filePath, 5000);
+        ConfigManager::triggerSessionSave();
 
         return true;
     } else {
@@ -1678,8 +1679,14 @@ void MainWindow::closeEvent(QCloseEvent* event) {
 
     // Save UI State
     ConfigManager::instance().saveWindowState("PCBEditor", saveGeometry(), saveState());
+    ConfigManager::triggerSessionSave(this);
     
     event->accept();
+}
+
+void MainWindow::showEvent(QShowEvent* event) {
+    QMainWindow::showEvent(event);
+    ConfigManager::triggerSessionSave();
 }
 
 void MainWindow::onBoardSetup() {
