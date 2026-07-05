@@ -61,6 +61,8 @@ target_sources(VioSchematic PRIVATE
     analysis/passes/component_extractor.h
     analysis/passes/connectivity_evaluator.cpp
     analysis/passes/connectivity_evaluator.h
+    analysis/passes/component_formatter.cpp
+    analysis/passes/component_formatter.h
     analysis/passes/model_injector.cpp
     analysis/passes/model_injector.h
     analysis/passes/xspice_block_translator.cpp
