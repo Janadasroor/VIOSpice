@@ -40,7 +40,7 @@
 #include "simulator/core/sim_value_parser.h"
 #include "simulator/bridge/model_library_manager.h"
 #include "../ui/waveform_viewer.h"
-#include "../schematic/ui/simulation_panel.h"
+#include "../schematic/ui/simulation/simulation_panel.h"
 #include "simulator/bridge/slang_manager.h"
 #include "flux/schematic/editor/schematic_api.h"
 #include "flux/schematic/factories/schematic_item_registry.h"

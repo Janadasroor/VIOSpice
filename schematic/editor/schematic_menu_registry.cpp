@@ -22,7 +22,7 @@
 #include "../items/seven_segment_display_item.h"
 #include "../items/tuning_slider_item.h"
 #include "../../ui/mos_circuit_architect.h"
-#include "../ui/simulation_panel.h"
+#include "../ui/simulation/simulation_panel.h"
 #include "../analysis/net_manager.h"
 #include "../tools/schematic_net_label_tool.h"
 #include "theme_manager.h"
