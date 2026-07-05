@@ -986,10 +986,9 @@ void WaveformViewer::addSignal(const QString& name, const QVector<double>& time,
     SignalData data;
     data.name = name;
     QString lowerName = name.toLower();
-    if (lowerName.startsWith("v(") || lowerName.startsWith("v_") || lowerName == "v") data.type = SignalType::VOLTAGE;
-    else if (lowerName.contains("#branch") || lowerName.startsWith("i(")) data.type = SignalType::CURRENT;
-    else if (lowerName.startsWith("p(")) data.type = SignalType::POWER;
-    else data.type = SignalType::OTHER;
+    if (lowerName.contains("#branch") || lowerName.startsWith("i(") || lowerName == "i") data.type = SignalType::CURRENT;
+    else if (lowerName.startsWith("p(") || lowerName == "p") data.type = SignalType::POWER;
+    else data.type = SignalType::VOLTAGE; // Default to voltage
     
     if (m_focusedPane) {
         data.paneIndex = m_panes.indexOf(m_focusedPane);
