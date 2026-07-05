@@ -39,6 +39,8 @@ set(FOOTPRINTS_SOURCES
     ui/footprint_library_browser_panel.h
     ui/footprint_wizard_panel.cpp
     ui/footprint_wizard_panel.h
+    ui/footprint_model_3d_panel.cpp
+    ui/footprint_model_3d_panel.h
 )
 
 add_library(VioFootprints STATIC ${FOOTPRINTS_SOURCES})
