@@ -4,9 +4,9 @@
  */
 
 #include "simulation_generator_panel.h"
-#include "../items/voltage_source_item.h"
-#include "../items/schematic_spice_directive_item.h"
-#include "../dialogs/spice_step_dialog.h"
+#include "../../items/voltage_source_item.h"
+#include "../../items/schematic_spice_directive_item.h"
+#include "../../dialogs/spice_step_dialog.h"
 #include "theme_manager.h"
 
 #include <QVBoxLayout>

@@ -11,7 +11,7 @@
 #include <QTableWidget>
 #include <QPushButton>
 #include <QComboBox>
-#include "../../simulator/core/sim_results.h"
+#include "../../../simulator/core/sim_results.h"
 
 class QChart;
 

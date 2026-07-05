@@ -32,7 +32,7 @@ class MainWindow;
 #include "project.h"
 #include "recent_projects.h"
 #include "../analysis/spice_netlist_generator.h"
-#include "../ui/simulation_panel.h"
+#include "../ui/simulation/simulation_panel.h"
 #include "../../ui/source_control_manager.h"
 #include "config_manager.h"
 #include "../ui/flux_script_editor_tab.h"

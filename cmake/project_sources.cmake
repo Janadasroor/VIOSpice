@@ -512,12 +512,12 @@ list(APPEND SCHEMATIC_SOURCES
     schematic/ui/visual_pin_mapper.h
     schematic/ui/schematic_hierarchy_panel.cpp
     schematic/ui/schematic_hierarchy_panel.h
-    schematic/ui/simulation_panel.cpp
-    schematic/ui/simulation_panel_ui.cpp
-    schematic/ui/simulation_panel_plot.cpp
-    schematic/ui/simulation_panel.h
-    schematic/ui/simulation_log_dialog.cpp
-    schematic/ui/simulation_log_dialog.h
+    schematic/ui/simulation/simulation_panel.cpp
+    schematic/ui/simulation/simulation_panel_ui.cpp
+    schematic/ui/simulation/simulation_panel_plot.cpp
+    schematic/ui/simulation/simulation_panel.h
+    schematic/ui/simulation/simulation_log_dialog.cpp
+    schematic/ui/simulation/simulation_log_dialog.h
     ui/waveform_viewer.cpp
     ui/waveform_viewer.h
     ui/analysis_dialog.cpp
@@ -528,8 +528,8 @@ list(APPEND SCHEMATIC_SOURCES
     ui/fft_analyzer.h
     ui/waveform_expression_dialog.cpp
     ui/waveform_expression_dialog.h
-    schematic/ui/simulation_setup_dialog.cpp
-    schematic/ui/simulation_setup_dialog.h
+    schematic/ui/simulation/simulation_setup_dialog.cpp
+    schematic/ui/simulation/simulation_setup_dialog.h
     schematic/ui/virtual_instruments.cpp
     schematic/ui/logic_analyzer_window.cpp
     schematic/ui/logic_analyzer_window.h
