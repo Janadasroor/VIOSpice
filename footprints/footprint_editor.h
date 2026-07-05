@@ -49,8 +49,11 @@ class PCB3DWindow;
 /**
  * @brief Dialog for creating and editing PCB footprints
  */
+class FootprintModel3DPanel;
+
 class FootprintEditor : public QDialog {
     Q_OBJECT
+    friend class FootprintModel3DPanel;
 
 public:
     explicit FootprintEditor(QWidget* parent = nullptr);
@@ -146,9 +149,6 @@ private:
     bool promptForSaveTarget();
     bool importKicadFootprintFromFile(const QString& path);
     QString resolveModelPathForPreview(const QString& rawPath) const;
-    void refreshModelSelector();
-    void loadModelToFields(int index);
-    void syncCurrentModelFromFields();
     bool hasUnsavedChanges() const;
     void applyPadToolbarDefaults(FootprintPrimitive& prim) const;
     void applyPadPresetFromDrill();
@@ -195,21 +195,7 @@ private:
     QLineEdit* m_keywordsEdit;
     
     // 3D Model Settings
-    QComboBox* m_modelSelector;
-    QPushButton* m_addModelButton;
-    QPushButton* m_removeModelButton;
-    QLineEdit* m_modelFileEdit;
-    QLineEdit* m_modelOffsetX;
-    QLineEdit* m_modelOffsetY;
-    QLineEdit* m_modelOffsetZ;
-    QLineEdit* m_modelRotX;
-    QLineEdit* m_modelRotY;
-    QLineEdit* m_modelRotZ;
-    QLineEdit* m_modelScaleX;
-    QLineEdit* m_modelScaleY;
-    QLineEdit* m_modelScaleZ;
-    QDoubleSpinBox* m_modelOpacitySpin = nullptr;
-    QCheckBox* m_modelVisibleCheck = nullptr;
+    FootprintModel3DPanel* m_model3DPanel = nullptr;
     
     // Internal state
     FootprintDefinition m_footprint;
@@ -260,7 +246,7 @@ private:
     FootprintWizardPanel* m_wizardPanel;
 
     QLabel* m_statusLabel; // Status information
-    QCheckBox* m_previewBottomCopperCheck = nullptr;
+
     QPointer<PCB3DWindow> m_footprint3DWindow;
     QGraphicsScene* m_footprint3DScene = nullptr;
     QString m_lastImportBaseDir;
