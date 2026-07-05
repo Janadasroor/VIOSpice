@@ -33,6 +33,8 @@ target_sources(VioSchematic PRIVATE
     ui/simulation/simulation_generator_panel.h
     ui/simulation/simulation_design_explorer_panel.cpp
     ui/simulation/simulation_design_explorer_panel.h
+    ui/simulation/simulation_analyzer.cpp
+    ui/simulation/simulation_analyzer.h
     ui/smart_probe_overlay.cpp
     ui/smart_probe_overlay.h
     ui/smart_probe_engine.cpp
