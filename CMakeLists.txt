@@ -35,6 +35,13 @@ set(CMAKE_AUTORCC ON)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+# Treat missing return statements as compilation errors to prevent undefined behaviors/CPU traps
+if(MSVC)
+    add_compile_options(/we4715)
+else()
+    add_compile_options(-Werror=return-type)
+endif()
+
 # Linker group flags for circular static library dependencies.
 # Only GNU ld (Linux) supports --start-group/--end-group.
 # Apple ld64 and MSVC resolve circular deps differently.
