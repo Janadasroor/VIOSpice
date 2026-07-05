@@ -1514,10 +1514,10 @@ void WaveformViewer::updatePlot(bool autoScale) {
             pane->axisY->setRange(stats.minY - pad, stats.maxY + pad);
         }
 
-        QString yUnit = m_acMode ? "dB" : 
-            (pane->type == SignalType::VOLTAGE ? "V" : 
-             pane->type == SignalType::CURRENT ? "A" : "");
-        updateCategoryAxis(pane->axisX, pane->axisX->min(), pane->axisX->max(), m_acMode ? "Hz" : "s");
+        QString yUnit = m_acMode ? "db" : 
+            (pane->type == SignalType::VOLTAGE ? "v" : 
+             pane->type == SignalType::CURRENT ? "a" : "");
+        updateCategoryAxis(pane->axisX, pane->axisX->min(), pane->axisX->max(), m_acMode ? "hz" : "s");
         updateCategoryAxis(pane->axisY, pane->axisY->min(), pane->axisY->max(), yUnit);
     }
 
@@ -1720,14 +1720,14 @@ WaveformViewer::ChartPane* WaveformViewer::createPane(WaveformViewer::SignalType
     m_splitter->addWidget(pane->view);
     
     connect(pane->axisX, &QValueAxis::rangeChanged, this, [this, pane](qreal min, qreal max){
-        updateCategoryAxis(pane->axisX, min, max, m_acMode ? "Hz" : "s");
+        updateCategoryAxis(pane->axisX, min, max, m_acMode ? "hz" : "s");
         syncAxesX(pane->axisX);
     });
     
     connect(pane->axisY, &QValueAxis::rangeChanged, this, [this, pane](qreal min, qreal max){
-        QString unit = m_acMode ? "dB" : 
-            (pane->type == SignalType::VOLTAGE ? "V" : 
-             pane->type == SignalType::CURRENT ? "A" : "");
+        QString unit = m_acMode ? "db" : 
+            (pane->type == SignalType::VOLTAGE ? "v" : 
+             pane->type == SignalType::CURRENT ? "a" : "");
         updateCategoryAxis(pane->axisY, min, max, unit);
     });
     
