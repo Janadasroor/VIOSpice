@@ -60,8 +60,49 @@ extern "C" {
 #include "ui/python_hooks.h"
 }
 
-#include <QStandardPaths>
 #include <iostream>
+#include <QStandardPaths>
+
+static void saveCurrentSession(void* excluding) {
+    QStringList openFiles;
+    QString activePcbFile;
+    SchematicEditor* lastSch = nullptr;
+    MainWindow* lastPcb = nullptr;
+
+    QWidget* excludingWidget = static_cast<QWidget*>(excluding);
+
+    for (auto w : QApplication::topLevelWidgets()) {
+        if (w == excludingWidget) continue;
+        if (w->isVisible()) {
+            if (auto* sch = qobject_cast<SchematicEditor*>(w)) {
+                lastSch = sch;
+                for (int i = 0; i < sch->tabCount(); ++i) {
+                    QString path = sch->tabFilePath(i);
+                    if (!path.isEmpty()) openFiles.append(path);
+                }
+            }
+            if (auto* pcb = qobject_cast<MainWindow*>(w)) {
+                lastPcb = pcb;
+                activePcbFile = pcb->currentFilePath();
+            }
+        }
+    }
+
+    ConfigManager::instance().setToolProperty("SchematicEditor", "openFiles", openFiles);
+    ConfigManager::instance().setToolProperty("SchematicEditor", "windowOpen", lastSch != nullptr);
+    if (lastSch) {
+        ConfigManager::instance().setToolProperty("SchematicEditor", "activeTabIndex", lastSch->currentTabIndex());
+        ConfigManager::instance().saveWindowState("SchematicEditor", lastSch->saveGeometry(), lastSch->saveState());
+    } else {
+        ConfigManager::instance().setToolProperty("SchematicEditor", "openFiles", QStringList());
+    }
+
+    ConfigManager::instance().setToolProperty("PCBEditor", "openFile", activePcbFile);
+    ConfigManager::instance().setToolProperty("PCBEditor", "windowOpen", lastPcb != nullptr);
+    if (lastPcb) {
+        ConfigManager::instance().saveWindowState("PCBEditor", lastPcb->saveGeometry(), lastPcb->saveState());
+    }
+}
 
 int main(int argc, char *argv[])
 {
@@ -98,6 +139,9 @@ int main(int argc, char *argv[])
 #endif
 
     QApplication a(argc, argv);
+
+    // Register callback for dynamic session saving
+    ConfigManager::setSessionSaveCallback(saveCurrentSession);
 
     // MANDATORY: Setup custom simulation engine environment BEFORE any engine code is loaded
     QString appDataPath = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
@@ -158,19 +202,27 @@ int main(int argc, char *argv[])
             pm->show();
 
             // Restore previously open schematic tabs
-            QStringList lastOpen = ConfigManager::instance().toolProperty("SchematicEditor", "openFiles").toStringList();
-            if (!lastOpen.isEmpty()) {
+            bool schOpen = ConfigManager::instance().toolProperty("SchematicEditor", "windowOpen", false).toBool();
+            if (schOpen) {
                 SchematicEditor* sch = new SchematicEditor();
                 sch->setAttribute(Qt::WA_DeleteOnClose);
                 sch->show();
             }
 
             // Restore previously open PCB editor
-            QString lastPcb = ConfigManager::instance().toolProperty("PCBEditor", "openFile").toString();
-            if (!lastPcb.isEmpty() && QFile::exists(lastPcb)) {
+            bool pcbOpen = ConfigManager::instance().toolProperty("PCBEditor", "windowOpen", false).toBool();
+            if (pcbOpen) {
                 MainWindow* pcb = new MainWindow();
                 pcb->setAttribute(Qt::WA_DeleteOnClose);
-                pcb->openFile(lastPcb);
+                QString lastPcb = ConfigManager::instance().toolProperty("PCBEditor", "openFile").toString();
+                if (!lastPcb.isEmpty()) {
+                    if (QFile::exists(lastPcb)) {
+                        pcb->openFile(lastPcb);
+                    } else {
+                        QFileInfo fi(lastPcb);
+                        pcb->setProjectContext(fi.completeBaseName(), fi.absolutePath());
+                    }
+                }
                 pcb->show();
             }
         }

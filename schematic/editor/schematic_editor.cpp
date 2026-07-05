@@ -350,6 +350,7 @@ void SchematicEditor::closeEvent(QCloseEvent* event) {
 
     // Save UI State
     ConfigManager::instance().saveWindowState("SchematicEditor", saveGeometry(), saveState());
+    ConfigManager::triggerSessionSave(this);
 
     // Commands keep raw pointers to scene/items. Clear history while scenes are still alive.
     if (m_undoStack) {
@@ -362,6 +363,11 @@ void SchematicEditor::closeEvent(QCloseEvent* event) {
     disconnect(&SimManager::instance(), nullptr, this, nullptr);
     
     event->accept();
+}
+
+void SchematicEditor::showEvent(QShowEvent* event) {
+    QMainWindow::showEvent(event);
+    ConfigManager::triggerSessionSave();
 }
 
 bool SchematicEditor::event(QEvent* event) {
@@ -894,6 +900,7 @@ void SchematicEditor::onTabChanged(int index) {
     if (m_showDetailedLogAction) {
         m_showDetailedLogAction->setEnabled(current == m_simulationPanel);
     }
+    ConfigManager::triggerSessionSave();
 }
 
 void SchematicEditor::closeTab(int index) {

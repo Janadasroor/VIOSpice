@@ -132,6 +132,11 @@ public:
 
     static QString defaultLibraryPath();
 
+    // Session State Save Callback (for dynamic session save on window changes)
+    typedef void (*SessionSaveCallback)(void*);
+    static void setSessionSaveCallback(SessionSaveCallback cb);
+    static void triggerSessionSave(void* excluding = nullptr);
+
 Q_SIGNALS:
     void requestModelRefresh();
 

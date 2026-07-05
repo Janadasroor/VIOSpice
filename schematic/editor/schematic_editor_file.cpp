@@ -802,6 +802,7 @@ bool SchematicEditor::openFile(const QString& filePath) {
         setWindowTitle(QString("viospice - Schematic Editor [%1]").arg(fileInfo.fileName()));
         updateBreadcrumbs();
         statusBar()->showMessage(QString("Loaded: %1").arg(filePath), 5000);
+        ConfigManager::triggerSessionSave();
         return true;
     }
 
