@@ -8,6 +8,8 @@
 #include "footprint_commands.h"
 #include "kicad_footprint_importer.h"
 #include "ui/footprint_wizard_dialog.h"
+#include "ui/footprint_library_browser_panel.h"
+#include "ui/footprint_wizard_panel.h"
 #include "../core/visuals/theme_manager.h"
 #include "../core/project/config_manager.h"
 #include "../pcb/ui/pcb_3d_window.h"
@@ -748,71 +750,14 @@ void FootprintEditor::setupUI() {
         "QTabBar::tab:hover:!selected { background-color: #3c3c3c; }");
     m_leftNavigatorPanel = m_leftTabWidget;
 
-    createLibraryBrowser();
-    QWidget* libPage = new QWidget();
-    QVBoxLayout* libPageLayout = new QVBoxLayout(libPage);
-    libPageLayout->setContentsMargins(10, 10, 10, 10);
-    libPageLayout->setSpacing(8);
-    libPageLayout->addWidget(m_libSearchEdit);
-    libPageLayout->addWidget(m_libraryTree);
-    m_leftTabWidget->addTab(libPage, "Library Browser");
+    m_libraryBrowserPanel = new FootprintLibraryBrowserPanel(this);
+    connect(m_libraryBrowserPanel, &FootprintLibraryBrowserPanel::footprintSelected, this, &FootprintEditor::onLoadFootprint);
+    m_leftTabWidget->addTab(m_libraryBrowserPanel, "Library Browser");
 
-    QWidget* wizPage = new QWidget();
-    QVBoxLayout* wizPageLayout = new QVBoxLayout(wizPage);
-    wizPageLayout->setContentsMargins(10, 10, 10, 10);
-    wizPageLayout->setSpacing(10);
-
-    QGroupBox* wizGroup = new QGroupBox("Footprint Wizard");
-    QFormLayout* wizForm = new QFormLayout(wizGroup);
-    wizForm->setContentsMargins(10, 25, 10, 10);
-    
-    m_wizType = new QComboBox();
-    m_wizType->addItems({"DIP", "SOIC", "Passive (0603/0805)", "Passive (TH Axial)"});
-    
-    m_wizPins = new QSpinBox(); m_wizPins->setRange(2, 100); m_wizPins->setValue(8);
-    m_wizPitch = new QDoubleSpinBox(); m_wizPitch->setRange(0.1, 10); m_wizPitch->setValue(2.54);
-    m_wizSpan = new QDoubleSpinBox(); m_wizSpan->setRange(1, 100); m_wizSpan->setValue(7.62);
-    m_wizPadW = new QDoubleSpinBox(); m_wizPadW->setRange(0.1, 10); m_wizPadW->setValue(1.5);
-    m_wizPadH = new QDoubleSpinBox(); m_wizPadH->setRange(0.1, 10); m_wizPadH->setValue(1.5);
-    
-    QString wizInputStyle = "QSpinBox, QDoubleSpinBox, QComboBox { "
-                            "background-color: #2d2d2d; color: #ececec; "
-                            "border: 1px solid #3c3c3c; border-radius: 4px; "
-                            "padding: 4px; min-height: 24px; }"
-                            "QSpinBox::up-button, QDoubleSpinBox::up-button, "
-                            "QSpinBox::down-button, QDoubleSpinBox::down-button { "
-                            "background-color: #3d3d3d; width: 16px; border-left: 1px solid #3c3c3c; }"
-                            "QComboBox::drop-down { border-left: 1px solid #3c3c3c; width: 20px; }";
-    
-    m_wizType->setStyleSheet(wizInputStyle);
-    m_wizPins->setStyleSheet(wizInputStyle);
-    m_wizPitch->setStyleSheet(wizInputStyle);
-    m_wizSpan->setStyleSheet(wizInputStyle);
-    m_wizPadW->setStyleSheet(wizInputStyle);
-    m_wizPadH->setStyleSheet(wizInputStyle);
-
-    wizForm->addRow("Type:", m_wizType);
-    wizForm->addRow("Pins:", m_wizPins);
-    wizForm->addRow("Pitch:", m_wizPitch);
-    wizForm->addRow("Row Span:", m_wizSpan);
-    wizForm->addRow("Pad W:", m_wizPadW);
-    wizForm->addRow("Pad H:", m_wizPadH);
-
-    QPushButton* wizBtn = new QPushButton("Generate & Save");
-    wizBtn->setCursor(Qt::PointingHandCursor);
-    wizBtn->setStyleSheet("QPushButton { background-color: #059669; color: white; font-weight: bold; padding: 8px; border-radius: 4px; border: none; }"
-                          "QPushButton:hover { background-color: #047857; }"
-                          "QPushButton:pressed { background-color: #065f46; }");
-    connect(wizBtn, &QPushButton::clicked, this, &FootprintEditor::onWizardGenerate);
-    wizForm->addRow(wizBtn);
-
-    QPushButton* importKiCadWizardBtn = new QPushButton("Import KiCad Footprint");
-    connect(importKiCadWizardBtn, &QPushButton::clicked, this, &FootprintEditor::onImportKicadFootprint);
-    wizForm->addRow(importKiCadWizardBtn);
-
-    wizPageLayout->addWidget(wizGroup);
-    wizPageLayout->addStretch();
-    m_leftTabWidget->addTab(wizPage, "Wizard");
+    m_wizardPanel = new FootprintWizardPanel(this);
+    connect(m_wizardPanel, &FootprintWizardPanel::footprintGenerated, this, &FootprintEditor::onWizardGenerate);
+    connect(m_wizardPanel, &FootprintWizardPanel::importKicadFootprintRequested, this, &FootprintEditor::onImportKicadFootprint);
+    m_leftTabWidget->addTab(m_wizardPanel, "Wizard");
     contentLayout->addWidget(m_leftTabWidget);
 
     // -- Viewport Area --
@@ -2362,67 +2307,19 @@ void FootprintEditor::onMeasure(QPointF p1, QPointF p2) {
     }
 }
 
-void FootprintEditor::onWizardGenerate() {
+void FootprintEditor::onWizardGenerate(const FootprintDefinition& def) {
     FootprintDefinition oldDef = m_footprint;
-    FootprintDefinition newDef = oldDef;
-    newDef.clearPrimitives();
-
-    QString type = m_wizType->currentText();
-    int pins = m_wizPins->value();
-    double pitch = m_wizPitch->value();
-    double span = m_wizSpan->value();
-    QSizeF padSize(m_wizPadW->value(), m_wizPadH->value());
-
-    if (type == "DIP" || type == "SOIC") {
-        int half = pins / 2;
-        for (int i = 0; i < half; ++i) {
-            double y = (i - (half-1)/2.0) * pitch;
-            // Pin 1 uses Rect, rests use Round for TH, or Rect for SMD
-            QString shape1 = (i == 0) ? "Rect" : (type == "DIP" ? "Round" : "Rect");
-            QString shape2 = (type == "DIP") ? "Round" : "Rect";
-            
-            auto p1 = FootprintPrimitive::createPad(QPointF(-span/2, y), QString::number(i+1), shape1, padSize);
-            auto p2 = FootprintPrimitive::createPad(QPointF(span/2, -y), QString::number(half+i+1), shape2, padSize);
-            
-            p1.layer = FootprintPrimitive::Top_Copper;
-            p2.layer = FootprintPrimitive::Top_Copper;
-
-            if (type == "DIP") {
-                p1.data["drill_size"] = 0.8;
-                p2.data["drill_size"] = 0.8;
-            }
-            
-            newDef.addPrimitive(p1);
-            newDef.addPrimitive(p2);
-        }
-
-        // Add Fabrication outline (Gray)
-        double yMax = ((pins/2 - 1) / 2.0) * pitch;
-        FootprintPrimitive fabRect = FootprintPrimitive::createRect(QRectF(-span/2 + 0.5, -yMax - 0.5, span - 1.0, yMax*2 + 1.0).normalized());
-        fabRect.layer = FootprintPrimitive::Top_Fabrication;
-        newDef.addPrimitive(fabRect);
-
-        // Add Courtyard boundary (Magenta)
-        FootprintPrimitive courtRect = FootprintPrimitive::createRect(QRectF(-span/2 - 1.0, -yMax - 1.0, span + 2.0, yMax*2 + 2.0).normalized());
-        courtRect.layer = FootprintPrimitive::Top_Courtyard;
-        newDef.addPrimitive(courtRect);
-
-        if (newDef.name().trimmed().isEmpty()) newDef.setName(QString("%1-%2").arg(type).arg(pins));
-    } else if (type == "Passive (TH Axial)") {
-        auto p1 = FootprintPrimitive::createPad(QPointF(-pitch/2, 0), "1", "Rect", padSize);
-        p1.data["drill_size"] = 0.8;
-        auto p2 = FootprintPrimitive::createPad(QPointF(pitch/2, 0), "2", "Round", padSize);
-        p2.data["drill_size"] = 0.8;
-        
-        newDef.addPrimitive(p1);
-        newDef.addPrimitive(p2);
-        if (newDef.name().trimmed().isEmpty()) newDef.setName("R_Axial_TH");
-    } else if (type.startsWith("Passive")) {
-        newDef.addPrimitive(FootprintPrimitive::createPad(QPointF(-pitch/2, 0), "1", "Rect", padSize));
-        newDef.addPrimitive(FootprintPrimitive::createPad(QPointF(pitch/2, 0), "2", "Rect", padSize));
-        if (newDef.name().trimmed().isEmpty()) newDef.setName("R_0805");
-    }
-
+    FootprintDefinition newDef = def;
+    
+    newDef.setName(oldDef.name().trimmed().isEmpty() ? def.name() : oldDef.name());
+    newDef.setDescription(oldDef.description());
+    newDef.setCategory(oldDef.category());
+    newDef.setClassification(oldDef.classification());
+    newDef.setKeywords(oldDef.keywords());
+    newDef.setExcludeFromBOM(oldDef.excludeFromBOM());
+    newDef.setExcludeFromPosFiles(oldDef.excludeFromPosFiles());
+    newDef.setDnp(oldDef.dnp());
+    newDef.setIsNetTie(oldDef.isNetTie());
 
     m_undoStack->push(new UpdateFootprintCommand(this, oldDef, newDef, "Generate Footprint"));
 }
@@ -3019,95 +2916,7 @@ void FootprintEditor::onSelectionChanged() {
     updatePropertiesPanel();
 }
 
-void FootprintEditor::createLibraryBrowser() {
-    m_libSearchEdit = new QLineEdit();
-    m_libSearchEdit->setPlaceholderText("Search footprints...");
-    m_libSearchEdit->setClearButtonEnabled(true);
-    connect(m_libSearchEdit, &QLineEdit::textChanged, this, &FootprintEditor::onLibSearchChanged);
-
-    m_libraryTree = new QTreeWidget();
-    m_libraryTree->setHeaderHidden(true);
-    m_libraryTree->setIndentation(15);
-    // Style handled by global setupUI stylesheet
-    connect(m_libraryTree, &QTreeWidget::itemDoubleClicked, this, &FootprintEditor::onLoadFootprint);
-
-    populateLibraryTree();
-}
-
-void FootprintEditor::populateLibraryTree() {
-    m_libraryTree->clear();
-    
-    QIcon libIcon(":/icons/folder_open.svg");
-    QIcon fpIcon(":/icons/component_file.svg");
-
-    for (FootprintLibrary* lib : FootprintLibraryManager::instance().libraries()) {
-        QTreeWidgetItem* libItem = new QTreeWidgetItem(m_libraryTree);
-        libItem->setText(0, lib->name());
-        libItem->setIcon(0, libIcon); 
-        libItem->setData(0, Qt::UserRole, "Library");
-        
-        QStringList footprints = lib->getFootprintNames();
-        // Sort for better UX
-        std::sort(footprints.begin(), footprints.end());
-
-        for (const QString& fpName : footprints) {
-            QTreeWidgetItem* fpItem = new QTreeWidgetItem(libItem);
-            fpItem->setText(0, fpName);
-            fpItem->setIcon(0, fpIcon);
-            fpItem->setData(0, Qt::UserRole, "Footprint");
-            fpItem->setData(0, Qt::UserRole + 1, lib->name()); // Store lib name if needed
-        }
-        
-        // Expand if it has few items or is the main one
-        if (lib->name() == "User Library" || footprints.size() < 10) {
-            libItem->setExpanded(true);
-        }
-    }
-}
-
-void FootprintEditor::onLibSearchChanged(const QString& text) {
-    QString query = text.trimmed();
-    bool hasQuery = !query.isEmpty();
-    
-    for (int i = 0; i < m_libraryTree->topLevelItemCount(); ++i) {
-        QTreeWidgetItem* libItem = m_libraryTree->topLevelItem(i);
-        bool libMatches = libItem->text(0).contains(query, Qt::CaseInsensitive);
-        bool anyChildMatches = false;
-        
-        for (int j = 0; j < libItem->childCount(); ++j) {
-            QTreeWidgetItem* fpItem = libItem->child(j);
-            bool fpMatches = fpItem->text(0).contains(query, Qt::CaseInsensitive);
-            
-            bool visible = !hasQuery || fpMatches || libMatches;
-            fpItem->setHidden(!visible);
-            
-            if (visible) anyChildMatches = true;
-        }
-        
-        libItem->setHidden(!hasQuery && !libMatches && !anyChildMatches); // Logic might be tricky
-        // Better:
-        // If query empty: show all
-        // If query:
-        //   Show lib if lib matches OR any child matches
-        //   Show child if child matches OR lib matches property? usually only if child matches
-        // Let's stick to standard search: show item if it matches. Expand parent if child matches.
-        
-        if (hasQuery) {
-            libItem->setHidden(!anyChildMatches && !libMatches);
-            if (anyChildMatches) libItem->setExpanded(true);
-        } else {
-            libItem->setHidden(false);
-            // Maybe restore expansion state?
-        }
-    }
-}
-
-void FootprintEditor::onLoadFootprint(QTreeWidgetItem* item, int column) {
-    if (item->data(0, Qt::UserRole).toString() != "Footprint") return;
-    
-    QString name = item->text(0);
-    FootprintDefinition def = FootprintLibraryManager::instance().findFootprint(name);
-    
+void FootprintEditor::onLoadFootprint(const FootprintDefinition& def) {
     if (def.isValid()) {
         if (!m_footprint.primitives().isEmpty()) {
             QMessageBox::StandardButton reply;

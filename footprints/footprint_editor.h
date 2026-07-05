@@ -34,6 +34,8 @@
 #include "models/footprint_definition.h"
 
 #include "ui/footprint_editor_view.h"
+#include "ui/footprint_library_browser_panel.h"
+#include "ui/footprint_wizard_panel.h"
 
 using Flux::Model::FootprintDefinition;
 using Flux::Model::FootprintPrimitive;
@@ -120,7 +122,7 @@ private slots:
     // Grid / Measure
     void onGridSizeChanged(const QString& size);
     void onMeasure(QPointF p1, QPointF p2);
-    void onWizardGenerate();
+    void onWizardGenerate(const FootprintDefinition& def);
     void onContextMenu(QPoint pos);
     void onRectResizeStarted(const QString& corner, QPointF scenePos);
     void onRectResizeUpdated(QPointF scenePos);
@@ -253,16 +255,9 @@ private:
     QMap<int, QToolButton*> m_layerChipButtons;
     QSet<int> m_visibleLayers;
 
-    // Library Browser
-    void createLibraryBrowser();
-    void populateLibraryTree();
-    QTreeWidget* m_libraryTree;
-    QLineEdit* m_libSearchEdit;
-
-    // Wizard UI
-    QComboBox* m_wizType;
-    QSpinBox* m_wizPins;
-    QDoubleSpinBox *m_wizPitch, *m_wizSpan, *m_wizPadW, *m_wizPadH;
+    // Panels
+    FootprintLibraryBrowserPanel* m_libraryBrowserPanel;
+    FootprintWizardPanel* m_wizardPanel;
 
     QLabel* m_statusLabel; // Status information
     QCheckBox* m_previewBottomCopperCheck = nullptr;
@@ -278,8 +273,7 @@ private:
     void populatePropertiesFor(int index);
     
 private slots:
-    void onLibSearchChanged(const QString& text);
-    void onLoadFootprint(QTreeWidgetItem* item, int column);
+    void onLoadFootprint(const FootprintDefinition& def);
 
 protected:
     void dragEnterEvent(QDragEnterEvent* event) override;
