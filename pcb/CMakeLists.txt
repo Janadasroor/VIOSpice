@@ -13,6 +13,10 @@ set(PCB_SOURCES
     editor/pcb_panelizer.h
     editor/pcb_export_manager.cpp
     editor/pcb_export_manager.h
+    editor/pcb_eco_resolver.cpp
+    editor/pcb_eco_resolver.h
+    editor/pcb_via_stitcher.cpp
+    editor/pcb_via_stitcher.h
 
     # Items
     items/pcb_item.cpp
