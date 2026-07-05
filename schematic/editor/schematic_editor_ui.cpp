@@ -20,7 +20,7 @@
 #include "../items/generic_component_item.h"
 #include "../ui/schematic_components_widget.h"
 #include "../ui/schematic_hierarchy_panel.h"
-#include "../ui/simulation_panel.h"
+#include "../ui/simulation/simulation_panel.h"
 #include "../ui/logic_analyzer_window.h"
 #include "../../ui/source_control_panel.h"
 #include "../ui/schematic_minimap.h"

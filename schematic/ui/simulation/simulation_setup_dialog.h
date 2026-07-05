@@ -13,7 +13,7 @@
 #include <QFormLayout>
 #include <QJsonObject>
 #include <QLabel>
-#include "../../simulator/core/sim_results.h"
+#include "../../../simulator/core/sim_results.h"
 
 class SimulationSetupDialog : public QDialog {
     Q_OBJECT

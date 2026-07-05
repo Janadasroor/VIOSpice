@@ -6,7 +6,7 @@
 #include "simulation_design_explorer_panel.h"
 #include "theme_manager.h"
 #include "si_formatter.h"
-#include "../../core/simulation/sim_value_parser.h"
+#include "../../../core/simulation/sim_value_parser.h"
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QHeaderView>

@@ -6,7 +6,7 @@
 #include "joystick_item.h"
 #include "../core/simulation/simulation_manager.h"
 #include "../editor/schematic_editor.h"
-#include "../ui/simulation_panel.h"
+#include "../ui/simulation/simulation_panel.h"
 #include <QApplication>
 #include <QPainter>
 #include <QGraphicsSceneMouseEvent>

@@ -23,7 +23,7 @@
 #include <QTreeWidgetItem>
 #include "schematic_view.h"
 #include "../tools/schematic_tool.h"
-#include "../ui/simulation_setup_dialog.h"
+#include "../ui/simulation/simulation_setup_dialog.h"
 #include "../ui/schematic_components_widget.h"
 #include "../ui/project_explorer_widget.h"
 #include "../ui/flux_script_panel.h"

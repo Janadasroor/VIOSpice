@@ -104,7 +104,7 @@
 #include "../dialogs/oscilloscope_properties_dialog.h"
 #include "../dialogs/virtual_terminal_properties_dialog.h"
 #include "../dialogs/erc_rules_dialog.h"
-#include "../ui/simulation_panel.h"
+#include "../ui/simulation/simulation_panel.h"
 #include "../dialogs/find_replace_dialog.h"
 #include "assignment_validator.h"
 #include "ui/command_palette.h"

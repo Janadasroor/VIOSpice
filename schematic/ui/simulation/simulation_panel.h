@@ -28,11 +28,11 @@
 #include <atomic>
 #include <QDateTime>
 #include <QElapsedTimer>
-#include "../../simulator/bridge/sim_manager.h"
-#include "../../simulator/core/sim_results.h"
-#include "../../simulator/core/sim_meas_evaluator.h"
-#include "../../ui/waveform_viewer.h"
-#include "smith_chart_widget.h"
+#include "../../../simulator/bridge/sim_manager.h"
+#include "../../../simulator/core/sim_results.h"
+#include "../../../simulator/core/sim_meas_evaluator.h"
+#include "../../../ui/waveform_viewer.h"
+#include "../smith_chart_widget.h"
 
 class QGraphicsScene;
 class SchematicEditor;

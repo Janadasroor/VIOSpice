@@ -5,7 +5,7 @@
 
 #include "potentiometer_item.h"
 #include "../editor/schematic_editor.h"
-#include "../ui/simulation_panel.h"
+#include "../ui/simulation/simulation_panel.h"
 #include <QApplication>
 #include "../../simulator/core/sim_value_parser.h"
 #include <QPainter>
