@@ -734,7 +734,8 @@ void WaveformViewer::setupUi() {
     m_legendLayout->setContentsMargins(10, 0, 10, 0);
     m_legendLayout->setSpacing(15);
 
-    m_xAxisTitleLabel = new QLabel("Time (s)", this);
+    m_xAxisTitleLabel = new QLabel("", this);
+    m_xAxisTitleLabel->hide();
     m_legendLayout->addWidget(m_xAxisTitleLabel);
     m_legendLayout->addStretch();
 
@@ -835,8 +836,14 @@ void WaveformViewer::clear() {
     for (auto* p : m_panes) {
         if (p->chart) {
             p->chart->removeAllSeries();
-            if (p->axisY) p->axisY->setTitleText(""); // Default title
-            if (p->axisX) p->axisX->setTitleText("s"); // Default title
+            if (p->axisY) {
+                p->axisY->setTitleText("");
+                p->axisY->setTitleVisible(false);
+            }
+            if (p->axisX) {
+                p->axisX->setTitleText("");
+                p->axisX->setTitleVisible(false);
+            }
         }
         if (p->view) p->view->setCursorPositions(m_cursor1X, 0, m_cursor2X, 0, nullptr);
     }
@@ -1291,7 +1298,7 @@ void WaveformViewer::onMouseMoved(const QPointF &value) {
         return;
     }
 
-    QString coordStr = QString("Time: %1").arg(SiFormatter::format(value.x() / m_timeMultiplier, "s"));
+    QString coordStr = QString("X: %1").arg(SiFormatter::format(value.x() / m_timeMultiplier, "s"));
     
     // Check what types of signals are currently loaded
     bool hasV = false, hasI = false, hasP = false;
@@ -1497,9 +1504,8 @@ void WaveformViewer::updatePlot(bool autoScale) {
                 pane->axisX->setRange(globalMinX, globalMaxX);
             }
         }
-        pane->axisX->setTitleText(m_acMode ? "Hz" : "s");
-        pane->axisX->setTitleVisible(true);
-        pane->axisY->setTitleVisible(true);
+        pane->axisX->setTitleVisible(false);
+        pane->axisY->setTitleVisible(false);
         
         if (autoScale && paneStats.contains(pane)) {
             auto& stats = paneStats[pane];
@@ -1507,9 +1513,6 @@ void WaveformViewer::updatePlot(bool autoScale) {
             if (pad == 0) pad = 0.5;
             pane->axisY->setRange(stats.minY - pad, stats.maxY + pad);
         }
-        pane->axisY->setTitleText(m_acMode ? "dB" : 
-            (pane->type == SignalType::VOLTAGE ? "V" : 
-             pane->type == SignalType::CURRENT ? "A" : ""));
 
         QString yUnit = m_acMode ? "dB" : 
             (pane->type == SignalType::VOLTAGE ? "V" : 
@@ -1702,13 +1705,13 @@ WaveformViewer::ChartPane* WaveformViewer::createPane(WaveformViewer::SignalType
     pane->axisX->setLabelsBrush(QBrush(Qt::white));
     pane->axisX->setTitleBrush(QBrush(Qt::white));
     pane->axisX->setGridLinePen(QPen(QColor("#333"), 1, Qt::DotLine));
-    pane->axisX->setTitleVisible(true);
+    pane->axisX->setTitleVisible(false);
     
     pane->axisY = new QCategoryAxis();
     pane->axisY->setLabelsBrush(QBrush(Qt::white));
     pane->axisY->setTitleBrush(QBrush(Qt::white));
     pane->axisY->setGridLinePen(QPen(QColor("#333"), 1, Qt::DotLine));
-    pane->axisY->setTitleVisible(true);
+    pane->axisY->setTitleVisible(false);
     
     pane->chart->addAxis(pane->axisX, Qt::AlignBottom);
     pane->chart->addAxis(pane->axisY, Qt::AlignLeft);
@@ -1993,7 +1996,7 @@ void WaveformViewer::updateNodeItemStyle(QListWidgetItem* item) {
 void WaveformViewer::updateLegend() {
     if (!m_legendLayout || !m_nodeList) return;
     
-    m_xAxisTitleLabel->setText(m_acMode ? "FREQUENCY (HZ)" : "TIME (S)");
+    m_xAxisTitleLabel->hide();
 
     // Clear everything except the title and the stretch
     while (m_legendLayout->count() > 2) {
