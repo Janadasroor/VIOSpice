@@ -21,6 +21,7 @@
 
 class QQuickWidget;
 class GeminiBridge;
+class QFileSystemWatcher;
 
 /**
  * @brief GeminiPanel now hosts a QML interface via QQuickWidget.
@@ -49,6 +50,7 @@ public:
 
 public Q_SLOTS:
     void clearHistory();
+    void reloadQml();
 
 Q_SIGNALS:
     void fluxScriptGenerated(const QString& code);
@@ -93,6 +95,8 @@ private:
     // QML Integration
     QQuickWidget* m_quickWidget = nullptr;
     GeminiBridge* m_bridge = nullptr;
+    QFileSystemWatcher* m_qmlWatcher = nullptr;
+    void setupQmlWatcher(const QString& rootQmlPath);
 
     // Internal Logic Timers
     QTimer* m_thinkingPulseTimer = nullptr;
