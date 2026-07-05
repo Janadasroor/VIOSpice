@@ -1463,7 +1463,9 @@ void WaveformViewer::updatePlot(bool autoScale) {
                 pane->axisX->setRange(globalMinX, globalMaxX);
             }
         }
-        pane->axisX->setTitleVisible(false); // Using in-line legend instead
+        pane->axisX->setTitleText(m_acMode ? "Frequency (Hz)" : "Time (s)");
+        pane->axisX->setTitleVisible(true);
+        pane->axisY->setTitleVisible(true);
         
         if (autoScale && paneStats.contains(pane)) {
             auto& stats = paneStats[pane];
@@ -1660,11 +1662,13 @@ WaveformViewer::ChartPane* WaveformViewer::createPane(WaveformViewer::SignalType
     pane->axisX->setLabelsBrush(QBrush(Qt::white));
     pane->axisX->setTitleBrush(QBrush(Qt::white));
     pane->axisX->setGridLinePen(QPen(QColor("#333"), 1, Qt::DotLine));
+    pane->axisX->setTitleVisible(true);
     
     pane->axisY = new QValueAxis();
     pane->axisY->setLabelsBrush(QBrush(Qt::white));
     pane->axisY->setTitleBrush(QBrush(Qt::white));
     pane->axisY->setGridLinePen(QPen(QColor("#333"), 1, Qt::DotLine));
+    pane->axisY->setTitleVisible(true);
     
     pane->chart->addAxis(pane->axisX, Qt::AlignBottom);
     pane->chart->addAxis(pane->axisY, Qt::AlignLeft);
