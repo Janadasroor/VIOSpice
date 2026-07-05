@@ -17,7 +17,7 @@ QString formatValueSI(double val, const QString& unit) {
     if (absVal < 1e-18) return "0" + unit;
 
     static const struct { double mult; const char* sym; } suffixes[] = {
-        {1e12, "T"}, {1e9, "G"}, {1e6, "M"}, {1e3, "k"},
+        {1e12, "T"}, {1e9, "G"}, {1e6, "Meg"}, {1e3, "k"},
         {1.0, ""},
         {1e-3, "m"}, {1e-6, "u"}, {1e-9, "n"}, {1e-12, "p"}, {1e-15, "f"}
     };
