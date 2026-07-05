@@ -45,6 +45,7 @@ public:
     bool openFile(const QString& filePath);
     void setProjectContext(const QString& projectName, const QString& projectDir);
     QString projectName() const { return m_projectName; }
+    QString currentFilePath() const { return m_currentFilePath; }
     Q_INVOKABLE void handleIncomingECO();
 
 private slots:

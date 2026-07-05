@@ -42,9 +42,19 @@
 #include <QMessageBox>
 #include <QQuickWindow>
 #include <QSGRendererInterface>
+#include <QSocketNotifier>
+#include <csignal>
+#include <unistd.h>
 
 extern void initEmbeddedPython();
 extern void shutdownEmbeddedPython();
+
+static int sigFd[2] = {-1, -1};
+
+static void sigIntHandler(int) {
+    char c = 1;
+    if (sigFd[1] != -1) write(sigFd[1], &c, sizeof(c));
+}
 
 extern "C" {
 #include "ui/python_hooks.h"
@@ -146,6 +156,23 @@ int main(int argc, char *argv[])
             ProjectManager* pm = new ProjectManager;
             pm->setAttribute(Qt::WA_DeleteOnClose);
             pm->show();
+
+            // Restore previously open schematic tabs
+            QStringList lastOpen = ConfigManager::instance().toolProperty("SchematicEditor", "openFiles").toStringList();
+            if (!lastOpen.isEmpty()) {
+                SchematicEditor* sch = new SchematicEditor();
+                sch->setAttribute(Qt::WA_DeleteOnClose);
+                sch->show();
+            }
+
+            // Restore previously open PCB editor
+            QString lastPcb = ConfigManager::instance().toolProperty("PCBEditor", "openFile").toString();
+            if (!lastPcb.isEmpty() && QFile::exists(lastPcb)) {
+                MainWindow* pcb = new MainWindow();
+                pcb->setAttribute(Qt::WA_DeleteOnClose);
+                pcb->openFile(lastPcb);
+                pcb->show();
+            }
         }
         splash->deleteLater();
 
@@ -164,20 +191,44 @@ int main(int argc, char *argv[])
         checker->checkAsync();
     }, Qt::QueuedConnection);
 
+    // Graceful Ctrl+C: pipe signal to event loop via QSocketNotifier
+    if (pipe(sigFd) == 0) {
+        auto *sn = new QSocketNotifier(sigFd[0], QSocketNotifier::Read, &a);
+        QObject::connect(sn, &QSocketNotifier::activated, &a, [&a]() {
+            char tmp;
+            read(sigFd[0], &tmp, sizeof(tmp));
+            a.quit();
+        });
+        signal(SIGINT, sigIntHandler);
+    }
+
     int exitCode = a.exec();
 
-    qDebug() << "Closing all windows...";
-    for (auto w : QApplication::topLevelWidgets()) { 
-        w->close(); 
-    }
-    
-    // Process events to run CloseEvents and deleteLater
-    for(int i=0; i<5; ++i) QApplication::processEvents(QEventLoop::AllEvents, 100);
-
-    // Final forced deletion of any widget orphans that didn't close
+    // Save session state BEFORE closing windows — only currently open files are saved
     for (auto w : QApplication::topLevelWidgets()) {
-        delete w;
+        if (auto* sch = qobject_cast<SchematicEditor*>(w)) {
+            QStringList openFiles;
+            for (int i = 0; i < sch->tabCount(); ++i) {
+                QString path = sch->tabFilePath(i);
+                if (!path.isEmpty()) openFiles.append(path);
+            }
+            ConfigManager::instance().setToolProperty("SchematicEditor", "openFiles", openFiles);
+            ConfigManager::instance().setToolProperty("SchematicEditor", "activeTabIndex", sch->currentTabIndex());
+            ConfigManager::instance().saveWindowState("SchematicEditor", sch->saveGeometry(), sch->saveState());
+        }
+        if (auto* pcb = qobject_cast<MainWindow*>(w)) {
+            ConfigManager::instance().setToolProperty("PCBEditor", "openFile", pcb->currentFilePath());
+            ConfigManager::instance().saveWindowState("PCBEditor", pcb->saveGeometry(), pcb->saveState());
+        }
     }
+
+    qDebug() << "Closing all windows...";
+    for (auto w : QApplication::topLevelWidgets()) {
+        w->close();
+    }
+
+    // Process events to let deleteLater() run for WA_DeleteOnClose widgets
+    for(int i=0; i<10; ++i) QApplication::processEvents(QEventLoop::AllEvents, 200);
 
     SchematicToolRegistryBuiltIn::cleanup();
     shutdownEmbeddedPython();
