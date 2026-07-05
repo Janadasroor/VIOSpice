@@ -348,16 +348,6 @@ void SchematicEditor::closeEvent(QCloseEvent* event) {
         }
     }
 
-    // Save Session State
-    QStringList openFiles;
-    for (int i = 0; i < m_workspaceTabs->count(); ++i) {
-        QWidget* w = m_workspaceTabs->widget(i);
-        QString path = w->property("filePath").toString();
-        if (!path.isEmpty()) openFiles.append(path);
-    }
-    ConfigManager::instance().setToolProperty("SchematicEditor", "openFiles", openFiles);
-    ConfigManager::instance().setToolProperty("SchematicEditor", "activeTabIndex", m_workspaceTabs->currentIndex());
-
     // Save UI State
     ConfigManager::instance().saveWindowState("SchematicEditor", saveGeometry(), saveState());
 

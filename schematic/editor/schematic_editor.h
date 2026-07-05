@@ -77,6 +77,11 @@ public:
     void addSimulationTab(const QString& name = "Simulation Results");
     void addModelArchitectTab();
     void addImageTab(const QString& filePath);
+
+    // Session restore accessors
+    int tabCount() const { return m_workspaceTabs ? m_workspaceTabs->count() : 0; }
+    QString tabFilePath(int index) const { return m_workspaceTabs ? m_workspaceTabs->widget(index)->property("filePath").toString() : QString(); }
+    int currentTabIndex() const { return m_workspaceTabs ? m_workspaceTabs->currentIndex() : 0; }
     void openOscilloscopeWindow(class SchematicItem* item);
     void openVirtualTerminalWindow(class SchematicItem* item);
     void closeTab(int index);
