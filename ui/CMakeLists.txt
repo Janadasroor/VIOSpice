@@ -17,6 +17,16 @@ list(APPEND VIOUI_SOURCES
     "${CMAKE_CURRENT_SOURCE_DIR}/python_hooks.cpp"
 )
 
+# Add Waveform helper files
+list(APPEND VIOUI_SOURCES
+    "${CMAKE_CURRENT_SOURCE_DIR}/waveform_expression_parser.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/waveform_expression_parser.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/waveform_math_processor.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/waveform_math_processor.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/waveform_csv_helper.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/waveform_csv_helper.cpp"
+)
+
 add_library(VioUI STATIC ${VIOUI_SOURCES})
 set_target_properties(VioUI PROPERTIES AUTOMOC ON)
 vioraeda_configure_module_target(VioUI)
@@ -37,5 +47,8 @@ set_source_files_properties(
     "${CMAKE_CURRENT_SOURCE_DIR}/app_command_server.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/python_executor.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/python_hooks.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/waveform_expression_parser.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/waveform_math_processor.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/waveform_csv_helper.cpp"
     PROPERTIES SKIP_AUTOUIC ON
 )
