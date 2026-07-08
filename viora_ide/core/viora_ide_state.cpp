@@ -3,17 +3,17 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include "extension_ide_state.h"
+#include "viora_ide_state.h"
 #include <QSettings>
 #include <QApplication>
 
 namespace IDE {
 
-ExtensionIdeState::ExtensionIdeState(QObject* parent)
+VioraIdeState::VioraIdeState(QObject* parent)
     : QObject(parent) {
 }
 
-void ExtensionIdeState::saveState(const QByteArray& geometry, const QByteArray& dockState,
+void VioraIdeState::saveState(const QByteArray& geometry, const QByteArray& dockState,
                                   const QStringList& openFiles, const QString& extensionDir) {
     QSettings settings;
     settings.beginGroup(kSettingsGroup);
@@ -24,7 +24,7 @@ void ExtensionIdeState::saveState(const QByteArray& geometry, const QByteArray& 
     settings.endGroup();
 }
 
-bool ExtensionIdeState::restoreState(QByteArray& geometry, QByteArray& dockState,
+bool VioraIdeState::restoreState(QByteArray& geometry, QByteArray& dockState,
                                      QStringList& openFiles, QString& extensionDir) {
     QSettings settings;
     settings.beginGroup(kSettingsGroup);

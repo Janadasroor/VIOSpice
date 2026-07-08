@@ -1,11 +1,11 @@
 # =============================================================================
-# Extension IDE Module - Full IDE for FluxScript extension development
+# VioraIDE - Full IDE for FluxScript, VHDL, SystemVerilog development
 # =============================================================================
 
-set(EXTENSION_IDE_SOURCES
+set(VIORAIDE_SOURCES
     # Main window
-    extension_ide_window.cpp
-    extension_ide_window.h
+    viora_ide_window.cpp
+    viora_ide_window.h
 
     # Editor
     editor/ide_editor.cpp
@@ -36,25 +36,26 @@ set(EXTENSION_IDE_SOURCES
     # Core
     core/extension_runner.cpp
     core/extension_runner.h
-    core/extension_ide_state.cpp
-    core/extension_ide_state.h
+    core/viora_ide_state.cpp
+    core/viora_ide_state.h
     core/api_reference_data.cpp
     core/api_reference_data.h
+    core/ide_theme.h
 
     # Resources
     resources/extension_ide.qrc
 )
 
-qt_add_library(VioExtensionIDE STATIC ${EXTENSION_IDE_SOURCES})
+qt_add_library(VioVioraIDE STATIC ${VIORAIDE_SOURCES})
 
-target_include_directories(VioExtensionIDE PUBLIC
+target_include_directories(VioVioraIDE PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${CMAKE_CURRENT_SOURCE_DIR}/editor
     ${CMAKE_CURRENT_SOURCE_DIR}/panels
     ${CMAKE_CURRENT_SOURCE_DIR}/core
 )
 
-target_link_libraries(VioExtensionIDE PUBLIC
+target_link_libraries(VioVioraIDE PUBLIC
     VioCore
     Qt6::Widgets
     Qt6::Svg
