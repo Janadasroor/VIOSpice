@@ -186,19 +186,57 @@ void SourceControlPanel::setupUi() {
     // === Not-a-repo view ===
     m_notRepoView = new QWidget(this);
     QVBoxLayout* notRepoLayout = new QVBoxLayout(m_notRepoView);
-    notRepoLayout->setContentsMargins(16, 24, 16, 16);
-    notRepoLayout->setSpacing(12);
+    notRepoLayout->setContentsMargins(24, 32, 24, 24);
+    notRepoLayout->setSpacing(16);
+    notRepoLayout->setAlignment(Qt::AlignHCenter);
 
-    QLabel* noRepoLabel = new QLabel("This project is not a Git repository.", m_notRepoView);
-    noRepoLabel->setWordWrap(true);
-    noRepoLabel->setAlignment(Qt::AlignCenter);
-    notRepoLayout->addWidget(noRepoLabel);
+    // Git icon (large)
+    QLabel* iconLabel = new QLabel(m_notRepoView);
+    iconLabel->setAlignment(Qt::AlignCenter);
+    QPixmap gitIcon(48, 48);
+    gitIcon.fill(Qt::transparent);
+    {
+        QPainter p(&gitIcon);
+        p.setRenderHint(QPainter::Antialiasing);
+        p.setPen(QPen(QColor("#888"), 2.5));
+        // Simple branch icon
+        p.drawLine(24, 8, 24, 40);
+        p.drawLine(24, 18, 36, 18);
+        p.drawEllipse(QPoint(24, 8), 5, 5);
+        p.drawEllipse(QPoint(36, 18), 5, 5);
+    }
+    iconLabel->setPixmap(gitIcon);
+    notRepoLayout->addWidget(iconLabel);
+
+    QLabel* titleLabel = new QLabel("No Git Repository", m_notRepoView);
+    titleLabel->setAlignment(Qt::AlignCenter);
+    QFont titleFont = titleLabel->font();
+    titleFont.setPointSize(titleFont.pointSize() + 2);
+    titleFont.setBold(true);
+    titleLabel->setFont(titleFont);
+    notRepoLayout->addWidget(titleLabel);
+
+    QLabel* descLabel = new QLabel(
+        "Version control is not set up for this project. "
+        "Initialize a repository to track changes, create branches, and collaborate.",
+        m_notRepoView);
+    descLabel->setWordWrap(true);
+    descLabel->setAlignment(Qt::AlignCenter);
+    descLabel->setStyleSheet("color: #888; font-size: 11px; line-height: 1.4;");
+    descLabel->setMaximumWidth(240);
+    notRepoLayout->addWidget(descLabel);
+
+    notRepoLayout->addSpacing(8);
 
     m_initBtn = new QPushButton("Initialize Repository", m_notRepoView);
-    notRepoLayout->addWidget(m_initBtn);
+    m_initBtn->setMinimumHeight(36);
+    m_initBtn->setMinimumWidth(180);
+    notRepoLayout->addWidget(m_initBtn, 0, Qt::AlignHCenter);
 
-    m_cloneBtn = new QPushButton("Clone from GitHub...", m_notRepoView);
-    notRepoLayout->addWidget(m_cloneBtn);
+    m_cloneBtn = new QPushButton("Clone from URL...", m_notRepoView);
+    m_cloneBtn->setMinimumHeight(32);
+    m_cloneBtn->setMinimumWidth(180);
+    notRepoLayout->addWidget(m_cloneBtn, 0, Qt::AlignHCenter);
 
     notRepoLayout->addStretch();
     mainLayout->addWidget(m_notRepoView);

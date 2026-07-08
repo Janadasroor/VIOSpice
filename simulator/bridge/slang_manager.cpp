@@ -5,6 +5,7 @@
 
 #include "slang_manager.h"
 
+#ifndef VIOSPICE_DISABLE_SLANG
 #include <slang/syntax/SyntaxTree.h>
 #include <slang/ast/Compilation.h>
 #include <slang/ast/Scope.h>
@@ -26,6 +27,7 @@
 
 #include <slang/ast/statements/MiscStatements.h>
 #include <slang/ast/statements/ConditionalStatements.h>
+#endif
 
 #include <QDebug>
 #include <QMap>
@@ -173,6 +175,7 @@ std::unique_ptr<EvalNode> DffNode::clone() const {
     return cloned;
 }
 
+#ifndef VIOSPICE_DISABLE_SLANG
 namespace {
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -532,12 +535,14 @@ struct AssignmentProcessor {
 };
 
 } // namespace
+#endif
 
 SlangManager& SlangManager::instance() {
     static SlangManager inst;
     return inst;
 }
 
+#ifndef VIOSPICE_DISABLE_SLANG
 QList<SlangManager::PortInfo> SlangManager::extractPorts(const QString& svSource, const QString& moduleName, QString* error) {
     QList<PortInfo> ports;
     
@@ -844,6 +849,21 @@ SlangManager::CompiledModule SlangManager::compileToInterpreter(const QString& s
 
     return mod;
 }
+#else
+QList<SlangManager::PortInfo> SlangManager::extractPorts(const QString&, const QString&, QString* error) {
+    if (error) {
+        *error = "SystemVerilog support is disabled in this build (slang removed).";
+    }
+    return QList<PortInfo>();
+}
+
+SlangManager::CompiledModule SlangManager::compileToInterpreter(const QString&, const QString&, QString* error) {
+    if (error) {
+        *error = "SystemVerilog support is disabled in this build (slang removed).";
+    }
+    return CompiledModule();
+}
+#endif
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Pre-generated trampoline functions (one per slot index)

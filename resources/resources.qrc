@@ -147,6 +147,32 @@
         <file>icons/tool_gear.svg</file>
         <file>icons/extension.svg</file>
         <file>icons/tool_run.svg</file>
+        <file>extension_ide/icons/sidebar_explorer.svg</file>
+        <file>extension_ide/icons/sidebar_search.svg</file>
+        <file>extension_ide/icons/sidebar_git.svg</file>
+        <file>extension_ide/icons/sidebar_settings.svg</file>
+        <file>extension_ide/icons/toolbar_new.svg</file>
+        <file>extension_ide/icons/toolbar_open.svg</file>
+        <file>extension_ide/icons/toolbar_save.svg</file>
+        <file>extension_ide/icons/toolbar_run.svg</file>
+        <file>extension_ide/icons/toolbar_stop.svg</file>
+        <file>extension_ide/icons/template_simulation.svg</file>
+        <file>extension_ide/icons/template_automation.svg</file>
+        <file>extension_ide/icons/template_examples.svg</file>
+        <file>extension_ide/icons/tab_close.svg</file>
+        <file>extension_ide/icons/file_flux.svg</file>
+        <file>extension_ide/icons/file_json.svg</file>
+        <file>extension_ide/icons/file_image.svg</file>
+        <file>extension_ide/icons/file_generic.svg</file>
+        <file>extension_ide/icons/folder.svg</file>
+        <file>extension_ide/icons/folder_open.svg</file>
+        <file>extension_ide/icons/file_text.svg</file>
+        <file>extension_ide/icons/file_python.svg</file>
+        <file>extension_ide/icons/file_fluxscript.svg</file>
+        <file>extension_ide/icons/panel_left.svg</file>
+        <file>extension_ide/icons/panel_right.svg</file>
+        <file>extension_ide/icons/panel_bottom.svg</file>
+        <file>extension_ide/icons/theme_toggle.svg</file>
         <file>library/builtin.sclib</file>
         <file>library/builtin.fplib</file>
         <file>remote_display.html</file>

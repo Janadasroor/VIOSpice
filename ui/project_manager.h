@@ -56,6 +56,7 @@ private Q_SLOTS:
     void openSymbolEditor();
     void openPcbEditor();
     void openFootprintEditor();
+    void openExtensionIde();
     void openCalculatorTools();
     void openExtensionsManager();
     void openSpiceModelManager();
