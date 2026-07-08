@@ -8,6 +8,8 @@
 
 #include "theme.h"
 #include <QObject>
+#include <QMap>
+#include <functional>
 
 class ThemeManager : public QObject {
     Q_OBJECT
@@ -21,6 +23,10 @@ public:
     void setTheme(PCBTheme* theme);
     PCBTheme* currentTheme() const { return m_theme; }
 
+    // Register a callback to be invoked on every theme change
+    void registerThemeCallback(void* key, std::function<void()> callback);
+    void unregisterThemeCallback(void* key);
+
 Q_SIGNALS:
     void themeChanged();
 
@@ -28,6 +34,7 @@ private:
     ThemeManager();
 
     PCBTheme* m_theme;
+    QMap<void*, std::function<void()>> m_themeCallbacks;
 };
 
 #endif // THEME_MANAGER_H

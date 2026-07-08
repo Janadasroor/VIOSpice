@@ -20,6 +20,7 @@
 #include "csv_viewer.h"
 #include "../pcb/editor/mainwindow.h"
 #include "../footprints/footprint_editor.h"
+#include "../extension_ide/extension_ide_window.h"
 #include "../core/project/config_manager.h"
 #include "../core/settings_dialog.h"
 #include "../core/project/recent_workspaces.h"
@@ -809,6 +810,8 @@ QWidget* ProjectManager::createLauncherArea() {
             addDesign("Footprint Editor", "Create and manage PCB footprint libraries",
                       ":/icons/footprint_editor.png", QColor("#f59e0b"), &ProjectManager::openFootprintEditor);
         }
+        addDesign("Extension IDE", "Develop FluxScript extensions with full IDE features",
+                  ":/icons/extension.svg", QColor("#06b6d4"), &ProjectManager::openExtensionIde);
 
         layout->addLayout(m_launcherGrid);
     }
@@ -1755,6 +1758,7 @@ void ProjectManager::createMenuBar() {
         toolsMenu->addAction("PCB Editor", QKeySequence(), this, &ProjectManager::openPcbEditor);
         toolsMenu->addAction("Footprint Editor", QKeySequence(), this, &ProjectManager::openFootprintEditor);
     }
+    toolsMenu->addAction("Extension IDE", QKeySequence("Ctrl+Shift+E"), this, &ProjectManager::openExtensionIde);
     toolsMenu->addSeparator();
     toolsMenu->addAction("🐍 Python Console", QKeySequence("Ctrl+Shift+P"), this, &ProjectManager::showPythonConsole);
     toolsMenu->addSeparator();
@@ -1942,6 +1946,18 @@ void ProjectManager::openPcbEditor() {
 void ProjectManager::openFootprintEditor() {
     FootprintEditor* editor = new FootprintEditor(this);
     editor->setAttribute(Qt::WA_DeleteOnClose);
+    editor->show();
+}
+
+void ProjectManager::openExtensionIde() {
+    auto* editor = new IDE::ExtensionIdeWindow(nullptr);
+    editor->setAttribute(Qt::WA_DeleteOnClose);
+    if (!m_workspaceFolders.isEmpty()) {
+        QString extDir = m_workspaceFolders.first() + "/extensions";
+        if (QDir(extDir).exists()) {
+            editor->openExtensionDirectory(extDir);
+        }
+    }
     editor->show();
 }
 

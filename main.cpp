@@ -21,6 +21,7 @@
 #include "simulator/bridge/flux_sim_bridge.h"
 #include "core/flux/engine/flux_script_engine.h"
 #include "pcb/editor/mainwindow.h"
+#include "extension_ide/extension_ide_window.h"
 #include "pcb/factories/pcb_item_registry.h"
 #include "pcb/tools/pcb_tool_registry_builtin.h"
 #include "footprints/footprint_library.h"
@@ -163,9 +164,18 @@ int main(int argc, char *argv[])
 
     QString serverName = "VioraEDA_instance_server";
     QString fileToOpen;
+    bool openExtensionIde = false;
+    QString projectPath;
     for (int i = 1; i < argc; ++i) {
         QString arg = argv[i];
-        if (!arg.startsWith("-")) fileToOpen = QFileInfo(arg).absoluteFilePath();
+        if (arg == "--extension-ide") {
+            openExtensionIde = true;
+        } else if (arg == "--project" && i + 1 < argc) {
+            projectPath = QFileInfo(argv[++i]).absoluteFilePath();
+            openExtensionIde = true;
+        } else if (!arg.startsWith("-")) {
+            fileToOpen = QFileInfo(arg).absoluteFilePath();
+        }
     }
 
     QLocalServer* server = new QLocalServer(&a);
@@ -190,12 +200,30 @@ int main(int argc, char *argv[])
         UICommandServer::instance().start(port);
     }
 
-    QMetaObject::invokeMethod(qApp, [splash, fileToOpen]() {
-        if (!fileToOpen.isEmpty()) {
-            SchematicEditor* sch = new SchematicEditor();
-            sch->setAttribute(Qt::WA_DeleteOnClose);
-            sch->openFile(fileToOpen);
-            sch->show();
+    QMetaObject::invokeMethod(qApp, [splash, fileToOpen, openExtensionIde, projectPath]() {
+        if (openExtensionIde) {
+            // Launch Extension IDE directly
+            auto* ide = new IDE::ExtensionIdeWindow();
+            ide->setAttribute(Qt::WA_DeleteOnClose);
+            if (!projectPath.isEmpty()) {
+                ide->openExtensionDirectory(projectPath);
+            } else if (!fileToOpen.isEmpty()) {
+                ide->openFile(fileToOpen);
+            }
+            ide->show();
+        } else if (!fileToOpen.isEmpty()) {
+            if (fileToOpen.endsWith(".flux", Qt::CaseInsensitive)) {
+                // Open .flux files in the Extension IDE
+                auto* ide = new IDE::ExtensionIdeWindow();
+                ide->setAttribute(Qt::WA_DeleteOnClose);
+                ide->openFile(fileToOpen);
+                ide->show();
+            } else {
+                SchematicEditor* sch = new SchematicEditor();
+                sch->setAttribute(Qt::WA_DeleteOnClose);
+                sch->openFile(fileToOpen);
+                sch->show();
+            }
         } else {
             ProjectManager* pm = new ProjectManager;
             pm->setAttribute(Qt::WA_DeleteOnClose);

@@ -1,0 +1,18 @@
+<!DOCTYPE RCC>
+<RCC version="1.0">
+    <qresource prefix="/">
+        <file alias="extension_ide/icons/sidebar_explorer.svg">sidebar_explorer.svg</file>
+        <file alias="extension_ide/icons/sidebar_search.svg">sidebar_search.svg</file>
+        <file alias="extension_ide/icons/sidebar_git.svg">sidebar_git.svg</file>
+        <file alias="extension_ide/icons/sidebar_settings.svg">sidebar_settings.svg</file>
+        <file alias="extension_ide/icons/toolbar_new.svg">toolbar_new.svg</file>
+        <file alias="extension_ide/icons/toolbar_open.svg">toolbar_open.svg</file>
+        <file alias="extension_ide/icons/toolbar_save.svg">toolbar_save.svg</file>
+        <file alias="extension_ide/icons/toolbar_run.svg">toolbar_run.svg</file>
+        <file alias="extension_ide/icons/toolbar_stop.svg">toolbar_stop.svg</file>
+        <file alias="extension_ide/icons/template_simulation.svg">template_simulation.svg</file>
+        <file alias="extension_ide/icons/template_automation.svg">template_automation.svg</file>
+        <file alias="extension_ide/icons/template_examples.svg">template_examples.svg</file>
+        <file alias="extension_ide/icons/tab_close.svg">tab_close.svg</file>
+    </qresource>
+</RCC>
