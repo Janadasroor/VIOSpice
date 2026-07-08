@@ -3,8 +3,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#ifndef EXTENSION_IDE_STATE_H
-#define EXTENSION_IDE_STATE_H
+#ifndef VIORA_IDE_STATE_H
+#define VIORA_IDE_STATE_H
 
 #include <QObject>
 #include <QStringList>
@@ -12,10 +12,10 @@
 
 namespace IDE {
 
-class ExtensionIdeState : public QObject {
+class VioraIdeState : public QObject {
     Q_OBJECT
 public:
-    explicit ExtensionIdeState(QObject* parent = nullptr);
+    explicit VioraIdeState(QObject* parent = nullptr);
 
     void saveState(const QByteArray& geometry, const QByteArray& dockState,
                    const QStringList& openFiles, const QString& extensionDir);
@@ -28,4 +28,4 @@ private:
 
 } // namespace IDE
 
-#endif // EXTENSION_IDE_STATE_H
+#endif // VIORA_IDE_STATE_H

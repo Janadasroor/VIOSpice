@@ -589,7 +589,7 @@ add_subdirectory(simulator)
 add_subdirectory(python)
 add_subdirectory(footprints)
 add_subdirectory(pcb)
-add_subdirectory(extension_ide)
+add_subdirectory(viora_ide)
 
 option(VIOSPICE_ENABLE_TESTS "Enable tests" ON)
 if(BUILD_TESTING AND VIOSPICE_ENABLE_TESTS)
@@ -698,7 +698,7 @@ if(BUILD_VIOSPICE_APP)
         VioSimulator
         VioSymbols
         VioCore
-        VioExtensionIDE
+        VioVioraIDE
         FluxScript
         FluxScriptManager
         VioFootprints

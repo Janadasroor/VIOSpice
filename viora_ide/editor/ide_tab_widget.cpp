@@ -42,7 +42,7 @@ IdeTabWidget::IdeTabWidget(QWidget* parent)
     welcomeLayout->setAlignment(Qt::AlignCenter);
     welcomeLayout->setSpacing(12);
 
-    auto* welcomeTitle = new QLabel("Extension IDE");
+    auto* welcomeTitle = new QLabel("VioraIDE");
     welcomeTitle->setStyleSheet(
         QString("color: %1; font-size: 22pt; font-weight: bold;").arg(tc.textPrimary)
     );

@@ -86,7 +86,7 @@ add_library(VioSchematicUI ALIAS VioSchematic)
 if(BUILD_TESTING)
     vioraeda_add_test(test_spice_directive_netlist
         SOURCES tests/test_spice_directive_netlist.cpp
-        LINK_LIBS VioSchematic VioSymbols VioSimulator VioCore VioUI VioExtensionIDE
+        LINK_LIBS VioSchematic VioSymbols VioSimulator VioCore VioUI VioVioraIDE
     )
     target_include_directories(test_spice_directive_netlist PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}
@@ -95,7 +95,7 @@ if(BUILD_TESTING)
 
     vioraeda_add_test(test_virtual_terminal
         SOURCES tests/test_virtual_terminal.cpp
-        LINK_LIBS VioSchematic VioSymbols VioSimulator VioCore VioUI VioExtensionIDE
+        LINK_LIBS VioSchematic VioSymbols VioSimulator VioCore VioUI VioVioraIDE
     )
     target_include_directories(test_virtual_terminal PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}
