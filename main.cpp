@@ -21,7 +21,7 @@
 #include "simulator/bridge/flux_sim_bridge.h"
 #include "core/flux/engine/flux_script_engine.h"
 #include "pcb/editor/mainwindow.h"
-#include "extension_ide/extension_ide_window.h"
+#include "viora_ide/viora_ide_window.h"
 #include "pcb/factories/pcb_item_registry.h"
 #include "pcb/tools/pcb_tool_registry_builtin.h"
 #include "footprints/footprint_library.h"
@@ -164,15 +164,15 @@ int main(int argc, char *argv[])
 
     QString serverName = "VioraEDA_instance_server";
     QString fileToOpen;
-    bool openExtensionIde = false;
+    bool openVioraIde = false;
     QString projectPath;
     for (int i = 1; i < argc; ++i) {
         QString arg = argv[i];
-        if (arg == "--extension-ide") {
-            openExtensionIde = true;
+        if (arg == "--ide") {
+            openVioraIde = true;
         } else if (arg == "--project" && i + 1 < argc) {
             projectPath = QFileInfo(argv[++i]).absoluteFilePath();
-            openExtensionIde = true;
+            openVioraIde = true;
         } else if (!arg.startsWith("-")) {
             fileToOpen = QFileInfo(arg).absoluteFilePath();
         }
@@ -200,21 +200,21 @@ int main(int argc, char *argv[])
         UICommandServer::instance().start(port);
     }
 
-    QMetaObject::invokeMethod(qApp, [splash, fileToOpen, openExtensionIde, projectPath]() {
-        if (openExtensionIde) {
-            // Launch Extension IDE directly
-            auto* ide = new IDE::ExtensionIdeWindow();
+    QMetaObject::invokeMethod(qApp, [splash, fileToOpen, openVioraIde, projectPath]() {
+        if (openVioraIde) {
+            // Launch VioraIDE directly
+            auto* ide = new IDE::VioraIdeWindow();
             ide->setAttribute(Qt::WA_DeleteOnClose);
             if (!projectPath.isEmpty()) {
-                ide->openExtensionDirectory(projectPath);
+                ide->openVioraDirectory(projectPath);
             } else if (!fileToOpen.isEmpty()) {
                 ide->openFile(fileToOpen);
             }
             ide->show();
         } else if (!fileToOpen.isEmpty()) {
             if (fileToOpen.endsWith(".flux", Qt::CaseInsensitive)) {
-                // Open .flux files in the Extension IDE
-                auto* ide = new IDE::ExtensionIdeWindow();
+                // Open .flux files in VioraIDE
+                auto* ide = new IDE::VioraIdeWindow();
                 ide->setAttribute(Qt::WA_DeleteOnClose);
                 ide->openFile(fileToOpen);
                 ide->show();

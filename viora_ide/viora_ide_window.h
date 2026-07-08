@@ -3,8 +3,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#ifndef EXTENSION_IDE_WINDOW_H
-#define EXTENSION_IDE_WINDOW_H
+#ifndef VIORA_IDE_WINDOW_H
+#define VIORA_IDE_WINDOW_H
 
 #include <QMainWindow>
 #include <QMap>
@@ -32,14 +32,14 @@ class TemplateBrowserPanel;
 class ExtensionRunner;
 class IdeFindReplace;
 
-class ExtensionIdeWindow : public QMainWindow {
+class VioraIdeWindow : public QMainWindow {
     Q_OBJECT
 public:
-    explicit ExtensionIdeWindow(QWidget* parent = nullptr);
-    ~ExtensionIdeWindow();
+    explicit VioraIdeWindow(QWidget* parent = nullptr);
+    ~VioraIdeWindow();
 
     void openFile(const QString& filePath);
-    void openExtensionDirectory(const QString& dirPath);
+    void openVioraDirectory(const QString& dirPath);
 
     QString currentExtensionDir() const { return m_extensionDir; }
 
@@ -144,4 +144,4 @@ private:
 
 } // namespace IDE
 
-#endif // EXTENSION_IDE_WINDOW_H
+#endif // VIORA_IDE_WINDOW_H

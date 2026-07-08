@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include "extension_ide_window.h"
+#include "viora_ide_window.h"
 #include "editor/ide_editor.h"
 #include "editor/ide_tab_widget.h"
 #include "editor/ide_find_replace.h"
@@ -63,11 +63,11 @@ static const char* C(const QString& s) { return s.toLocal8Bit().constData(); }
 #define kBgTabActive  C(tc.bgTabActive)
 #define kBgTabInactive C(tc.bgTabInactive)
 
-ExtensionIdeWindow::ExtensionIdeWindow(QWidget* parent)
+VioraIdeWindow::VioraIdeWindow(QWidget* parent)
     : QMainWindow(parent) {
     loadThemeColors();
 
-    setWindowTitle("Extension IDE - VioraEDA");
+    setWindowTitle("VioraIDE - VioraEDA");
     setMinimumSize(900, 600);
     resize(1280, 800);
 
@@ -94,12 +94,12 @@ ExtensionIdeWindow::ExtensionIdeWindow(QWidget* parent)
         QString appDir = QCoreApplication::applicationDirPath();
         QString demoExt = appDir + "/../demo_extension";
         if (QDir(demoExt).exists()) {
-            openExtensionDirectory(demoExt);
+            openVioraDirectory(demoExt);
         }
     }
 }
 
-ExtensionIdeWindow::~ExtensionIdeWindow() {
+VioraIdeWindow::~VioraIdeWindow() {
     saveWindowState();
 }
 
@@ -107,16 +107,16 @@ ExtensionIdeWindow::~ExtensionIdeWindow() {
 // Setup
 // ============================================================================
 
-void ExtensionIdeWindow::setupMenus() {
+void VioraIdeWindow::setupMenus() {
     // File menu
     auto* fileMenu = new QMenu("File", this);
-    fileMenu->addAction("&New File", this, &ExtensionIdeWindow::onNewFile, QKeySequence::New);
-    fileMenu->addAction("&Open File...", this, &ExtensionIdeWindow::onOpenFile, QKeySequence::Open);
-    fileMenu->addAction("Open &Directory...", this, &ExtensionIdeWindow::onOpenDirectory);
+    fileMenu->addAction("&New File", this, &VioraIdeWindow::onNewFile, QKeySequence::New);
+    fileMenu->addAction("&Open File...", this, &VioraIdeWindow::onOpenFile, QKeySequence::Open);
+    fileMenu->addAction("Open &Directory...", this, &VioraIdeWindow::onOpenDirectory);
     fileMenu->addSeparator();
-    fileMenu->addAction("&Save", this, &ExtensionIdeWindow::onSave, QKeySequence::Save);
-    fileMenu->addAction("Save &As...", this, &ExtensionIdeWindow::onSaveAs, QKeySequence("Ctrl+Shift+S"));
-    fileMenu->addAction("Save A&ll", this, &ExtensionIdeWindow::onSaveAll, QKeySequence("Ctrl+Shift+A"));
+    fileMenu->addAction("&Save", this, &VioraIdeWindow::onSave, QKeySequence::Save);
+    fileMenu->addAction("Save &As...", this, &VioraIdeWindow::onSaveAs, QKeySequence("Ctrl+Shift+S"));
+    fileMenu->addAction("Save A&ll", this, &VioraIdeWindow::onSaveAll, QKeySequence("Ctrl+Shift+A"));
     fileMenu->addSeparator();
     fileMenu->addAction("&Close Tab", this, [this]() {
         if (m_tabWidget) m_tabWidget->closeTab(m_tabWidget->currentIndex());
@@ -151,17 +151,17 @@ void ExtensionIdeWindow::setupMenus() {
             e->paste();
     }, QKeySequence::Paste);
     editMenu->addSeparator();
-    editMenu->addAction("&Find && Replace...", this, &ExtensionIdeWindow::onShowFindReplace, QKeySequence::Find);
+    editMenu->addAction("&Find && Replace...", this, &VioraIdeWindow::onShowFindReplace, QKeySequence::Find);
 
     // Run menu
     auto* runMenu = new QMenu("Run", this);
-    runMenu->addAction("&Run Extension", this, &ExtensionIdeWindow::onRunExtension, QKeySequence("F5"));
-    runMenu->addAction("&Stop", this, &ExtensionIdeWindow::onStopExtension, QKeySequence("Shift+F5"));
+    runMenu->addAction("&Run Extension", this, &VioraIdeWindow::onRunExtension, QKeySequence("F5"));
+    runMenu->addAction("&Stop", this, &VioraIdeWindow::onStopExtension, QKeySequence("Shift+F5"));
 
     // Extensions menu
     auto* extMenu = new QMenu("Extensions", this);
-    extMenu->addAction("&New Extension...", this, &ExtensionIdeWindow::onNewExtension);
-    extMenu->addAction("&Edit Manifest...", this, &ExtensionIdeWindow::onEditManifest);
+    extMenu->addAction("&New Extension...", this, &VioraIdeWindow::onNewExtension);
+    extMenu->addAction("&Edit Manifest...", this, &VioraIdeWindow::onEditManifest);
 
     // Add menus to the native menu bar (prevents crashes in Qt 6.10+)
     menuBar()->addMenu(fileMenu);
@@ -198,7 +198,7 @@ void ExtensionIdeWindow::setupMenus() {
     m_hamburgerBtn->setMenu(hamburgerMenu);
 }
 
-void ExtensionIdeWindow::setupToolbar() {
+void VioraIdeWindow::setupToolbar() {
     m_mainToolBar = addToolBar("Main");
     m_mainToolBar->setObjectName("MainToolBar");
     m_mainToolBar->setMovable(false);
@@ -233,32 +233,32 @@ void ExtensionIdeWindow::setupToolbar() {
 
     auto* newBtn = makePillBtn("+ New", "New File (Ctrl+N)", kAccentBlue, "#2563eb");
     newBtn->setIcon(themeIcon(":/extension_ide/icons/toolbar_new.svg"));
-    connect(newBtn, &QToolButton::clicked, this, &ExtensionIdeWindow::onNewFile);
+    connect(newBtn, &QToolButton::clicked, this, &VioraIdeWindow::onNewFile);
 
     auto* openBtn = makePillBtn("Open", "Open File (Ctrl+O)", kBorder, "#475569", false);
     openBtn->setIcon(themeIcon(":/extension_ide/icons/toolbar_open.svg"));
-    connect(openBtn, &QToolButton::clicked, this, &ExtensionIdeWindow::onOpenFile);
+    connect(openBtn, &QToolButton::clicked, this, &VioraIdeWindow::onOpenFile);
 
     auto* saveBtn = makePillBtn("Save", "Save (Ctrl+S)", kBorder, "#475569", false);
     saveBtn->setIcon(themeIcon(":/extension_ide/icons/toolbar_save.svg"));
-    connect(saveBtn, &QToolButton::clicked, this, &ExtensionIdeWindow::onSave);
+    connect(saveBtn, &QToolButton::clicked, this, &VioraIdeWindow::onSave);
 
     m_mainToolBar->addSeparator();
 
     auto* runBtn = makePillBtn("Run", "Run Extension (F5)", kGreen, "#059669");
     runBtn->setIcon(themeIcon(":/extension_ide/icons/toolbar_run.svg"));
-    connect(runBtn, &QToolButton::clicked, this, &ExtensionIdeWindow::onRunExtension);
+    connect(runBtn, &QToolButton::clicked, this, &VioraIdeWindow::onRunExtension);
 
     auto* stopBtn = makePillBtn("Stop", "Stop Extension (Shift+F5)", kRed, "#dc2626");
     stopBtn->setIcon(themeIcon(":/extension_ide/icons/toolbar_stop.svg"));
-    connect(stopBtn, &QToolButton::clicked, this, &ExtensionIdeWindow::onStopExtension);
+    connect(stopBtn, &QToolButton::clicked, this, &VioraIdeWindow::onStopExtension);
 
     m_mainToolBar->addSeparator();
 
     auto* newExtBtn = makePillBtn("New Extension", "Create New Extension", kAccentBlue, "#2563eb");
 
     auto* manifestBtn = makePillBtn("Manifest", "Edit manifest.json", kBorder, "#475569", false);
-    connect(manifestBtn, &QToolButton::clicked, this, &ExtensionIdeWindow::onEditManifest);
+    connect(manifestBtn, &QToolButton::clicked, this, &VioraIdeWindow::onEditManifest);
 
     // ── Panel toggle buttons (right-aligned, like schematic editor) ──
     auto* spacer = new QWidget();
@@ -288,13 +288,13 @@ void ExtensionIdeWindow::setupToolbar() {
     };
 
     m_toggleExplorerBtn = makeToggleBtn(":/extension_ide/icons/panel_left.svg", "Toggle Explorer Panel");
-    connect(m_toggleExplorerBtn, &QToolButton::clicked, this, &ExtensionIdeWindow::onToggleExplorerPanel);
+    connect(m_toggleExplorerBtn, &QToolButton::clicked, this, &VioraIdeWindow::onToggleExplorerPanel);
 
     m_toggleBottomBtn = makeToggleBtn(":/extension_ide/icons/panel_bottom.svg", "Toggle Bottom Panel");
-    connect(m_toggleBottomBtn, &QToolButton::clicked, this, &ExtensionIdeWindow::onToggleBottomPanel);
+    connect(m_toggleBottomBtn, &QToolButton::clicked, this, &VioraIdeWindow::onToggleBottomPanel);
 
     m_toggleRightBtn = makeToggleBtn(":/extension_ide/icons/panel_right.svg", "Toggle Right Panel");
-    connect(m_toggleRightBtn, &QToolButton::clicked, this, &ExtensionIdeWindow::onToggleRightPanel);
+    connect(m_toggleRightBtn, &QToolButton::clicked, this, &VioraIdeWindow::onToggleRightPanel);
 
     // Theme toggle
     auto* themeBtn = makeToggleBtn(":/extension_ide/icons/theme_toggle.svg", "Toggle Light/Dark Theme");
@@ -309,7 +309,7 @@ void ExtensionIdeWindow::setupToolbar() {
     });
 }
 
-void ExtensionIdeWindow::setupSidebarIcons() {
+void VioraIdeWindow::setupSidebarIcons() {
     m_sidebarStrip = new QWidget();
     m_sidebarStrip->setFixedWidth(48);
     m_sidebarStrip->setStyleSheet(
@@ -357,10 +357,10 @@ void ExtensionIdeWindow::setupSidebarIcons() {
     stripLayout->addWidget(m_sidebarGitBtn);
     stripLayout->addWidget(m_sidebarSettingsBtn);
 
-    connect(m_sidebarSettingsBtn, &QToolButton::clicked, this, &ExtensionIdeWindow::onSettings);
+    connect(m_sidebarSettingsBtn, &QToolButton::clicked, this, &VioraIdeWindow::onSettings);
 }
 
-void ExtensionIdeWindow::setupDockWidgets() {
+void VioraIdeWindow::setupDockWidgets() {
     auto titleStyle = QString(
         "background: %1; color: %3; padding: 8px 12px; "
         "font-size: 9pt; font-weight: bold; letter-spacing: 1px; "
@@ -477,7 +477,7 @@ void ExtensionIdeWindow::setupDockWidgets() {
     m_manifestDock = nullptr;
 }
 
-void ExtensionIdeWindow::setupStatusBar() {
+void VioraIdeWindow::setupStatusBar() {
     statusBar()->setStyleSheet(
         QString(
             "QStatusBar { background: %1; color: %2; font-size: 9pt; padding: 4px 12px; }"
@@ -508,7 +508,7 @@ void ExtensionIdeWindow::setupStatusBar() {
     statusBar()->addPermanentWidget(m_languageLabel);
 }
 
-void ExtensionIdeWindow::setupConnections() {
+void VioraIdeWindow::setupConnections() {
     connect(m_tabWidget, &IdeTabWidget::currentEditorChanged, this, [this](IdeEditor* editor) {
         onCurrentEditorChanged(editor);
         if (m_currentEditor) {
@@ -521,14 +521,14 @@ void ExtensionIdeWindow::setupConnections() {
             });
         }
     });
-    connect(m_tabWidget, &IdeTabWidget::tabModifiedChanged, this, &ExtensionIdeWindow::onTabModifiedChanged);
+    connect(m_tabWidget, &IdeTabWidget::tabModifiedChanged, this, &VioraIdeWindow::onTabModifiedChanged);
 
-    connect(m_runner, &ExtensionRunner::outputReceived, this, &ExtensionIdeWindow::onExtensionOutput);
-    connect(m_runner, &ExtensionRunner::errorReceived, this, &ExtensionIdeWindow::onExtensionError);
-    connect(m_runner, &ExtensionRunner::runFinished, this, &ExtensionIdeWindow::onExtensionRunFinished);
+    connect(m_runner, &ExtensionRunner::outputReceived, this, &VioraIdeWindow::onExtensionOutput);
+    connect(m_runner, &ExtensionRunner::errorReceived, this, &VioraIdeWindow::onExtensionError);
+    connect(m_runner, &ExtensionRunner::runFinished, this, &VioraIdeWindow::onExtensionRunFinished);
 
-    connect(m_fileTreePanel, &FileTreePanel::fileDoubleClicked, this, &ExtensionIdeWindow::openFile);
-    connect(m_templatePanel, &TemplateBrowserPanel::templateSelected, this, &ExtensionIdeWindow::openFile);
+    connect(m_fileTreePanel, &FileTreePanel::fileDoubleClicked, this, &VioraIdeWindow::openFile);
+    connect(m_templatePanel, &TemplateBrowserPanel::templateSelected, this, &VioraIdeWindow::openFile);
 
     connect(m_outputPanel, &OutputPanel::errorClicked, this, [this](int line) {
         if (auto* editor = m_tabWidget->currentEditor()) {
@@ -542,7 +542,7 @@ void ExtensionIdeWindow::setupConnections() {
     });
 }
 
-void ExtensionIdeWindow::setupContextMenu() {
+void VioraIdeWindow::setupContextMenu() {
     auto* cw = centralWidget();
     if (!cw) return;
     cw->setContextMenuPolicy(Qt::CustomContextMenu);
@@ -558,20 +558,20 @@ void ExtensionIdeWindow::setupContextMenu() {
             ).arg(kBgPanel, kTextPrimary, kBorder, kAccentBlue, kTextPrimary)
         );
 
-        menu.addAction("New File", this, &ExtensionIdeWindow::onNewFile);
-        menu.addAction("Open File", this, &ExtensionIdeWindow::onOpenFile);
+        menu.addAction("New File", this, &VioraIdeWindow::onNewFile);
+        menu.addAction("Open File", this, &VioraIdeWindow::onOpenFile);
         menu.addSeparator();
-        menu.addAction("Run Extension", this, &ExtensionIdeWindow::onRunExtension);
-        menu.addAction("Stop Extension", this, &ExtensionIdeWindow::onStopExtension);
+        menu.addAction("Run Extension", this, &VioraIdeWindow::onRunExtension);
+        menu.addAction("Stop Extension", this, &VioraIdeWindow::onStopExtension);
         menu.addSeparator();
-        menu.addAction("New Extension", this, &ExtensionIdeWindow::onNewExtension);
-        menu.addAction("Edit Manifest", this, &ExtensionIdeWindow::onEditManifest);
+        menu.addAction("New Extension", this, &VioraIdeWindow::onNewExtension);
+        menu.addAction("Edit Manifest", this, &VioraIdeWindow::onEditManifest);
 
         menu.exec(QCursor::pos());
     });
 }
 
-void ExtensionIdeWindow::applyTheme() {
+void VioraIdeWindow::applyTheme() {
     loadThemeColors();
     ThemeManager::theme()->applyToWidget(this);
 
@@ -674,7 +674,7 @@ void ExtensionIdeWindow::applyTheme() {
 // Actions
 // ============================================================================
 
-void ExtensionIdeWindow::openFile(const QString& filePath) {
+void VioraIdeWindow::openFile(const QString& filePath) {
     if (filePath.isEmpty()) return;
 
     detectLanguage(filePath);
@@ -696,7 +696,7 @@ void ExtensionIdeWindow::openFile(const QString& filePath) {
     statusBar()->showMessage("Opened: " + filePath);
 }
 
-void ExtensionIdeWindow::openExtensionDirectory(const QString& dirPath) {
+void VioraIdeWindow::openVioraDirectory(const QString& dirPath) {
     m_extensionDir = dirPath;
     m_fileTreePanel->setRootPath(dirPath);
     SourceControlManager::instance().setProjectDir(dirPath);
@@ -714,12 +714,12 @@ void ExtensionIdeWindow::openExtensionDirectory(const QString& dirPath) {
     updateTitle();
 }
 
-void ExtensionIdeWindow::onNewFile() {
+void VioraIdeWindow::onNewFile() {
     m_tabWidget->addEditorTab();
     updateTitle();
 }
 
-void ExtensionIdeWindow::onOpenFile() {
+void VioraIdeWindow::onOpenFile() {
     QString filePath = QFileDialog::getOpenFileName(this, "Open File", "",
         "FluxScript (*.flux);;JSON (*.json);;All Files (*)");
     if (!filePath.isEmpty()) {
@@ -727,27 +727,27 @@ void ExtensionIdeWindow::onOpenFile() {
     }
 }
 
-void ExtensionIdeWindow::onOpenDirectory() {
+void VioraIdeWindow::onOpenDirectory() {
     QString dir = QFileDialog::getExistingDirectory(this, "Open Extension Directory",
         QDir::homePath() + "/.config/VioraEDA/extensions");
     if (!dir.isEmpty()) {
-        openExtensionDirectory(dir);
+        openVioraDirectory(dir);
     }
 }
 
-void ExtensionIdeWindow::onSave() {
+void VioraIdeWindow::onSave() {
     if (m_tabWidget->saveCurrentFile()) {
         statusBar()->showMessage("Saved.", 3000);
     }
 }
 
-void ExtensionIdeWindow::onSaveAs() {
+void VioraIdeWindow::onSaveAs() {
     if (m_tabWidget->saveFileAs(m_tabWidget->currentIndex())) {
         statusBar()->showMessage("Saved.", 3000);
     }
 }
 
-void ExtensionIdeWindow::onSaveAll() {
+void VioraIdeWindow::onSaveAll() {
     int count = 0;
     for (int i = 0; i < m_tabWidget->count(); ++i) {
         auto* editor = m_tabWidget->editorAt(i);
@@ -758,7 +758,7 @@ void ExtensionIdeWindow::onSaveAll() {
     statusBar()->showMessage(QString("Saved %1 file(s).").arg(count), 3000);
 }
 
-void ExtensionIdeWindow::onRunExtension() {
+void VioraIdeWindow::onRunExtension() {
     auto* editor = m_tabWidget->currentEditor();
     if (!editor) {
         QMessageBox::information(this, "No File", "Open a .flux file to run.");
@@ -779,22 +779,22 @@ void ExtensionIdeWindow::onRunExtension() {
     m_runner->runSource(editor->toPlainText());
 }
 
-void ExtensionIdeWindow::onStopExtension() {
+void VioraIdeWindow::onStopExtension() {
     m_runner->stop();
 }
 
-void ExtensionIdeWindow::onNewExtension() {
+void VioraIdeWindow::onNewExtension() {
     ExtensionScaffoldDialog dlg(this);
     if (dlg.exec() == QDialog::Accepted) {
         QString extDir = dlg.extensionPath();
         if (!extDir.isEmpty()) {
-            openExtensionDirectory(extDir);
+            openVioraDirectory(extDir);
             m_outputPanel->appendInfo("Extension created: " + extDir);
         }
     }
 }
 
-void ExtensionIdeWindow::onEditManifest() {
+void VioraIdeWindow::onEditManifest() {
     if (m_extensionDir.isEmpty()) {
         QMessageBox::information(this, "No Extension",
             "Open an extension directory first (containing manifest.json).");
@@ -811,7 +811,7 @@ void ExtensionIdeWindow::onEditManifest() {
     m_manifestPanel->loadManifest(manifestPath);
 }
 
-void ExtensionIdeWindow::onShowFindReplace() {
+void VioraIdeWindow::onShowFindReplace() {
     if (auto* editor = m_tabWidget->currentEditor()) {
         if (!m_findDock) {
             m_findDock = new QDockWidget("Find & Replace", this);
@@ -827,7 +827,7 @@ void ExtensionIdeWindow::onShowFindReplace() {
     }
 }
 
-void ExtensionIdeWindow::onSettings() {
+void VioraIdeWindow::onSettings() {
     // TODO: Settings dialog
 }
 
@@ -835,7 +835,7 @@ void ExtensionIdeWindow::onSettings() {
 // Panel Toggles
 // ============================================================================
 
-void ExtensionIdeWindow::onToggleExplorerPanel() {
+void VioraIdeWindow::onToggleExplorerPanel() {
     if (!m_explorerWidget || !m_contentSplitter) return;
     bool visible = m_explorerWidget->isVisible();
     m_explorerWidget->setVisible(!visible);
@@ -850,14 +850,14 @@ void ExtensionIdeWindow::onToggleExplorerPanel() {
     saveWindowState();
 }
 
-void ExtensionIdeWindow::onToggleBottomPanel() {
+void VioraIdeWindow::onToggleBottomPanel() {
     if (!m_bottomPanel || !m_centerSplitter) return;
     bool visible = m_bottomPanel->isVisible();
     m_bottomPanel->setVisible(!visible);
     saveWindowState();
 }
 
-void ExtensionIdeWindow::onToggleRightPanel() {
+void VioraIdeWindow::onToggleRightPanel() {
     if (!m_rightPanel || !m_contentSplitter) return;
     bool visible = m_rightPanel->isVisible();
     m_rightPanel->setVisible(!visible);
@@ -876,7 +876,7 @@ void ExtensionIdeWindow::onToggleRightPanel() {
 // Callbacks
 // ============================================================================
 
-void ExtensionIdeWindow::onCurrentEditorChanged(IdeEditor* editor) {
+void VioraIdeWindow::onCurrentEditorChanged(IdeEditor* editor) {
     updateEditorActions();
     if (editor) {
         m_cursorLabel->setText(QString("Ln %1, Col %2").arg(editor->currentLine()).arg(editor->currentColumn()));
@@ -884,21 +884,21 @@ void ExtensionIdeWindow::onCurrentEditorChanged(IdeEditor* editor) {
     }
 }
 
-void ExtensionIdeWindow::onTabModifiedChanged(int index, bool modified) {
+void VioraIdeWindow::onTabModifiedChanged(int index, bool modified) {
     Q_UNUSED(index);
     Q_UNUSED(modified);
     updateTitle();
 }
 
-void ExtensionIdeWindow::onExtensionOutput(const QString& message) {
+void VioraIdeWindow::onExtensionOutput(const QString& message) {
     m_outputPanel->appendOutput(message);
 }
 
-void ExtensionIdeWindow::onExtensionError(const QString& message) {
+void VioraIdeWindow::onExtensionError(const QString& message) {
     m_outputPanel->appendError(message);
 }
 
-void ExtensionIdeWindow::onExtensionRunFinished(bool success) {
+void VioraIdeWindow::onExtensionRunFinished(bool success) {
     if (success) {
         m_outputPanel->appendInfo("Extension finished successfully.");
     } else {
@@ -906,7 +906,7 @@ void ExtensionIdeWindow::onExtensionRunFinished(bool success) {
     }
 }
 
-void ExtensionIdeWindow::onViewToggled(bool visible) {
+void VioraIdeWindow::onViewToggled(bool visible) {
     Q_UNUSED(visible);
 }
 
@@ -914,8 +914,8 @@ void ExtensionIdeWindow::onViewToggled(bool visible) {
 // Helpers
 // ============================================================================
 
-void ExtensionIdeWindow::updateTitle() {
-    QString base = "Extension IDE";
+void VioraIdeWindow::updateTitle() {
+    QString base = "VioraIDE";
     if (!m_extensionDir.isEmpty()) {
         base += " - " + QFileInfo(m_extensionDir).fileName();
     }
@@ -925,14 +925,14 @@ void ExtensionIdeWindow::updateTitle() {
     setWindowTitle(base);
 }
 
-void ExtensionIdeWindow::updateEditorActions() {
+void VioraIdeWindow::updateEditorActions() {
     if (auto* editor = m_tabWidget->currentEditor()) {
         statusBar()->showMessage(
             QString("Line %1, Col %2").arg(editor->currentLine()).arg(editor->currentColumn()));
     }
 }
 
-void ExtensionIdeWindow::detectLanguage(const QString& filePath) {
+void VioraIdeWindow::detectLanguage(const QString& filePath) {
     if (auto* editor = m_tabWidget->currentEditor()) {
         if (filePath.endsWith(".json", Qt::CaseInsensitive)) {
             editor->setLanguage("json");
@@ -942,14 +942,14 @@ void ExtensionIdeWindow::detectLanguage(const QString& filePath) {
     }
 }
 
-void ExtensionIdeWindow::saveWindowState() {
+void VioraIdeWindow::saveWindowState() {
     auto& cfg = ConfigManager::instance();
     cfg.setToolProperty("ExtensionIDE", "geometry", saveGeometry());
     cfg.setToolProperty("ExtensionIDE", "openFiles", m_tabWidget->openFilePaths());
     cfg.setToolProperty("ExtensionIDE", "extensionDir", m_extensionDir);
 }
 
-void ExtensionIdeWindow::restoreWindowState() {
+void VioraIdeWindow::restoreWindowState() {
     auto& cfg = ConfigManager::instance();
     QByteArray geometry = cfg.toolProperty("ExtensionIDE", "geometry").toByteArray();
     QStringList openFiles = cfg.toolProperty("ExtensionIDE", "openFiles").toStringList();
@@ -971,7 +971,7 @@ void ExtensionIdeWindow::restoreWindowState() {
     }
 }
 
-void ExtensionIdeWindow::closeEvent(QCloseEvent* event) {
+void VioraIdeWindow::closeEvent(QCloseEvent* event) {
     if (m_runner && m_runner->isRunning()) {
         m_runner->stop();
     }
