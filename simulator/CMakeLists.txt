@@ -67,13 +67,21 @@ else()
 endif()
 
 target_link_libraries(VioSimulator PUBLIC VioCore VioSchematicCore Qt${QT_VERSION_MAJOR}::Multimedia Qt${QT_VERSION_MAJOR}::Concurrent)
-target_link_libraries(VioSimulator PRIVATE slang::slang)
-target_include_directories(VioSimulator PRIVATE 
-    ${slang_SOURCE_DIR}/include 
-    ${slang_SOURCE_DIR}/external
-    ${slang_BINARY_DIR}/source
-    ${fmt_SOURCE_DIR}/include
-)
+
+if(VIOSPICE_ENABLE_SLANG)
+    target_link_libraries(VioSimulator PRIVATE slang::slang)
+    target_include_directories(VioSimulator PRIVATE 
+        ${slang_SOURCE_DIR}/include 
+        ${slang_SOURCE_DIR}/external
+        ${slang_BINARY_DIR}/source
+        ${fmt_SOURCE_DIR}/include
+    )
+else()
+    target_compile_definitions(VioSimulator PRIVATE VIOSPICE_DISABLE_SLANG=1)
+    target_include_directories(VioSimulator PRIVATE 
+        ${fmt_SOURCE_DIR}/include
+    )
+endif()
 
 if(VIOSPICE_ENGINE_FOUND)
     target_link_libraries(VioSimulator PRIVATE ${VIOSPICE_ENGINE_LIBRARIES})
@@ -103,8 +111,10 @@ if(BUILD_TESTING)
     add_test(NAME simulator.rf_math COMMAND test_sim_rf_math)
     set_tests_properties(simulator.rf_math PROPERTIES LABELS "fast;simulator;rf")
 
-    add_executable(test_slang_manager tests/test_slang_manager.cpp)
-    target_link_libraries(test_slang_manager VioSimulator Qt6::Core)
-    add_test(NAME simulator.slang_manager COMMAND test_slang_manager)
-    set_tests_properties(simulator.slang_manager PROPERTIES LABELS "simulator;slang")
+    if(VIOSPICE_ENABLE_SLANG)
+        add_executable(test_slang_manager tests/test_slang_manager.cpp)
+        target_link_libraries(test_slang_manager VioSimulator Qt6::Core)
+        add_test(NAME simulator.slang_manager COMMAND test_slang_manager)
+        set_tests_properties(simulator.slang_manager PROPERTIES LABELS "simulator;slang")
+    endif()
     endif()

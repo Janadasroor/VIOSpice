@@ -56,19 +56,23 @@ endif()
 # --- External Dependencies ---
 include(FetchContent)
 
-# Fetch and configure Slang (SystemVerilog Frontend)
-if(WIN32)
-    set(SLANG_USE_MIMALLOC OFF CACHE BOOL "Disable mimalloc on Windows to prevent exit heap corruption" FORCE)
-endif()
-FetchContent_Declare(
-    slang
-    GIT_REPOSITORY https://github.com/MikePopoloski/slang.git
-    GIT_TAG        d9c9603ca6908d5b2e55e9b535fcdf28099789ad
-)
+option(VIOSPICE_ENABLE_SLANG "Enable SystemVerilog co-simulation via Slang" OFF)
 
-# We need to ensure dependencies are handled
-FetchContent_MakeAvailable(slang)
-link_directories(${slang_BINARY_DIR}/lib)
+if(VIOSPICE_ENABLE_SLANG)
+    # Fetch and configure Slang (SystemVerilog Frontend)
+    if(WIN32)
+        set(SLANG_USE_MIMALLOC OFF CACHE BOOL "Disable mimalloc on Windows to prevent exit heap corruption" FORCE)
+    endif()
+    FetchContent_Declare(
+        slang
+        GIT_REPOSITORY https://github.com/MikePopoloski/slang.git
+        GIT_TAG        d9c9603ca6908d5b2e55e9b535fcdf28099789ad
+    )
+
+    # We need to ensure dependencies are handled
+    FetchContent_MakeAvailable(slang)
+    link_directories(${slang_BINARY_DIR}/lib)
+endif()
 # -----------------------------
 
 find_package(Qt6 6.10.0 REQUIRED COMPONENTS Widgets PrintSupport Sql OpenGLWidgets Charts Svg Network Multimedia Concurrent Test Qml Quick QuickWidgets)
@@ -585,6 +589,7 @@ add_subdirectory(simulator)
 add_subdirectory(python)
 add_subdirectory(footprints)
 add_subdirectory(pcb)
+add_subdirectory(extension_ide)
 
 option(VIOSPICE_ENABLE_TESTS "Enable tests" ON)
 if(BUILD_TESTING AND VIOSPICE_ENABLE_TESTS)
@@ -693,6 +698,7 @@ if(BUILD_VIOSPICE_APP)
         VioSimulator
         VioSymbols
         VioCore
+        VioExtensionIDE
         FluxScript
         FluxScriptManager
         VioFootprints
