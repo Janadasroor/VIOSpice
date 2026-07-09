@@ -16,7 +16,7 @@ class ExtensionRunner : public QObject {
 public:
     explicit ExtensionRunner(QObject* parent = nullptr);
 
-    bool runSource(const QString& source);
+    bool runSource(const QString& source, const QString& extensionDir = QString());
     void stop();
     bool isRunning() const { return m_running; }
 
