@@ -40,6 +40,9 @@ struct ExtensionManifest {
 
     QStringList permissions;
 
+    // Dependencies: {"extId": "versionConstraint", ...}
+    QMap<QString, QString> dependencies;
+
     bool parse(const QJsonObject& json, QString* error = nullptr);
 };
 
@@ -70,6 +73,17 @@ public:
         bool loaded;
     };
     QVector<ExtensionInfo> listExtensions() const;
+
+    // Dependency management
+    QStringList getLoadOrder() const;
+    QStringList getDependencies(const QString& id) const;
+    QStringList getDependents(const QString& id) const;
+    QStringList validateDependencies(const QString& id) const;
+
+    // Config persistence
+    QVariant getConfig(const QString& extId, const QString& key, const QVariant& defaultValue = QVariant()) const;
+    void setConfig(const QString& extId, const QString& key, const QVariant& value);
+    void saveConfig(const QString& extId);
 
 signals:
     void extensionLoaded(const QString& id);
