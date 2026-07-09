@@ -13,7 +13,11 @@
 #include "panels/manifest_editor_panel.h"
 #include "panels/template_browser_panel.h"
 #include "panels/extension_scaffold_dialog.h"
+#include "panels/problems_panel.h"
+#include "panels/command_palette.h"
+#include "panels/recent_files_dialog.h"
 #include "core/extension_runner.h"
+#include "core/lsp_client.h"
 #include "../ui/source_control_panel.h"
 #include "../ui/source_control_manager.h"
 #include "../core/project/config_manager.h"
@@ -38,6 +42,9 @@
 #include <QCoreApplication>
 #include <QDir>
 #include <QFrame>
+#include <QToolTip>
+#include <QInputDialog>
+#include <QShortcut>
 #include "../core/visuals/theme_manager.h"
 #include "../core/visuals/theme.h"
 #include "core/ide_theme.h"
@@ -112,7 +119,7 @@ void VioraIdeWindow::setupMenus() {
     auto* fileMenu = new QMenu("File", this);
     fileMenu->addAction("&New File", this, &VioraIdeWindow::onNewFile, QKeySequence::New);
     fileMenu->addAction("&Open File...", this, &VioraIdeWindow::onOpenFile, QKeySequence::Open);
-    fileMenu->addAction("Open &Directory...", this, &VioraIdeWindow::onOpenDirectory);
+    fileMenu->addAction("Open &Directory...", this, &VioraIdeWindow::onOpenDirectory, QKeySequence("Ctrl+Shift+O"));
     fileMenu->addSeparator();
     fileMenu->addAction("&Save", this, &VioraIdeWindow::onSave, QKeySequence::Save);
     fileMenu->addAction("Save &As...", this, &VioraIdeWindow::onSaveAs, QKeySequence("Ctrl+Shift+S"));
@@ -124,6 +131,9 @@ void VioraIdeWindow::setupMenus() {
     fileMenu->addAction("Close &All", this, [this]() {
         if (m_tabWidget) m_tabWidget->closeAllTabs();
     });
+    fileMenu->addAction("&Reopen Closed Tab", this, [this]() {
+        if (m_tabWidget) m_tabWidget->reopenClosedTab();
+    }, QKeySequence("Ctrl+Shift+T"));
     fileMenu->addSeparator();
     fileMenu->addAction("E&xit", qApp, &QApplication::quit, QKeySequence::Quit);
 
@@ -150,8 +160,62 @@ void VioraIdeWindow::setupMenus() {
         if (auto* e = m_tabWidget ? m_tabWidget->currentEditor() : nullptr)
             e->paste();
     }, QKeySequence::Paste);
+    editMenu->addAction("&Select All", this, [this]() {
+        if (auto* e = m_tabWidget ? m_tabWidget->currentEditor() : nullptr)
+            e->selectAll();
+    }, QKeySequence::SelectAll);
     editMenu->addSeparator();
     editMenu->addAction("&Find && Replace...", this, &VioraIdeWindow::onShowFindReplace, QKeySequence::Find);
+    editMenu->addAction("&Go to Line...", this, [this]() {
+        if (auto* e = m_tabWidget ? m_tabWidget->currentEditor() : nullptr) {
+            // Simple go-to-line: prompt via status bar or use a basic input
+            bool ok;
+            int line = QInputDialog::getInt(this, "Go to Line", "Line number:", 1, 1, e->document()->blockCount(), 1, &ok);
+            if (ok) e->goToLine(line);
+        }
+    }, QKeySequence("Ctrl+G"));
+    editMenu->addAction("For&mat Document", this, [this]() {
+        if (auto* e = m_tabWidget ? m_tabWidget->currentEditor() : nullptr) {
+            emit editorFormatRequested(e->filePath());
+        }
+    }, QKeySequence("Ctrl+Shift+F"));
+
+    // View menu
+    auto* viewMenu = new QMenu("View", this);
+    viewMenu->addAction("Toggle &Explorer", this, &VioraIdeWindow::onToggleExplorerPanel, QKeySequence("Ctrl+E"));
+    viewMenu->addAction("Toggle &Bottom Panel", this, &VioraIdeWindow::onToggleBottomPanel, QKeySequence("Ctrl+`"));
+    viewMenu->addAction("Toggle &Right Panel", this, &VioraIdeWindow::onToggleRightPanel, QKeySequence("Ctrl+Shift+E"));
+    viewMenu->addSeparator();
+    viewMenu->addAction("&Command Palette", this, &VioraIdeWindow::showCommandPalette);
+    viewMenu->addAction("&Recent Files", this, &VioraIdeWindow::showRecentFiles);
+
+    // Navigation menu
+    auto* navMenu = new QMenu("Navigation", this);
+    navMenu->addAction("&Go to Definition", this, [this]() {
+        if (auto* e = m_tabWidget ? m_tabWidget->currentEditor() : nullptr) {
+            emit editorGoToDefRequested(e->filePath(), e->cursorLine() - 1, e->cursorColumn() - 1);
+        }
+    }, QKeySequence("F12"));
+    navMenu->addAction("Find All &References", this, [this]() {
+        if (auto* e = m_tabWidget ? m_tabWidget->currentEditor() : nullptr) {
+            emit editorFindRefsRequested(e->filePath(), e->cursorLine() - 1, e->cursorColumn() - 1);
+        }
+    }, QKeySequence("Shift+F12"));
+    navMenu->addSeparator();
+    navMenu->addAction("Next &Tab", this, [this]() {
+        if (m_tabWidget) {
+            int next = m_tabWidget->currentIndex() + 1;
+            if (next >= m_tabWidget->count()) next = 0;
+            m_tabWidget->setCurrentIndex(next);
+        }
+    }, QKeySequence("Ctrl+Tab"));
+    navMenu->addAction("&Previous Tab", this, [this]() {
+        if (m_tabWidget) {
+            int prev = m_tabWidget->currentIndex() - 1;
+            if (prev < 0) prev = m_tabWidget->count() - 1;
+            m_tabWidget->setCurrentIndex(prev);
+        }
+    }, QKeySequence("Ctrl+Shift+Tab"));
 
     // Run menu
     auto* runMenu = new QMenu("Run", this);
@@ -166,6 +230,8 @@ void VioraIdeWindow::setupMenus() {
     // Add menus to the native menu bar (prevents crashes in Qt 6.10+)
     menuBar()->addMenu(fileMenu);
     menuBar()->addMenu(editMenu);
+    menuBar()->addMenu(viewMenu);
+    menuBar()->addMenu(navMenu);
     menuBar()->addMenu(runMenu);
     menuBar()->addMenu(extMenu);
 
@@ -220,12 +286,12 @@ void VioraIdeWindow::setupToolbar() {
         QString textColor = whiteText ? "white" : kTextPrimary;
         btn->setStyleSheet(QString(
             "QToolButton { background: %1; color: %2; border: none; "
-            "padding: 6px 16px; border-radius: 16px; font-size: 10pt; font-weight: 600; }"
+            "padding: 4px 12px; border-radius: 14px; font-size: 9pt; font-weight: 600; }"
             "QToolButton:hover { background: %3; }"
         ).arg(bgColor, textColor, hoverColor));
-        btn->setMinimumHeight(32);
-        btn->setMinimumWidth(60);
-        btn->setIconSize(QSize(16, 16));
+        btn->setMinimumHeight(28);
+        btn->setMinimumWidth(50);
+        btn->setIconSize(QSize(14, 14));
         btn->setCursor(Qt::PointingHandCursor);
         m_mainToolBar->addWidget(btn);
         return btn;
@@ -245,13 +311,28 @@ void VioraIdeWindow::setupToolbar() {
 
     m_mainToolBar->addSeparator();
 
-    auto* runBtn = makePillBtn("Run", "Run Extension (F5)", kGreen, "#059669");
-    runBtn->setIcon(themeIcon(":/extension_ide/icons/toolbar_run.svg"));
-    connect(runBtn, &QToolButton::clicked, this, &VioraIdeWindow::onRunExtension);
-
-    auto* stopBtn = makePillBtn("Stop", "Stop Extension (Shift+F5)", kRed, "#dc2626");
-    stopBtn->setIcon(themeIcon(":/extension_ide/icons/toolbar_stop.svg"));
-    connect(stopBtn, &QToolButton::clicked, this, &VioraIdeWindow::onStopExtension);
+    // Single run/pause/stop button — changes appearance based on state
+    m_runBtn = new QToolButton();
+    m_runBtn->setText("Run");
+    m_runBtn->setToolTip("Run Extension (F5)");
+    m_runBtn->setIcon(themeIcon(":/extension_ide/icons/toolbar_run.svg"));
+    m_runBtn->setIconSize(QSize(14, 14));
+    m_runBtn->setCursor(Qt::PointingHandCursor);
+    m_runBtn->setMinimumHeight(28);
+    m_runBtn->setMinimumWidth(50);
+    m_runBtn->setStyleSheet(
+        "QToolButton { background: #16a34a; color: white; border: none; "
+        "padding: 4px 12px; border-radius: 14px; font-size: 9pt; font-weight: 600; }"
+        "QToolButton:hover { background: #15803d; }"
+    );
+    connect(m_runBtn, &QToolButton::clicked, this, [this]() {
+        if (m_isRunning) {
+            onStopExtension();
+        } else {
+            onRunExtension();
+        }
+    });
+    m_mainToolBar->addWidget(m_runBtn);
 
     m_mainToolBar->addSeparator();
 
@@ -381,6 +462,18 @@ void VioraIdeWindow::setupDockWidgets() {
     m_templatePanel = new TemplateBrowserPanel();
     m_outputPanel = new OutputPanel();
     m_manifestPanel = new ManifestEditorPanel();
+    m_problemsPanel = new ProblemsPanel();
+    m_lspClient = new LspClient(this);
+    m_commandPalette = new CommandPalette(this);
+    m_recentFilesDialog = new RecentFilesDialog(this);
+
+    // Keyboard shortcuts for overlays — these fire via QShortcut regardless of focus
+    auto* paletteShortcut = new QShortcut(QKeySequence("Ctrl+Shift+P"), this);
+    connect(paletteShortcut, &QShortcut::activated, this, &VioraIdeWindow::showCommandPalette);
+
+    auto* recentShortcut = new QShortcut(QKeySequence("Ctrl+B"), this);
+    connect(recentShortcut, &QShortcut::activated, this, &VioraIdeWindow::showRecentFiles);
+
     m_sourceControlPanel = new ::SourceControlPanel();
 
     // ── Left: Explorer with title ───────────────────────────
@@ -414,13 +507,15 @@ void VioraIdeWindow::setupDockWidgets() {
     rightLayout->addWidget(rightTabs);
     rightLayout->addWidget(rightStack, 1);
 
-    // ── Bottom: Output + Manifest (tabbed) ──────────────────
+    // ── Bottom: Output + Manifest + Problems (tabbed) ───────
     auto* bottomStack = new QStackedWidget();
     bottomStack->addWidget(m_outputPanel);
     bottomStack->addWidget(m_manifestPanel);
+    if (m_problemsPanel) bottomStack->addWidget(m_problemsPanel);
     auto* bottomTabs = new QTabBar();
     bottomTabs->addTab("OUTPUT");
     bottomTabs->addTab("MANIFEST");
+    if (m_problemsPanel) bottomTabs->addTab("PROBLEMS");
     bottomTabs->setStyleSheet(tabStyle);
     connect(bottomTabs, &QTabBar::currentChanged, bottomStack, &QStackedWidget::setCurrentIndex);
     m_bottomTabs = bottomTabs;
@@ -512,13 +607,70 @@ void VioraIdeWindow::setupConnections() {
     connect(m_tabWidget, &IdeTabWidget::currentEditorChanged, this, [this](IdeEditor* editor) {
         onCurrentEditorChanged(editor);
         if (m_currentEditor) {
-            disconnect(m_currentEditor, &IdeEditor::cursorPositionChanged, this, nullptr);
+            m_currentEditor->disconnect(this);
+            if (m_lspClient) {
+                m_currentEditor->disconnect(m_lspClient);
+            }
         }
         m_currentEditor = editor;
         if (editor) {
             connect(editor, &IdeEditor::cursorPositionChanged, this, [this](int line, int col) {
                 if (m_cursorLabel) m_cursorLabel->setText(QString("Ln %1, Col %2").arg(line).arg(col));
             });
+
+            // LSP document sync
+            if (m_lspClient) {
+                connect(editor, &IdeEditor::contentsChangedForLsp, m_lspClient,
+                    [this](const QString& path, const QString& text, int version) {
+                        m_lspClient->changeDocument(path, text, version);
+                    });
+
+                connect(editor, &IdeEditor::fileOpenedForLsp, m_lspClient,
+                    [this](const QString& path, const QString& text) {
+                        m_lspClient->openDocument(path, text);
+                    });
+
+                connect(editor, &IdeEditor::fileSavedForLsp, m_lspClient,
+                    [this](const QString& path) {
+                        m_lspClient->saveDocument(path);
+                    });
+
+                // Immediately register currently opened file to handle initialization race conditions
+                if (!editor->filePath().isEmpty()) {
+                    m_lspClient->openDocument(editor->filePath(), editor->toPlainText());
+                }
+
+                // Forward editor LSP signals to window-level signals
+        connect(editor, &IdeEditor::hoverRequested, this,
+            [this](const QString& path, int line, int col) {
+                emit editorHoverRequested(path, line, col);
+            });
+
+                connect(editor, &IdeEditor::goToDefinitionRequested, this,
+                    [this](const QString& path, int line, int col) {
+                        emit editorGoToDefRequested(path, line, col);
+                    });
+
+                connect(editor, &IdeEditor::findReferencesRequested, this,
+                    [this](const QString& path, int line, int col) {
+                        emit editorFindRefsRequested(path, line, col);
+                    });
+
+                connect(editor, &IdeEditor::formatDocumentRequested, this,
+                    [this](const QString& path) {
+                        emit editorFormatRequested(path);
+                    });
+
+                connect(editor, &IdeEditor::signatureHelpRequested, this,
+                    [this](const QString& path, int line, int col) {
+                        emit editorSignatureHelpRequested(path, line, col);
+                    });
+
+                // Start LSP on first .flux file open
+                if (!m_lspClient->isRunning() && editor->filePath().endsWith(".flux")) {
+                    m_lspClient->startServer();
+                }
+            }
         }
     });
     connect(m_tabWidget, &IdeTabWidget::tabModifiedChanged, this, &VioraIdeWindow::onTabModifiedChanged);
@@ -540,6 +692,140 @@ void VioraIdeWindow::setupConnections() {
         loadThemeColors();
         applyTheme();
     });
+
+    // ── LSP wiring ──────────────────────────────────────────
+    if (m_lspClient) {
+        connect(m_lspClient, &LspClient::serverStarted, this, []() {
+            qInfo() << "LSP server started";
+        });
+
+        connect(m_lspClient, &LspClient::diagnosticsReceived, this,
+            [this](const QString& filePath, const QList<LspDiagnostic>& diagnostics) {
+                if (m_problemsPanel) m_problemsPanel->setDiagnostics(filePath, diagnostics);
+
+                // Update status bar error count
+                int errors = m_problemsPanel ? m_problemsPanel->errorCount() : 0;
+                int warnings = m_problemsPanel ? m_problemsPanel->warningCount() : 0;
+                if (m_errorCountLabel) {
+                    QString text;
+                    if (errors > 0) text += QString("%1 error%2").arg(errors).arg(errors > 1 ? "s" : "");
+                    if (warnings > 0) {
+                        if (!text.isEmpty()) text += ", ";
+                        text += QString("%1 warning%2").arg(warnings).arg(warnings > 1 ? "s" : "");
+                    }
+                    m_errorCountLabel->setText(text);
+                }
+
+                // Apply squiggly underlines to editor
+                if (m_currentEditor && m_currentEditor->filePath() == filePath) {
+                    m_currentEditor->applyDiagnostics(diagnostics);
+                }
+            });
+
+        connect(m_lspClient, &LspClient::hoverReady, this,
+            [this](const QString& contents, const QString& filePath, int line, int col) {
+                if (m_currentEditor && m_currentEditor->filePath() == filePath) {
+                    m_currentEditor->showHoverTooltip(contents, line, col);
+                }
+            });
+
+        connect(m_lspClient, &LspClient::definitionReady, this,
+            [this](const QString& filePath, int line, int character) {
+                openFile(filePath);
+                if (m_currentEditor) {
+                    m_currentEditor->goToLine(line + 1);
+                }
+            });
+
+        connect(m_lspClient, &LspClient::errorOccurred, this,
+            [this](const QString& message) {
+                if (m_outputPanel) {
+                    m_outputPanel->appendOutput("[LSP] " + message);
+                }
+            });
+
+        connect(m_lspClient, &LspClient::referencesReady, this,
+            [this](const QList<LspLocation>& locations) {
+                if (m_outputPanel) {
+                    m_outputPanel->appendOutput(QString("[LSP] Found %1 reference(s):").arg(locations.size()));
+                    for (const LspLocation& loc : locations) {
+                        QFileInfo fi(loc.uri);
+                        m_outputPanel->appendOutput(
+                            QString("  %1:%2:%3")
+                                .arg(fi.fileName())
+                                .arg(loc.range.start.line + 1)
+                                .arg(loc.range.start.character + 1));
+                    }
+                }
+            });
+
+        connect(m_lspClient, &LspClient::formattingReady, this,
+            [this](const QString& newText) {
+                if (m_currentEditor && !newText.isEmpty()) {
+                    m_currentEditor->setPlainText(newText);
+                }
+            });
+
+        connect(m_lspClient, &LspClient::signatureHelpReady, this,
+            [this](const QList<LspSignature>& signatures) {
+                if (signatures.isEmpty() || !m_currentEditor) return;
+                // Show first signature as tooltip at cursor
+                const LspSignature& sig = signatures.first();
+                QString tooltip = sig.label;
+                if (!sig.documentation.isEmpty()) {
+                    tooltip += "\n" + sig.documentation;
+                }
+                // Show near cursor position
+                QTextCursor tc = m_currentEditor->textCursor();
+                QRect r = m_currentEditor->cursorRect(tc);
+                QToolTip::showText(m_currentEditor->mapToGlobal(r.topLeft()), tooltip, m_currentEditor);
+            });
+    }
+
+    // ── Editor LSP signal wiring ────────────────────────────
+    // These are connected per-editor in the currentEditorChanged handler above
+    // but we also need to handle the window-level signals
+    if (m_lspClient) {
+        // Hover request from editor
+        connect(this, &VioraIdeWindow::editorHoverRequested, m_lspClient,
+            [this](const QString& path, int line, int col) {
+                m_lspClient->requestHover(path, line, col);
+            });
+
+        // Go to definition from editor
+        connect(this, &VioraIdeWindow::editorGoToDefRequested, m_lspClient,
+            [this](const QString& path, int line, int col) {
+                m_lspClient->requestDefinition(path, line, col);
+            });
+
+        // Find references from editor
+        connect(this, &VioraIdeWindow::editorFindRefsRequested, m_lspClient,
+            [this](const QString& path, int line, int col) {
+                m_lspClient->requestReferences(path, line, col);
+            });
+
+        // Format document from editor
+        connect(this, &VioraIdeWindow::editorFormatRequested, m_lspClient,
+            [this](const QString& path) {
+                m_lspClient->requestFormatting(path);
+            });
+
+        // Signature help from editor
+        connect(this, &VioraIdeWindow::editorSignatureHelpRequested, m_lspClient,
+            [this](const QString& path, int line, int col) {
+                m_lspClient->requestSignatureHelp(path, line, col);
+            });
+    }
+
+    if (m_problemsPanel) {
+        connect(m_problemsPanel, &ProblemsPanel::problemClicked, this,
+            [this](const QString& filePath, int line, int column) {
+                openFile(filePath);
+                if (m_currentEditor) {
+                    m_currentEditor->goToLine(line + 1);
+                }
+            });
+    }
 }
 
 void VioraIdeWindow::setupContextMenu() {
@@ -775,12 +1061,16 @@ void VioraIdeWindow::onRunExtension() {
 
     m_outputPanel->clear();
     m_outputPanel->appendInfo("Running extension...");
+    updateRunButtons(true);
 
-    m_runner->runSource(editor->toPlainText());
+    // Run synchronously but defer button update so UI repaints the running state first
+    QApplication::processEvents();
+    m_runner->runSource(editor->toPlainText(), m_extensionDir);
 }
 
 void VioraIdeWindow::onStopExtension() {
     m_runner->stop();
+    updateRunButtons(false);
 }
 
 void VioraIdeWindow::onNewExtension() {
@@ -899,15 +1189,174 @@ void VioraIdeWindow::onExtensionError(const QString& message) {
 }
 
 void VioraIdeWindow::onExtensionRunFinished(bool success) {
-    if (success) {
-        m_outputPanel->appendInfo("Extension finished successfully.");
+    // Defer button update so UI can repaint the running state first
+    QTimer::singleShot(50, this, [this, success]() {
+        updateRunButtons(false);
+        if (success) {
+            m_outputPanel->appendInfo("Extension finished successfully.");
+        } else {
+            m_outputPanel->appendError("Extension failed.");
+        }
+    });
+}
+
+void VioraIdeWindow::updateRunButtons(bool running) {
+    m_isRunning = running;
+    if (running) {
+        m_runBtn->setText("Stop");
+        m_runBtn->setToolTip("Stop Extension (Shift+F5)");
+        m_runBtn->setIcon(themeIcon(":/extension_ide/icons/toolbar_stop.svg"));
+        m_runBtn->setStyleSheet(
+            "QToolButton { background: #dc2626; color: white; border: none; "
+            "padding: 4px 12px; border-radius: 14px; font-size: 9pt; font-weight: 600; }"
+            "QToolButton:hover { background: #b91c1c; }"
+        );
     } else {
-        m_outputPanel->appendError("Extension failed.");
+        m_runBtn->setText("Run");
+        m_runBtn->setToolTip("Run Extension (F5)");
+        m_runBtn->setIcon(themeIcon(":/extension_ide/icons/toolbar_run.svg"));
+        m_runBtn->setStyleSheet(
+            "QToolButton { background: #16a34a; color: white; border: none; "
+            "padding: 4px 12px; border-radius: 14px; font-size: 9pt; font-weight: 600; }"
+            "QToolButton:hover { background: #15803d; }"
+        );
     }
 }
 
 void VioraIdeWindow::onViewToggled(bool visible) {
     Q_UNUSED(visible);
+}
+
+// ============================================================================
+// Command Palette & Recent Files
+// ============================================================================
+
+void VioraIdeWindow::showCommandPalette() {
+    if (!m_commandPalette) return;
+
+    // Toggle if already visible
+    if (m_commandPalette->isPaletteVisible()) {
+        m_commandPalette->hidePalette();
+        return;
+    }
+
+    // Hide recent files if open
+    if (m_recentFilesDialog && m_recentFilesDialog->isDialogVisible())
+        m_recentFilesDialog->hideDialog();
+
+    // Populate commands fresh each time
+    m_commandPalette->addSeparator("File");
+    m_commandPalette->addCommand("New File", "Ctrl+N", [this]() { onNewFile(); });
+    m_commandPalette->addCommand("Open File", "Ctrl+O", [this]() { onOpenFile(); });
+    m_commandPalette->addCommand("Open Directory", "Ctrl+Shift+O", [this]() { onOpenDirectory(); });
+    m_commandPalette->addCommand("Save", "Ctrl+S", [this]() { onSave(); });
+    m_commandPalette->addCommand("Save As", "Ctrl+Shift+S", [this]() { onSaveAs(); });
+    m_commandPalette->addCommand("Save All", "Ctrl+Shift+A", [this]() { onSaveAll(); });
+    m_commandPalette->addCommand("Close Tab", "Ctrl+W", [this]() {
+        if (m_tabWidget) m_tabWidget->closeTab(m_tabWidget->currentIndex());
+    });
+    m_commandPalette->addCommand("Reopen Closed Tab", "Ctrl+Shift+T", [this]() {
+        if (m_tabWidget) m_tabWidget->reopenClosedTab();
+    });
+    m_commandPalette->addCommand("Recent Files", "Ctrl+B", [this]() { showRecentFiles(); });
+
+    m_commandPalette->addSeparator("Edit");
+    m_commandPalette->addCommand("Find & Replace", "Ctrl+F", [this]() { onShowFindReplace(); });
+    m_commandPalette->addCommand("Go to Line", "Ctrl+G", [this]() {
+        if (auto* e = m_tabWidget ? m_tabWidget->currentEditor() : nullptr) {
+            bool ok;
+            int line = QInputDialog::getInt(this, "Go to Line", "Line:", 1, 1, e->document()->blockCount(), 1, &ok);
+            if (ok) e->goToLine(line);
+        }
+    });
+    m_commandPalette->addCommand("Format Document", "Ctrl+Shift+F", [this]() {
+        if (auto* e = m_tabWidget ? m_tabWidget->currentEditor() : nullptr)
+            emit editorFormatRequested(e->filePath());
+    });
+
+    m_commandPalette->addSeparator("Navigation");
+    m_commandPalette->addCommand("Go to Definition", "F12", [this]() {
+        if (auto* e = m_tabWidget ? m_tabWidget->currentEditor() : nullptr)
+            emit editorGoToDefRequested(e->filePath(), e->cursorLine() - 1, e->cursorColumn() - 1);
+    });
+    m_commandPalette->addCommand("Find All References", "Shift+F12", [this]() {
+        if (auto* e = m_tabWidget ? m_tabWidget->currentEditor() : nullptr)
+            emit editorFindRefsRequested(e->filePath(), e->cursorLine() - 1, e->cursorColumn() - 1);
+    });
+    m_commandPalette->addCommand("Next Tab", "Ctrl+Tab", [this]() {
+        if (m_tabWidget) {
+            int next = m_tabWidget->currentIndex() + 1;
+            if (next >= m_tabWidget->count()) next = 0;
+            m_tabWidget->setCurrentIndex(next);
+        }
+    });
+    m_commandPalette->addCommand("Previous Tab", "Ctrl+Shift+Tab", [this]() {
+        if (m_tabWidget) {
+            int prev = m_tabWidget->currentIndex() - 1;
+            if (prev < 0) prev = m_tabWidget->count() - 1;
+            m_tabWidget->setCurrentIndex(prev);
+        }
+    });
+
+    m_commandPalette->addSeparator("View");
+    m_commandPalette->addCommand("Toggle Explorer", "Ctrl+E", [this]() { onToggleExplorerPanel(); });
+    m_commandPalette->addCommand("Toggle Bottom Panel", "Ctrl+`", [this]() { onToggleBottomPanel(); });
+    m_commandPalette->addCommand("Toggle Right Panel", "Ctrl+Shift+E", [this]() { onToggleRightPanel(); });
+    m_commandPalette->addCommand("Toggle Theme", "Ctrl+Shift+T", [this]() {
+        auto* theme = ThemeManager::theme();
+        if (theme) {
+            ThemeManager::instance().setTheme(
+                theme->type() == PCBTheme::Dark ? PCBTheme::Light : PCBTheme::Dark);
+        }
+    });
+
+    m_commandPalette->addSeparator("Run");
+    m_commandPalette->addCommand("Run Extension", "F5", [this]() { onRunExtension(); });
+    m_commandPalette->addCommand("Stop Extension", "Shift+F5", [this]() { onStopExtension(); });
+
+    m_commandPalette->addSeparator("Extensions");
+    m_commandPalette->addCommand("New Extension", "", [this]() { onNewExtension(); });
+    m_commandPalette->addCommand("Edit Manifest", "", [this]() { onEditManifest(); });
+
+    m_commandPalette->showPalette();
+}
+
+void VioraIdeWindow::showRecentFiles() {
+    if (!m_recentFilesDialog) return;
+
+    // Toggle if already visible
+    if (m_recentFilesDialog->isDialogVisible()) {
+        m_recentFilesDialog->hideDialog();
+        return;
+    }
+
+    // Hide command palette if open
+    if (m_commandPalette && m_commandPalette->isPaletteVisible())
+        m_commandPalette->hidePalette();
+
+    // Collect open files
+    m_recentFiles.clear();
+    if (m_tabWidget) {
+        for (int i = 0; i < m_tabWidget->count(); ++i) {
+            auto* editor = qobject_cast<IdeEditor*>(m_tabWidget->widget(i));
+            if (editor && !editor->filePath().isEmpty()) {
+                m_recentFiles.append(editor->filePath());
+            }
+        }
+    }
+
+    // Add extension dir files
+    if (!m_extensionDir.isEmpty()) {
+        QDir dir(m_extensionDir);
+        for (const QFileInfo& fi : dir.entryInfoList({"*.flux", "*.json"}, QDir::Files)) {
+            if (!m_recentFiles.contains(fi.absoluteFilePath())) {
+                m_recentFiles.append(fi.absoluteFilePath());
+            }
+        }
+    }
+
+    m_recentFilesDialog->setRecentFiles(m_recentFiles);
+    m_recentFilesDialog->showDialog();
 }
 
 // ============================================================================
