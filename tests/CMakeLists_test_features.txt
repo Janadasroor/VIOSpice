@@ -1,0 +1,14 @@
+add_executable(test_extension_features test_extension_features.cpp)
+target_link_libraries(test_extension_features PRIVATE
+    Qt${QT_VERSION_MAJOR}::Test
+    VioCore
+)
+target_include_directories(test_extension_features PRIVATE
+    ${CMAKE_SOURCE_DIR}/core
+    ${CMAKE_SOURCE_DIR}
+)
+add_test(NAME test_extension_features COMMAND test_extension_features)
+set_tests_properties(test_extension_features PROPERTIES
+    ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+    LABELS "unit"
+)
