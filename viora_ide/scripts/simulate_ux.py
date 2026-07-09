@@ -2,12 +2,12 @@
 # Copyright 2026 Janada Sroor
 # SPDX-License-Identifier: Apache-2.0
 """
-Comprehensive UX simulation for the Extension IDE.
+Comprehensive UX simulation for VioraIDE.
 Exercises every major UI interaction via WebSocket protocol.
 
 Usage:
-    1. Launch: ./build/VioraEDA --extension-ide
-    2. Run:    python3 extension_ide/scripts/simulate_ux.py
+    1. Launch: ./build/VioraEDA --ide
+    2. Run:    python3 viora_ide/scripts/simulate_ux.py
 """
 
 import asyncio
@@ -27,7 +27,7 @@ except ImportError:
 # ── Config ────────────────────────────────────────────────────────
 HOST = "127.0.0.1"
 PORT = 18790
-WINDOW = "Extension IDE"
+WINDOW = "VioraIDE"
 SCREENSHOT_DIR = Path("/tmp/ux_sim")
 SCREENSHOT_DIR.mkdir(parents=True, exist_ok=True)
 
