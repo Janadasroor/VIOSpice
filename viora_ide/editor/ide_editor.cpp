@@ -6,6 +6,7 @@
 #include "ide_editor.h"
 #include "ide_highlighter.h"
 #include "../core/ide_theme.h"
+#include "../core/lsp_client.h"
 #include "../../core/visuals/theme_manager.h"
 #include "../../core/visuals/theme.h"
 #include <QPainter>
@@ -19,8 +20,101 @@
 #include <QFileDialog>
 #include <QTimer>
 #include <QToolTip>
+#include <QScrollBar>
+#include <QMenu>
+#include <QAction>
+#include <QMouseEvent>
+#include <QLabel>
+#include <QVBoxLayout>
+#include <QApplication>
 
 namespace IDE {
+
+static QString markdownToHtml(const QString& markdown) {
+    QString html;
+    int i = 0;
+    bool inCodeBlock = false;
+    bool inInlineCode = false;
+    bool inBold = false;
+    
+    while (i < markdown.length()) {
+        // Check for triple backticks (code block)
+        if (markdown.mid(i, 3) == "```") {
+            if (inCodeBlock) {
+                html += "</pre></div>";
+                inCodeBlock = false;
+            } else {
+                // Check if there is a language name, e.g., ```fluxscript
+                int nextNewline = markdown.indexOf('\n', i + 3);
+                QString lang = "";
+                if (nextNewline != -1) {
+                    lang = markdown.mid(i + 3, nextNewline - (i + 3)).trimmed();
+                    i = nextNewline; // Skip the line containing language name
+                } else {
+                    i += 2;
+                }
+                html += "<div style='background:#0f172a; padding:6px 8px; border-radius:4px; margin-bottom:6px; border:1px solid #1e293b;'><pre style='margin:0; font-family:\"Fira Code\",Consolas,monospace; color:#38bdf8;'>";
+                inCodeBlock = true;
+            }
+            i += 3;
+            continue;
+        }
+        
+        // Check for inline backtick
+        if (markdown[i] == '`') {
+            if (inInlineCode) {
+                html += "</code>";
+                inInlineCode = false;
+            } else {
+                html += "<code style='background:#1e293b; padding:2px 4px; border-radius:3px; font-family:monospace; color:#f472b6;'>";
+                inInlineCode = true;
+            }
+            i++;
+            continue;
+        }
+        
+        // Check for bold **
+        if (markdown.mid(i, 2) == "**") {
+            if (inBold) {
+                html += "</b>";
+                inBold = false;
+            } else {
+                html += "<b>";
+                inBold = true;
+            }
+            i += 2;
+            continue;
+        }
+        
+        // Check for newline
+        if (markdown[i] == '\n') {
+            if (inCodeBlock) {
+                html += "\n";
+            } else {
+                html += "<br>";
+            }
+            i++;
+            continue;
+        }
+        
+        // Standard character escape
+        if (markdown[i] == '<') {
+            html += "&lt;";
+        } else if (markdown[i] == '>') {
+            html += "&gt;";
+        } else {
+            html += markdown[i];
+        }
+        i++;
+    }
+    
+    // Close any unclosed tags
+    if (inCodeBlock) html += "</pre></div>";
+    if (inInlineCode) html += "</code>";
+    if (inBold) html += "</b>";
+    
+    return html;
+}
 
 // ============================================================================
 // LineNumberArea — separate widget that overlays the left margin
@@ -46,12 +140,45 @@ IdeEditor::IdeEditor(QWidget* parent)
 
     m_lineNumberArea = new LineNumberArea(this);
 
+    // LSP debounce timer — must be created BEFORE textChanged connections
+    // because applyEditorTheme() triggers rehighlight() → textChanged
+    m_lspDebounceTimer = new QTimer(this);
+    m_lspDebounceTimer->setSingleShot(true);
+    m_lspDebounceTimer->setInterval(300);
+    connect(m_lspDebounceTimer, &QTimer::timeout, this, [this]() {
+        if (!m_filePath.isEmpty()) {
+            m_lspVersion++;
+            emit contentsChangedForLsp(m_filePath, toPlainText(), m_lspVersion);
+        }
+    });
+
     connect(this, &QPlainTextEdit::textChanged, this, &IdeEditor::updateLineNumberArea);
     connect(this, &QPlainTextEdit::textChanged, this, &IdeEditor::onModificationChanged);
     connect(this, &QPlainTextEdit::textChanged, this, &IdeEditor::highlightCurrentLine);
+    connect(this, &QPlainTextEdit::textChanged, this, [this]() {
+        m_lspDebounceTimer->start();
+    });
     connect(this, &QPlainTextEdit::cursorPositionChanged, this, &IdeEditor::updateCursorInfo);
     connect(this, &QPlainTextEdit::cursorPositionChanged, this, &IdeEditor::highlightCurrentLine);
     connect(this, &QPlainTextEdit::cursorPositionChanged, this, &IdeEditor::updateLineNumberArea);
+
+    // Enable mouse tracking for hover
+    setMouseTracking(true);
+    viewport()->setMouseTracking(true);
+
+    // Hover debounce timer — fires 400ms after mouse stops moving
+    m_hoverTimer = new QTimer(this);
+    m_hoverTimer->setSingleShot(true);
+    m_hoverTimer->setInterval(400);
+    connect(m_hoverTimer, &QTimer::timeout, this, [this]() {
+        if (!m_filePath.isEmpty() && m_hoverLine >= 0) {
+            emit hoverRequested(m_filePath, m_hoverLine, m_hoverCol);
+        }
+    });
+
+    // Context menu
+    setContextMenuPolicy(Qt::CustomContextMenu);
+    connect(this, &QWidget::customContextMenuRequested, this, &IdeEditor::showContextMenu);
 
     // Apply theme and reconnect on changes
     applyEditorTheme();
@@ -94,19 +221,6 @@ void IdeEditor::resizeEvent(QResizeEvent* e) {
         lineNumberAreaWidth(), cr.height()));
 }
 
-void IdeEditor::setFilePath(const QString& path) {
-    if (m_filePath != path) {
-        m_filePath = path;
-        emit filePathChanged(path);
-
-        if (path.endsWith(".json", Qt::CaseInsensitive)) {
-            setLanguage("json");
-        } else {
-            setLanguage("flux");
-        }
-    }
-}
-
 void IdeEditor::setLanguage(const QString& lang) {
     if (m_language != lang) {
         m_language = lang;
@@ -146,6 +260,7 @@ bool IdeEditor::saveFile(const QString& path) {
 
     setFilePath(target);
     document()->setModified(false);
+    emit fileSavedForLsp(target);
     return true;
 }
 
@@ -257,6 +372,24 @@ void IdeEditor::highlightCurrentLine() {
 // ============================================================================
 
 void IdeEditor::keyPressEvent(QKeyEvent* e) {
+    // Forward window-level shortcuts to parent so QShortcut objects fire
+    if (e->modifiers() & Qt::ControlModifier) {
+        bool isWindowShortcut = (e->key() == Qt::Key_B) ||           // Ctrl+B
+                                (e->key() == Qt::Key_P && e->modifiers() & Qt::ShiftModifier) || // Ctrl+Shift+P
+                                (e->key() == Qt::Key_E) ||           // Ctrl+E
+                                (e->key() == Qt::Key_G) ||           // Ctrl+G
+                                (e->key() == Qt::Key_Backtab) ||     // Ctrl+Tab
+                                (e->key() == Qt::Key_Tab);           // Ctrl+Tab
+        if (isWindowShortcut && parentWidget()) {
+            QKeyEvent fwd(e->type(), e->key(), e->modifiers(), e->text());
+            QApplication::sendEvent(parentWidget(), &fwd);
+            if (fwd.isAccepted()) {
+                e->accept();
+                return;
+            }
+        }
+    }
+
     if (e->text() == "(" || e->text() == "{" || e->text() == "[" || e->text() == "\"") {
         handleBracketAutoPair(e);
         return;
@@ -271,6 +404,18 @@ void IdeEditor::keyPressEvent(QKeyEvent* e) {
         QTextCursor tc = textCursor();
         tc.insertText("    ");
         setTextCursor(tc);
+        return;
+    }
+
+    // Signature help on '('
+    if (e->text() == "(") {
+        Flux::CodeEditor::keyPressEvent(e);
+        // Request signature help after inserting the '('
+        if (!m_filePath.isEmpty()) {
+            int line = cursorLine() - 1;
+            int col = cursorColumn() - 1;
+            emit signatureHelpRequested(m_filePath, line, col);
+        }
         return;
     }
 
@@ -390,6 +535,258 @@ void IdeEditor::onModificationChanged() {
 
 void IdeEditor::updateCursorInfo() {
     emit cursorPositionChanged(currentLine(), currentColumn());
+}
+
+void IdeEditor::setFilePath(const QString& path) {
+    if (m_filePath != path) {
+        // Emit didClose for old file
+        if (!m_filePath.isEmpty()) {
+            // Window will handle closing the old document in LSP
+        }
+
+        m_filePath = path;
+        m_lspVersion = 0;
+        emit filePathChanged(path);
+
+        if (path.endsWith(".json", Qt::CaseInsensitive)) {
+            setLanguage("json");
+        } else {
+            setLanguage("flux");
+        }
+
+        // Notify window that a new file is opened for LSP
+        if (!path.isEmpty()) {
+            emit fileOpenedForLsp(path, toPlainText());
+        }
+    }
+}
+
+void IdeEditor::applyDiagnostics(const QList<LspDiagnostic>& diagnostics) {
+    QList<QTextEdit::ExtraSelection> selections = extraSelections();
+
+    // Remove old diagnostic selections (they have a specific property)
+    for (int i = selections.size() - 1; i >= 0; --i) {
+        if (selections[i].format.hasProperty(QTextFormat::UserProperty)) {
+            selections.removeAt(i);
+        }
+    }
+
+    for (const LspDiagnostic& diag : diagnostics) {
+        QTextBlock block = document()->findBlockByNumber(diag.range.start.line);
+        if (!block.isValid()) continue;
+
+        QTextEdit::ExtraSelection sel;
+        sel.cursor = QTextCursor(block);
+        sel.cursor.movePosition(QTextCursor::Right, QTextCursor::MoveAnchor, diag.range.start.character);
+        sel.cursor.movePosition(QTextCursor::Right, QTextCursor::KeepAnchor,
+            qMax(1, diag.range.end.character - diag.range.start.character));
+
+        QTextCharFormat fmt;
+        if (diag.isError()) {
+            fmt.setForeground(QColor("#f44336"));
+            fmt.setFontUnderline(true);
+            fmt.setUnderlineColor(QColor("#f44336"));
+            fmt.setUnderlineStyle(QTextCharFormat::WaveUnderline);
+        } else if (diag.isWarning()) {
+            fmt.setForeground(QColor("#ff9800"));
+            fmt.setFontUnderline(true);
+            fmt.setUnderlineColor(QColor("#ff9800"));
+            fmt.setUnderlineStyle(QTextCharFormat::WaveUnderline);
+        } else {
+            fmt.setForeground(QColor("#2196f3"));
+            fmt.setFontUnderline(true);
+            fmt.setUnderlineColor(QColor("#2196f3"));
+            fmt.setUnderlineStyle(QTextCharFormat::DashUnderline);
+        }
+
+        sel.format = fmt;
+        sel.format.setProperty(QTextFormat::UserProperty, true); // Mark as diagnostic
+        selections.append(sel);
+    }
+
+    setExtraSelections(selections);
+}
+
+void IdeEditor::showHoverTooltip(const QString& content, int line, int col) {
+    if (content.isEmpty()) {
+        if (m_hoverLabel) m_hoverLabel->hide();
+        return;
+    }
+
+    QTextBlock block = document()->findBlockByNumber(line);
+    if (!block.isValid()) return;
+
+    QTextCursor cursor(block);
+    cursor.movePosition(QTextCursor::Right, QTextCursor::MoveAnchor, col);
+
+    QRect r = cursorRect(cursor);
+
+    // Convert markdown content to rich text HTML
+    QString tooltip = markdownToHtml(content);
+
+    // Create or reuse a floating QLabel for the tooltip
+    if (!m_hoverLabel) {
+        m_hoverLabel = new QLabel(this);
+        m_hoverLabel->setWindowFlags(Qt::SubWindow | Qt::FramelessWindowHint);
+        m_hoverLabel->setMargin(10);
+        m_hoverLabel->setTextFormat(Qt::RichText);
+    }
+
+    m_hoverLabel->setText(QString(
+        "<div style='background:rgba(15, 23, 42, 0.96); color:#cbd5e1; border:1px solid #334155; "
+        "border-top:3px solid #3b82f6; padding:10px 14px; border-radius:6px; "
+        "font-family:-apple-system,BlinkMacSystemFont,\"Segoe UI\",Roboto,Helvetica,Arial,sans-serif; "
+        "font-size:12px; line-height:1.45; max-width:550px;'>%1</div>"
+    ).arg(tooltip));
+
+    // Position below the cursor, ensuring left edge clears line number gutter
+    QPoint localPos = r.bottomLeft() + QPoint(0, 4);
+    int gutterWidth = lineNumberAreaWidth() + 4;
+    if (localPos.x() < gutterWidth) {
+        localPos.setX(gutterWidth);
+    }
+    m_hoverLabel->move(localPos);
+    m_hoverLabel->adjustSize();
+    m_hoverLabel->show();
+}
+
+// ============================================================================
+// Context Menu (right-click)
+// ============================================================================
+
+void IdeEditor::showContextMenu(const QPoint& pos) {
+    QMenu menu;
+    menu.setStyleSheet(
+        "QMenu { background: #1e293b; color: #e2e8f0; border: 1px solid #334155; padding: 4px; }"
+        "QMenu::item { padding: 6px 24px 6px 12px; }"
+        "QMenu::item:selected { background: #3b82f6; color: white; }"
+        "QMenu::separator { height: 1px; background: #334155; margin: 4px 8px; }"
+    );
+
+    QString filePath = m_filePath;
+    int line = cursorLine() - 1; // 0-based for LSP
+    int col = cursorColumn() - 1;
+
+    // LSP actions
+    QAction* goToDef = menu.addAction("Go to Definition");
+    goToDef->setShortcut(QKeySequence("F12"));
+    connect(goToDef, &QAction::triggered, this, [this, filePath, line, col]() {
+        emit goToDefinitionRequested(filePath, line, col);
+    });
+
+    QAction* findRefs = menu.addAction("Find All References");
+    findRefs->setShortcut(QKeySequence("Shift+F12"));
+    connect(findRefs, &QAction::triggered, this, [this, filePath, line, col]() {
+        emit findReferencesRequested(filePath, line, col);
+    });
+
+    menu.addSeparator();
+
+    QAction* format = menu.addAction("Format Document");
+    format->setShortcut(QKeySequence("Ctrl+Shift+F"));
+    connect(format, &QAction::triggered, this, [this, filePath]() {
+        emit formatDocumentRequested(filePath);
+    });
+
+    menu.addSeparator();
+
+    // Standard edit actions
+    QAction* cut = menu.addAction("Cut");
+    cut->setShortcut(QKeySequence::Cut);
+    connect(cut, &QAction::triggered, this, &QPlainTextEdit::cut);
+
+    QAction* copy = menu.addAction("Copy");
+    copy->setShortcut(QKeySequence::Copy);
+    connect(copy, &QAction::triggered, this, &QPlainTextEdit::copy);
+
+    QAction* paste = menu.addAction("Paste");
+    paste->setShortcut(QKeySequence::Paste);
+    connect(paste, &QAction::triggered, this, &QPlainTextEdit::paste);
+
+    QAction* selectAll = menu.addAction("Select All");
+    selectAll->setShortcut(QKeySequence::SelectAll);
+    connect(selectAll, &QAction::triggered, this, &QPlainTextEdit::selectAll);
+
+    menu.exec(mapToGlobal(pos));
+}
+
+// ============================================================================
+// Word at position
+// ============================================================================
+
+QString IdeEditor::wordAtPosition(const QPoint& pos) const {
+    QTextCursor tc = cursorForPosition(pos);
+    QTextBlock block = tc.block();
+    QString text = block.text();
+    int col = tc.columnNumber();
+
+    if (col > 0 && col <= text.size()) {
+        int start = col - 1;
+        while (start > 0 && (text[start - 1].isLetterOrNumber() || text[start - 1] == '_')) {
+            start--;
+        }
+        int end = col;
+        while (end < text.size() && (text[end].isLetterOrNumber() || text[end] == '_')) {
+            end++;
+        }
+        return text.mid(start, end - start);
+    }
+    return QString();
+}
+
+int IdeEditor::cursorLine() const {
+    return textCursor().blockNumber() + 1;
+}
+
+int IdeEditor::cursorColumn() const {
+    return textCursor().columnNumber() + 1;
+}
+
+// ============================================================================
+// Mouse events (hover tracking)
+// ============================================================================
+
+void IdeEditor::mouseMoveEvent(QMouseEvent* e) {
+    QPlainTextEdit::mouseMoveEvent(e);
+
+    QTextCursor tc = cursorForPosition(e->pos());
+    QString word = wordAtPosition(e->pos());
+
+    // Only request hover if word changed
+    if (word != m_lastHoverWord || tc.blockNumber() != m_hoverLine) {
+        m_lastHoverWord = word;
+        m_hoverLine = tc.blockNumber();
+        m_hoverCol = tc.columnNumber();
+
+        if (!word.isEmpty() && !m_filePath.isEmpty()) {
+            // Debounce — wait 400ms after mouse stops
+            m_hoverTimer->start();
+        } else {
+            m_hoverTimer->stop();
+            if (m_hoverLabel) m_hoverLabel->hide();
+        }
+    }
+}
+
+void IdeEditor::leaveEvent(QEvent* e) {
+    QPlainTextEdit::leaveEvent(e);
+    m_hoverTimer->stop();
+    if (m_hoverLabel) m_hoverLabel->hide();
+    m_lastHoverWord.clear();
+}
+
+void IdeEditor::focusOutEvent(QFocusEvent* e) {
+    QPlainTextEdit::focusOutEvent(e);
+    if (m_hoverLabel) m_hoverLabel->hide();
+}
+
+void IdeEditor::changeEvent(QEvent* e) {
+    QPlainTextEdit::changeEvent(e);
+    if (e->type() == QEvent::ActivationChange) {
+        if (!isActiveWindow()) {
+            if (m_hoverLabel) m_hoverLabel->hide();
+        }
+    }
 }
 
 void IdeEditor::wheelEvent(QWheelEvent* e) {
