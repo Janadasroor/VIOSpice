@@ -36,6 +36,7 @@ void registerSchematicCommands();
 void registerNetlistCommands();
 void registerSymbolCommands();
 void registerPluginCommands();
+void registerExtCommands();
 void registerMiscCommands();
 
 void registerAllCommands() {
@@ -43,6 +44,7 @@ void registerAllCommands() {
     registerNetlistCommands();
     registerSymbolCommands();
     registerPluginCommands();
+    registerExtCommands();
     registerMiscCommands();
 }
 
