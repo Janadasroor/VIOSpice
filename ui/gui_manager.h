@@ -40,6 +40,7 @@ public:
     QVariantMap drag(const QString& windowName, int x1, int y1, int x2, int y2, int delayMs = 100);
     QVariantMap scroll(const QString& windowName, int x, int y, int deltaY, int deltaX = 0);
     QVariantMap clickAt(const QString& windowName, int x, int y, const QString& button = "left");
+    QVariantMap moveMouse(const QString& windowName, int x, int y);
 
 private:
     explicit GuiManager(QObject* parent = nullptr);
