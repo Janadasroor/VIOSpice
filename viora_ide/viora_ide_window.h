@@ -31,6 +31,10 @@ class ManifestEditorPanel;
 class TemplateBrowserPanel;
 class ExtensionRunner;
 class IdeFindReplace;
+class ProblemsPanel;
+class LspClient;
+class CommandPalette;
+class RecentFilesDialog;
 
 class VioraIdeWindow : public QMainWindow {
     Q_OBJECT
@@ -45,6 +49,11 @@ public:
 
 signals:
     void extensionReloadRequested(const QString& dirPath);
+    void editorHoverRequested(const QString& filePath, int line, int character);
+    void editorGoToDefRequested(const QString& filePath, int line, int character);
+    void editorFindRefsRequested(const QString& filePath, int line, int character);
+    void editorFormatRequested(const QString& filePath);
+    void editorSignatureHelpRequested(const QString& filePath, int line, int character);
 
 protected:
     void closeEvent(QCloseEvent* event) override;
@@ -58,10 +67,13 @@ private slots:
     void onSaveAll();
     void onRunExtension();
     void onStopExtension();
+    void updateRunButtons(bool running);
     void onNewExtension();
     void onEditManifest();
     void onShowFindReplace();
     void onSettings();
+    void showCommandPalette();
+    void showRecentFiles();
 
     void onToggleExplorerPanel();
     void onToggleBottomPanel();
@@ -104,8 +116,13 @@ private:
     OutputPanel* m_outputPanel = nullptr;
     TemplateBrowserPanel* m_templatePanel = nullptr;
     ManifestEditorPanel* m_manifestPanel = nullptr;
+    ProblemsPanel* m_problemsPanel = nullptr;
     SourceControlPanel* m_sourceControlPanel = nullptr;
     ExtensionRunner* m_runner = nullptr;
+    LspClient* m_lspClient = nullptr;
+    CommandPalette* m_commandPalette = nullptr;
+    RecentFilesDialog* m_recentFilesDialog = nullptr;
+    QStringList m_recentFiles;
 
     QLabel* m_cursorLabel = nullptr;
     QLabel* m_languageLabel = nullptr;
@@ -120,6 +137,10 @@ private:
     QToolButton* m_sidebarSearchBtn = nullptr;
     QToolButton* m_sidebarGitBtn = nullptr;
     QToolButton* m_sidebarSettingsBtn = nullptr;
+
+    // Toolbar run/pause/stop button (single button that changes state)
+    QToolButton* m_runBtn = nullptr;
+    bool m_isRunning = false;
 
     IdeFindReplace* m_findReplaceBar = nullptr;
     QDockWidget* m_findDock = nullptr;

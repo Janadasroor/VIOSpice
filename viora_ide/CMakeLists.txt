@@ -26,6 +26,12 @@ set(VIORAIDE_SOURCES
     panels/api_reference_panel.h
     panels/output_panel.cpp
     panels/output_panel.h
+    panels/problems_panel.cpp
+    panels/problems_panel.h
+    panels/command_palette.cpp
+    panels/command_palette.h
+    panels/recent_files_dialog.cpp
+    panels/recent_files_dialog.h
     panels/manifest_editor_panel.cpp
     panels/manifest_editor_panel.h
     panels/template_browser_panel.cpp
@@ -40,6 +46,8 @@ set(VIORAIDE_SOURCES
     core/viora_ide_state.h
     core/api_reference_data.cpp
     core/api_reference_data.h
+    core/lsp_client.cpp
+    core/lsp_client.h
     core/ide_theme.h
 
     # Resources
