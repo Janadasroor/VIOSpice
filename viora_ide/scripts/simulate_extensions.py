@@ -2,12 +2,12 @@
 # Copyright 2026 Janada Sroor
 # SPDX-License-Identifier: Apache-2.0
 """
-Extension management UX simulation for the Extension IDE.
+Extension management UX simulation for VioraIDE.
 Tests extension creation, editing, and manifest management.
 
 Usage:
-    1. Launch: ./build/VioraEDA --extension-ide
-    2. Run:    python3 extension_ide/scripts/simulate_extensions.py
+    1. Launch: ./build/VioraEDA --ide
+    2. Run:    python3 viora_ide/scripts/simulate_extensions.py
 """
 
 import asyncio
@@ -26,7 +26,7 @@ except ImportError:
 # ── Config ────────────────────────────────────────────────────────
 HOST = "127.0.0.1"
 PORT = 18790
-WINDOW = "Extension IDE"
+WINDOW = "VioraIDE"
 SCREENSHOT_DIR = Path("/tmp/ux_sim_extensions")
 SCREENSHOT_DIR.mkdir(parents=True, exist_ok=True)
 
