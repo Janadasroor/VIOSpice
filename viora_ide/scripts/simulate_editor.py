@@ -2,12 +2,12 @@
 # Copyright 2026 Janada Sroor
 # SPDX-License-Identifier: Apache-2.0
 """
-Editor-focused UX simulation for the Extension IDE.
+Editor-focused UX simulation for VioraIDE.
 Tests code editing, navigation, find/replace, and run.
 
 Usage:
-    1. Launch: ./build/VioraEDA --extension-ide
-    2. Run:    python3 extension_ide/scripts/simulate_editor.py
+    1. Launch: ./build/VioraEDA --ide
+    2. Run:    python3 viora_ide/scripts/simulate_editor.py
 """
 
 import asyncio
@@ -26,7 +26,7 @@ except ImportError:
 # ── Config ────────────────────────────────────────────────────────
 HOST = "127.0.0.1"
 PORT = 18790
-WINDOW = "Extension IDE"
+WINDOW = "VioraIDE"
 SCREENSHOT_DIR = Path("/tmp/ux_sim_editor")
 SCREENSHOT_DIR.mkdir(parents=True, exist_ok=True)
 
