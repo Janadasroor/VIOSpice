@@ -14,6 +14,7 @@
 #include <QMenuBar>
 #include <QLineEdit>
 #include <QTextEdit>
+#include <QPlainTextEdit>
 #include <QMouseEvent>
 #include <QKeyEvent>
 #include <QLabel>
@@ -244,6 +245,23 @@ QVariantList GuiManager::listElements(const QString& windowName,
             QVariantMap elem;
             elem["type"] = "QLineEdit";
             elem["label"] = edit->placeholderText();
+            elem["objectName"] = edit->objectName();
+            QPoint gp = edit->mapToGlobal(QPoint(0, 0));
+            elem["x"] = gp.x();
+            elem["y"] = gp.y();
+            elem["w"] = edit->width();
+            elem["h"] = edit->height();
+            elem["enabled"] = edit->isEnabled();
+            result.append(elem);
+        }
+    }
+
+    if (filterType.isEmpty() || filterType == "QPlainTextEdit" || filterType == "IdeEditor") {
+        for (QPlainTextEdit* edit : window->findChildren<QPlainTextEdit*>()) {
+            if (!edit->isVisible()) continue;
+
+            QVariantMap elem;
+            elem["type"] = edit->metaObject()->className();
             elem["objectName"] = edit->objectName();
             QPoint gp = edit->mapToGlobal(QPoint(0, 0));
             elem["x"] = gp.x();
@@ -704,6 +722,35 @@ QVariantMap GuiManager::clickAt(const QString& windowName, int x, int y, const Q
     resp["ok"] = true;
     resp["pos"] = QString("%1,%2").arg(x).arg(y);
     resp["button"] = button;
+    resp["target"] = target->metaObject()->className();
+    return resp;
+}
+
+QVariantMap GuiManager::moveMouse(const QString& windowName, int x, int y) {
+    QVariantMap resp;
+    resp["ok"] = false;
+
+    QWidget* window = findWindow(windowName);
+    if (!window) {
+        resp["error"] = QString("Window not found: %1").arg(windowName);
+        return resp;
+    }
+
+    QPoint pos(x, y);
+    if (window->windowFlags() & Qt::Window) {
+        pos = window->mapFromGlobal(pos);
+    }
+
+    QWidget* child = window->childAt(pos);
+    QWidget* target = child ? child : window;
+    QPoint targetPos = child ? child->mapFrom(window, pos) : pos;
+
+    QMouseEvent moveEvent(QEvent::MouseMove, targetPos, targetPos,
+                          Qt::NoButton, Qt::NoButton, Qt::NoModifier);
+    QApplication::sendEvent(target, &moveEvent);
+
+    resp["ok"] = true;
+    resp["pos"] = QString("%1,%2").arg(x).arg(y);
     resp["target"] = target->metaObject()->className();
     return resp;
 }
