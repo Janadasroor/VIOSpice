@@ -631,6 +631,7 @@ if(BUILD_VIOSPICE_CLI)
         cli/commands/netlist_commands.cpp
         cli/commands/symbol_commands.cpp
         cli/commands/plugin_commands.cpp
+        cli/commands/ext_commands.cpp
         cli/commands/misc_commands.cpp
         resources/resources.qrc
     )
@@ -651,6 +652,7 @@ if(BUILD_VIOSPICE_CLI)
         FluxScript
         FluxScriptManager
         VioUI
+        VioVioraIDE
         VioFootprints
         VioraPCBCore
         ${VIOSPICE_LINKER_GROUP_END}

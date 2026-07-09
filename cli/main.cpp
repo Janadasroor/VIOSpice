@@ -18,6 +18,7 @@
 #include "commands/netlist_commands.h"
 #include "commands/symbol_commands.h"
 #include "commands/plugin_commands.h"
+#include "commands/ext_commands.h"
 #include "commands/misc_commands.h"
 
 // Register items for correct deserialization
