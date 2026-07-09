@@ -58,6 +58,12 @@ bool ExtensionManifest::parse(const QJsonObject& json, QString* error) {
     for (const auto& p : permArr)
         permissions.append(p.toString());
 
+    // Parse dependencies: {"extId": "versionConstraint", ...}
+    QJsonObject depsObj = json["dependencies"].toObject();
+    for (auto it = depsObj.constBegin(); it != depsObj.constEnd(); ++it) {
+        dependencies[it.key()] = it.value().toString();
+    }
+
     return true;
 }
 
@@ -135,9 +141,15 @@ void ExtensionManager::scanDirectories() {
 }
 
 void ExtensionManager::loadAll() {
-    for (auto& ext : m_extensions) {
-        if (!ext.loaded)
-            loadExtension(ext.manifest.id);
+    // Load in dependency order
+    QStringList loadOrder = getLoadOrder();
+    for (const QString& id : loadOrder) {
+        for (auto& ext : m_extensions) {
+            if (ext.manifest.id == id && !ext.loaded) {
+                loadExtension(id);
+                break;
+            }
+        }
     }
 }
 
@@ -359,4 +371,171 @@ QVector<ExtensionManager::ExtensionInfo> ExtensionManager::listExtensions() cons
         info.append({ext.manifest.id, ext.manifest.name, ext.manifest.version, ext.manifest.author, ext.loaded});
     }
     return info;
+}
+
+// ============================================================================
+// Dependency Management
+// ============================================================================
+
+QStringList ExtensionManager::getLoadOrder() const {
+    // Build version map
+    QMap<QString, QString> versions;
+    for (const auto& ext : m_extensions) {
+        versions[ext.manifest.id] = ext.manifest.version;
+    }
+
+    // Build dependency graph
+    QMap<QString, QStringList> dependsOn;
+    for (const auto& ext : m_extensions) {
+        dependsOn[ext.manifest.id] = ext.manifest.dependencies.keys();
+    }
+
+    // Topological sort (Kahn's algorithm)
+    QMap<QString, int> inDegree;
+    QMap<QString, QStringList> adjacency;
+
+    for (const auto& ext : m_extensions) {
+        inDegree[ext.manifest.id] = 0;
+        adjacency[ext.manifest.id] = QStringList();
+    }
+
+    for (auto it = dependsOn.constBegin(); it != dependsOn.constEnd(); ++it) {
+        for (const QString& dep : it.value()) {
+            if (adjacency.contains(dep)) {
+                adjacency[dep].append(it.key());
+                inDegree[it.key()]++;
+            }
+        }
+    }
+
+    QStringList queue;
+    for (auto it = inDegree.constBegin(); it != inDegree.constEnd(); ++it) {
+        if (it.value() == 0) queue.append(it.key());
+    }
+
+    QStringList sorted;
+    while (!queue.isEmpty()) {
+        QString current = queue.takeFirst();
+        sorted.append(current);
+        for (const QString& dependent : adjacency.value(current)) {
+            inDegree[dependent]--;
+            if (inDegree[dependent] == 0) {
+                queue.append(dependent);
+            }
+        }
+    }
+
+    // Append any remaining (cycle detection)
+    for (const auto& ext : m_extensions) {
+        if (!sorted.contains(ext.manifest.id)) {
+            qWarning() << "[ExtMgr] Cycle detected involving" << ext.manifest.id;
+            sorted.append(ext.manifest.id);
+        }
+    }
+
+    return sorted;
+}
+
+QStringList ExtensionManager::getDependencies(const QString& id) const {
+    for (const auto& ext : m_extensions) {
+        if (ext.manifest.id == id) {
+            return ext.manifest.dependencies.keys();
+        }
+    }
+    return {};
+}
+
+QStringList ExtensionManager::getDependents(const QString& id) const {
+    QStringList result;
+    for (const auto& ext : m_extensions) {
+        if (ext.manifest.dependencies.contains(id)) {
+            result.append(ext.manifest.id);
+        }
+    }
+    return result;
+}
+
+QStringList ExtensionManager::validateDependencies(const QString& id) const {
+    QStringList errors;
+    QMap<QString, QString> extVersions;
+    for (const auto& ext : m_extensions) {
+        extVersions[ext.manifest.id] = ext.manifest.version;
+    }
+
+    for (const auto& ext : m_extensions) {
+        if (ext.manifest.id != id) continue;
+        for (auto it = ext.manifest.dependencies.constBegin();
+             it != ext.manifest.dependencies.constEnd(); ++it) {
+            if (!extVersions.contains(it.key())) {
+                errors.append(QString("Missing dependency: %1").arg(it.key()));
+            } else {
+                // Simple version check
+                QString required = it.value();
+                QString actual = extVersions[it.key()];
+                if (!required.isEmpty() && required != "*" && actual != required) {
+                    errors.append(QString("Version mismatch for %1: need %2, have %3")
+                        .arg(it.key(), required, actual));
+                }
+            }
+        }
+    }
+    return errors;
+}
+
+// ============================================================================
+// Config Persistence
+// ============================================================================
+
+QVariant ExtensionManager::getConfig(const QString& extId, const QString& key,
+                                     const QVariant& defaultValue) const {
+    for (const auto& ext : m_extensions) {
+        if (ext.manifest.id == extId) {
+            QString configPath = ext.dirPath + "/config.json";
+            QFile file(configPath);
+            if (!file.exists()) return defaultValue;
+
+            if (!file.open(QIODevice::ReadOnly)) return defaultValue;
+            QJsonDocument doc = QJsonDocument::fromJson(file.readAll());
+            file.close();
+
+            QJsonObject settings = doc.object();
+            QJsonValue val = settings.value(key);
+            if (val.isUndefined()) return defaultValue;
+            return val.toVariant();
+        }
+    }
+    return defaultValue;
+}
+
+void ExtensionManager::setConfig(const QString& extId, const QString& key,
+                                 const QVariant& value) {
+    for (auto& ext : m_extensions) {
+        if (ext.manifest.id == extId) {
+            QString configPath = ext.dirPath + "/config.json";
+
+            QJsonObject settings;
+            QFile readFile(configPath);
+            if (readFile.open(QIODevice::ReadOnly)) {
+                QJsonDocument doc = QJsonDocument::fromJson(readFile.readAll());
+                settings = doc.object();
+                readFile.close();
+            }
+
+            settings[key] = QJsonValue::fromVariant(value);
+
+            QFile writeFile(configPath);
+            if (writeFile.open(QIODevice::WriteOnly)) {
+                QJsonDocument doc(settings);
+                writeFile.write(doc.toJson(QJsonDocument::Indented));
+                writeFile.close();
+            }
+            return;
+        }
+    }
+}
+
+void ExtensionManager::saveConfig(const QString& extId) {
+    // Config is already saved on each setConfig call
+    // This method exists for bulk save operations
+    Q_UNUSED(extId);
 }
