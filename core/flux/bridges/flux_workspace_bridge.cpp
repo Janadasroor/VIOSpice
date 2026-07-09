@@ -11,6 +11,7 @@
 #include "../simulator/bridge/sim_manager.h"
 #include "../../simulator/core/sim_results.h"
 #include "../ui/waveform_viewer.h"
+#include "../extensions/extension_manager.h"
 #include <QDebug>
 #include <QApplication>
 #include <QEventLoop>
@@ -262,6 +263,130 @@ extern "C" {
         double d;
         std::memcpy(&d, &raw, sizeof(d));
         return d;
+    }
+
+    // --- Extension Config Persistence ---
+
+    // Get the active extension directory (from env var or ExtensionManager)
+    static QString getActiveExtensionDir() {
+        // Check environment variable first (set by CLI ext-run)
+        QByteArray envDir = qgetenv("VIORA_EXTENSION_DIR");
+        if (!envDir.isEmpty()) {
+            return QString::fromUtf8(envDir);
+        }
+
+        // Fall back to ExtensionManager
+        auto& mgr = ::ExtensionManager::instance();
+        auto extensions = mgr.listExtensions();
+        for (const auto& ext : extensions) {
+            if (ext.loaded) {
+                return mgr.listExtensions().isEmpty() ? QString() :
+                    // Find the extension's directory
+                    QDir(QDir::homePath() + "/.config/VioraEDA/extensions/" + ext.id).absolutePath();
+            }
+        }
+        return QString();
+    }
+
+    // Read a config value: flux_config_get("key", defaultValue)
+    double flux_config_get(double key_dbl, double defaultVal) {
+        const char* key = dbl_to_str(key_dbl);
+        if (!key) return defaultVal;
+
+        QString extDir = getActiveExtensionDir();
+        if (extDir.isEmpty()) return defaultVal;
+
+        QFile cf(extDir + "/config.json");
+        if (!cf.exists()) return defaultVal;
+        if (!cf.open(QIODevice::ReadOnly)) return defaultVal;
+
+        QJsonDocument doc = QJsonDocument::fromJson(cf.readAll());
+        cf.close();
+
+        QJsonObject settings = doc.object();
+        QJsonValue val = settings.value(QString::fromUtf8(key));
+        if (val.isUndefined()) return defaultVal;
+        return val.toDouble();
+    }
+
+    // Store a config value: flux_config_set("key", value)
+    void flux_config_set(double key_dbl, double value) {
+        const char* key = dbl_to_str(key_dbl);
+        if (!key) return;
+
+        QString extDir = getActiveExtensionDir();
+        if (extDir.isEmpty()) return;
+
+        QString configPath = extDir + "/config.json";
+        QJsonObject settings;
+
+        QFile readFile(configPath);
+        if (readFile.open(QIODevice::ReadOnly)) {
+            settings = QJsonDocument::fromJson(readFile.readAll()).object();
+            readFile.close();
+        }
+
+        settings[QString::fromUtf8(key)] = value;
+
+        QFile writeFile(configPath);
+        if (writeFile.open(QIODevice::WriteOnly)) {
+            writeFile.write(QJsonDocument(settings).toJson(QJsonDocument::Indented));
+            writeFile.close();
+        }
+    }
+
+    // Read a string config value: flux_config_get_str("key", defaultStr)
+    double flux_config_get_str(double key_dbl, double defaultStr) {
+        const char* key = dbl_to_str(key_dbl);
+        if (!key) return defaultStr;
+
+        QString extDir = getActiveExtensionDir();
+        if (extDir.isEmpty()) return defaultStr;
+
+        QFile cf(extDir + "/config.json");
+        if (!cf.exists()) return defaultStr;
+        if (!cf.open(QIODevice::ReadOnly)) return defaultStr;
+
+        QJsonDocument doc = QJsonDocument::fromJson(cf.readAll());
+        cf.close();
+
+        QJsonObject settings = doc.object();
+        QJsonValue val = settings.value(QString::fromUtf8(key));
+        if (val.isUndefined()) return defaultStr;
+
+        QString result = val.toString();
+        const char* pooled = Flux::Core::pool_workspace_string(result);
+        uint64_t raw = reinterpret_cast<uintptr_t>(pooled);
+        double d;
+        std::memcpy(&d, &raw, sizeof(d));
+        return d;
+    }
+
+    // Store a string config value: flux_config_set_str("key", "value")
+    void flux_config_set_str(double key_dbl, double value_dbl) {
+        const char* key = dbl_to_str(key_dbl);
+        const char* value = dbl_to_str(value_dbl);
+        if (!key || !value) return;
+
+        QString extDir = getActiveExtensionDir();
+        if (extDir.isEmpty()) return;
+
+        QString configPath = extDir + "/config.json";
+        QJsonObject settings;
+
+        QFile readFile(configPath);
+        if (readFile.open(QIODevice::ReadOnly)) {
+            settings = QJsonDocument::fromJson(readFile.readAll()).object();
+            readFile.close();
+        }
+
+        settings[QString::fromUtf8(key)] = QString::fromUtf8(value);
+
+        QFile writeFile(configPath);
+        if (writeFile.open(QIODevice::WriteOnly)) {
+            writeFile.write(QJsonDocument(settings).toJson(QJsonDocument::Indented));
+            writeFile.close();
+        }
     }
 
     // --- Plotting ---
