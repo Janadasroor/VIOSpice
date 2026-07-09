@@ -485,6 +485,12 @@ QVariantMap UICommandServer::handleCommand(const QVariantMap& request) {
         QString button = params.value("button", "left").toString();
         response = GuiManager::instance().clickAt(window, x, y, button);
     }
+    else if (cmd == "gui_move_mouse") {
+        QString window = params.value("window", "").toString();
+        int x = params.value("x", 0).toInt();
+        int y = params.value("y", 0).toInt();
+        response = GuiManager::instance().moveMouse(window, x, y);
+    }
     else if (cmd == "ping") {
         response["ok"] = true;
         response["pong"] = true;
@@ -492,6 +498,10 @@ QVariantMap UICommandServer::handleCommand(const QVariantMap& request) {
     }
     else {
         response["error"] = QString("Unknown command: %1").arg(cmd);
+    }
+
+    if (request.contains("id")) {
+        response["id"] = request.value("id");
     }
 
     return response;
