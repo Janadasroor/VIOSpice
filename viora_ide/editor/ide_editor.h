@@ -9,8 +9,12 @@
 #include "../../schematic/ui/flux_code_editor.h"
 
 class QCompleter;
+class QTimer;
+class QLabel;
 
 namespace IDE {
+
+struct LspDiagnostic;
 
 // Line number area widget (forward declaration)
 class LineNumberArea;
@@ -39,16 +43,45 @@ public:
     int lineNumberAreaWidth();
     void lineNumberAreaPaintEvent(QPaintEvent* event);
 
+    // LSP integration
+    void applyDiagnostics(const QList<LspDiagnostic>& diagnostics);
+    void showHoverTooltip(const QString& content, int line, int col);
+    void showContextMenu(const QPoint& pos);
+
+    // Word under cursor helpers
+    QString wordAtPosition(const QPoint& pos) const;
+    int cursorLine() const;
+    int cursorColumn() const;
+
+    // Hover state
+    QTimer* m_hoverTimer = nullptr;
+    QString m_lastHoverWord;
+    int m_hoverLine = -1;
+    int m_hoverCol = -1;
+    QLabel* m_hoverLabel = nullptr;
+
 signals:
     void filePathChanged(const QString& path);
     void modificationChanged(bool modified);
     void cursorPositionChanged(int line, int col);
+    void contentsChangedForLsp(const QString& filePath, const QString& text, int version);
+    void fileOpenedForLsp(const QString& filePath, const QString& text);
+    void fileSavedForLsp(const QString& filePath);
+    void hoverRequested(const QString& filePath, int line, int character);
+    void goToDefinitionRequested(const QString& filePath, int line, int character);
+    void findReferencesRequested(const QString& filePath, int line, int character);
+    void formatDocumentRequested(const QString& filePath);
+    void signatureHelpRequested(const QString& filePath, int line, int character);
 
 protected:
     void showEvent(QShowEvent* e) override;
     void resizeEvent(QResizeEvent* e) override;
     void keyPressEvent(QKeyEvent* e) override;
     void wheelEvent(QWheelEvent* e) override;
+    void mouseMoveEvent(QMouseEvent* e) override;
+    void leaveEvent(QEvent* e) override;
+    void focusOutEvent(QFocusEvent* e) override;
+    void changeEvent(QEvent* e) override;
 
     friend class LineNumberArea;
 
@@ -69,6 +102,10 @@ private:
     LineNumberArea* m_lineNumberArea = nullptr;
     QString m_filePath;
     QString m_language;
+
+    // LSP state
+    QTimer* m_lspDebounceTimer = nullptr;
+    int m_lspVersion = 0;
 };
 
 // Line number area widget
