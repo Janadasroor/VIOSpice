@@ -21,6 +21,10 @@ extern "C" double flux_register_analysis(double);
 extern "C" double flux_register_measure(double, double);
 extern "C" double flux_register_probe(double, double);
 extern "C" double flux_register_save(double);
+extern "C" double flux_config_get(double, double);
+extern "C" void flux_config_set(double, double);
+extern "C" double flux_config_get_str(double, double);
+extern "C" void flux_config_set_str(double, double);
 
 // Helper to cast between void* and double handles
 template <typename To, typename From>
@@ -357,4 +361,10 @@ void register_flux_qt_jit_symbols() {
     jit.registerFunction("flux_register_measure", (void*)&flux_register_measure);
     jit.registerFunction("flux_register_probe", (void*)&flux_register_probe);
     jit.registerFunction("flux_register_save", (void*)&flux_register_save);
+
+    // Extension config persistence
+    jit.registerFunction("flux_config_get", (void*)&flux_config_get);
+    jit.registerFunction("flux_config_set", (void*)&flux_config_set);
+    jit.registerFunction("flux_config_get_str", (void*)&flux_config_get_str);
+    jit.registerFunction("flux_config_set_str", (void*)&flux_config_set_str);
 }
