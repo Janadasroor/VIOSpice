@@ -4,6 +4,7 @@
  */
 
 #include "flux_qt_bridge.h"
+#include "flux_workspace_bridge.h"
 #include <QPushButton>
 #include <QMessageBox>
 #include <QSlider>
@@ -521,5 +522,115 @@ extern "C" {
         QLayout* layout = parent->layout();
         if (!layout) { layout = new QVBoxLayout(parent); parent->setLayout(layout); }
         layout->addWidget(child);
+    }
+
+    // === WIDGET ADOPTION: Wrap existing VioraEDA widgets ===
+
+    // Find a widget by objectName and return a handle
+    double flux_qt_adopt(double name_dbl) {
+        const char* name = dbl_to_str(name_dbl);
+        if (!name) return 0.0;
+
+        QString targetName = QString::fromUtf8(name);
+
+        // Search all top-level widgets
+        for (QWidget* w : QApplication::topLevelWidgets()) {
+            if (w->objectName() == targetName) {
+                return FluxQtBridge::instance().registerObject(w);
+            }
+            // Search children recursively
+            QWidget* found = w->findChild<QWidget*>(targetName);
+            if (found) {
+                return FluxQtBridge::instance().registerObject(found);
+            }
+        }
+
+        // Search by class name
+        QByteArray className = targetName.toUtf8();
+        for (QWidget* w : QApplication::topLevelWidgets()) {
+            if (w->metaObject()->className() == className) {
+                return FluxQtBridge::instance().registerObject(w);
+            }
+            QWidget* found = w->findChild<QWidget*>(className);
+            if (found) {
+                return FluxQtBridge::instance().registerObject(found);
+            }
+        }
+
+        return 0.0; // Not found
+    }
+
+    // List all available widgets matching a pattern
+    double flux_qt_list_widgets(double pattern_dbl) {
+        const char* pattern = dbl_to_str(pattern_dbl);
+        QString search = pattern ? QString::fromUtf8(pattern) : "";
+        QString result;
+
+        for (QWidget* w : QApplication::topLevelWidgets()) {
+            if (w->objectName().isEmpty() && w->windowTitle().isEmpty()) continue;
+
+            QString name = w->objectName();
+            QString title = w->windowTitle();
+            QString className = w->metaObject()->className();
+
+            if (search.isEmpty() ||
+                name.contains(search, Qt::CaseInsensitive) ||
+                title.contains(search, Qt::CaseInsensitive) ||
+                className.contains(search, Qt::CaseInsensitive)) {
+                if (!result.isEmpty()) result += "\n";
+                result += QString("%1 [%2] \"%3\"")
+                    .arg(className, name, title);
+            }
+        }
+
+        const char* pooled = Flux::Core::pool_workspace_string(result);
+        uint64_t raw = reinterpret_cast<uintptr_t>(pooled);
+        double d;
+        std::memcpy(&d, &raw, sizeof(d));
+        return d;
+    }
+
+    // Reparent a widget into a container
+    void flux_qt_embed(double widget_dbl, double container_dbl) {
+        QWidget* widget = qobject_cast<QWidget*>(FluxQtBridge::instance().resolveHandle(widget_dbl));
+        QWidget* container = qobject_cast<QWidget*>(FluxQtBridge::instance().resolveHandle(container_dbl));
+        if (!widget || !container) return;
+
+        // Reparent the widget
+        widget->setParent(container);
+
+        // Add to container's layout
+        QLayout* layout = container->layout();
+        if (!layout) {
+            layout = new QVBoxLayout(container);
+            container->setLayout(layout);
+        }
+        layout->addWidget(widget);
+        widget->show();
+    }
+
+    // Get widget property value as string
+    double flux_qt_get_widget_info(double handle_dbl, double prop_dbl) {
+        QWidget* w = qobject_cast<QWidget*>(FluxQtBridge::instance().resolveHandle(handle_dbl));
+        if (!w) return 0.0;
+
+        const char* prop = dbl_to_str(prop_dbl);
+        QString propName = QString::fromUtf8(prop);
+        QString result;
+
+        if (propName == "name") result = w->objectName();
+        else if (propName == "class") result = w->metaObject()->className();
+        else if (propName == "title") result = w->windowTitle();
+        else if (propName == "visible") result = w->isVisible() ? "true" : "false";
+        else if (propName == "width") result = QString::number(w->width());
+        else if (propName == "height") result = QString::number(w->height());
+        else if (propName == "x") result = QString::number(w->x());
+        else if (propName == "y") result = QString::number(w->y());
+
+        const char* pooled = Flux::Core::pool_workspace_string(result);
+        uint64_t raw = reinterpret_cast<uintptr_t>(pooled);
+        double d;
+        std::memcpy(&d, &raw, sizeof(d));
+        return d;
     }
 }
