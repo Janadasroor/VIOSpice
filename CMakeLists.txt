@@ -632,6 +632,7 @@ if(BUILD_VIOSPICE_CLI)
         cli/commands/symbol_commands.cpp
         cli/commands/plugin_commands.cpp
         cli/commands/ext_commands.cpp
+        cli/commands/ext_test.cpp
         cli/commands/misc_commands.cpp
         resources/resources.qrc
     )
