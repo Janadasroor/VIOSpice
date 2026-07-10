@@ -12,6 +12,7 @@
 #include "../../simulator/core/sim_results.h"
 #include "../ui/waveform_viewer.h"
 #include "../extensions/extension_manager.h"
+#include "../extensions/extension_sandbox.h"
 #include <QDebug>
 #include <QApplication>
 #include <QEventLoop>
@@ -81,12 +82,16 @@ extern "C" {
     }
     
     void flux_set_prop(double ref_dbl, double prop_dbl, double value) {
+        if (!IDE::sandbox().checkPermission(IDE::Permission::SchematicWrite, "set_property"))
+            return;
         const char* ref = dbl_to_str(ref_dbl);
         const char* prop = dbl_to_str(prop_dbl);
         Flux::Core::FluxWorkspaceBridge::setComponentProperty(ref, prop, value);
     }
-    
+
     void flux_set_prop_str(double ref_dbl, double prop_dbl, double value_dbl) {
+        if (!IDE::sandbox().checkPermission(IDE::Permission::SchematicWrite, "set_property_str"))
+            return;
         const char* ref = dbl_to_str(ref_dbl);
         const char* prop = dbl_to_str(prop_dbl);
         const char* value = dbl_to_str(value_dbl);
@@ -133,6 +138,8 @@ extern "C" {
     }
 
     void flux_run_sim(double analysis_dbl, double tStop, double tStep) {
+        if (!IDE::sandbox().checkPermission(IDE::Permission::SimulationRun, "run_simulation"))
+            return;
         const char* analysisType = dbl_to_str(analysis_dbl);
         auto* editor = qobject_cast<SchematicEditor*>(QApplication::activeWindow());
         if (!editor) return;
@@ -290,6 +297,8 @@ extern "C" {
 
     // Read a config value: flux_config_get("key", defaultValue)
     double flux_config_get(double key_dbl, double defaultVal) {
+        if (!IDE::sandbox().checkPermission(IDE::Permission::ConfigRead, "config_get"))
+            return defaultVal;
         const char* key = dbl_to_str(key_dbl);
         if (!key) return defaultVal;
 
@@ -311,6 +320,8 @@ extern "C" {
 
     // Store a config value: flux_config_set("key", value)
     void flux_config_set(double key_dbl, double value) {
+        if (!IDE::sandbox().checkPermission(IDE::Permission::ConfigWrite, "config_set"))
+            return;
         const char* key = dbl_to_str(key_dbl);
         if (!key) return;
 
@@ -387,6 +398,31 @@ extern "C" {
             writeFile.write(QJsonDocument(settings).toJson(QJsonDocument::Indented));
             writeFile.close();
         }
+    }
+
+    // --- Permission Query ---
+
+    // Check if current extension has a permission: flux_has_permission("schematic.write")
+    double flux_has_permission(double perm_dbl) {
+        const char* perm = dbl_to_str(perm_dbl);
+        if (!perm) return 0.0;
+        return IDE::sandbox().hasPermission(QString::fromUtf8(perm)) ? 1.0 : 0.0;
+    }
+
+    // Get current extension ID: flux_extension_id()
+    double flux_extension_id() {
+        QString id = IDE::sandbox().currentExtensionId();
+        if (id.isEmpty()) {
+            double d = 0;
+            uint64_t raw = 0;
+            std::memcpy(&d, &raw, sizeof(d));
+            return d;
+        }
+        const char* result = Flux::Core::pool_workspace_string(id);
+        uint64_t raw = reinterpret_cast<uintptr_t>(result);
+        double d;
+        std::memcpy(&d, &raw, sizeof(d));
+        return d;
     }
 
     // --- Plotting ---

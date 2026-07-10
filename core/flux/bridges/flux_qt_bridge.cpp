@@ -25,6 +25,8 @@ extern "C" double flux_config_get(double, double);
 extern "C" void flux_config_set(double, double);
 extern "C" double flux_config_get_str(double, double);
 extern "C" void flux_config_set_str(double, double);
+extern "C" double flux_has_permission(double);
+extern "C" double flux_extension_id();
 
 // Helper to cast between void* and double handles
 template <typename To, typename From>
@@ -288,7 +290,11 @@ void registerQtBridgeJitSymbols(Flux::FluxJIT& jit) {
 
 void register_flux_qt_jit_symbols() {
     auto& jit = Flux::JITEngine::instance();
-    if (!jit.isInitialized()) return;
+    fprintf(stderr, "[Bridge] register_flux_qt_jit_symbols called, initialized=%d\n", jit.isInitialized());
+    if (!jit.isInitialized()) {
+        fprintf(stderr, "[Bridge] JIT not initialized, skipping registration\n");
+        return;
+    }
 
     jit.registerFunction("flux_qt_create_window", (void*)&flux_qt_create_window);
     jit.registerFunction("flux_qt_create_button", (void*)&flux_qt_create_button);
@@ -367,4 +373,10 @@ void register_flux_qt_jit_symbols() {
     jit.registerFunction("flux_config_set", (void*)&flux_config_set);
     jit.registerFunction("flux_config_get_str", (void*)&flux_config_get_str);
     jit.registerFunction("flux_config_set_str", (void*)&flux_config_set_str);
+
+    // Extension sandbox
+    jit.registerFunction("flux_has_permission", (void*)&flux_has_permission);
+    jit.registerFunction("flux_extension_id", (void*)&flux_extension_id);
+
+    fprintf(stderr, "[Bridge] Registered all functions including sandbox\n");
 }

@@ -5,6 +5,7 @@ list(TRANSFORM LOCAL_CORE_SOURCES PREPEND "${CMAKE_SOURCE_DIR}/")
 qt6_wrap_cpp(VIO_CORE_MOC_SOURCES
     simulation/jit_context_manager.h
     flux/extensions/extension_manager.h
+    flux/extensions/extension_sandbox.h
     update_checker.h
 )
 

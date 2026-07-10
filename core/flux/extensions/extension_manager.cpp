@@ -4,6 +4,7 @@
  */
 
 #include "extension_manager.h"
+#include "extension_sandbox.h"
 #include <QCoreApplication>
 #include <QDebug>
 #include <QJsonDocument>
@@ -250,6 +251,10 @@ void ExtensionManager::loadExtension(const QString& id) {
         if (ext.manifest.id != id) continue;
         if (ext.loaded) return;
 
+        // Set up sandbox permissions for this extension
+        QSet<IDE::Permission> perms = IDE::ExtensionSandbox::parsePermissions(ext.manifest.permissions);
+        IDE::sandbox().setPermissions(id, perms);
+
         QString mainPath = ext.dirPath + "/" + ext.manifest.mainFile;
         if (!QFileInfo::exists(mainPath)) {
             QString err = "main file not found: " + mainPath;
@@ -283,6 +288,9 @@ void ExtensionManager::loadExtension(const QString& id) {
 
         ext.loaded = true;
         Q_EMIT extensionLoaded(id);
+
+        // Set current extension in sandbox before calling hooks
+        IDE::sandbox().setCurrentExtension(id);
 
         // Call onActivate hook
         if (!ext.manifest.onActivate.isEmpty())
