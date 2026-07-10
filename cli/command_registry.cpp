@@ -39,6 +39,9 @@ void registerPluginCommands();
 void registerExtCommands();
 void registerExtTestCommand();
 void registerExtPreviewCommand();
+void registerExtSchemaCommand();
+void registerExtWatchCommand();
+void registerExtComposeCommand();
 void registerMiscCommands();
 
 void registerAllCommands() {
@@ -49,6 +52,9 @@ void registerAllCommands() {
     registerExtCommands();
     registerExtTestCommand();
     registerExtPreviewCommand();
+    registerExtSchemaCommand();
+    registerExtWatchCommand();
+    registerExtComposeCommand();
     registerMiscCommands();
 }
 

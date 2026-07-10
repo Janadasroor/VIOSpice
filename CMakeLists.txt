@@ -634,6 +634,9 @@ if(BUILD_VIOSPICE_CLI)
         cli/commands/ext_commands.cpp
         cli/commands/ext_test.cpp
         cli/commands/ext_preview.cpp
+        cli/commands/ext_schema.cpp
+        cli/commands/ext_watch.cpp
+        cli/commands/ext_compose.cpp
         cli/commands/misc_commands.cpp
         resources/resources.qrc
     )
