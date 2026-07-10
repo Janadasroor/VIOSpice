@@ -13,6 +13,8 @@
 #include "../ui/waveform_viewer.h"
 #include "../extensions/extension_manager.h"
 #include "../extensions/extension_sandbox.h"
+#include "../extensions/extension_events.h"
+#include <flux/jit_engine.h>
 #include <QDebug>
 #include <QApplication>
 #include <QEventLoop>
@@ -398,6 +400,70 @@ extern "C" {
             writeFile.write(QJsonDocument(settings).toJson(QJsonDocument::Indented));
             writeFile.close();
         }
+    }
+
+    // --- Inter-Extension Events ---
+
+    // Subscribe to an event: flux_on_event("event_name")
+    // The callback function name is derived from the event name
+    void flux_on_event(double event_name_dbl) {
+        const char* eventName = dbl_to_str(event_name_dbl);
+        if (!eventName) return;
+
+        QString extId = IDE::sandbox().currentExtensionId();
+        if (extId.isEmpty()) return;
+
+        QString eventStr = QString::fromUtf8(eventName);
+
+        // Build callback function name from event name
+        // e.g., "simulation.started" -> "on_simulation_started"
+        QString callbackName = "on_" + eventStr;
+        callbackName.replace(".", "_");
+
+        IDE::eventBus().subscribe(extId, eventStr,
+            [extId, callbackName](const IDE::ExtensionEvent& event) {
+                Q_UNUSED(event);
+                // Call the callback function in the FluxScript engine
+                std::string error;
+                Flux::JITEngine::instance().callFunction(
+                    callbackName.toUtf8().constData(), {}, &error);
+                if (!error.empty()) {
+                    qDebug() << "[EventBus] Callback error:" << QString::fromStdString(error);
+                }
+            });
+    }
+
+    // Subscribe to all events: flux_on_event_all()
+    void flux_on_event_all() {
+        QString extId = IDE::sandbox().currentExtensionId();
+        if (extId.isEmpty()) return;
+
+        IDE::eventBus().subscribe(extId, "*",
+            [extId](const IDE::ExtensionEvent& event) {
+                qDebug() << "[EventBus]" << extId << "received event:" << event.name;
+            });
+    }
+
+    // Emit an event: flux_emit_event("event_name")
+    void flux_emit_event(double event_name_dbl) {
+        const char* eventName = dbl_to_str(event_name_dbl);
+        if (!eventName) return;
+
+        QString extId = IDE::sandbox().currentExtensionId();
+        QString eventStr = QString::fromUtf8(eventName);
+
+        IDE::eventBus().emitEvent(extId, eventStr);
+    }
+
+    // Emit event with data: flux_emit_event_data("event_name", data)
+    void flux_emit_event_data(double event_name_dbl, double data_dbl) {
+        const char* eventName = dbl_to_str(event_name_dbl);
+        if (!eventName) return;
+
+        QString extId = IDE::sandbox().currentExtensionId();
+        QString eventStr = QString::fromUtf8(eventName);
+
+        IDE::eventBus().emitEvent(extId, eventStr, data_dbl);
     }
 
     // --- Permission Query ---

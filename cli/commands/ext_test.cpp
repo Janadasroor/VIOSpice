@@ -29,6 +29,7 @@
 #include "../core/flux/extensions/extension_manager.h"
 #include "../core/flux/extensions/extension_sandbox.h"
 #include "../core/flux/extensions/extension_config.h"
+#include "../core/flux/extensions/extension_events.h"
 
 // ============================================================================
 // Test Results
@@ -406,6 +407,7 @@ private:
 
         // Reset mock state
         s_guiMock.reset();
+        IDE::eventBus().clearAll();
 
         // Set sandbox
         QJsonArray permArr = manifest["permissions"].toArray();
