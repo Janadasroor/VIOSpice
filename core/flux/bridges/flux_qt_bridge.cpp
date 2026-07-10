@@ -27,6 +27,10 @@ extern "C" double flux_config_get_str(double, double);
 extern "C" void flux_config_set_str(double, double);
 extern "C" double flux_has_permission(double);
 extern "C" double flux_extension_id();
+extern "C" void flux_on_event(double);
+extern "C" void flux_on_event_all();
+extern "C" void flux_emit_event(double);
+extern "C" void flux_emit_event_data(double, double);
 
 // Helper to cast between void* and double handles
 template <typename To, typename From>
@@ -378,5 +382,11 @@ void register_flux_qt_jit_symbols() {
     jit.registerFunction("flux_has_permission", (void*)&flux_has_permission);
     jit.registerFunction("flux_extension_id", (void*)&flux_extension_id);
 
-    fprintf(stderr, "[Bridge] Registered all functions including sandbox\n");
+    // Inter-extension events
+    jit.registerFunction("flux_on_event", (void*)&flux_on_event);
+    jit.registerFunction("flux_on_event_all", (void*)&flux_on_event_all);
+    jit.registerFunction("flux_emit_event", (void*)&flux_emit_event);
+    jit.registerFunction("flux_emit_event_data", (void*)&flux_emit_event_data);
+
+    fprintf(stderr, "[Bridge] Registered all functions including sandbox and events\n");
 }

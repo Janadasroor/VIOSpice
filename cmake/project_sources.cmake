@@ -81,6 +81,8 @@ set(CORE_SOURCES
     core/flux/extensions/extension_config.h
     core/flux/extensions/extension_deps.cpp
     core/flux/extensions/extension_deps.h
+    core/flux/extensions/extension_events.cpp
+    core/flux/extensions/extension_events.h
     core/sync/ws_server.cpp
     core/sync/ws_server.h
 )
