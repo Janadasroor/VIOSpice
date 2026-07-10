@@ -75,6 +75,12 @@ set(CORE_SOURCES
     core/flux/engine/flux_script_engine.h
     core/flux/extensions/extension_manager.cpp
     core/flux/extensions/extension_manager.h
+    core/flux/extensions/extension_sandbox.cpp
+    core/flux/extensions/extension_sandbox.h
+    core/flux/extensions/extension_config.cpp
+    core/flux/extensions/extension_config.h
+    core/flux/extensions/extension_deps.cpp
+    core/flux/extensions/extension_deps.h
     core/sync/ws_server.cpp
     core/sync/ws_server.h
 )
