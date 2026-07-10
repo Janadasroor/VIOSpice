@@ -25,6 +25,8 @@
 #include <QTimer>
 #include <QHash>
 #include <QTabWidget>
+#include <QGroupBox>
+#include <QFrame>
 #include <mutex>
 #include <cstring>
 #include <cstdint>
@@ -394,5 +396,130 @@ extern "C" {
         if (it != s_widgetStore.end())
             return it.value();
         return 0.0;
+    }
+
+    // === SMART DEFAULTS & SHORTHAND ===
+
+    double flux_qt_create_panel(double title_dbl) {
+        QDialog* dialog = new QDialog();
+        dialog->setWindowTitle(QString::fromUtf8(dbl_to_str(title_dbl)));
+        dialog->setAttribute(Qt::WA_DeleteOnClose);
+        QVBoxLayout* layout = new QVBoxLayout(dialog);
+        layout->setContentsMargins(8, 8, 8, 8);
+        layout->setSpacing(6);
+        dialog->setLayout(layout);
+        dialog->show();
+        return FluxQtBridge::instance().registerObject(dialog);
+    }
+
+    double flux_qt_create_form_row(double label_dbl, double input_dbl) {
+        QWidget* container = new QWidget();
+        QHBoxLayout* layout = new QHBoxLayout(container);
+        layout->setContentsMargins(0, 0, 0, 0);
+        layout->setSpacing(8);
+        QLabel* lbl = new QLabel(QString::fromUtf8(dbl_to_str(label_dbl)));
+        QWidget* input = qobject_cast<QWidget*>(FluxQtBridge::instance().resolveHandle(input_dbl));
+        if (input) { layout->addWidget(lbl); layout->addWidget(input); }
+        container->setAttribute(Qt::WA_DeleteOnClose);
+        container->show();
+        return FluxQtBridge::instance().registerObject(container);
+    }
+
+    double flux_qt_create_button_bar(double btn1_dbl, double btn2_dbl) {
+        QWidget* container = new QWidget();
+        QHBoxLayout* layout = new QHBoxLayout(container);
+        layout->setContentsMargins(0, 0, 0, 0);
+        layout->setSpacing(6);
+        QWidget* b1 = qobject_cast<QWidget*>(FluxQtBridge::instance().resolveHandle(btn1_dbl));
+        QWidget* b2 = qobject_cast<QWidget*>(FluxQtBridge::instance().resolveHandle(btn2_dbl));
+        if (b1) layout->addWidget(b1);
+        if (b2) layout->addWidget(b2);
+        layout->addStretch();
+        container->setAttribute(Qt::WA_DeleteOnClose);
+        container->show();
+        return FluxQtBridge::instance().registerObject(container);
+    }
+
+    double flux_qt_create_separator() {
+        QFrame* line = new QFrame();
+        line->setFrameShape(QFrame::HLine);
+        line->setFrameShadow(QFrame::Sunken);
+        line->setAttribute(Qt::WA_DeleteOnClose);
+        line->show();
+        return FluxQtBridge::instance().registerObject(line);
+    }
+
+    double flux_qt_create_group(double title_dbl) {
+        QGroupBox* group = new QGroupBox(QString::fromUtf8(dbl_to_str(title_dbl)));
+        QVBoxLayout* layout = new QVBoxLayout(group);
+        layout->setContentsMargins(8, 8, 8, 8);
+        group->setLayout(layout);
+        group->setAttribute(Qt::WA_DeleteOnClose);
+        group->show();
+        return FluxQtBridge::instance().registerObject(group);
+    }
+
+    void flux_qt_set_placeholder(double handle_dbl, double text_dbl) {
+        QWidget* w = qobject_cast<QWidget*>(FluxQtBridge::instance().resolveHandle(handle_dbl));
+        if (QLineEdit* le = qobject_cast<QLineEdit*>(w))
+            le->setPlaceholderText(QString::fromUtf8(dbl_to_str(text_dbl)));
+    }
+
+    void flux_qt_set_tooltip(double handle_dbl, double text_dbl) {
+        QWidget* w = qobject_cast<QWidget*>(FluxQtBridge::instance().resolveHandle(handle_dbl));
+        if (w) w->setToolTip(QString::fromUtf8(dbl_to_str(text_dbl)));
+    }
+
+    void flux_qt_set_enabled(double handle_dbl, double enabled_dbl) {
+        QWidget* w = qobject_cast<QWidget*>(FluxQtBridge::instance().resolveHandle(handle_dbl));
+        if (w) w->setEnabled(enabled_dbl != 0.0);
+    }
+
+    void flux_qt_set_fixed_size(double handle_dbl, double w_dbl, double h_dbl) {
+        QWidget* w = qobject_cast<QWidget*>(FluxQtBridge::instance().resolveHandle(handle_dbl));
+        if (w) w->setFixedSize(static_cast<int>(w_dbl), static_cast<int>(h_dbl));
+    }
+
+    double flux_qt_get_value(double handle_dbl) {
+        QWidget* w = qobject_cast<QWidget*>(FluxQtBridge::instance().resolveHandle(handle_dbl));
+        if (QSpinBox* sb = qobject_cast<QSpinBox*>(w)) return sb->value();
+        if (QSlider* sl = qobject_cast<QSlider*>(w)) return sl->value();
+        if (QProgressBar* pb = qobject_cast<QProgressBar*>(w)) return pb->value();
+        return 0;
+    }
+
+    void flux_qt_set_value(double handle_dbl, double value_dbl) {
+        QWidget* w = qobject_cast<QWidget*>(FluxQtBridge::instance().resolveHandle(handle_dbl));
+        if (QSpinBox* sb = qobject_cast<QSpinBox*>(w)) sb->setValue(static_cast<int>(value_dbl));
+        if (QSlider* sl = qobject_cast<QSlider*>(w)) sl->setValue(static_cast<int>(value_dbl));
+        if (QProgressBar* pb = qobject_cast<QProgressBar*>(w)) pb->setValue(static_cast<int>(value_dbl));
+    }
+
+    void flux_qt_set_range(double handle_dbl, double min_dbl, double max_dbl) {
+        QWidget* w = qobject_cast<QWidget*>(FluxQtBridge::instance().resolveHandle(handle_dbl));
+        if (QSpinBox* sb = qobject_cast<QSpinBox*>(w)) sb->setRange(static_cast<int>(min_dbl), static_cast<int>(max_dbl));
+        if (QSlider* sl = qobject_cast<QSlider*>(w)) sl->setRange(static_cast<int>(min_dbl), static_cast<int>(max_dbl));
+        if (QProgressBar* pb = qobject_cast<QProgressBar*>(w)) pb->setRange(static_cast<int>(min_dbl), static_cast<int>(max_dbl));
+    }
+
+    void flux_qt_set_stylesheet(double handle_dbl, double css_dbl) {
+        QWidget* w = qobject_cast<QWidget*>(FluxQtBridge::instance().resolveHandle(handle_dbl));
+        if (w) w->setStyleSheet(QString::fromUtf8(dbl_to_str(css_dbl)));
+    }
+
+    void flux_qt_connect(double handle_dbl, double signal_dbl, double callback_dbl) {
+        const char* signal = dbl_to_str(signal_dbl);
+        const char* callback = dbl_to_str(callback_dbl);
+        if (!signal || !callback) return;
+        FluxQtBridge::instance().connectSignalByName(handle_dbl, signal, callback);
+    }
+
+    void flux_qt_add_widget_smart(double parent_dbl, double child_dbl) {
+        QWidget* parent = qobject_cast<QWidget*>(FluxQtBridge::instance().resolveHandle(parent_dbl));
+        QWidget* child = qobject_cast<QWidget*>(FluxQtBridge::instance().resolveHandle(child_dbl));
+        if (!parent || !child) return;
+        QLayout* layout = parent->layout();
+        if (!layout) { layout = new QVBoxLayout(parent); parent->setLayout(layout); }
+        layout->addWidget(child);
     }
 }
