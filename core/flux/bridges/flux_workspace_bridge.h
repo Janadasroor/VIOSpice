@@ -14,6 +14,8 @@ class SchematicAPI;
 namespace Flux {
 namespace Core {
 
+const char* pool_workspace_string(const QString& s);
+
 class FluxWorkspaceBridge {
 public:
     static void setVariable(const QString& name, double value);

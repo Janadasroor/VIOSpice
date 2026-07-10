@@ -66,6 +66,10 @@ extern "C" void flux_qt_set_range(double, double, double);
 extern "C" void flux_qt_set_stylesheet(double, double);
 extern "C" void flux_qt_connect(double, double, double);
 extern "C" void flux_qt_add_widget_smart(double, double);
+extern "C" double flux_qt_adopt(double);
+extern "C" double flux_qt_list_widgets(double);
+extern "C" void flux_qt_embed(double, double);
+extern "C" double flux_qt_get_widget_info(double, double);
 
 // Smart defaults & shorthand
 extern "C" double flux_qt_create_panel(double);
@@ -403,6 +407,12 @@ void register_flux_qt_jit_symbols() {
     jit.registerFunction("flux_qt_set_stylesheet", (void*)&flux_qt_set_stylesheet);
     jit.registerFunction("flux_qt_connect", (void*)&flux_qt_connect);
     jit.registerFunction("flux_qt_add_widget_smart", (void*)&flux_qt_add_widget_smart);
+
+    // Widget adoption
+    jit.registerFunction("flux_qt_adopt", (void*)&flux_qt_adopt);
+    jit.registerFunction("flux_qt_list_widgets", (void*)&flux_qt_list_widgets);
+    jit.registerFunction("flux_qt_embed", (void*)&flux_qt_embed);
+    jit.registerFunction("flux_qt_get_widget_info", (void*)&flux_qt_get_widget_info);
 
     // Smart defaults & shorthand
     jit.registerFunction("flux_qt_create_panel", (void*)&flux_qt_create_panel);
