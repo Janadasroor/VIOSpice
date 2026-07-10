@@ -38,6 +38,7 @@ void registerSymbolCommands();
 void registerPluginCommands();
 void registerExtCommands();
 void registerExtTestCommand();
+void registerExtPreviewCommand();
 void registerMiscCommands();
 
 void registerAllCommands() {
@@ -47,6 +48,7 @@ void registerAllCommands() {
     registerPluginCommands();
     registerExtCommands();
     registerExtTestCommand();
+    registerExtPreviewCommand();
     registerMiscCommands();
 }
 
