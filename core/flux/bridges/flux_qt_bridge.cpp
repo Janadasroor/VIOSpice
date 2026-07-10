@@ -50,6 +50,39 @@ static const char* dbl_to_str(double d) {
 // Forward declarations for workspace bridge functions
 extern "C" void viora_flux_print(double);
 extern "C" void flux_print_num(double);
+
+extern "C" double flux_qt_create_panel(double);
+extern "C" double flux_qt_create_form_row(double, double);
+extern "C" double flux_qt_create_button_bar(double, double);
+extern "C" double flux_qt_create_separator();
+extern "C" double flux_qt_create_group(double);
+extern "C" void flux_qt_set_placeholder(double, double);
+extern "C" void flux_qt_set_tooltip(double, double);
+extern "C" void flux_qt_set_enabled(double, double);
+extern "C" void flux_qt_set_fixed_size(double, double, double);
+extern "C" double flux_qt_get_value(double);
+extern "C" void flux_qt_set_value(double, double);
+extern "C" void flux_qt_set_range(double, double, double);
+extern "C" void flux_qt_set_stylesheet(double, double);
+extern "C" void flux_qt_connect(double, double, double);
+extern "C" void flux_qt_add_widget_smart(double, double);
+
+// Smart defaults & shorthand
+extern "C" double flux_qt_create_panel(double);
+extern "C" double flux_qt_create_form_row(double, double);
+extern "C" double flux_qt_create_button_bar(double, double);
+extern "C" double flux_qt_create_separator();
+extern "C" double flux_qt_create_group(double);
+extern "C" void flux_qt_set_placeholder(double, double);
+extern "C" void flux_qt_set_tooltip(double, double);
+extern "C" void flux_qt_set_enabled(double, double);
+extern "C" void flux_qt_set_fixed_size(double, double, double);
+extern "C" double flux_qt_get_value(double);
+extern "C" void flux_qt_set_value(double, double);
+extern "C" void flux_qt_set_range(double, double, double);
+extern "C" void flux_qt_set_stylesheet(double, double);
+extern "C" void flux_qt_connect(double, double, double);
+extern "C" void flux_qt_add_widget(double, double);
 extern "C" double flux_get_var(double);
 extern "C" void flux_set_var(double, double);
 extern "C" void flux_set_prop(double, double, double);
@@ -353,6 +386,40 @@ void register_flux_qt_jit_symbols() {
     jit.registerFunction("flux_qt_get_text", (void*)&flux_qt_get_text);
     jit.registerFunction("flux_qt_get_property", (void*)&flux_qt_get_property);
     jit.registerFunction("flux_qt_set_property", (void*)&flux_qt_set_property);
+
+    // Smart defaults
+    jit.registerFunction("flux_qt_create_panel", (void*)&flux_qt_create_panel);
+    jit.registerFunction("flux_qt_create_form_row", (void*)&flux_qt_create_form_row);
+    jit.registerFunction("flux_qt_create_button_bar", (void*)&flux_qt_create_button_bar);
+    jit.registerFunction("flux_qt_create_separator", (void*)&flux_qt_create_separator);
+    jit.registerFunction("flux_qt_create_group", (void*)&flux_qt_create_group);
+    jit.registerFunction("flux_qt_set_placeholder", (void*)&flux_qt_set_placeholder);
+    jit.registerFunction("flux_qt_set_tooltip", (void*)&flux_qt_set_tooltip);
+    jit.registerFunction("flux_qt_set_enabled", (void*)&flux_qt_set_enabled);
+    jit.registerFunction("flux_qt_set_fixed_size", (void*)&flux_qt_set_fixed_size);
+    jit.registerFunction("flux_qt_get_value", (void*)&flux_qt_get_value);
+    jit.registerFunction("flux_qt_set_value", (void*)&flux_qt_set_value);
+    jit.registerFunction("flux_qt_set_range", (void*)&flux_qt_set_range);
+    jit.registerFunction("flux_qt_set_stylesheet", (void*)&flux_qt_set_stylesheet);
+    jit.registerFunction("flux_qt_connect", (void*)&flux_qt_connect);
+    jit.registerFunction("flux_qt_add_widget_smart", (void*)&flux_qt_add_widget_smart);
+
+    // Smart defaults & shorthand
+    jit.registerFunction("flux_qt_create_panel", (void*)&flux_qt_create_panel);
+    jit.registerFunction("flux_qt_create_form_row", (void*)&flux_qt_create_form_row);
+    jit.registerFunction("flux_qt_create_button_bar", (void*)&flux_qt_create_button_bar);
+    jit.registerFunction("flux_qt_create_separator", (void*)&flux_qt_create_separator);
+    jit.registerFunction("flux_qt_create_group", (void*)&flux_qt_create_group);
+    jit.registerFunction("flux_qt_set_placeholder", (void*)&flux_qt_set_placeholder);
+    jit.registerFunction("flux_qt_set_tooltip", (void*)&flux_qt_set_tooltip);
+    jit.registerFunction("flux_qt_set_enabled", (void*)&flux_qt_set_enabled);
+    jit.registerFunction("flux_qt_set_fixed_size", (void*)&flux_qt_set_fixed_size);
+    jit.registerFunction("flux_qt_get_value", (void*)&flux_qt_get_value);
+    jit.registerFunction("flux_qt_set_value", (void*)&flux_qt_set_value);
+    jit.registerFunction("flux_qt_set_range", (void*)&flux_qt_set_range);
+    jit.registerFunction("flux_qt_set_stylesheet", (void*)&flux_qt_set_stylesheet);
+    jit.registerFunction("flux_qt_connect", (void*)&flux_qt_connect);
+    jit.registerFunction("flux_qt_add_widget", (void*)&flux_qt_add_widget);
     jit.registerFunction("flux_sim_get_vector_size", (void*)&flux_sim_get_vector_size);
     jit.registerFunction("flux_sim_get_vector_val", (void*)&flux_sim_get_vector_val);
     jit.registerFunction("flux_sim_get_vector_x", (void*)&flux_sim_get_vector_x);
