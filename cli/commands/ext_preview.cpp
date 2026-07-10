@@ -34,6 +34,7 @@
 #include "../core/flux/extensions/extension_manager.h"
 #include "../core/flux/extensions/extension_sandbox.h"
 #include "../core/flux/extensions/extension_config.h"
+#include <flux/jit_engine.h>
 
 class ExtPreviewCommand : public CLICommand {
 public:
@@ -113,6 +114,12 @@ public:
         if (!FluxScriptEngine::instance().executeString(source, &error)) {
             std::cerr << "Error: compile failed: " << error.toStdString() << "\n";
             return 1;
+        }
+
+        // Execute top-level code (anonymous expressions)
+        {
+            std::string anonErr;
+            Flux::JITEngine::instance().callFunction("__anon_expr", {}, &anonErr);
         }
 
         if (!jsonOutput) std::cout << "Compiled successfully\n";
