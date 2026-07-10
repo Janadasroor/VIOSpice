@@ -37,6 +37,7 @@ void registerNetlistCommands();
 void registerSymbolCommands();
 void registerPluginCommands();
 void registerExtCommands();
+void registerExtTestCommand();
 void registerMiscCommands();
 
 void registerAllCommands() {
@@ -45,6 +46,7 @@ void registerAllCommands() {
     registerSymbolCommands();
     registerPluginCommands();
     registerExtCommands();
+    registerExtTestCommand();
     registerMiscCommands();
 }
 
