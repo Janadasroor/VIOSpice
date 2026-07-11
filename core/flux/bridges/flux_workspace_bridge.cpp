@@ -494,6 +494,8 @@ extern "C" {
     // --- Plotting ---
 
     void flux_plot_point(double series_dbl, double x, double y) {
+        if (!IDE::sandbox().checkPermission(IDE::Permission::Plotting, "plot_point"))
+            return;
         const char* seriesName = dbl_to_str(series_dbl);
         if (!seriesName) return;
         auto* editor = qobject_cast<SchematicEditor*>(QApplication::activeWindow());
