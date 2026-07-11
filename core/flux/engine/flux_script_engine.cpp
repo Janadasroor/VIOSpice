@@ -21,9 +21,21 @@ FluxScriptEngine& FluxScriptEngine::instance() {
 FluxScriptEngine::FluxScriptEngine(QObject* parent) : QObject(parent) {
 }
 
+extern "C" double flux_qt_adopt(double);
+extern "C" double flux_qt_list_widgets(double);
+extern "C" void flux_qt_embed(double, double);
+extern "C" double flux_qt_get_widget_info(double, double);
+
 void FluxScriptEngine::initialize() { 
     Flux::JITEngine::instance().initialize();
     register_flux_qt_jit_symbols();
+
+    // Ensure adoption functions are registered on the same JIT instance
+    auto& jit = Flux::JITEngine::instance();
+    jit.registerFunction("flux_qt_adopt", (void*)&flux_qt_adopt);
+    jit.registerFunction("flux_qt_list_widgets", (void*)&flux_qt_list_widgets);
+    jit.registerFunction("flux_qt_embed", (void*)&flux_qt_embed);
+    jit.registerFunction("flux_qt_get_widget_info", (void*)&flux_qt_get_widget_info);
 }
 
 void FluxScriptEngine::finalize() { 
