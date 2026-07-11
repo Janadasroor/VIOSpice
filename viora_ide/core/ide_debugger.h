@@ -45,10 +45,12 @@ public:
 
     // Breakpoint management
     void addBreakpoint(const QString& filePath, int line);
+    void addConditionalBreakpoint(const QString& filePath, int line, const QString& condition);
     void removeBreakpoint(const QString& filePath, int line);
     void toggleBreakpoint(const QString& filePath, int line);
     void clearBreakpoints();
     QList<Breakpoint> breakpoints() const;
+    bool checkBreakpointCondition(const Breakpoint& bp);
 
     // Execution control
     void continueExecution();
