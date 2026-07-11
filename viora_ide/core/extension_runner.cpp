@@ -45,10 +45,6 @@ bool ExtensionRunner::runSource(const QString& source, const QString& extensionD
         eng.initialize();
     }
 
-    // Reinitialize to clear old modules
-    eng.finalize();
-    eng.initialize();
-
     QString error;
     bool success = eng.executeString(source, &error);
 
