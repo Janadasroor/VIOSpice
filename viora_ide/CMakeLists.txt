@@ -40,6 +40,8 @@ set(VIORAIDE_SOURCES
     panels/extension_scaffold_dialog.h
 
     # Core
+    core/ide_debugger.h
+    core/ide_debugger.cpp
     core/extension_runner.cpp
     core/extension_runner.h
     core/viora_ide_state.cpp
