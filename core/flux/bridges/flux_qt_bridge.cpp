@@ -27,6 +27,11 @@ extern "C" double flux_config_get_str(double, double);
 extern "C" void flux_config_set_str(double, double);
 extern "C" double flux_has_permission(double);
 extern "C" double flux_extension_id();
+extern "C" void flux_state_save(double, double);
+extern "C" double flux_state_load(double, double);
+extern "C" void flux_state_save_str(double, double);
+extern "C" double flux_state_load_str(double, double);
+extern "C" void flux_state_clear();
 extern "C" void flux_on_event(double);
 extern "C" void flux_on_event_all();
 extern "C" void flux_emit_event(double);
@@ -513,5 +518,12 @@ void register_flux_qt_jit_symbols() {
     jit.registerFunction("flux_emit_event", (void*)&flux_emit_event);
     jit.registerFunction("flux_emit_event_data", (void*)&flux_emit_event_data);
 
-    fprintf(stderr, "[Bridge] Registered all functions including sandbox and events\n");
+    // Extension state persistence
+    jit.registerFunction("flux_state_save", (void*)&flux_state_save);
+    jit.registerFunction("flux_state_load", (void*)&flux_state_load);
+    jit.registerFunction("flux_state_save_str", (void*)&flux_state_save_str);
+    jit.registerFunction("flux_state_load_str", (void*)&flux_state_load_str);
+    jit.registerFunction("flux_state_clear", (void*)&flux_state_clear);
+
+    fprintf(stderr, "[Bridge] Registered all functions including sandbox, events, and state\n");
 }
