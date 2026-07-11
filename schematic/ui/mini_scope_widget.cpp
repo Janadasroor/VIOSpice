@@ -42,6 +42,7 @@ QString unitForTrace(const QString& name) {
 }
 
 MiniScopeWidget::MiniScopeWidget(QWidget* parent) : QWidget(parent) {
+    setObjectName("MiniScopeWidget");
     setBackgroundRole(QPalette::Base);
     setAutoFillBackground(true);
     setMinimumSize(400, 250);

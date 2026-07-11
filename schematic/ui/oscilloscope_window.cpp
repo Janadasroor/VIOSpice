@@ -27,6 +27,7 @@ OscilloscopeWindow::OscilloscopeWindow(const QUuid& itemId, const QString& itemN
     : QMainWindow(parent), m_itemId(itemId), m_itemName(itemName) {
     
     setWindowTitle(QString("Oscilloscope: %1").arg(itemName));
+    setObjectName("OscilloscopeWindow");
     setMinimumSize(800, 500);
     
     // Default initial config
