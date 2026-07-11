@@ -166,12 +166,16 @@ int main(int argc, char *argv[])
     QString fileToOpen;
     bool openVioraIde = false;
     QString projectPath;
+    QString extensionPath;
     for (int i = 1; i < argc; ++i) {
         QString arg = argv[i];
         if (arg == "--ide") {
             openVioraIde = true;
         } else if (arg == "--project" && i + 1 < argc) {
             projectPath = QFileInfo(argv[++i]).absoluteFilePath();
+            openVioraIde = true;
+        } else if (arg == "--extension" && i + 1 < argc) {
+            extensionPath = QFileInfo(argv[++i]).absoluteFilePath();
             openVioraIde = true;
         } else if (!arg.startsWith("-")) {
             fileToOpen = QFileInfo(arg).absoluteFilePath();
@@ -200,12 +204,13 @@ int main(int argc, char *argv[])
         UICommandServer::instance().start(port);
     }
 
-    QMetaObject::invokeMethod(qApp, [splash, fileToOpen, openVioraIde, projectPath]() {
+    QMetaObject::invokeMethod(qApp, [splash, fileToOpen, openVioraIde, projectPath, extensionPath]() {
         if (openVioraIde) {
-            // Launch VioraIDE directly
             auto* ide = new IDE::VioraIdeWindow();
             ide->setAttribute(Qt::WA_DeleteOnClose);
-            if (!projectPath.isEmpty()) {
+            if (!extensionPath.isEmpty()) {
+                ide->openVioraDirectory(extensionPath);
+            } else if (!projectPath.isEmpty()) {
                 ide->openVioraDirectory(projectPath);
             } else if (!fileToOpen.isEmpty()) {
                 ide->openFile(fileToOpen);
