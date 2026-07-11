@@ -8,6 +8,7 @@
 #include "../../schematic/ui/mini_scope_widget.h"
 #include "../../schematic/ui/oscilloscope_window.h"
 #include "../../ui/waveform_viewer.h"
+#include "../extensions/extension_sandbox.h"
 #include <QPushButton>
 #include <QMessageBox>
 #include <QSlider>
@@ -295,6 +296,8 @@ extern "C" {
 
     // Container / Window helpers
     double flux_qt_create_window(double title_dbl) {
+        if (!IDE::sandbox().checkPermission(IDE::Permission::GuiCreate, "create_window"))
+            return 0.0;
         QDialog* dialog = new QDialog();
         dialog->setWindowTitle(QString::fromUtf8(dbl_to_str(title_dbl)));
         // No default layout — user calls flux_qt_set_layout explicitly
@@ -543,6 +546,8 @@ extern "C" {
     // === Simulation Widget Factories ===
 
     double flux_qt_create_scope() {
+        if (!IDE::sandbox().checkPermission(IDE::Permission::GuiCreate, "create_scope"))
+            return 0.0;
         MiniScopeWidget* scope = new MiniScopeWidget();
         scope->setAttribute(Qt::WA_DeleteOnClose);
         scope->show();
@@ -550,6 +555,8 @@ extern "C" {
     }
 
     double flux_qt_create_waveform_viewer() {
+        if (!IDE::sandbox().checkPermission(IDE::Permission::GuiCreate, "create_waveform_viewer"))
+            return 0.0;
         WaveformViewer* viewer = new WaveformViewer();
         viewer->setAttribute(Qt::WA_DeleteOnClose);
         viewer->show();
@@ -558,6 +565,8 @@ extern "C" {
 
     // Create full analog oscilloscope window (the independent instrument window)
     double flux_qt_create_oscilloscope(double name_dbl) {
+        if (!IDE::sandbox().checkPermission(IDE::Permission::GuiCreate, "create_oscilloscope"))
+            return 0.0;
         const char* name = dbl_to_str(name_dbl);
         QString itemName = name ? QString::fromUtf8(name) : "Scope";
         QUuid itemId = QUuid::createUuid();
@@ -646,6 +655,8 @@ extern "C" {
 
     // Find a widget by objectName and return a handle
     double flux_qt_adopt(double name_dbl) {
+        if (!IDE::sandbox().checkPermission(IDE::Permission::GuiModify, "adopt_widget"))
+            return 0.0;
         const char* name = dbl_to_str(name_dbl);
         if (!name) return 0.0;
 
@@ -710,6 +721,8 @@ extern "C" {
 
     // Reparent a widget into a container
     void flux_qt_embed(double widget_dbl, double container_dbl) {
+        if (!IDE::sandbox().checkPermission(IDE::Permission::GuiModify, "embed_widget"))
+            return;
         QWidget* widget = qobject_cast<QWidget*>(FluxQtBridge::instance().resolveHandle(widget_dbl));
         QWidget* container = qobject_cast<QWidget*>(FluxQtBridge::instance().resolveHandle(container_dbl));
         if (!widget || !container) return;
