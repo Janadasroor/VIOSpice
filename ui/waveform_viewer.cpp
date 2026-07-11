@@ -579,8 +579,9 @@ void VioChartView::drawForeground(QPainter *painter, const QRectF &rect) {
     }
 }
 
-WaveformViewer::WaveformViewer(QWidget *parent) : QWidget(parent), 
+WaveformViewer::WaveformViewer(QWidget *parent) : QWidget(parent),
     m_measureDialog(nullptr), m_cursorsEnabled(false), m_cursor1X(0), m_cursor2X(0) {
+    setObjectName("WaveformViewer");
     setupUi();
     setupStyle();
     applyPlotQualityToViews();
