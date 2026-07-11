@@ -29,6 +29,11 @@ extern "C" double flux_qt_create_scope();
 extern "C" double flux_qt_create_waveform_viewer();
 extern "C" double flux_qt_create_scope_dock();
 extern "C" double flux_qt_create_oscilloscope(double);
+extern "C" void flux_state_save(double, double);
+extern "C" double flux_state_load(double, double);
+extern "C" void flux_state_save_str(double, double);
+extern "C" double flux_state_load_str(double, double);
+extern "C" void flux_state_clear();
 
 void FluxScriptEngine::initialize() { 
     Flux::JITEngine::instance().initialize();
@@ -44,6 +49,11 @@ void FluxScriptEngine::initialize() {
     jit.registerFunction("flux_qt_create_waveform_viewer", (void*)&flux_qt_create_waveform_viewer);
     jit.registerFunction("flux_qt_create_scope_dock", (void*)&flux_qt_create_scope_dock);
     jit.registerFunction("flux_qt_create_oscilloscope", (void*)&flux_qt_create_oscilloscope);
+    jit.registerFunction("flux_state_save", (void*)&flux_state_save);
+    jit.registerFunction("flux_state_load", (void*)&flux_state_load);
+    jit.registerFunction("flux_state_save_str", (void*)&flux_state_save_str);
+    jit.registerFunction("flux_state_load_str", (void*)&flux_state_load_str);
+    jit.registerFunction("flux_state_clear", (void*)&flux_state_clear);
 }
 
 void FluxScriptEngine::finalize() { 

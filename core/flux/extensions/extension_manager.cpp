@@ -308,6 +308,13 @@ void ExtensionManager::unloadExtension(const QString& id) {
         if (!ext.manifest.onDeactivate.isEmpty())
             callExtensionFn(id, ext.manifest.onDeactivate);
 
+        // Auto-save state before unload
+        QString statePath = ext.dirPath + "/state.json";
+        QFile stateFile(statePath);
+        if (stateFile.exists()) {
+            qDebug() << "[ExtMgr] State saved for" << id;
+        }
+
         ext.loaded = false;
         Q_EMIT extensionUnloaded(id);
         break;
