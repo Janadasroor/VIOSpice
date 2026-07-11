@@ -18,6 +18,7 @@
 #include "panels/recent_files_dialog.h"
 #include "core/extension_runner.h"
 #include "core/lsp_client.h"
+#include "core/ide_debugger.h"
 #include "../ui/source_control_panel.h"
 #include "../ui/source_control_manager.h"
 #include "../core/project/config_manager.h"
@@ -221,6 +222,11 @@ void VioraIdeWindow::setupMenus() {
     auto* runMenu = new QMenu("Run", this);
     runMenu->addAction("&Run Extension", this, &VioraIdeWindow::onRunExtension, QKeySequence("F5"));
     runMenu->addAction("&Stop", this, &VioraIdeWindow::onStopExtension, QKeySequence("Shift+F5"));
+    runMenu->addSeparator();
+    runMenu->addAction("&Debug", this, &VioraIdeWindow::onDebugStart, QKeySequence("F6"));
+    runMenu->addAction("Step &Over", this, &VioraIdeWindow::onDebugStepOver, QKeySequence("F10"));
+    runMenu->addAction("Step &Into", this, &VioraIdeWindow::onDebugStepInto, QKeySequence("F11"));
+    runMenu->addAction("S&top Debug", this, &VioraIdeWindow::onDebugStop, QKeySequence("Shift+F6"));
 
     // Extensions menu
     auto* extMenu = new QMenu("Extensions", this);
@@ -333,6 +339,10 @@ void VioraIdeWindow::setupToolbar() {
         }
     });
     m_mainToolBar->addWidget(m_runBtn);
+
+    // Debug button (orange)
+    auto* debugBtn = makePillBtn("Debug", "Debug Extension (F6)", "#d97706", "#b45309");
+    connect(debugBtn, &QToolButton::clicked, this, &VioraIdeWindow::onDebugStart);
 
     m_mainToolBar->addSeparator();
 
@@ -464,6 +474,7 @@ void VioraIdeWindow::setupDockWidgets() {
     m_manifestPanel = new ManifestEditorPanel();
     m_problemsPanel = new ProblemsPanel();
     m_lspClient = new LspClient(this);
+    m_debugger = new IdeDebugger(this);
     m_commandPalette = new CommandPalette(this);
     m_recentFilesDialog = new RecentFilesDialog(this);
 
@@ -1071,6 +1082,35 @@ void VioraIdeWindow::onRunExtension() {
 void VioraIdeWindow::onStopExtension() {
     m_runner->stop();
     updateRunButtons(false);
+}
+
+void VioraIdeWindow::onDebugStart() {
+    if (!m_debugger || !m_currentEditor) return;
+    QString filePath = m_currentEditor->filePath();
+    if (filePath.isEmpty()) {
+        m_outputPanel->appendError("No file open to debug");
+        return;
+    }
+    m_debugger->start(filePath);
+    m_outputPanel->appendInfo("[Debug] Session started: " + filePath);
+}
+
+void VioraIdeWindow::onDebugStop() {
+    if (m_debugger) m_debugger->stop();
+}
+
+void VioraIdeWindow::onDebugStepOver() {
+    if (m_debugger) m_debugger->stepOver();
+    if (m_currentEditor) {
+        m_currentEditor->goToLine(m_debugger->currentLine());
+    }
+}
+
+void VioraIdeWindow::onDebugStepInto() {
+    if (m_debugger) m_debugger->stepInto();
+    if (m_currentEditor) {
+        m_currentEditor->goToLine(m_debugger->currentLine());
+    }
 }
 
 void VioraIdeWindow::onNewExtension() {

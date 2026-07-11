@@ -35,6 +35,7 @@ class ProblemsPanel;
 class LspClient;
 class CommandPalette;
 class RecentFilesDialog;
+class IdeDebugger;
 
 class VioraIdeWindow : public QMainWindow {
     Q_OBJECT
@@ -68,6 +69,10 @@ private slots:
     void onRunExtension();
     void onStopExtension();
     void updateRunButtons(bool running);
+    void onDebugStart();
+    void onDebugStop();
+    void onDebugStepOver();
+    void onDebugStepInto();
     void onNewExtension();
     void onEditManifest();
     void onShowFindReplace();
@@ -120,6 +125,7 @@ private:
     SourceControlPanel* m_sourceControlPanel = nullptr;
     ExtensionRunner* m_runner = nullptr;
     LspClient* m_lspClient = nullptr;
+    IdeDebugger* m_debugger = nullptr;
     CommandPalette* m_commandPalette = nullptr;
     RecentFilesDialog* m_recentFilesDialog = nullptr;
     QStringList m_recentFiles;
