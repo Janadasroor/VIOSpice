@@ -142,8 +142,10 @@ public:
         }
 
         // Wait for GUI to render
-        QCoreApplication::processEvents();
-        QThread::msleep(delay);
+        for (int i = 0; i < 10; ++i) {
+            QCoreApplication::processEvents();
+            QThread::msleep(100);
+        }
         QCoreApplication::processEvents();
 
         // Capture all visible QDialogs (extension windows)
