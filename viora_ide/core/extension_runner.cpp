@@ -79,6 +79,8 @@ bool ExtensionRunner::runSource(const QString& source, const QString& extensionD
 
         if (hasCustomHook) {
             eng.callFunction(onActivateHook.toUtf8().constData(), {});
+            // Also try to open the GUI panel if it exists
+            eng.callFunction("open_panel", {});
         } else {
             // Try common activation function names
             eng.callFunction("init_ext", {});
@@ -86,8 +88,9 @@ bool ExtensionRunner::runSource(const QString& source, const QString& extensionD
             eng.callFunction("main", {});
             eng.callFunction("open_panel", {});
         }
-        // Process GUI events so popups (flux_qt_msg_box) can display
+        // Process GUI events so popups (flux_qt_msg_box) and windows can display
         QApplication::processEvents();
+        QCoreApplication::processEvents();
         outputReceived("Extension activated.");
     } else {
         parseAndHighlightErrors(error);
