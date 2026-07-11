@@ -5,6 +5,8 @@
 
 #include "flux_qt_bridge.h"
 #include "flux_workspace_bridge.h"
+#include "../../schematic/ui/mini_scope_widget.h"
+#include "../../ui/waveform_viewer.h"
 #include <QPushButton>
 #include <QMessageBox>
 #include <QSlider>
@@ -524,7 +526,21 @@ extern "C" {
         layout->addWidget(child);
     }
 
-    // === WIDGET ADOPTION: Wrap existing VioraEDA widgets ===
+    // === Simulation Widget Factories ===
+
+    double flux_qt_create_scope() {
+        MiniScopeWidget* scope = new MiniScopeWidget();
+        scope->setAttribute(Qt::WA_DeleteOnClose);
+        scope->show();
+        return FluxQtBridge::instance().registerObject(scope);
+    }
+
+    double flux_qt_create_waveform_viewer() {
+        WaveformViewer* viewer = new WaveformViewer();
+        viewer->setAttribute(Qt::WA_DeleteOnClose);
+        viewer->show();
+        return FluxQtBridge::instance().registerObject(viewer);
+    }
 
     // Find a widget by objectName and return a handle
     double flux_qt_adopt(double name_dbl) {
