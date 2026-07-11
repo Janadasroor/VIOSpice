@@ -73,6 +73,7 @@ extern "C" double flux_qt_get_widget_info(double, double);
 extern "C" double flux_qt_create_scope();
 extern "C" double flux_qt_create_waveform_viewer();
 extern "C" double flux_qt_create_scope_dock();
+extern "C" double flux_qt_create_oscilloscope(double);
 
 // Smart defaults & shorthand
 extern "C" double flux_qt_create_panel(double);
@@ -358,6 +359,7 @@ void registerQtBridgeJitSymbols(Flux::FluxJIT& jit) {
     jit.registerFunction("flux_qt_create_scope", (void*)&flux_qt_create_scope);
     jit.registerFunction("flux_qt_create_waveform_viewer", (void*)&flux_qt_create_waveform_viewer);
     jit.registerFunction("flux_qt_create_scope_dock", (void*)&flux_qt_create_scope_dock);
+    jit.registerFunction("flux_qt_create_oscilloscope", (void*)&flux_qt_create_oscilloscope);
 }
 
 void register_flux_qt_jit_symbols() {
@@ -443,6 +445,7 @@ void register_flux_qt_jit_symbols() {
     jit.registerFunction("flux_qt_create_scope", (void*)&flux_qt_create_scope);
     jit.registerFunction("flux_qt_create_waveform_viewer", (void*)&flux_qt_create_waveform_viewer);
     jit.registerFunction("flux_qt_create_scope_dock", (void*)&flux_qt_create_scope_dock);
+    jit.registerFunction("flux_qt_create_oscilloscope", (void*)&flux_qt_create_oscilloscope);
 
     fprintf(stderr, "[Bridge] About to register adoption functions, add_widget_smart=%p adopt=%p\n",
             (void*)&flux_qt_add_widget_smart, (void*)&flux_qt_adopt);

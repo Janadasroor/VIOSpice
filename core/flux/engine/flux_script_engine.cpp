@@ -28,6 +28,7 @@ extern "C" double flux_qt_get_widget_info(double, double);
 extern "C" double flux_qt_create_scope();
 extern "C" double flux_qt_create_waveform_viewer();
 extern "C" double flux_qt_create_scope_dock();
+extern "C" double flux_qt_create_oscilloscope(double);
 
 void FluxScriptEngine::initialize() { 
     Flux::JITEngine::instance().initialize();
@@ -42,6 +43,7 @@ void FluxScriptEngine::initialize() {
     jit.registerFunction("flux_qt_create_scope", (void*)&flux_qt_create_scope);
     jit.registerFunction("flux_qt_create_waveform_viewer", (void*)&flux_qt_create_waveform_viewer);
     jit.registerFunction("flux_qt_create_scope_dock", (void*)&flux_qt_create_scope_dock);
+    jit.registerFunction("flux_qt_create_oscilloscope", (void*)&flux_qt_create_oscilloscope);
 }
 
 void FluxScriptEngine::finalize() { 
