@@ -30,6 +30,11 @@
 #include <QTabWidget>
 #include <QGroupBox>
 #include <QFrame>
+#include <QGridLayout>
+#include <QDoubleSpinBox>
+#include <QComboBox>
+#include <QCheckBox>
+#include <QLabel>
 #include <mutex>
 #include <cstring>
 #include <cstdint>
@@ -540,6 +545,82 @@ extern "C" {
         viewer->setAttribute(Qt::WA_DeleteOnClose);
         viewer->show();
         return FluxQtBridge::instance().registerObject(viewer);
+    }
+
+    // Create analog oscilloscope dock panel (scope display + channel controls only)
+    double flux_qt_create_scope_dock() {
+        QWidget* dock = new QWidget();
+        dock->setObjectName("ScopeDock");
+        dock->setWindowTitle("Analog Oscilloscope");
+        QVBoxLayout* mainLayout = new QVBoxLayout(dock);
+        mainLayout->setContentsMargins(4, 4, 4, 4);
+        mainLayout->setSpacing(4);
+
+        // Scope display (the CRT-style grid)
+        MiniScopeWidget* scope = new MiniScopeWidget(dock);
+        mainLayout->addWidget(scope, 3);
+
+        // Channel controls row
+        QWidget* controls = new QWidget(dock);
+        QHBoxLayout* ctrlLayout = new QHBoxLayout(controls);
+        ctrlLayout->setContentsMargins(4, 2, 4, 2);
+        ctrlLayout->setSpacing(8);
+
+        for (int i = 0; i < 4; ++i) {
+            QGroupBox* ch = new QGroupBox(QString("CH%1").arg(i + 1), dock);
+            ch->setStyleSheet("QGroupBox { font-size: 10px; font-weight: bold; }");
+            QGridLayout* gl = new QGridLayout(ch);
+            gl->setContentsMargins(4, 4, 4, 4);
+            gl->setSpacing(2);
+
+            QCheckBox* en = new QCheckBox("On", ch);
+            en->setChecked(i < 2);
+            gl->addWidget(en, 0, 0);
+
+            QLabel* vLabel = new QLabel("V/d:", ch);
+            vLabel->setStyleSheet("font-size: 9px;");
+            gl->addWidget(vLabel, 0, 1);
+            QDoubleSpinBox* vDiv = new QDoubleSpinBox(ch);
+            vDiv->setRange(0.001, 1000.0);
+            vDiv->setValue(1.0);
+            vDiv->setDecimals(3);
+            vDiv->setFixedWidth(70);
+            gl->addWidget(vDiv, 0, 2);
+
+            ctrlLayout->addWidget(ch);
+        }
+
+        // Timebase control
+        QGroupBox* hGroup = new QGroupBox("Trigger", dock);
+        hGroup->setStyleSheet("QGroupBox { font-size: 10px; font-weight: bold; }");
+        QGridLayout* hGl = new QGridLayout(hGroup);
+        hGl->setContentsMargins(4, 4, 4, 4);
+        hGl->setSpacing(2);
+
+        QLabel* tLabel = new QLabel("T/d:", hGroup);
+        tLabel->setStyleSheet("font-size: 9px;");
+        hGl->addWidget(tLabel, 0, 0);
+        QDoubleSpinBox* tDiv = new QDoubleSpinBox(hGroup);
+        tDiv->setRange(1e-9, 10.0);
+        tDiv->setDecimals(6);
+        tDiv->setValue(0.001);
+        tDiv->setFixedWidth(70);
+        hGl->addWidget(tDiv, 0, 1);
+
+        QLabel* sLabel = new QLabel("Src:", hGroup);
+        sLabel->setStyleSheet("font-size: 9px;");
+        hGl->addWidget(sLabel, 1, 0);
+        QComboBox* trigSrc = new QComboBox(hGroup);
+        trigSrc->addItems({"CH1", "CH2", "CH3", "CH4"});
+        trigSrc->setFixedWidth(70);
+        hGl->addWidget(trigSrc, 1, 1);
+
+        ctrlLayout->addWidget(hGroup);
+        mainLayout->addWidget(controls);
+
+        dock->setAttribute(Qt::WA_DeleteOnClose);
+        dock->show();
+        return FluxQtBridge::instance().registerObject(dock);
     }
 
     // Find a widget by objectName and return a handle
