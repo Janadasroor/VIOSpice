@@ -532,7 +532,7 @@ void VioraIdeWindow::setupDockWidgets() {
     m_bottomTabs = bottomTabs;
     m_bottomStack = bottomStack;
     m_bottomPanel = new QWidget();
-    m_bottomPanel->setMaximumHeight(180);
+    m_bottomPanel->setMaximumHeight(600);
     m_bottomPanel->setMinimumHeight(80);
     auto* bottomLayout = new QVBoxLayout(m_bottomPanel);
     bottomLayout->setContentsMargins(0, 0, 0, 0);
