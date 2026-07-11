@@ -327,6 +327,29 @@ void registerQtBridgeJitSymbols(Flux::FluxJIT& jit) {
 
     // viora_flux_print - templates reference it by this exact name
     jit.registerFunction("viora_flux_print", (void*)&viora_flux_print);
+
+    // Widget adoption (also register here for JITContextManager instance)
+    jit.registerFunction("flux_qt_adopt", (void*)&flux_qt_adopt);
+    jit.registerFunction("flux_qt_list_widgets", (void*)&flux_qt_list_widgets);
+    jit.registerFunction("flux_qt_embed", (void*)&flux_qt_embed);
+    jit.registerFunction("flux_qt_get_widget_info", (void*)&flux_qt_get_widget_info);
+
+    // Smart defaults
+    jit.registerFunction("flux_qt_create_panel", (void*)&flux_qt_create_panel);
+    jit.registerFunction("flux_qt_create_form_row", (void*)&flux_qt_create_form_row);
+    jit.registerFunction("flux_qt_create_button_bar", (void*)&flux_qt_create_button_bar);
+    jit.registerFunction("flux_qt_create_separator", (void*)&flux_qt_create_separator);
+    jit.registerFunction("flux_qt_create_group", (void*)&flux_qt_create_group);
+    jit.registerFunction("flux_qt_set_placeholder", (void*)&flux_qt_set_placeholder);
+    jit.registerFunction("flux_qt_set_tooltip", (void*)&flux_qt_set_tooltip);
+    jit.registerFunction("flux_qt_set_enabled", (void*)&flux_qt_set_enabled);
+    jit.registerFunction("flux_qt_set_fixed_size", (void*)&flux_qt_set_fixed_size);
+    jit.registerFunction("flux_qt_get_value", (void*)&flux_qt_get_value);
+    jit.registerFunction("flux_qt_set_value", (void*)&flux_qt_set_value);
+    jit.registerFunction("flux_qt_set_range", (void*)&flux_qt_set_range);
+    jit.registerFunction("flux_qt_set_stylesheet", (void*)&flux_qt_set_stylesheet);
+    jit.registerFunction("flux_qt_connect", (void*)&flux_qt_connect);
+    jit.registerFunction("flux_qt_add_widget_smart", (void*)&flux_qt_add_widget_smart);
 }
 
 void register_flux_qt_jit_symbols() {
@@ -405,14 +428,26 @@ void register_flux_qt_jit_symbols() {
     jit.registerFunction("flux_qt_set_value", (void*)&flux_qt_set_value);
     jit.registerFunction("flux_qt_set_range", (void*)&flux_qt_set_range);
     jit.registerFunction("flux_qt_set_stylesheet", (void*)&flux_qt_set_stylesheet);
+    fprintf(stderr, "[Bridge] After set_stylesheet\n");
     jit.registerFunction("flux_qt_connect", (void*)&flux_qt_connect);
+    fprintf(stderr, "[Bridge] Before add_widget_smart\n");
     jit.registerFunction("flux_qt_add_widget_smart", (void*)&flux_qt_add_widget_smart);
+    fprintf(stderr, "[Bridge] After add_widget_smart\n");
+
+    fprintf(stderr, "[Bridge] About to register adoption functions, add_widget_smart=%p adopt=%p\n",
+            (void*)&flux_qt_add_widget_smart, (void*)&flux_qt_adopt);
 
     // Widget adoption
     jit.registerFunction("flux_qt_adopt", (void*)&flux_qt_adopt);
     jit.registerFunction("flux_qt_list_widgets", (void*)&flux_qt_list_widgets);
     jit.registerFunction("flux_qt_embed", (void*)&flux_qt_embed);
     jit.registerFunction("flux_qt_get_widget_info", (void*)&flux_qt_get_widget_info);
+
+    fprintf(stderr, "[Bridge] Adopt functions registered\n");
+    qDebug() << "[Bridge] Registered adopt=" << (void*)&flux_qt_adopt
+             << "list=" << (void*)&flux_qt_list_widgets
+             << "embed=" << (void*)&flux_qt_embed
+             << "info=" << (void*)&flux_qt_get_widget_info;
 
     // Smart defaults & shorthand
     jit.registerFunction("flux_qt_create_panel", (void*)&flux_qt_create_panel);
