@@ -6,6 +6,7 @@
 #include "flux_qt_bridge.h"
 #include "flux_workspace_bridge.h"
 #include "../../schematic/ui/mini_scope_widget.h"
+#include "../../schematic/ui/oscilloscope_window.h"
 #include "../../ui/waveform_viewer.h"
 #include <QPushButton>
 #include <QMessageBox>
@@ -545,6 +546,18 @@ extern "C" {
         viewer->setAttribute(Qt::WA_DeleteOnClose);
         viewer->show();
         return FluxQtBridge::instance().registerObject(viewer);
+    }
+
+    // Create full analog oscilloscope window (the independent instrument window)
+    double flux_qt_create_oscilloscope(double name_dbl) {
+        const char* name = dbl_to_str(name_dbl);
+        QString itemName = name ? QString::fromUtf8(name) : "Scope";
+        QUuid itemId = QUuid::createUuid();
+
+        OscilloscopeWindow* win = new OscilloscopeWindow(itemId, itemName);
+        win->setAttribute(Qt::WA_DeleteOnClose);
+        win->show();
+        return FluxQtBridge::instance().registerObject(win);
     }
 
     // Create analog oscilloscope dock panel (scope display + channel controls only)
