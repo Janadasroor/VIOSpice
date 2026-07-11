@@ -89,7 +89,7 @@ void HelpWindow::populateGuides() {
         baseDir + "/docs/user",
         "../docs/user",
         "../../docs/user",
-        "/home/jnd/qt_projects/viospice/docs/user"
+        baseDir + "/../docs/user"
     };
 
     QDir docsDir;

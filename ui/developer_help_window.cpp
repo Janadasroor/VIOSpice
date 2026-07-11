@@ -76,7 +76,7 @@ void DeveloperHelpWindow::populateTechnicalDocs() {
         baseDir + "/docs/developer",
         "../docs/developer",
         "../../docs/developer",
-        "/home/jnd/qt_projects/viospice/docs/developer"
+        baseDir + "/../docs/developer"
     };
 
     QString docsPath;

@@ -50,7 +50,7 @@ bool LspClient::startServer(const QString& serverPath) {
 
     QProcessEnvironment env = QProcessEnvironment::systemEnvironment();
     env.insert("FLUX_HOME", QDir::homePath() + "/.flux");
-    env.insert("LD_LIBRARY_PATH", "/home/jnd/qt_projects/fluxscript/build");
+    env.insert("LD_LIBRARY_PATH", QDir::homePath() + "/qt_projects/fluxscript/build");
     m_process->setProcessEnvironment(env);
 
     connect(m_process, &QProcess::readyReadStandardOutput, this, &LspClient::onReadReady);
