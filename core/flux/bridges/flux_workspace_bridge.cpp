@@ -466,6 +466,118 @@ extern "C" {
         IDE::eventBus().emitEvent(extId, eventStr, data_dbl);
     }
 
+    // --- Extension State Persistence ---
+
+    // Save a state value: flux_state_save("key", value)
+    void flux_state_save(double key_dbl, double value) {
+        const char* key = dbl_to_str(key_dbl);
+        if (!key) return;
+
+        QString extDir = getActiveExtensionDir();
+        if (extDir.isEmpty()) return;
+
+        QString statePath = extDir + "/state.json";
+        QJsonObject state;
+        QFile readFile(statePath);
+        if (readFile.open(QIODevice::ReadOnly)) {
+            state = QJsonDocument::fromJson(readFile.readAll()).object();
+            readFile.close();
+        }
+
+        state[QString::fromUtf8(key)] = static_cast<double>(value);
+
+        QFile writeFile(statePath);
+        if (writeFile.open(QIODevice::WriteOnly)) {
+            writeFile.write(QJsonDocument(state).toJson(QJsonDocument::Indented));
+            writeFile.close();
+        }
+    }
+
+    // Load a state value: flux_state_load("key", defaultValue)
+    double flux_state_load(double key_dbl, double defaultVal) {
+        const char* key = dbl_to_str(key_dbl);
+        if (!key) return defaultVal;
+
+        QString extDir = getActiveExtensionDir();
+        if (extDir.isEmpty()) return defaultVal;
+
+        QString statePath = extDir + "/state.json";
+        QFile cf(statePath);
+        if (!cf.exists()) return defaultVal;
+        if (!cf.open(QIODevice::ReadOnly)) return defaultVal;
+
+        QJsonDocument doc = QJsonDocument::fromJson(cf.readAll());
+        cf.close();
+
+        QJsonObject state = doc.object();
+        QJsonValue val = state.value(QString::fromUtf8(key));
+        if (val.isUndefined()) return defaultVal;
+        return val.toDouble();
+    }
+
+    // Save a string state value
+    void flux_state_save_str(double key_dbl, double value_dbl) {
+        const char* key = dbl_to_str(key_dbl);
+        const char* value = dbl_to_str(value_dbl);
+        if (!key || !value) return;
+
+        QString extDir = getActiveExtensionDir();
+        if (extDir.isEmpty()) return;
+
+        QString statePath = extDir + "/state.json";
+        QJsonObject state;
+        QFile readFile(statePath);
+        if (readFile.open(QIODevice::ReadOnly)) {
+            state = QJsonDocument::fromJson(readFile.readAll()).object();
+            readFile.close();
+        }
+
+        state[QString::fromUtf8(key)] = QString::fromUtf8(value);
+
+        QFile writeFile(statePath);
+        if (writeFile.open(QIODevice::WriteOnly)) {
+            writeFile.write(QJsonDocument(state).toJson(QJsonDocument::Indented));
+            writeFile.close();
+        }
+    }
+
+    // Load a string state value
+    double flux_state_load_str(double key_dbl, double defaultStr) {
+        const char* key = dbl_to_str(key_dbl);
+        if (!key) return defaultStr;
+
+        QString extDir = getActiveExtensionDir();
+        if (extDir.isEmpty()) return defaultStr;
+
+        QString statePath = extDir + "/state.json";
+        QFile cf(statePath);
+        if (!cf.exists()) return defaultStr;
+        if (!cf.open(QIODevice::ReadOnly)) return defaultStr;
+
+        QJsonDocument doc = QJsonDocument::fromJson(cf.readAll());
+        cf.close();
+
+        QJsonObject state = doc.object();
+        QJsonValue val = state.value(QString::fromUtf8(key));
+        if (val.isUndefined()) return defaultStr;
+
+        QString result = val.toString();
+        const char* pooled = Flux::Core::pool_workspace_string(result);
+        uint64_t raw = reinterpret_cast<uintptr_t>(pooled);
+        double d;
+        std::memcpy(&d, &raw, sizeof(d));
+        return d;
+    }
+
+    // Clear all state for current extension
+    void flux_state_clear() {
+        QString extDir = getActiveExtensionDir();
+        if (extDir.isEmpty()) return;
+
+        QString statePath = extDir + "/state.json";
+        QFile::remove(statePath);
+    }
+
     // --- Permission Query ---
 
     // Check if current extension has a permission: flux_has_permission("schematic.write")
