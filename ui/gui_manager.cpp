@@ -366,6 +366,20 @@ QVariantMap GuiManager::typeInField(const QString& windowName, const QString& ob
         }
     }
 
+    for (QPlainTextEdit* edit : window->findChildren<QPlainTextEdit*>()) {
+        if (edit->objectName() == objectName || fuzzyMatch(edit->objectName(), objectName)
+            || objectName == "editor") {
+            if (append) {
+                edit->insertPlainText(text);
+            } else {
+                edit->setPlainText(text);
+            }
+            resp["ok"] = true;
+            resp["field"] = edit->objectName();
+            return resp;
+        }
+    }
+
     resp["error"] = QString("Field not found: %1").arg(objectName);
     return resp;
 }
