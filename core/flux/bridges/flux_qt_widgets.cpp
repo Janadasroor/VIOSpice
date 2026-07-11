@@ -370,12 +370,20 @@ extern "C" {
         return FluxQtBridge::instance().registerObject(w);
     }
 
-    // Text get/set for QLineEdit
+    // Text get/set for QLineEdit, QLabel, QPushButton
     void flux_qt_set_text(double handle, double text_dbl) {
-        QLineEdit* edit = qobject_cast<QLineEdit*>(
-            FluxQtBridge::instance().resolveHandle(handle));
-        if (edit)
-            edit->setText(QString::fromUtf8(dbl_to_str(text_dbl)));
+        QObject* obj = FluxQtBridge::instance().resolveHandle(handle);
+        if (!obj) return;
+        QString text = QString::fromUtf8(dbl_to_str(text_dbl));
+        if (QLineEdit* edit = qobject_cast<QLineEdit*>(obj)) {
+            edit->setText(text);
+        } else if (QLabel* label = qobject_cast<QLabel*>(obj)) {
+            label->setText(text);
+        } else if (QPushButton* btn = qobject_cast<QPushButton*>(obj)) {
+            btn->setText(text);
+        } else if (QCheckBox* cb = qobject_cast<QCheckBox*>(obj)) {
+            cb->setText(text);
+        }
     }
 
     double flux_qt_get_text(double handle) {
