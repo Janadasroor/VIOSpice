@@ -9,12 +9,14 @@
 #include "footprints/models/footprint_definition.h"
 #include "footprints/models/footprint_primitive.h"
 #include "footprints/models/footprint_schema.h"
+#include "footprints/kicad_footprint_importer.h"
 
 #include <QFile>
 #include <QJsonDocument>
 #include <QJsonArray>
 #include <QJsonObject>
 #include <QFileInfo>
+#include <QDir>
 #include <QPainter>
 #include <QPainterPath>
 #include <QImage>
@@ -302,9 +304,172 @@ public:
     }
 };
 
+class FootprintImportCommand : public CLICommand {
+public:
+    QString name() const override { return "footprint-import"; }
+    QString description() const override { return "Import KiCad footprint (.kicad_mod) to VioraEDA (.json)."; }
+    
+    void setupParser(QCommandLineParser& parser) override {
+        parser.addOption(QCommandLineOption("render", "Auto-render imported footprints to PNG"));
+        parser.addOption(QCommandLineOption("limit", "Limit number of footprints to process (default: unlimited)", "limit"));
+        parser.addOption(QCommandLineOption("json", "Output results in JSON format"));
+    }
+    
+    QJsonObject inputSchema() const override {
+        return QJsonObject{{"args", QJsonArray{"input_path", "output_dir"}}, {"options", QJsonObject{{"render", "bool"}, {"limit", "number"}, {"json", "bool"}}}};
+    }
+    
+    QJsonObject outputSchema() const override {
+        return QJsonObject{{"imported", "number"}, {"rendered", "number"}, {"results", "array"}};
+    }
+    
+    int execute(const QStringList& args, const QCommandLineParser& parser) override {
+        if (args.size() < 2) {
+            std::cerr << "Usage: viora footprint-import <input_path> <output_dir> [options]" << std::endl;
+            return 1;
+        }
+        
+        const QString inputPath = args.at(0);
+        const QString outputDir = args.at(1);
+        
+        QDir outDir(outputDir);
+        if (!outDir.exists()) {
+            outDir.mkpath(".");
+        }
+        
+        QStringList filesToProcess;
+        QFileInfo inputInfo(inputPath);
+        if (inputInfo.isDir()) {
+            QDir dir(inputPath);
+            QStringList filters;
+            filters << "*.kicad_mod";
+            dir.setNameFilters(filters);
+            QFileInfoList entryList = dir.entryInfoList(QDir::Files);
+            for (const auto& info : entryList) {
+                filesToProcess << info.absoluteFilePath();
+            }
+        } else if (inputInfo.exists()) {
+            filesToProcess << inputInfo.absoluteFilePath();
+        } else {
+            std::cerr << "Error: Input path does not exist: " << inputPath.toStdString() << std::endl;
+            return 1;
+        }
+        
+        int limit = -1;
+        if (parser.isSet("limit")) {
+            bool ok = false;
+            limit = parser.value("limit").toInt(&ok);
+            if (!ok) limit = -1;
+        }
+        
+        const bool autoRender = parser.isSet("render");
+        int importedCount = 0;
+        int renderedCount = 0;
+        QJsonArray resultsArray;
+        
+        for (const QString& filePath : filesToProcess) {
+            if (limit > 0 && importedCount >= limit) {
+                break;
+            }
+            
+            QStringList fpNames = KicadFootprintImporter::getFootprintNames(filePath);
+            if (fpNames.isEmpty()) {
+                FootprintDefinition footprint = KicadFootprintImporter::importFootprint(filePath);
+                if (footprint.isValid()) {
+                    QString name = footprint.name();
+                    if (name.isEmpty()) {
+                        name = QFileInfo(filePath).completeBaseName();
+                        footprint.setName(name);
+                    }
+                    
+                    QString cleanName = name;
+                    cleanName.replace("/", "_").replace("\\", "_");
+                    QString outPath = outDir.filePath(cleanName + ".json");
+                    
+                    QFile outFile(outPath);
+                    if (outFile.open(QIODevice::WriteOnly)) {
+                        QJsonDocument doc(footprint.toJson());
+                        outFile.write(doc.toJson(QJsonDocument::Indented));
+                        outFile.close();
+                        
+                        QJsonObject item;
+                        item["name"] = name;
+                        item["file"] = outPath;
+                        
+                        importedCount++;
+                        
+                        if (autoRender) {
+                            QString pngPath = outDir.filePath(cleanName + ".png");
+                            if (renderFootprintToPng(footprint, pngPath, true, 20.0)) {
+                                item["rendered"] = pngPath;
+                                renderedCount++;
+                            }
+                        }
+                        resultsArray.append(item);
+                    }
+                }
+            } else {
+                for (const QString& fpName : fpNames) {
+                    if (limit > 0 && importedCount >= limit) {
+                        break;
+                    }
+                    
+                    FootprintDefinition footprint = KicadFootprintImporter::importFootprint(filePath, fpName);
+                    if (footprint.isValid()) {
+                        QString name = footprint.name();
+                        if (name.isEmpty()) name = fpName;
+                        
+                        QString cleanName = name;
+                        cleanName.replace("/", "_").replace("\\", "_");
+                        QString outPath = outDir.filePath(cleanName + ".json");
+                        
+                        QFile outFile(outPath);
+                        if (outFile.open(QIODevice::WriteOnly)) {
+                            QJsonDocument doc(footprint.toJson());
+                            outFile.write(doc.toJson(QJsonDocument::Indented));
+                            outFile.close();
+                            
+                            QJsonObject item;
+                            item["name"] = name;
+                            item["file"] = outPath;
+                            
+                            importedCount++;
+                            
+                            if (autoRender) {
+                                QString pngPath = outDir.filePath(cleanName + ".png");
+                                if (renderFootprintToPng(footprint, pngPath, true, 20.0)) {
+                                    item["rendered"] = pngPath;
+                                    renderedCount++;
+                                }
+                            }
+                            resultsArray.append(item);
+                        }
+                    }
+                }
+            }
+        }
+        
+        if (parser.isSet("json")) {
+            QJsonObject out;
+            out["imported"] = importedCount;
+            out["rendered"] = renderedCount;
+            out["results"] = resultsArray;
+            printJsonValue(out);
+        } else {
+            printInfoStd("Successfully imported " + std::to_string(importedCount) + " footprints.");
+            if (autoRender) {
+                printInfoStd("Successfully rendered " + std::to_string(renderedCount) + " footprints to PNG.");
+            }
+        }
+        
+        return 0;
+    }
+};
+
 } // namespace
 
 void registerFootprintCommands() {
     auto& reg = CommandRegistry::instance();
     reg.registerCommand(std::make_unique<FootprintRenderCommand>());
+    reg.registerCommand(std::make_unique<FootprintImportCommand>());
 }
