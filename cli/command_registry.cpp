@@ -35,6 +35,7 @@ QList<CLICommand*> CommandRegistry::allCommands() const {
 void registerSchematicCommands();
 void registerNetlistCommands();
 void registerSymbolCommands();
+void registerFootprintCommands();
 void registerPluginCommands();
 void registerExtCommands();
 void registerExtTestCommand();
@@ -48,6 +49,7 @@ void registerAllCommands() {
     registerSchematicCommands();
     registerNetlistCommands();
     registerSymbolCommands();
+    registerFootprintCommands();
     registerPluginCommands();
     registerExtCommands();
     registerExtTestCommand();
