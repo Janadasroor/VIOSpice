@@ -630,6 +630,7 @@ if(BUILD_VIOSPICE_CLI)
         cli/commands/schematic_commands.cpp
         cli/commands/netlist_commands.cpp
         cli/commands/symbol_commands.cpp
+        cli/commands/footprint_commands.cpp
         cli/commands/plugin_commands.cpp
         cli/commands/ext_commands.cpp
         cli/commands/ext_test.cpp
