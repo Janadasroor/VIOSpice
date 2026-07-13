@@ -157,16 +157,28 @@ NetlistToSchematic::ConvertResult NetlistToSchematic::convertToScene(const QStri
         if (net.pins.size() < 2) continue;
         if (net.name == "GND") continue; // GND is handled with local power symbols and their own air wires
 
-        // Star topology: connect all pins to the first pin
-        const auto& firstPin = net.pins[0];
-        SchematicItem* firstItem = refToItem.value(firstPin.componentRef);
+        // Star topology: connect all valid pins to the first valid pin on this net
+        SchematicItem* firstItem = nullptr;
+        QPointF firstPinPos;
+        int firstValidIdx = -1;
+
+        for (int i = 0; i < net.pins.size(); ++i) {
+            const auto& p = net.pins[i];
+            SchematicItem* item = refToItem.value(p.componentRef);
+            if (item) {
+                QList<QPointF> connPts = item->connectionPoints();
+                if (p.pinIndex < connPts.size()) {
+                    firstItem = item;
+                    firstPinPos = item->mapToScene(connPts[p.pinIndex]);
+                    firstValidIdx = i;
+                    break;
+                }
+            }
+        }
+
         if (!firstItem) continue;
 
-        QList<QPointF> firstConnPts = firstItem->connectionPoints();
-        if (firstPin.pinIndex >= firstConnPts.size()) continue;
-        QPointF firstPinPos = firstItem->mapToScene(firstConnPts[firstPin.pinIndex]);
-
-        for (int i = 1; i < net.pins.size(); ++i) {
+        for (int i = firstValidIdx + 1; i < net.pins.size(); ++i) {
             const auto& otherPin = net.pins[i];
             SchematicItem* otherItem = refToItem.value(otherPin.componentRef);
             if (!otherItem) continue;

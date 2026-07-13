@@ -2,6 +2,9 @@
 set(PCB_SOURCES
     # Editor
     editor/mainwindow.cpp
+    editor/pcb_editor_ui.cpp
+    editor/pcb_editor_file.cpp
+    editor/pcb_editor_actions.cpp
     editor/mainwindow.h
     editor/pcb_api.cpp
     editor/pcb_api.h

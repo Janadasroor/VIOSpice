@@ -176,8 +176,7 @@ bool TraceItem::fromJson(const QJsonObject& json) {
 }
 
 PCBItem* TraceItem::clone() const {
-    TraceModel* newModel = new TraceModel();
-    newModel->fromJson(m_model->toJson());
+    TraceModel* newModel = m_model->clone();
     
     TraceItem* newItem = new TraceItem(newModel, parentItem());
     newItem->m_ownsModel = true; // New item owns the cloned model

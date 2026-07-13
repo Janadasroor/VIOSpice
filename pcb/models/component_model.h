@@ -108,6 +108,22 @@ public:
         }
     }
 
+    ComponentModel* clone() const {
+        ComponentModel* c = new ComponentModel();
+        c->m_id = m_id;
+        c->m_name = m_name;
+        c->m_pos = m_pos;
+        c->m_size = m_size;
+        c->m_rotation = m_rotation;
+        c->m_layer = m_layer;
+        c->m_componentType = m_componentType;
+        c->m_value = m_value;
+        for (const auto* pad : m_pads) {
+            c->addPad(pad->clone());
+        }
+        return c;
+    }
+
 private:
     QUuid m_id;
     QString m_name;

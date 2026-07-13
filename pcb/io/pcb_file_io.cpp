@@ -97,25 +97,15 @@ BoardModel* PCBFileIO::sceneToModel(QGraphicsScene* scene) {
         if (qItem->parentItem() != nullptr) continue;
 
         if (TraceItem* item = dynamic_cast<TraceItem*>(qItem)) {
-            TraceModel* tm = new TraceModel();
-            tm->fromJson(item->toJson());
-            board->addTrace(tm);
+            if (item->model()) board->addTrace(item->model()->clone());
         } else if (ViaItem* item = dynamic_cast<ViaItem*>(qItem)) {
-            ViaModel* vm = new ViaModel();
-            vm->fromJson(item->toJson());
-            board->addVia(vm);
+            if (item->model()) board->addVia(item->model()->clone());
         } else if (PadItem* item = dynamic_cast<PadItem*>(qItem)) {
-            PadModel* pm = new PadModel();
-            pm->fromJson(item->toJson());
-            board->addPad(pm);
+            if (item->model()) board->addPad(item->model()->clone());
         } else if (ComponentItem* item = dynamic_cast<ComponentItem*>(qItem)) {
-            ComponentModel* cm = new ComponentModel();
-            cm->fromJson(item->toJson());
-            board->addComponent(cm);
+            if (item->model()) board->addComponent(item->model()->clone());
         } else if (CopperPourItem* item = dynamic_cast<CopperPourItem*>(qItem)) {
-            CopperPourModel* cpm = new CopperPourModel();
-            cpm->fromJson(item->toJson());
-            board->addCopperPour(cpm);
+            if (item->model()) board->addCopperPour(item->model()->clone());
         } else if (PCBShapeItem* item = dynamic_cast<PCBShapeItem*>(qItem)) {
             QJsonObject json = item->toJson();
             json["type"] = "Shape";
@@ -139,37 +129,27 @@ void PCBFileIO::modelToScene(const BoardModel* board, QGraphicsScene* scene) {
     scene->clear();
 
     for (auto* tm : board->traces()) {
-        TraceModel* clone = new TraceModel();
-        clone->fromJson(tm->toJson());
-        TraceItem* item = new TraceItem(clone);
+        TraceItem* item = new TraceItem(tm->clone());
         item->setOwned(true); // Ensure item knows it owns the model now
         scene->addItem(item);
     }
     for (auto* vm : board->vias()) {
-        ViaModel* clone = new ViaModel();
-        clone->fromJson(vm->toJson());
-        ViaItem* item = new ViaItem(clone);
+        ViaItem* item = new ViaItem(vm->clone());
         item->setOwned(true);
         scene->addItem(item);
     }
     for (auto* pm : board->pads()) {
-        PadModel* clone = new PadModel();
-        clone->fromJson(pm->toJson());
-        PadItem* item = new PadItem(clone);
+        PadItem* item = new PadItem(pm->clone());
         item->setOwned(true);
         scene->addItem(item);
     }
     for (auto* cm : board->components()) {
-        ComponentModel* clone = new ComponentModel();
-        clone->fromJson(cm->toJson());
-        ComponentItem* item = new ComponentItem(clone);
+        ComponentItem* item = new ComponentItem(cm->clone());
         item->setOwned(true);
         scene->addItem(item);
     }
     for (auto* cpm : board->copperPours()) {
-        CopperPourModel* clone = new CopperPourModel();
-        clone->fromJson(cpm->toJson());
-        CopperPourItem* item = new CopperPourItem(clone);
+        CopperPourItem* item = new CopperPourItem(cpm->clone());
         item->setOwned(true);
         scene->addItem(item);
     }
@@ -219,19 +199,4 @@ QJsonObject PCBFileIO::serializeSceneToJson(QGraphicsScene* scene) {
 
 QString PCBFileIO::lastError() {
     return s_lastError;
-}
-
-QJsonArray PCBFileIO::serializeItems(QGraphicsScene* scene) {
-    // Deprecated but kept for compatibility
-    return serializeSceneToJson(scene)["items"].toArray();
-}
-
-bool PCBFileIO::deserializeItems(QGraphicsScene* scene, const QJsonArray& itemsArray) {
-    // Deprecated but kept for compatibility
-    QJsonObject root;
-    root["items"] = itemsArray;
-    BoardModel board;
-    board.fromJson(root);
-    modelToScene(&board, scene);
-    return true;
 }

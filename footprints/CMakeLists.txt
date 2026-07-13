@@ -5,6 +5,7 @@ set(FOOTPRINTS_SOURCES
     models/footprint_primitive.h
     models/footprint_definition.cpp
     models/footprint_definition.h
+    models/footprint_schema.h
 
     # Items
     items/footprint_primitive_item.cpp
@@ -17,6 +18,9 @@ set(FOOTPRINTS_SOURCES
     # Editor
     footprint_editor.cpp
     footprint_editor.h
+    footprint_editor_ui.cpp
+    footprint_editor_file.cpp
+    footprint_editor_actions.cpp
     footprint_commands.cpp
     footprint_commands.h
     footprint_library.cpp

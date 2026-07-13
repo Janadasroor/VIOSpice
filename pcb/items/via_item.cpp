@@ -192,8 +192,7 @@ bool ViaItem::fromJson(const QJsonObject& json) {
 }
 
 PCBItem* ViaItem::clone() const {
-    ViaModel* newModel = new ViaModel();
-    newModel->fromJson(m_model->toJson());
+    ViaModel* newModel = m_model->clone();
     
     ViaItem* newItem = new ViaItem(newModel, parentItem());
     newItem->m_ownsModel = true;

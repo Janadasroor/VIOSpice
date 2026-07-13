@@ -219,7 +219,10 @@ QJsonObject WireItem::toJson() const {
 
     QJsonObject json;
     json["type"] = "Wire";
-    json["wireType"] = static_cast<int>(m_wireType);
+    QString typeStr = "Signal";
+    if (m_wireType == PowerWire) typeStr = "Power";
+    else if (m_wireType == AirWire) typeStr = "Air";
+    json["wireType"] = typeStr;
     QJsonArray pts;
     for (const auto& p : m_points) { QJsonObject o; o["x"] = p.x(); o["y"] = p.y(); pts.append(o); }
     json["points"] = pts;
@@ -228,7 +231,19 @@ QJsonObject WireItem::toJson() const {
 
 bool WireItem::fromJson(const QJsonObject& json) {
     if (json.contains("wireType")) {
-        m_wireType = static_cast<WireType>(json["wireType"].toInt());
+        QJsonValue val = json["wireType"];
+        if (val.isString()) {
+            QString typeStr = val.toString();
+            if (typeStr == "Power") {
+                m_wireType = PowerWire;
+            } else if (typeStr == "Air") {
+                m_wireType = AirWire;
+            } else {
+                m_wireType = SignalWire;
+            }
+        } else {
+            m_wireType = static_cast<WireType>(val.toInt(0));
+        }
     }
     m_points.clear();
     QJsonArray pts = json["points"].toArray();

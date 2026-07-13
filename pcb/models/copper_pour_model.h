@@ -139,6 +139,26 @@ public:
         }
     }
 
+    CopperPourModel* clone() const {
+        CopperPourModel* c = new CopperPourModel();
+        c->m_id = m_id;
+        c->m_layer = m_layer;
+        c->m_netName = m_netName;
+        c->m_polygon = m_polygon;
+        c->m_clearance = m_clearance;
+        c->m_minWidth = m_minWidth;
+        c->m_filled = m_filled;
+        c->m_pourType = m_pourType;
+        c->m_hatchWidth = m_hatchWidth;
+        c->m_priority = m_priority;
+        c->m_removeIslands = m_removeIslands;
+        c->m_useThermalReliefs = m_useThermalReliefs;
+        c->m_thermalSpokeWidth = m_thermalSpokeWidth;
+        c->m_thermalSpokeCount = m_thermalSpokeCount;
+        c->m_thermalSpokeAngleDeg = m_thermalSpokeAngleDeg;
+        return c;
+    }
+
 private:
     QUuid m_id;
     int m_layer;

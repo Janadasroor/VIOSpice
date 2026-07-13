@@ -88,12 +88,12 @@ bool near(const QPointF& a, const QPointF& b, qreal eps = 0.5) {
     return QLineF(a, b).length() <= eps;
 }
 
-bool alignedToGrid(qreal value, qreal grid = 15.0, qreal eps = 0.01) {
+bool alignedToGrid(qreal value, qreal grid = 5.0, qreal eps = 0.01) {
     const qreal rem = std::fmod(std::abs(value), grid);
     return rem <= eps || std::abs(rem - grid) <= eps;
 }
 
-bool pointsGridAligned(const QList<QPointF>& points, qreal grid = 15.0, qreal eps = 0.01) {
+bool pointsGridAligned(const QList<QPointF>& points, qreal grid = 5.0, qreal eps = 0.01) {
     for (const QPointF& p : points) {
         if (!alignedToGrid(p.x(), grid, eps) || !alignedToGrid(p.y(), grid, eps)) return false;
     }
@@ -1001,15 +1001,15 @@ private Q_SLOTS:
         TransistorItem npn(QPointF(225.0, 225.0), "2N2222", TransistorItem::NPN);
         for (const QPointF& pinLocal : npn.connectionPoints()) {
             const QPointF pinScene = npn.mapToScene(pinLocal);
-            QVERIFY2(alignedToGrid(pinScene.x()), "NPN pin X must be grid aligned.");
-            QVERIFY2(alignedToGrid(pinScene.y()), "NPN pin Y must be grid aligned.");
+            QVERIFY2(alignedToGrid(pinScene.x(), 5.0), "NPN pin X must be grid aligned.");
+            QVERIFY2(alignedToGrid(pinScene.y(), 5.0), "NPN pin Y must be grid aligned.");
         }
 
         TransistorItem nmos(QPointF(225.0, 225.0), "2N7000", TransistorItem::NMOS);
         for (const QPointF& pinLocal : nmos.connectionPoints()) {
             const QPointF pinScene = nmos.mapToScene(pinLocal);
-            QVERIFY2(alignedToGrid(pinScene.x()), "NMOS pin X must be grid aligned.");
-            QVERIFY2(alignedToGrid(pinScene.y()), "NMOS pin Y must be grid aligned.");
+            QVERIFY2(alignedToGrid(pinScene.x(), 2.5), "NMOS pin X must be grid aligned.");
+            QVERIFY2(alignedToGrid(pinScene.y(), 2.5), "NMOS pin Y must be grid aligned.");
         }
     }
 

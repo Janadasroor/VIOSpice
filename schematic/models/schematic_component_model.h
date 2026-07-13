@@ -91,6 +91,32 @@ public:
         }
     }
 
+    SchematicComponentModel* clone() const {
+        SchematicComponentModel* copy = new SchematicComponentModel();
+        copy->setId(id());
+        copy->setPos(pos());
+        copy->setRotation(rotation());
+        copy->setMirroredX(isMirroredX());
+        copy->setMirroredY(isMirroredY());
+        copy->setUnit(unit());
+        copy->setName(name());
+        copy->setValue(value());
+        copy->setReference(reference());
+        copy->setFootprint(m_footprint);
+        for (const PinModel* p : m_pins) {
+            PinModel* pinCopy = new PinModel();
+            pinCopy->id = p->id;
+            pinCopy->name = p->name;
+            pinCopy->number = p->number;
+            pinCopy->pos = p->pos;
+            pinCopy->length = p->length;
+            pinCopy->angle = p->angle;
+            pinCopy->netName = p->netName;
+            copy->addPin(pinCopy);
+        }
+        return copy;
+    }
+
 private:
     QList<PinModel*> m_pins;
     QString m_footprint;
