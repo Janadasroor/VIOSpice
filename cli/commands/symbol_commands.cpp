@@ -1632,7 +1632,8 @@ int generateSymbolsForLibrary(const QString& inputPath, const QString& outDir, c
             def.setSpiceNodeMapping(mapping);
         }
 
-        QString outPath = QDir(outDir).filePath(sub.name.toLower() + ".viosym");
+        QString safeName = sub.name.toLower().replace('/', '_').replace('\\', '_');
+        QString outPath = QDir(outDir).filePath(safeName + ".viosym");
         QFile outFile(outPath);
         if (outFile.open(QIODevice::WriteOnly)) {
             QJsonDocument doc(def.toJson());
@@ -1640,6 +1641,8 @@ int generateSymbolsForLibrary(const QString& inputPath, const QString& outDir, c
             outFile.close();
             if (!g_quiet) std::cout << "Generated symbol: " << outPath.toStdString() << " (from " << QFileInfo(inputPath).fileName().toStdString() << ")" << std::endl;
             count++;
+        } else {
+            std::cerr << "Failed to open output file: " << outPath.toStdString() << " error: " << outFile.errorString().toStdString() << std::endl;
         }
     }
     return count;

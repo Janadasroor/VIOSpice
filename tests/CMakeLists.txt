@@ -4,6 +4,10 @@ if(VIOSPICE_ENABLE_TESTS)
         SOURCES test_design_rule.cpp test_design_rule.h
         LINK_LIBS VioCore VioSymbols VioSimulator FluxScript FluxScriptManager VioUI
     )
+    vioraeda_add_test(test_serialization_and_cloning
+        SOURCES test_serialization_and_cloning.cpp test_serialization_and_cloning.h
+        LINK_LIBS VioUI VioVioraIDE VioSchematic VioraPCBCore VioFootprints VioCore VioSymbols VioSimulator FluxScriptManager FluxScript
+    )
 endif()
 
 # CLI-based regression tests (no Python needed)

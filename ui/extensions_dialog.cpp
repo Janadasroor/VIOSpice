@@ -397,8 +397,9 @@ void ExtensionsDialog::refreshPluginList() {
                 QString(badge(entry.type)) + " " + label + "  —  " + statusStr);
         } else {
             const auto& info = entry.scriptInfo;
-            QString status = info.loaded ? "Loaded" : "Unloaded";
-            color = info.loaded ? QColor("#4ec9b0") : QColor("#808080");
+            const bool enabled = ExtensionManager::instance().isExtensionEnabled(info.id);
+            QString status = enabled ? (info.loaded ? "Loaded" : "Enabled") : "Disabled";
+            color = enabled ? QColor("#4ec9b0") : QColor("#808080");
             item = new QListWidgetItem(
                 QString(badge(entry.type)) + " " + info.name + "  —  " + status);
         }
@@ -460,11 +461,13 @@ void ExtensionsDialog::onPluginSelected(QListWidgetItem* item) {
         m_detailsLabel->setText(details);
     } else {
         const auto& info = entry.scriptInfo;
-        m_toggleEnabledBtn->setEnabled(false);
+        const bool enabled = ExtensionManager::instance().isExtensionEnabled(info.id);
+        m_toggleEnabledBtn->setText(enabled ? "Disable" : "Enable");
+        m_toggleEnabledBtn->setEnabled(true);
         m_uninstallBtn->setEnabled(false);
 
-        QString statusColor = info.loaded ? "#4ec9b0" : "#808080";
-        QString statusStr = info.loaded ? "Loaded" : "Unloaded";
+        QString statusColor = enabled ? "#4ec9b0" : "#808080";
+        QString statusStr = enabled ? (info.loaded ? "Loaded" : "Enabled") : "Disabled";
 
         const QString details = QString(
             "<div style='background-color: #2d2d30; padding: 15px; border-radius: 8px; border: 1px solid #3e3e42;'>"
@@ -491,11 +494,20 @@ void ExtensionsDialog::onToggleSelectedPluginEnabled() {
 
     const int index = indexData.toInt();
     if (index < 0 || index >= m_unifiedEntries.size()) return;
-    if (m_unifiedEntries[index].type != UnifiedEntry::Native) return;
-
-    const QString path = m_unifiedEntries[index].nativeResult.filePath;
-    const bool currentlyEnabled = PluginManager::instance().isPluginEnabledByPath(path);
-    PluginManager::instance().setPluginEnabledByPath(path, !currentlyEnabled);
+    if (m_unifiedEntries[index].type == UnifiedEntry::Native) {
+        const QString path = m_unifiedEntries[index].nativeResult.filePath;
+        const bool currentlyEnabled = PluginManager::instance().isPluginEnabledByPath(path);
+        PluginManager::instance().setPluginEnabledByPath(path, !currentlyEnabled);
+    } else {
+        const QString id = m_unifiedEntries[index].scriptInfo.id;
+        const bool currentlyEnabled = ExtensionManager::instance().isExtensionEnabled(id);
+        ExtensionManager::instance().setExtensionEnabled(id, !currentlyEnabled);
+        if (currentlyEnabled) {
+            ExtensionManager::instance().unloadExtension(id);
+        } else {
+            ExtensionManager::instance().loadExtension(id);
+        }
+    }
     refreshPluginList();
 }
 

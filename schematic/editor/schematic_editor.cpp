@@ -214,7 +214,7 @@ SchematicEditor::SchematicEditor(QWidget *parent)
     {
         auto& extMgr = ExtensionManager::instance();
         extMgr.scanDirectories();
-        extMgr.loadAll();
+        // extMgr.loadAll(); // Lazily loaded on menu/context action trigger
         if (m_extensionsMenu)
             setupExtensionsMenu(m_extensionsMenu);
 

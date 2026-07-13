@@ -109,6 +109,7 @@ private slots:
     void onAddPrimitiveExact();
     
     // Flip tools
+    void onRotate();
     void onFlipHorizontal();
     void onFlipVertical();
     void onCreateMirroredPair();

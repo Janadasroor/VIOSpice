@@ -72,6 +72,17 @@ public:
         m_netName = json["netName"].toString();
     }
 
+    TraceModel* clone() const {
+        TraceModel* c = new TraceModel();
+        c->m_id = m_id;
+        c->m_start = m_start;
+        c->m_end = m_end;
+        c->m_width = m_width;
+        c->m_layer = m_layer;
+        c->m_netName = m_netName;
+        return c;
+    }
+
 private:
     QUuid m_id;
     QPointF m_start;

@@ -201,8 +201,7 @@ bool ResistorItem::fromJson(const QJsonObject& json) {
 }
 
 SchematicItem* ResistorItem::clone() const {
-    SchematicComponentModel* newModel = new SchematicComponentModel();
-    newModel->fromJson(m_model->toJson());
+    SchematicComponentModel* newModel = m_model->clone();
     ResistorItem* newItem = new ResistorItem(newModel);
     newItem->setOwned(true);
     newItem->m_style = m_style;

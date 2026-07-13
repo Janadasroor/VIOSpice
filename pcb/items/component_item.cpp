@@ -363,8 +363,7 @@ bool ComponentItem::fromJson(const QJsonObject& json) {
 }
 
 PCBItem* ComponentItem::clone() const {
-    ComponentModel* newModel = new ComponentModel();
-    newModel->fromJson(m_model->toJson());
+    ComponentModel* newModel = m_model->clone();
     
     ComponentItem* newItem = new ComponentItem(newModel, parentItem());
     newItem->m_ownsModel = true;

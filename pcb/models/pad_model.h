@@ -111,6 +111,24 @@ public:
         m_number = json["number"].toString();
     }
 
+    PadModel* clone() const {
+        PadModel* c = new PadModel();
+        c->m_id = m_id;
+        c->m_pos = m_pos;
+        c->m_size = m_size;
+        c->m_rotation = m_rotation;
+        c->m_drillSize = m_drillSize;
+        c->m_shape = m_shape;
+        c->m_layer = m_layer;
+        c->m_maskExpansionOverride = m_maskExpansionOverride;
+        c->m_maskExpansion = m_maskExpansion;
+        c->m_pasteExpansionOverride = m_pasteExpansionOverride;
+        c->m_pasteExpansion = m_pasteExpansion;
+        c->m_netName = m_netName;
+        c->m_number = m_number;
+        return c;
+    }
+
 private:
     QUuid m_id;
     QPointF m_pos;

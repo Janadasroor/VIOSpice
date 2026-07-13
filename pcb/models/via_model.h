@@ -104,6 +104,23 @@ public:
         m_netName = json["netName"].toString();
     }
 
+    ViaModel* clone() const {
+        ViaModel* c = new ViaModel();
+        c->m_id = m_id;
+        c->m_pos = m_pos;
+        c->m_diameter = m_diameter;
+        c->m_drillSize = m_drillSize;
+        c->m_startLayer = m_startLayer;
+        c->m_endLayer = m_endLayer;
+        c->m_microvia = m_microvia;
+        c->m_maskExpansionOverride = m_maskExpansionOverride;
+        c->m_maskExpansion = m_maskExpansion;
+        c->m_pasteExpansionOverride = m_pasteExpansionOverride;
+        c->m_pasteExpansion = m_pasteExpansion;
+        c->m_netName = m_netName;
+        return c;
+    }
+
 private:
     QUuid m_id;
     QPointF m_pos;

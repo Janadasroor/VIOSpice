@@ -73,6 +73,7 @@ target_sources(VioSchematic PRIVATE
     analysis/passes/netlist_formatter.h
     analysis/passes/lt_rewriter.cpp
     analysis/passes/lt_rewriter.h
+    models/schematic_schema.h
 )
 
 if(VIOSPICE_ENGINE_FOUND)
