@@ -238,8 +238,7 @@ bool PadItem::fromJson(const QJsonObject& json) {
 
 PCBItem* PadItem::clone() const {
     m_model->setNetName(netName());
-    PadModel* newModel = new PadModel();
-    newModel->fromJson(m_model->toJson());
+    PadModel* newModel = m_model->clone();
     
     PadItem* newItem = new PadItem(newModel, parentItem());
     newItem->m_ownsModel = true;

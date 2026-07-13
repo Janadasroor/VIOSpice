@@ -17,6 +17,7 @@
 #include <QMenu>
 #include <QTimer>
 #include "../engine/flux_script_engine.h"
+#include "../../project/config_manager.h"
 
 bool ExtensionManifest::parse(const QJsonObject& json, QString* error) {
     id = json["id"].toString();
@@ -84,6 +85,8 @@ ExtensionManager::ExtensionManager(QObject* parent) : QObject(parent) {
     QString appDir = QCoreApplication::applicationDirPath();
     m_scanPaths.append(appDir + "/../extensions");
     m_scanPaths.append(appDir + "/extensions");
+
+    loadDisabledExtensions();
 }
 
 void ExtensionManager::addScanPath(const QString& path) {
@@ -145,6 +148,7 @@ void ExtensionManager::loadAll() {
     // Load in dependency order
     QStringList loadOrder = getLoadOrder();
     for (const QString& id : loadOrder) {
+        if (!isExtensionEnabled(id)) continue;
         for (auto& ext : m_extensions) {
             if (ext.manifest.id == id && !ext.loaded) {
                 loadExtension(id);
@@ -247,6 +251,7 @@ QString ExtensionManager::fnName(const QString& extId, const QString& action) co
 }
 
 void ExtensionManager::loadExtension(const QString& id) {
+    if (!isExtensionEnabled(id)) return;
     for (auto& ext : m_extensions) {
         if (ext.manifest.id != id) continue;
         if (ext.loaded) return;
@@ -336,7 +341,7 @@ bool ExtensionManager::callExtensionFn(const QString& extId, const QString& acti
 QVector<QAction*> ExtensionManager::createMenuActions(QWidget* parent) {
     QVector<QAction*> actions;
     for (const auto& ext : m_extensions) {
-        if (!ext.loaded) continue;
+        if (!isExtensionEnabled(ext.manifest.id)) continue;
         for (const auto& entry : ext.manifest.menuEntries) {
             QString text = entry.path;
             // Support nested menus via "/" separator
@@ -356,6 +361,7 @@ QVector<QAction*> ExtensionManager::createMenuActions(QWidget* parent) {
             QString extId = ext.manifest.id;
             QString actionName = entry.action;
             connect(action, &QAction::triggered, this, [this, extId, actionName]() {
+                loadExtension(extId);
                 callExtensionFn(extId, actionName);
             });
             actions.append(action);
@@ -366,9 +372,11 @@ QVector<QAction*> ExtensionManager::createMenuActions(QWidget* parent) {
 
 void ExtensionManager::dispatchComponentDoubleClick(const QString& componentType, double componentHandle) {
     for (const auto& ext : m_extensions) {
-        if (!ext.loaded) continue;
+        if (!isExtensionEnabled(ext.manifest.id)) continue;
         for (const auto& ctx : ext.manifest.contexts) {
             if (ctx.componentType == componentType) {
+                // Lazy load extension if not loaded
+                const_cast<ExtensionManager*>(this)->loadExtension(ext.manifest.id);
                 // Pass the component handle as an argument
                 QString fname = fnName(ext.manifest.id, ctx.action);
                 QString error;
@@ -553,4 +561,37 @@ void ExtensionManager::saveConfig(const QString& extId) {
     // Config is already saved on each setConfig call
     // This method exists for bulk save operations
     Q_UNUSED(extId);
+}
+
+bool ExtensionManager::isExtensionEnabled(const QString& id) const {
+    return !m_disabledExtensions.contains(id);
+}
+
+void ExtensionManager::setExtensionEnabled(const QString& id, bool enabled) {
+    if (enabled) {
+        m_disabledExtensions.remove(id);
+    } else {
+        m_disabledExtensions.insert(id);
+    }
+    saveDisabledExtensions();
+}
+
+void ExtensionManager::loadDisabledExtensions() {
+    const QVariant stored = ConfigManager::instance().toolProperty(
+        "extension_manager",
+        "disabled_extensions",
+        QStringList());
+    const QStringList ids = stored.toStringList();
+    m_disabledExtensions.clear();
+    for (const QString& id : ids) {
+        if (!id.isEmpty()) {
+            m_disabledExtensions.insert(id);
+        }
+    }
+}
+
+void ExtensionManager::saveDisabledExtensions() const {
+    QStringList ids = m_disabledExtensions.values();
+    ids.sort();
+    ConfigManager::instance().setToolProperty("extension_manager", "disabled_extensions", ids);
 }

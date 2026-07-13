@@ -38,6 +38,7 @@
 
 #include "../core/flux/engine/flux_script_engine.h"
 #include "../core/flux/extensions/extension_manager.h"
+#include "../core/flux/extensions/extension_sandbox.h"
 #include <flux/jit_engine.h>
 
 namespace ExtCli {
@@ -393,6 +394,18 @@ public:
 
         // Set environment variable for config functions
         qputenv("VIORA_EXTENSION_DIR", extDir.toUtf8());
+
+        // Set up sandbox for this extension
+        IDE::sandbox().setCurrentExtension(id);
+
+        // Load permissions from manifest
+        QJsonArray permArr = manifest["permissions"].toArray();
+        QSet<IDE::Permission> perms;
+        for (const auto& p : permArr) {
+            IDE::Permission perm = IDE::permissionFromString(p.toString().trimmed().toLower());
+            if (perm != IDE::Permission::None) perms.insert(perm);
+        }
+        IDE::sandbox().setPermissions(id, perms);
 
         // Initialize engine
         FluxScriptEngine::instance().initialize();

@@ -9,6 +9,7 @@ target_link_libraries(test_ux_logic PRIVATE
     VioUI
     VioCore
     VioSymbols
+    VioVioraIDE
 )
 
 add_test(NAME unit_ux_logic COMMAND test_ux_logic)

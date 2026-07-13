@@ -30,9 +30,6 @@ public:
     static QString lastError();
 
 private:
-    static QJsonArray serializeItems(QGraphicsScene* scene);
-    static bool deserializeItems(QGraphicsScene* scene, const QJsonArray& itemsArray);
-    
     static QString s_lastError;
     static const int FILE_FORMAT_VERSION = 1;
 };

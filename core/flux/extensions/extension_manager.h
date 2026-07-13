@@ -13,6 +13,7 @@
 #include <QAction>
 #include <QDir>
 #include <QFileSystemWatcher>
+#include <QSet>
 
 struct ExtensionManifest {
     QString id;
@@ -58,6 +59,9 @@ public:
     void unloadExtension(const QString& id);
     void reloadExtension(const QString& id);
     void reloadAll();
+
+    bool isExtensionEnabled(const QString& id) const;
+    void setExtensionEnabled(const QString& id, bool enabled);
 
     void watchDirectories();
     void setFileWatcherEnabled(bool enabled);
@@ -108,6 +112,10 @@ private:
     QVector<Extension> m_extensions;
     QFileSystemWatcher* m_fileWatcher = nullptr;
     bool m_watcherEnabled = true;
+
+    QSet<QString> m_disabledExtensions;
+    void loadDisabledExtensions();
+    void saveDisabledExtensions() const;
 };
 
 #endif

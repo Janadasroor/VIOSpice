@@ -4,6 +4,7 @@ add_executable(test_regression_io_golden
 )
 
 vioraeda_configure_cli_target(test_regression_io_golden)
+target_link_libraries(test_regression_io_golden PRIVATE VioVioraIDE)
 
 add_test(
     NAME regression.io_golden
@@ -18,6 +19,7 @@ if(BUILD_VIOSPICE_CLI)
     )
 
     vioraeda_configure_cli_target(test_regression_cli)
+    target_link_libraries(test_regression_cli PRIVATE VioVioraIDE)
     target_compile_definitions(test_regression_cli PRIVATE VIO_CMD_PATH=\"$<TARGET_FILE:viora>\")
 
     add_test(
@@ -31,7 +33,7 @@ if(BUILD_VIOSPICE_CLI)
         ${VIORAEDA_CLI_MODULE_OBJECTS}
     )
     vioraeda_configure_cli_target(test_interactive_hang)
-    target_link_libraries(test_interactive_hang PRIVATE Qt6::Test)
+    target_link_libraries(test_interactive_hang PRIVATE Qt6::Test VioVioraIDE)
     
     add_test(
         NAME regression.interactive_hang

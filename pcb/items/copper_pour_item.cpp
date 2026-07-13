@@ -208,8 +208,7 @@ bool CopperPourItem::fromJson(const QJsonObject& json) {
 }
 
 PCBItem* CopperPourItem::clone() const {
-    CopperPourModel* newModel = new CopperPourModel();
-    newModel->fromJson(m_model->toJson());
+    CopperPourModel* newModel = m_model->clone();
     
     CopperPourItem* newItem = new CopperPourItem(newModel, parentItem());
     newItem->m_ownsModel = true;

@@ -13,6 +13,7 @@
 #include <QJsonObject>
 #include <QJsonArray>
 #include <QRectF>
+#include "footprint_schema.h"
 
 namespace Flux {
 namespace Model {
@@ -69,6 +70,12 @@ struct FootprintPrimitive {
     
     QJsonObject toJson() const;
     static FootprintPrimitive fromJson(const QJsonObject& json);
+    
+    static QString typeToString(Type t);
+    static Type stringToType(const QString& str, bool* ok = nullptr);
+    
+    static QString layerToString(Layer l);
+    static Layer stringToLayer(const QString& str, bool* ok = nullptr);
     
     void move(qreal dx, qreal dy);
 };
