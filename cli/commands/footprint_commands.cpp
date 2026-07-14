@@ -206,7 +206,14 @@ bool renderFootprintToPng(const FootprintDefinition& footprint, const QString& o
             if (isThroughHole) {
                 painter.setPen(Qt::NoPen);
                 painter.setBrush(QColor(30, 30, 30));
-                painter.drawEllipse(QPointF(0, 0), drill / 2.0, drill / 2.0);
+                qreal drillY = prim.data.value("drill_size_y").toDouble(drill);
+                if (drillY != drill) {
+                    QRectF drillRect(-drill / 2.0, -drillY / 2.0, drill, drillY);
+                    qreal r = std::min(drill, drillY) / 2.0;
+                    painter.drawRoundedRect(drillRect, r, r);
+                } else {
+                    painter.drawEllipse(QPointF(0, 0), drill / 2.0, drill / 2.0);
+                }
             }
 
             // Draw pad number

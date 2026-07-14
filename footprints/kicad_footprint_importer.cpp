@@ -324,6 +324,46 @@ KicadFootprintImporter::ImportReport parseFootprintExpr(const QString& fpExpr) {
         cursor = qMax(pos + 1, end + 1);
     }
 
+    // fp_poly
+    cursor = 0;
+    while (true) {
+        int pos = findSExprStart(fpExpr, "fp_poly", cursor);
+        if (pos < 0) break;
+        int end = -1;
+        QString e = extractBalancedSExpr(fpExpr, pos, &end);
+        if (e.isEmpty()) break;
+
+        int ptsPos = findSExprStart(e, "pts", 0);
+        if (ptsPos >= 0) {
+            QString ptsExpr = extractBalancedSExpr(e, ptsPos);
+            QJsonArray pointsArray;
+            static const QRegularExpression xyRe("\\(xy\\s+([\\-0-9.]+)\\s+([\\-0-9.]+)\\)");
+            QRegularExpressionMatchIterator it = xyRe.globalMatch(ptsExpr);
+            while (it.hasNext()) {
+                QRegularExpressionMatch m = it.next();
+                QJsonObject pt;
+                pt["x"] = kx(m.captured(1));
+                pt["y"] = ky(m.captured(2));
+                pointsArray.append(pt);
+            }
+
+            if (!pointsArray.isEmpty()) {
+                FootprintPrimitive p;
+                p.type = FootprintPrimitive::Polygon;
+                p.layer = extractLayer(e, FootprintPrimitive::Top_Silkscreen);
+                
+                QJsonObject data;
+                data["points"] = pointsArray;
+                data["lineWidth"] = parseStrokeWidth(e, 0.15);
+                data["filled"] = true;
+                p.data = data;
+                
+                def.addPrimitive(p);
+            }
+        }
+        cursor = qMax(pos + 1, end + 1);
+    }
+
     // pad
     cursor = 0;
     while (true) {
@@ -369,7 +409,12 @@ KicadFootprintImporter::ImportReport parseFootprintExpr(const QString& fpExpr) {
         if (!ma.captured(3).isEmpty()) p.data["rotation"] = -ma.captured(3).toDouble();
 
         QRegularExpressionMatch md = drillRe.match(e);
-        if (md.hasMatch()) p.data["drill_size"] = md.captured(1).toDouble();
+        if (md.hasMatch()) {
+            p.data["drill_size"] = md.captured(1).toDouble();
+            if (!md.captured(2).isEmpty()) {
+                p.data["drill_size_y"] = md.captured(2).toDouble();
+            }
+        }
 
         QRegularExpressionMatch ml = layersRe.match(e);
         if (ml.hasMatch()) {
@@ -429,7 +474,7 @@ KicadFootprintImporter::ImportReport parseFootprintExpr(const QString& fpExpr) {
 
     // Collect unsupported graphic primitives for visibility.
     static const QSet<QString> handled = {
-        "fp_line", "fp_rect", "fp_circle", "fp_arc", "fp_text", "pad", "model"
+        "fp_line", "fp_rect", "fp_circle", "fp_arc", "fp_text", "fp_poly", "pad", "model"
     };
     QMap<QString, int> unknownKinds;
     static const QRegularExpression anyPrimRe("\\((fp_[a-z_]+|pad|model)\\b");
