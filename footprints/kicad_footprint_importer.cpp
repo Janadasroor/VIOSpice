@@ -141,10 +141,11 @@ FootprintPrimitive::Layer mapLayer(const QString& kicadLayer, FootprintPrimitive
 }
 
 FootprintPrimitive::Layer extractLayer(const QString& expr, FootprintPrimitive::Layer fallback = FootprintPrimitive::Top_Silkscreen) {
-    static const QRegularExpression re("\\(layer\\s+\"([^\"]+)\"\\)");
+    static const QRegularExpression re("\\(layer\\s+(?:\"([^\"]+)\"|([^\\s\\)]+))\\)");
     QRegularExpressionMatch m = re.match(expr);
     if (!m.hasMatch()) return fallback;
-    return mapLayer(m.captured(1), fallback);
+    QString layerName = m.captured(1).isEmpty() ? m.captured(2) : m.captured(1);
+    return mapLayer(layerName, fallback);
 }
 
 qreal parseStrokeWidth(const QString& expr, qreal fallback = 0.12) {
