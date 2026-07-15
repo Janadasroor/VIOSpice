@@ -199,6 +199,13 @@ bool renderFootprintToPng(const FootprintDefinition& footprint, const QString& o
             } else if (shape == "RoundedRect") {
                 qreal r = std::min(w, h) * 0.25;
                 painter.drawRoundedRect(padRect, r, r);
+            } else if (shape == "Custom" && prim.data.contains("custom_primitives")) {
+                QJsonArray customPrims = prim.data.value("custom_primitives").toArray();
+                for (const auto& val : customPrims) {
+                    QJsonObject gp = val.toObject();
+                    QPolygonF poly = parsePoints(gp.value("points").toArray());
+                    painter.drawPolygon(poly);
+                }
             } else {
                 painter.drawRect(padRect);
             }

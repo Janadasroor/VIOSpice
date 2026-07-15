@@ -437,6 +437,45 @@ KicadFootprintImporter::ImportReport parseFootprintExpr(const QString& fpExpr) {
             p.data["corner_radius"] = rr * qMin(w, h) * 0.5;
         }
 
+        if (shape == "Custom") {
+            int primsPos = findSExprStart(e, "primitives", 0);
+            if (primsPos >= 0) {
+                QString primsExpr = extractBalancedSExpr(e, primsPos);
+                QJsonArray customPrims;
+                int cursorG = 0;
+                while (true) {
+                    int gpPos = findSExprStart(primsExpr, "gr_poly", cursorG);
+                    if (gpPos < 0) break;
+                    int gpEnd = -1;
+                    QString gpExpr = extractBalancedSExpr(primsExpr, gpPos, &gpEnd);
+                    if (gpExpr.isEmpty()) break;
+                    
+                    int ptsPos = findSExprStart(gpExpr, "pts", 0);
+                    if (ptsPos >= 0) {
+                        QString ptsExpr = extractBalancedSExpr(gpExpr, ptsPos);
+                        QJsonArray pointsArray;
+                        static const QRegularExpression xyRe("\\(xy\\s+([\\-0-9.]+)\\s+([\\-0-9.]+)\\)");
+                        QRegularExpressionMatchIterator it = xyRe.globalMatch(ptsExpr);
+                        while (it.hasNext()) {
+                            QRegularExpressionMatch m = it.next();
+                            QJsonObject pt;
+                            pt["x"] = kx(m.captured(1));
+                            pt["y"] = ky(m.captured(2));
+                            pointsArray.append(pt);
+                        }
+                        if (!pointsArray.isEmpty()) {
+                            QJsonObject polyObj;
+                            polyObj["points"] = pointsArray;
+                            polyObj["width"] = parseStrokeWidth(gpExpr, 0.1);
+                            customPrims.append(polyObj);
+                        }
+                    }
+                    cursorG = qMax(gpPos + 1, gpEnd + 1);
+                }
+                p.data["custom_primitives"] = customPrims;
+            }
+        }
+
         def.addPrimitive(p);
         ++report.padCount;
         cursor = qMax(pos + 1, end + 1);
