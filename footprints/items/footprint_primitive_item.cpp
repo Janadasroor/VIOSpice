@@ -289,5 +289,76 @@ void FootprintTextItem::paint(QPainter* painter, const QStyleOptionGraphicsItem*
     paintSelectionBorder(painter, option);
 }
 
+// --- Polygon ---
+FootprintPolygonItem::FootprintPolygonItem(const Model::FootprintPrimitive& model, QGraphicsItem* parent)
+    : FootprintPrimitiveItem(model, parent)
+{
+}
+
+QRectF FootprintPolygonItem::boundingRect() const {
+    QJsonArray arr = m_model.data.value("points").toArray();
+    if (arr.isEmpty()) return QRectF();
+    QJsonObject firstPt = arr.first().toObject();
+    QRectF r(firstPt["x"].toDouble(), firstPt["y"].toDouble(), 0, 0);
+    for (const auto& val : arr) {
+        QJsonObject pt = val.toObject();
+        r = r.united(QRectF(pt["x"].toDouble(), pt["y"].toDouble(), 0, 0));
+    }
+    qreal w = m_model.data.value("lineWidth").toDouble(0.15);
+    r.adjust(-w/2, -w/2, w/2, w/2);
+    return r;
+}
+
+QPainterPath FootprintPolygonItem::shape() const {
+    QPainterPath path;
+    QJsonArray arr = m_model.data.value("points").toArray();
+    if (arr.isEmpty()) return path;
+    QJsonObject firstPt = arr.first().toObject();
+    path.moveTo(firstPt["x"].toDouble(), firstPt["y"].toDouble());
+    for (int i = 1; i < arr.size(); ++i) {
+        QJsonObject pt = arr[i].toObject();
+        path.lineTo(pt["x"].toDouble(), pt["y"].toDouble());
+    }
+    bool filled = m_model.data.value("filled").toBool(true);
+    if (filled) {
+        path.closeSubpath();
+        return path;
+    } else {
+        QPainterPathStroker stroker;
+        stroker.setWidth(std::max(0.2, m_model.data.value("lineWidth").toDouble(0.15)));
+        return stroker.createStroke(path);
+    }
+}
+
+void FootprintPolygonItem::paint(QPainter* painter, const QStyleOptionGraphicsItem* option, QWidget* widget) {
+    Q_UNUSED(widget);
+    QStyleOptionGraphicsItem opt = *option;
+    prepareOption(&opt);
+
+    QJsonArray arr = m_model.data.value("points").toArray();
+    if (arr.isEmpty()) return;
+    
+    QPolygonF poly;
+    for (const auto& val : arr) {
+        QJsonObject pt = val.toObject();
+        poly << QPointF(pt["x"].toDouble(), pt["y"].toDouble());
+    }
+    
+    QColor color = getLayerColor(m_model.layer);
+    bool filled = m_model.data.value("filled").toBool(true);
+    qreal lw = m_model.data.value("lineWidth").toDouble(0.15);
+    
+    painter->setPen(QPen(color, lw, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+    if (filled) {
+        painter->setBrush(color);
+        painter->drawPolygon(poly);
+    } else {
+        painter->setBrush(Qt::NoBrush);
+        painter->drawPolyline(poly);
+    }
+    
+    paintSelectionBorder(painter, option);
+}
+
 } // namespace Item
 } // namespace Flux

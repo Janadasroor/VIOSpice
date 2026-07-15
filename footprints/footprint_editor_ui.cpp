@@ -1312,6 +1312,7 @@ QGraphicsItem* FootprintEditor::buildVisual(const FootprintPrimitive& prim, int 
         case FootprintPrimitive::Arc:     visual = new FootprintArcItem(prim); break;
         case FootprintPrimitive::Pad:     visual = new FootprintPadItem(prim); break;
         case FootprintPrimitive::Text:    visual = new FootprintTextItem(prim); break;
+        case FootprintPrimitive::Polygon: visual = new FootprintPolygonItem(prim); break;
         default: return nullptr;
     }
 

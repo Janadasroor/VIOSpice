@@ -285,6 +285,10 @@ void FootprintWizardDialog::updatePreview() {
                 visual = new FootprintTextItem(prim);
                 break;
             }
+            case FootprintPrimitive::Polygon: {
+                visual = new FootprintPolygonItem(prim);
+                break;
+            }
             default: break;
         }
 

@@ -86,6 +86,14 @@ public:
     void paint(QPainter* painter, const QStyleOptionGraphicsItem* option, QWidget* widget) override;
 };
 
+class FootprintPolygonItem : public FootprintPrimitiveItem {
+public:
+    explicit FootprintPolygonItem(const Model::FootprintPrimitive& model, QGraphicsItem* parent = nullptr);
+    QRectF boundingRect() const override;
+    QPainterPath shape() const override;
+    void paint(QPainter* painter, const QStyleOptionGraphicsItem* option, QWidget* widget) override;
+};
+
 } // namespace Item
 } // namespace Flux
 
