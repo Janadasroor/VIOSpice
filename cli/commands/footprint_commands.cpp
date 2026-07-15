@@ -89,7 +89,8 @@ bool renderFootprintToPng(const FootprintDefinition& footprint, const QString& o
         return poly;
     };
 
-    for (const auto& prim : footprint.primitives()) {
+    auto drawPrimitiveShape = [&](QPainter& painter, const FootprintPrimitive& prim, QColor overrideColor = QColor()) {
+        QColor color = overrideColor.isValid() ? overrideColor : getFootprintLayerColor(prim.layer);
         switch (prim.type) {
         case FootprintPrimitive::Line: {
             qreal x1 = prim.data.value("x1").toDouble();
@@ -97,7 +98,7 @@ bool renderFootprintToPng(const FootprintDefinition& footprint, const QString& o
             qreal x2 = prim.data.value("x2").toDouble();
             qreal y2 = prim.data.value("y2").toDouble();
             qreal w = prim.data.value("width").toDouble(0.15);
-            painter.setPen(QPen(getFootprintLayerColor(prim.layer), w, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+            painter.setPen(QPen(color, w, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
             painter.drawLine(QPointF(x1, y1), QPointF(x2, y2));
             break;
         }
@@ -108,7 +109,6 @@ bool renderFootprintToPng(const FootprintDefinition& footprint, const QString& o
             qreal h = prim.data.value("height").toDouble();
             qreal lw = prim.data.value("lineWidth").toDouble(0.15);
             bool filled = prim.data.value("filled").toBool();
-            QColor color = getFootprintLayerColor(prim.layer);
             painter.setPen(QPen(color, lw, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
             if (filled) {
                 painter.setBrush(color);
@@ -124,7 +124,6 @@ bool renderFootprintToPng(const FootprintDefinition& footprint, const QString& o
             qreal r = prim.data.value("radius").toDouble();
             qreal lw = prim.data.value("lineWidth").toDouble(0.15);
             bool filled = prim.data.value("filled").toBool();
-            QColor color = getFootprintLayerColor(prim.layer);
             painter.setPen(QPen(color, lw, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
             if (filled) {
                 painter.setBrush(color);
@@ -141,17 +140,31 @@ bool renderFootprintToPng(const FootprintDefinition& footprint, const QString& o
             qreal lw = prim.data.value("lineWidth").toDouble(0.15);
             qreal startAngle = prim.data.value("startAngle").toDouble();
             qreal spanAngle = prim.data.value("spanAngle").toDouble();
-            painter.setPen(QPen(getFootprintLayerColor(prim.layer), lw, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+            painter.setPen(QPen(color, lw, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
             painter.setBrush(Qt::NoBrush);
             painter.drawArc(QRectF(cx - r, cy - r, r * 2.0, r * 2.0), qRound(startAngle * 16.0), qRound(spanAngle * 16.0));
             break;
         }
         case FootprintPrimitive::Polygon: {
             QPolygonF poly = parsePoints(prim.data.value("points").toArray());
-            QColor color = getFootprintLayerColor(prim.layer);
             painter.setPen(QPen(color, 0.15, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
             painter.setBrush(color);
             painter.drawPolygon(poly);
+            break;
+        }
+        default:
+            break;
+        }
+    };
+
+    for (const auto& prim : footprint.primitives()) {
+        switch (prim.type) {
+        case FootprintPrimitive::Line:
+        case FootprintPrimitive::Rect:
+        case FootprintPrimitive::Circle:
+        case FootprintPrimitive::Arc:
+        case FootprintPrimitive::Polygon: {
+            drawPrimitiveShape(painter, prim);
             break;
         }
         case FootprintPrimitive::Text: {
@@ -202,9 +215,8 @@ bool renderFootprintToPng(const FootprintDefinition& footprint, const QString& o
             } else if (shape == "Custom" && prim.data.contains("custom_primitives")) {
                 QJsonArray customPrims = prim.data.value("custom_primitives").toArray();
                 for (const auto& val : customPrims) {
-                    QJsonObject gp = val.toObject();
-                    QPolygonF poly = parsePoints(gp.value("points").toArray());
-                    painter.drawPolygon(poly);
+                    FootprintPrimitive subP = FootprintPrimitive::fromJson(val.toObject());
+                    drawPrimitiveShape(painter, subP, padColor);
                 }
             } else {
                 painter.drawRect(padRect);
