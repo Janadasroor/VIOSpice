@@ -409,6 +409,7 @@ KicadFootprintImporter::ImportReport parseFootprintExpr(const QString& fpExpr) {
         static const QRegularExpression maskMarginRe("\\(solder_mask_margin\\s+([\\-0-9.]+)\\)");
         static const QRegularExpression pasteMarginRe("\\(solder_paste_margin\\s+([\\-0-9.]+)\\)");
         static const QRegularExpression clearanceRe("\\(clearance\\s+([\\-0-9.]+)\\)");
+        static const QRegularExpression offsetRe("\\(offset\\s+([\\-0-9.]+)\\s+([\\-0-9.]+)\\)");
 
         QRegularExpressionMatch mh = headRe.match(e);
         QRegularExpressionMatch ma = atRe.match(e);
@@ -444,6 +445,12 @@ KicadFootprintImporter::ImportReport parseFootprintExpr(const QString& fpExpr) {
             if (!md.captured(2).isEmpty()) {
                 p.data["drill_size_y"] = md.captured(2).toDouble();
             }
+        }
+
+        QRegularExpressionMatch mOffset = offsetRe.match(e);
+        if (mOffset.hasMatch()) {
+            p.data["drill_offset_x"] = kx(mOffset.captured(1));
+            p.data["drill_offset_y"] = ky(mOffset.captured(2));
         }
 
         QRegularExpressionMatch ml = layersRe.match(e);
