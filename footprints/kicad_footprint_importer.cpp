@@ -292,6 +292,32 @@ KicadFootprintImporter::ImportReport parseFootprintExpr(const QString& fpExpr) {
                 def.addPrimitive(p);
                 ++report.arcCount;
             }
+        } else {
+            // Check for legacy center/angle format
+            static const QRegularExpression startRe("\\(start\\s+([\\-0-9.]+)\\s+([\\-0-9.]+)\\)");
+            static const QRegularExpression endRe("\\(end\\s+([\\-0-9.]+)\\s+([\\-0-9.]+)\\)");
+            static const QRegularExpression angleRe("\\(angle\\s+([\\-0-9.]+)\\)");
+            
+            QRegularExpressionMatch mStart = startRe.match(e);
+            QRegularExpressionMatch mEnd = endRe.match(e);
+            QRegularExpressionMatch mAngle = angleRe.match(e);
+            
+            if (mStart.hasMatch() && mEnd.hasMatch() && mAngle.hasMatch()) {
+                QPointF c(kx(mStart.captured(1)), ky(mStart.captured(2)));
+                QPointF s(kx(mEnd.captured(1)), ky(mEnd.captured(2)));
+                qreal angleVal = mAngle.captured(1).toDouble();
+                
+                qreal dx = s.x() - c.x();
+                qreal dy = s.y() - c.y();
+                qreal r = std::sqrt(dx*dx + dy*dy);
+                qreal startDeg = std::atan2(dy, dx) * 180.0 / M_PI;
+                qreal spanDeg = -angleVal;
+                
+                FootprintPrimitive p = FootprintPrimitive::createArc(c, r, startDeg, spanDeg, parseStrokeWidth(e, 0.12));
+                p.layer = extractLayer(e, FootprintPrimitive::Top_Silkscreen);
+                def.addPrimitive(p);
+                ++report.arcCount;
+            }
         }
         cursor = qMax(pos + 1, end + 1);
     }
@@ -457,6 +483,8 @@ KicadFootprintImporter::ImportReport parseFootprintExpr(const QString& fpExpr) {
             if (primsPos >= 0) {
                 QString primsExpr = extractBalancedSExpr(e, primsPos);
                 QJsonArray customPrims;
+                
+                // 1. gr_poly
                 int cursorG = 0;
                 while (true) {
                     int gpPos = findSExprStart(primsExpr, "gr_poly", cursorG);
@@ -479,14 +507,126 @@ KicadFootprintImporter::ImportReport parseFootprintExpr(const QString& fpExpr) {
                             pointsArray.append(pt);
                         }
                         if (!pointsArray.isEmpty()) {
-                            QJsonObject polyObj;
-                            polyObj["points"] = pointsArray;
-                            polyObj["width"] = parseStrokeWidth(gpExpr, 0.1);
-                            customPrims.append(polyObj);
+                            FootprintPrimitive subP;
+                            subP.type = FootprintPrimitive::Polygon;
+                            subP.layer = p.layer;
+                            QJsonObject sData;
+                            sData["points"] = pointsArray;
+                            sData["lineWidth"] = parseStrokeWidth(gpExpr, 0.1);
+                            sData["filled"] = true;
+                            subP.data = sData;
+                            customPrims.append(subP.toJson());
                         }
                     }
                     cursorG = qMax(gpPos + 1, gpEnd + 1);
                 }
+                
+                // 2. gr_line
+                int glCursor = 0;
+                while (true) {
+                    int gpPos = findSExprStart(primsExpr, "gr_line", glCursor);
+                    if (gpPos < 0) break;
+                    int gpEnd = -1;
+                    QString gpExpr = extractBalancedSExpr(primsExpr, gpPos, &gpEnd);
+                    if (gpExpr.isEmpty()) break;
+                    static const QRegularExpression re("\\(start\\s+([\\-0-9.]+)\\s+([\\-0-9.]+)\\)[\\s\\S]*?\\(end\\s+([\\-0-9.]+)\\s+([\\-0-9.]+)\\)");
+                    QRegularExpressionMatch m = re.match(gpExpr);
+                    if (m.hasMatch()) {
+                        QPointF p1(kx(m.captured(1)), ky(m.captured(2)));
+                        QPointF p2(kx(m.captured(3)), ky(m.captured(4)));
+                        FootprintPrimitive subP = FootprintPrimitive::createLine(p1, p2, parseStrokeWidth(gpExpr, 0.1));
+                        subP.layer = p.layer;
+                        customPrims.append(subP.toJson());
+                    }
+                    glCursor = qMax(gpPos + 1, gpEnd + 1);
+                }
+                
+                // 3. gr_circle
+                int gcCursor = 0;
+                while (true) {
+                    int gpPos = findSExprStart(primsExpr, "gr_circle", gcCursor);
+                    if (gpPos < 0) break;
+                    int gpEnd = -1;
+                    QString gpExpr = extractBalancedSExpr(primsExpr, gpPos, &gpEnd);
+                    if (gpExpr.isEmpty()) break;
+                    static const QRegularExpression re("\\(center\\s+([\\-0-9.]+)\\s+([\\-0-9.]+)\\)[\\s\\S]*?\\(end\\s+([\\-0-9.]+)\\s+([\\-0-9.]+)\\)");
+                    QRegularExpressionMatch m = re.match(gpExpr);
+                    if (m.hasMatch()) {
+                        QPointF c(kx(m.captured(1)), ky(m.captured(2)));
+                        QPointF pe(kx(m.captured(3)), ky(m.captured(4)));
+                        FootprintPrimitive subP = FootprintPrimitive::createCircle(c, QLineF(c, pe).length(), false, parseStrokeWidth(gpExpr, 0.1));
+                        subP.layer = p.layer;
+                        customPrims.append(subP.toJson());
+                    }
+                    gcCursor = qMax(gpPos + 1, gpEnd + 1);
+                }
+                
+                // 4. gr_arc
+                int gaCursor = 0;
+                while (true) {
+                    int gpPos = findSExprStart(primsExpr, "gr_arc", gaCursor);
+                    if (gpPos < 0) break;
+                    int gpEnd = -1;
+                    QString gpExpr = extractBalancedSExpr(primsExpr, gpPos, &gpEnd);
+                    if (gpExpr.isEmpty()) break;
+                    static const QRegularExpression re("\\(start\\s+([\\-0-9.]+)\\s+([\\-0-9.]+)\\)[\\s\\S]*?\\(mid\\s+([\\-0-9.]+)\\s+([\\-0-9.]+)\\)[\\s\\S]*?\\(end\\s+([\\-0-9.]+)\\s+([\\-0-9.]+)\\)");
+                    QRegularExpressionMatch m = re.match(gpExpr);
+                    if (m.hasMatch()) {
+                        QPointF p1(kx(m.captured(1)), ky(m.captured(2)));
+                        QPointF p2(kx(m.captured(3)), ky(m.captured(4)));
+                        QPointF p3(kx(m.captured(5)), ky(m.captured(6)));
+                        QPointF c;
+                        qreal r = 0.0;
+                        qreal startDeg = 0.0;
+                        qreal spanDeg = 0.0;
+                        if (arcFrom3Points(p1, p2, p3, c, r, startDeg, spanDeg)) {
+                            FootprintPrimitive subP = FootprintPrimitive::createArc(c, r, startDeg, spanDeg, parseStrokeWidth(gpExpr, 0.1));
+                            subP.layer = p.layer;
+                            customPrims.append(subP.toJson());
+                        }
+                    } else {
+                        static const QRegularExpression startRe("\\(start\\s+([\\-0-9.]+)\\s+([\\-0-9.]+)\\)");
+                        static const QRegularExpression endRe("\\(end\\s+([\\-0-9.]+)\\s+([\\-0-9.]+)\\)");
+                        static const QRegularExpression angleRe("\\(angle\\s+([\\-0-9.]+)\\)");
+                        QRegularExpressionMatch mStart = startRe.match(gpExpr);
+                        QRegularExpressionMatch mEnd = endRe.match(gpExpr);
+                        QRegularExpressionMatch mAngle = angleRe.match(gpExpr);
+                        if (mStart.hasMatch() && mEnd.hasMatch() && mAngle.hasMatch()) {
+                            QPointF c(kx(mStart.captured(1)), ky(mStart.captured(2)));
+                            QPointF s(kx(mEnd.captured(1)), ky(mEnd.captured(2)));
+                            qreal angleVal = mAngle.captured(1).toDouble();
+                            qreal dx = s.x() - c.x();
+                            qreal dy = s.y() - c.y();
+                            qreal r = std::sqrt(dx*dx + dy*dy);
+                            qreal startDeg = std::atan2(dy, dx) * 180.0 / M_PI;
+                            qreal spanDeg = -angleVal;
+                            FootprintPrimitive subP = FootprintPrimitive::createArc(c, r, startDeg, spanDeg, parseStrokeWidth(gpExpr, 0.1));
+                            subP.layer = p.layer;
+                            customPrims.append(subP.toJson());
+                        }
+                    }
+                    gaCursor = qMax(gpPos + 1, gpEnd + 1);
+                }
+                
+                // 5. gr_rect
+                int grCursor = 0;
+                while (true) {
+                    int gpPos = findSExprStart(primsExpr, "gr_rect", grCursor);
+                    if (gpPos < 0) break;
+                    int gpEnd = -1;
+                    QString gpExpr = extractBalancedSExpr(primsExpr, gpPos, &gpEnd);
+                    if (gpExpr.isEmpty()) break;
+                    static const QRegularExpression re("\\(start\\s+([\\-0-9.]+)\\s+([\\-0-9.]+)\\)[\\s\\S]*?\\(end\\s+([\\-0-9.]+)\\s+([\\-0-9.]+)\\)");
+                    QRegularExpressionMatch m = re.match(gpExpr);
+                    if (m.hasMatch()) {
+                        QRectF r(QPointF(kx(m.captured(1)), ky(m.captured(2))), QPointF(kx(m.captured(3)), ky(m.captured(4))));
+                        FootprintPrimitive subP = FootprintPrimitive::createRect(r.normalized(), false, parseStrokeWidth(gpExpr, 0.1));
+                        subP.layer = p.layer;
+                        customPrims.append(subP.toJson());
+                    }
+                    grCursor = qMax(gpPos + 1, gpEnd + 1);
+                }
+                
                 p.data["custom_primitives"] = customPrims;
             }
         }
