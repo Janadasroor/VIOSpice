@@ -11,6 +11,7 @@
 ControlledSourceItem::ControlledSourceItem(Type type, QPointF pos, QGraphicsItem* parent)
     : SchematicItem(parent)
     , m_type(type) {
+    setExcludeFromPcb(true);
     setPos(pos);
     setFlags(QGraphicsItem::ItemIsSelectable |
              QGraphicsItem::ItemIsMovable |

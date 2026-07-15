@@ -13,6 +13,7 @@ VoltageControlledSwitchItem::VoltageControlledSwitchItem(QPointF pos, QGraphicsI
       m_roff("1Meg"),
       m_vt("0.5"),
       m_vh("0.1") {
+    setExcludeFromPcb(true);
     setPos(pos);
     setFlags(QGraphicsItem::ItemIsSelectable | QGraphicsItem::ItemIsMovable | QGraphicsItem::ItemSendsGeometryChanges);
     setReference("S1");
