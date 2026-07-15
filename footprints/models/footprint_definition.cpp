@@ -153,6 +153,18 @@ QRectF FootprintDefinition::boundingRect() const {
             // Approximation for text
             qreal h = prim.data["height"].toDouble();
             primRect = QRectF(prim.data["x"].toDouble(), prim.data["y"].toDouble(), h * 5, h);
+        } else if (prim.type == FootprintPrimitive::Polygon) {
+            const QJsonArray pts = prim.data["points"].toArray();
+            if (!pts.isEmpty()) {
+                QJsonObject firstPt = pts.first().toObject();
+                primRect = QRectF(firstPt["x"].toDouble(), firstPt["y"].toDouble(), 0.0, 0.0);
+                for (const QJsonValue& v : pts) {
+                    const QJsonObject o = v.toObject();
+                    primRect = primRect.united(QRectF(o["x"].toDouble(), o["y"].toDouble(), 0.0, 0.0));
+                }
+                qreal w = prim.data["lineWidth"].toDouble(0.15);
+                primRect.adjust(-w/2, -w/2, w/2, w/2);
+            }
         } else if (prim.type == FootprintPrimitive::Dimension) {
             primRect = QRectF(prim.data["x1"].toDouble(), prim.data["y1"].toDouble(), 0, 0);
             primRect = primRect.united(QRectF(prim.data["x2"].toDouble(), prim.data["y2"].toDouble(), 0, 0));

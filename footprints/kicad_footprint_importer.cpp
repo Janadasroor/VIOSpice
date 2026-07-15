@@ -322,6 +322,64 @@ KicadFootprintImporter::ImportReport parseFootprintExpr(const QString& fpExpr) {
         cursor = qMax(pos + 1, end + 1);
     }
 
+    // fp_curve
+    cursor = 0;
+    while (true) {
+        int pos = findSExprStart(fpExpr, "fp_curve", cursor);
+        if (pos < 0) break;
+        int end = -1;
+        QString e = extractBalancedSExpr(fpExpr, pos, &end);
+        if (e.isEmpty()) break;
+
+        int ptsPos = findSExprStart(e, "pts", 0);
+        if (ptsPos >= 0) {
+            QString ptsExpr = extractBalancedSExpr(e, ptsPos);
+            QList<QPointF> ctrlPts;
+            static const QRegularExpression xyRe("\\(xy\\s+([\\-0-9.]+)\\s+([\\-0-9.]+)\\)");
+            QRegularExpressionMatchIterator it = xyRe.globalMatch(ptsExpr);
+            while (it.hasNext()) {
+                QRegularExpressionMatch m = it.next();
+                ctrlPts.append(QPointF(kx(m.captured(1)), ky(m.captured(2))));
+            }
+
+            if (ctrlPts.size() == 4) {
+                QJsonArray pointsArray;
+                const int steps = 16;
+                for (int i = 0; i <= steps; ++i) {
+                    qreal t = (qreal)i / steps;
+                    qreal omt = 1.0 - t;
+                    qreal omt2 = omt * omt;
+                    qreal omt3 = omt2 * omt;
+                    qreal t2 = t * t;
+                    qreal t3 = t2 * t;
+                    
+                    QPointF pt = omt3 * ctrlPts[0] +
+                                 3.0 * omt2 * t * ctrlPts[1] +
+                                 3.0 * omt * t2 * ctrlPts[2] +
+                                 t3 * ctrlPts[3];
+                    
+                    QJsonObject ptObj;
+                    ptObj["x"] = pt.x();
+                    ptObj["y"] = pt.y();
+                    pointsArray.append(ptObj);
+                }
+
+                FootprintPrimitive p;
+                p.type = FootprintPrimitive::Polygon;
+                p.layer = extractLayer(e, FootprintPrimitive::Top_Silkscreen);
+                
+                QJsonObject data;
+                data["points"] = pointsArray;
+                data["lineWidth"] = parseStrokeWidth(e, 0.15);
+                data["filled"] = false;
+                p.data = data;
+                
+                def.addPrimitive(p);
+            }
+        }
+        cursor = qMax(pos + 1, end + 1);
+    }
+
     // fp_text
     cursor = 0;
     while (true) {
@@ -676,10 +734,10 @@ KicadFootprintImporter::ImportReport parseFootprintExpr(const QString& fpExpr) {
 
     // Collect unsupported graphic primitives for visibility.
     static const QSet<QString> handled = {
-        "fp_line", "fp_rect", "fp_circle", "fp_arc", "fp_text", "fp_poly", "pad", "model"
+        "fp_line", "fp_rect", "fp_circle", "fp_arc", "fp_text", "fp_poly", "fp_curve", "zone", "pad", "model"
     };
     QMap<QString, int> unknownKinds;
-    static const QRegularExpression anyPrimRe("\\((fp_[a-z_]+|pad|model)\\b");
+    static const QRegularExpression anyPrimRe("\\((fp_[a-z_]+|pad|model|zone)\\b");
     QRegularExpressionMatchIterator it = anyPrimRe.globalMatch(fpExpr);
     while (it.hasNext()) {
         const QString kind = it.next().captured(1);

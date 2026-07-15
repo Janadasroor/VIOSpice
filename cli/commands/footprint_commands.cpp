@@ -147,9 +147,16 @@ bool renderFootprintToPng(const FootprintDefinition& footprint, const QString& o
         }
         case FootprintPrimitive::Polygon: {
             QPolygonF poly = parsePoints(prim.data.value("points").toArray());
-            painter.setPen(QPen(color, 0.15, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
-            painter.setBrush(color);
-            painter.drawPolygon(poly);
+            bool filled = prim.data.value("filled").toBool(true);
+            qreal lw = prim.data.value("lineWidth").toDouble(0.15);
+            painter.setPen(QPen(color, lw, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+            if (filled) {
+                painter.setBrush(color);
+                painter.drawPolygon(poly);
+            } else {
+                painter.setBrush(Qt::NoBrush);
+                painter.drawPolyline(poly);
+            }
             break;
         }
         default:
