@@ -13,6 +13,7 @@
 SystemVerilogBlockItem::SystemVerilogBlockItem(QPointF pos, QGraphicsItem* parent)
     : SchematicItem(parent)
     , m_size(120, 60) {
+    setExcludeFromPcb(true);
     setPos(pos);
     setFlags(QGraphicsItem::ItemIsSelectable |
              QGraphicsItem::ItemIsMovable |

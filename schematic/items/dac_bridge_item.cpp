@@ -9,6 +9,7 @@
 
 DacBridgeItem::DacBridgeItem(QPointF pos, QGraphicsItem* parent)
     : SchematicItem(parent) {
+    setExcludeFromPcb(true);
     setPos(pos);
     setFlags(QGraphicsItem::ItemIsSelectable |
              QGraphicsItem::ItemIsMovable |

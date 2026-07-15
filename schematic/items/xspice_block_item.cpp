@@ -952,6 +952,7 @@ const QVector<XspiceModelDef>& XspiceBlockItem::modelDatabase() {
 
 XspiceBlockItem::XspiceBlockItem(QGraphicsItem* parent)
     : SchematicItem(parent) {
+    setExcludeFromPcb(true);
     setModelType("gain");
     setFlag(QGraphicsItem::ItemIsSelectable, true);
     setFlag(QGraphicsItem::ItemIsMovable, true);
@@ -959,6 +960,7 @@ XspiceBlockItem::XspiceBlockItem(QGraphicsItem* parent)
 
 XspiceBlockItem::XspiceBlockItem(const QString& modelType, QGraphicsItem* parent)
     : SchematicItem(parent) {
+    setExcludeFromPcb(true);
     setModelType(modelType);
     setFlag(QGraphicsItem::ItemIsSelectable, true);
     setFlag(QGraphicsItem::ItemIsMovable, true);

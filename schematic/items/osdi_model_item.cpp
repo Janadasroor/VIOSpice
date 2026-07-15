@@ -23,6 +23,7 @@
 OsdiModelItem::OsdiModelItem(QPointF pos, QGraphicsItem* parent)
     : SchematicItem(parent)
     , m_size(100, 60) {
+    setExcludeFromPcb(true);
     setPos(pos);
     setFlags(QGraphicsItem::ItemIsSelectable |
              QGraphicsItem::ItemIsMovable |
