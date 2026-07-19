@@ -70,8 +70,8 @@ private:
     std::atomic<bool> m_stopRequested { false };
     std::atomic<bool> m_netlistPending { false };
     std::atomic<bool> m_ngspiceRunning { false };
-    qint64 m_wallStartMs = 0;
-    double m_latestSimTime = 0.0;
+    std::atomic<qint64> m_wallStartMs{0};
+    std::atomic<double> m_latestSimTime{0.0};
 
     void resetRunState();
     void wallClockThrottle(double simulationTimeSeconds);

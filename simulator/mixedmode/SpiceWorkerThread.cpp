@@ -83,7 +83,7 @@ void SpiceWorkerThread::run() {
         }
 
         m_ngspiceRunning.store(true);
-        m_wallStartMs = QDateTime::currentMSecsSinceEpoch();
+        m_wallStartMs.store(QDateTime::currentMSecsSinceEpoch());
         QByteArray cmd = "bg_run";
         ngSpice_Command(cmd.data());
 
@@ -110,14 +110,14 @@ void SpiceWorkerThread::resetRunState() {
     QMutexLocker locker(&m_stateMutex);
     m_digitalStates.clear();
     m_logQueue.clear();
-    m_latestSimTime = 0.0;
+    m_latestSimTime.store(0.0);
     m_stopRequested.store(false);
 }
 
 void SpiceWorkerThread::wallClockThrottle(double simulationTimeSeconds) {
-    m_latestSimTime = simulationTimeSeconds;
+    m_latestSimTime.store(simulationTimeSeconds);
     const qint64 targetElapsedMs = static_cast<qint64>(simulationTimeSeconds * 1000.0);
-    const qint64 actualElapsedMs = QDateTime::currentMSecsSinceEpoch() - m_wallStartMs;
+    const qint64 actualElapsedMs = QDateTime::currentMSecsSinceEpoch() - m_wallStartMs.load();
     if (targetElapsedMs > actualElapsedMs) {
         msleep(static_cast<unsigned long>(targetElapsedMs - actualElapsedMs));
     }

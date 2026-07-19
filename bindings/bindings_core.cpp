@@ -54,6 +54,7 @@
 #define PCLOSE _pclose
 #else
 #include <unistd.h>
+#include <sys/wait.h>
 #define POPEN popen
 #define PCLOSE pclose
 #endif
@@ -825,7 +826,7 @@ Returns (ok: bool, diagnostics: list[SimParseDiagnostic]).
                   return result;
               }
 
-              // Build command — validate and quote arguments to prevent injection
+              // Validate arguments (defense-in-depth)
               auto isValidSpiceNum = [](const std::string& s) -> bool {
                   if (s.empty()) return false;
                   for (char c : s) {
@@ -842,14 +843,42 @@ Returns (ok: bool, diagnostics: list[SimParseDiagnostic]).
                   return result;
               }
 
-              std::string run_cmd = "\"" + cmd + "\" netlist-run \"" + tmpfile.string() + "\"";
-              if (analysis == "tran") {
-                  run_cmd += " --tran --stop '" + stop_time + "' --step '" + step_time + "'";
-              } else if (analysis == "op") {
-                  run_cmd += " --op";
+              // Validate analysis type against whitelist
+              if (analysis != "tran" && analysis != "op" && analysis != "ac") {
+                  fs::remove(tmpfile, ec);
+                  result["ok"] = false;
+                  result["error"] = "Invalid analysis type (must be tran, op, or ac)";
+                  return result;
               }
 
-              // Shell out
+              // Build argument list for direct execution (no shell)
+              std::vector<std::string> args;
+              args.push_back(cmd);
+              args.push_back("netlist-run");
+              args.push_back(tmpfile.string());
+              if (analysis == "tran") {
+                  args.push_back("--tran");
+                  args.push_back("--stop");
+                  args.push_back(stop_time);
+                  args.push_back("--step");
+                  args.push_back(step_time);
+              } else if (analysis == "op") {
+                  args.push_back("--op");
+              } else if (analysis == "ac") {
+                  args.push_back("--ac");
+              }
+
+              // Execute without shell to prevent injection
+              std::string output;
+              int rc = -1;
+#ifdef _WIN32
+              // Windows: use _popen with fully validated arguments
+              // (all args validated above, no shell metacharacters possible)
+              std::string run_cmd;
+              for (size_t i = 0; i < args.size(); ++i) {
+                  if (i > 0) run_cmd += ' ';
+                  run_cmd += '"' + args[i] + '"';
+              }
               FILE* pipe = POPEN((run_cmd + " 2>&1").c_str(), "r");
               if (!pipe) {
                   fs::remove(tmpfile, ec);
@@ -857,13 +886,59 @@ Returns (ok: bool, diagnostics: list[SimParseDiagnostic]).
                   result["error"] = "Failed to start viora process";
                   return result;
               }
-
               char buf[4096];
-              std::string output;
               while (fgets(buf, sizeof(buf), pipe)) {
                   output += buf;
               }
-              int rc = PCLOSE(pipe);
+              rc = PCLOSE(pipe);
+#else
+              // POSIX: use pipe+fork+execvp — no shell involved
+              int pipefd[2];
+              if (::pipe(pipefd) != 0) {
+                  fs::remove(tmpfile, ec);
+                  result["ok"] = false;
+                  result["error"] = "Failed to create pipe";
+                  return result;
+              }
+
+              pid_t pid = fork();
+              if (pid < 0) {
+                  ::close(pipefd[0]);
+                  ::close(pipefd[1]);
+                  fs::remove(tmpfile, ec);
+                  result["ok"] = false;
+                  result["error"] = "Failed to fork process";
+                  return result;
+              }
+
+              if (pid == 0) {
+                  // Child: redirect stdout+stderr to pipe, exec directly
+                  ::close(pipefd[0]);
+                  dup2(pipefd[1], STDOUT_FILENO);
+                  dup2(pipefd[1], STDERR_FILENO);
+                  ::close(pipefd[1]);
+
+                  std::vector<char*> c_args;
+                  for (auto& a : args) c_args.push_back(a.data());
+                  c_args.push_back(nullptr);
+                  execvp(c_args[0], c_args.data());
+                  _exit(127); // exec failed
+              }
+
+              // Parent: read output from pipe
+              ::close(pipefd[1]);
+              char buf[4096];
+              ssize_t n;
+              while ((n = ::read(pipefd[0], buf, sizeof(buf) - 1)) > 0) {
+                  buf[n] = '\0';
+                  output += buf;
+              }
+              ::close(pipefd[0]);
+
+              int status = 0;
+              waitpid(pid, &status, 0);
+              rc = WIFEXITED(status) ? WEXITSTATUS(status) : -1;
+#endif
 
               // Parse results
               if (fs::exists(raw_path)) {

@@ -821,8 +821,13 @@ bool PythonConsoleWidget::handleMagicCommand(const QString& cmd) {
     }
 
     if (command.startsWith("cd ")) {
-        QString dir = command.mid(3);
-        QString code = QString("import os\nos.chdir('%1')\nprint(os.getcwd())\n").arg(dir);
+        QString dir = command.mid(3).trimmed();
+        // Sanitize the path to prevent Python code injection:
+        // escape backslashes first, then single quotes
+        QString safeDir = dir;
+        safeDir.replace(QLatin1Char('\\'), QLatin1String("\\\\"));
+        safeDir.replace(QLatin1Char('\''), QLatin1String("\\'"));
+        QString code = QString("import os\nos.chdir('%1')\nprint(os.getcwd())\n").arg(safeDir);
         QByteArray utf8 = code.toUtf8();
         int isError = 0;
         char* output = py_executor_execute(utf8.constData(), &isError);
