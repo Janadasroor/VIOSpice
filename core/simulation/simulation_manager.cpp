@@ -390,7 +390,7 @@ void SimulationManager::runSimulation(const QString& netlist, SimControl* contro
     SpiceBackend::instance().execute("set filetype=binary");
     
     setState(SimulationState::Running);
-    if (m_streamingControl) QMetaObject::invokeMethod(m_bufferTimer, "start", Qt::QueuedConnection);
+    { std::lock_guard<std::mutex> lock(m_controlMutex); if (m_streamingControl) QMetaObject::invokeMethod(m_bufferTimer, "start", Qt::QueuedConnection); }
     int rc = SpiceBackend::instance().execute("bg_run");
 
     if (rc != 0 || m_lastLoadFailed) {
@@ -410,7 +410,7 @@ bool SimulationManager::validateNetlist(const QString& netlist, QString* errorOu
     if (!recoverEngineIfNeeded()) { if (errorOut) *errorOut = "Failed to recover engine."; return false; }
     if (!m_isInitialized) initialize();
 
-    m_currentNetlist = netlist;
+    { std::lock_guard<std::mutex> lock(m_netlistMutex); m_currentNetlist = netlist; }
     return loadNetlistInternal(netlist, false, errorOut);
 }
 
@@ -590,7 +590,7 @@ void SimulationManager::sendInternalCommand(const QString& command) {
     else if (command == "bg_resume") { 
         // NOTE: Don't set Running state here - wait for handleEngineStateChange callback
         // to confirm ngspice has actually resumed. This prevents race conditions.
-        if (m_streamingControl) QMetaObject::invokeMethod(m_bufferTimer, "start", Qt::QueuedConnection);
+        { std::lock_guard<std::mutex> lock(m_controlMutex); if (m_streamingControl) QMetaObject::invokeMethod(m_bufferTimer, "start", Qt::QueuedConnection); }
     }
     SpiceBackend::instance().execute(command);
 #endif
@@ -940,7 +940,7 @@ void SimulationManager::handleEngineStateChange(bool finished, int id) {
     } else if (!finished && !isPaused) {
         // === Engine Running/Resumed ===
         setState(SimulationState::Running);
-        if (m_streamingControl) QMetaObject::invokeMethod(m_bufferTimer, "start", Qt::QueuedConnection);
+        { std::lock_guard<std::mutex> lock(m_controlMutex); if (m_streamingControl) QMetaObject::invokeMethod(m_bufferTimer, "start", Qt::QueuedConnection); }
         m_haltRequested = false; 
         {
             std::lock_guard<std::mutex> lock(m_workerSyncMutex);

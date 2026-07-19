@@ -594,6 +594,13 @@ add_subdirectory(viora_ide)
 option(VIOSPICE_ENABLE_TESTS "Enable tests" ON)
 if(BUILD_TESTING AND VIOSPICE_ENABLE_TESTS)
     add_subdirectory(tests)
+
+    # Convenience: run only fast tests
+    add_custom_target(quick-test
+        COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure -L fast
+        COMMENT "Running fast unit/regression tests only"
+        WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
+    )
 endif()
 
 option(BUILD_VIOSPICE_CLI "Build the CLI tool" ON)
