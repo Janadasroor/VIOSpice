@@ -154,3 +154,16 @@ QStringList LibraryIndex::getCategories(const QString& type) {
     }
     return cats;
 }
+
+bool LibraryIndex::beginTransaction() {
+    QSqlDatabase database = db();
+    if (!database.isOpen()) return false;
+    return database.transaction();
+}
+
+bool LibraryIndex::commitTransaction() {
+    QSqlDatabase database = db();
+    if (!database.isOpen()) return false;
+    return database.commit();
+}
+
