@@ -2,9 +2,10 @@
 import os
 import sys
 import re
-import time
+import json
 import subprocess
 import argparse
+from multiprocessing import Pool
 
 def get_symbols_in_file(filepath):
     symbols = []
@@ -19,7 +20,8 @@ def get_symbols_in_file(filepath):
         print(f"Failed to read {filepath}: {e}", file=sys.stderr)
     return symbols
 
-def convert_single_symbol(viora_path, filepath, category, symbol_name, target_dir):
+def convert_single_symbol(task):
+    viora_path, filepath, category, symbol_name, target_dir = task
     sanitized_symbol_name = symbol_name.replace("/", "_").replace("\\", "_")
     target_path = os.path.join(target_dir, f"{sanitized_symbol_name}.viosym")
     
@@ -47,7 +49,7 @@ def main():
     parser.add_argument("--kicad-sym-dir", default="/home/jnd/electronic-projects/kicad-symbols-v6", help="Path to cloned kicad-symbols S-expression directory")
     parser.add_argument("--target-dir", default="/home/jnd/ViospiceLib/sym", help="Target dir to write converted viosyms")
     parser.add_argument("--category", help="Only convert libraries matching this category name (e.g. Connector)")
-    parser.add_argument("--delay", type=float, default=0.01, help="Sleep delay in seconds between conversions to prevent CPU hogging")
+    parser.add_argument("--workers", type=int, default=3, help="Number of parallel workers (capped default to avoid machine lockup)")
     
     args = parser.parse_args()
     
@@ -99,23 +101,14 @@ def main():
         print("No symbols discovered. Exiting.")
         return
         
-    print(f"Converting sequentially with a {args.delay}s delay between iterations...")
+    print(f"Converting using {args.workers} parallel workers...")
     
     success_count = 0
-    total_tasks = len(tasks)
-    
-    for i, (viora_path, filepath, category, sym, cat_target_dir) in enumerate(tasks):
-        res = convert_single_symbol(viora_path, filepath, category, sym, cat_target_dir)
-        if res:
-            success_count += 1
+    with Pool(args.workers) as pool:
+        results = pool.map(convert_single_symbol, tasks)
+        success_count = sum(1 for r in results if r)
         
-        if i % 100 == 0 or i == total_tasks - 1:
-            print(f"Progress: {i+1}/{total_tasks} processed...")
-            
-        if args.delay > 0:
-            time.sleep(args.delay)
-        
-    print(f"Conversion complete: Successfully converted {success_count}/{total_tasks} symbols.")
+    print(f"Conversion complete: Successfully converted {success_count}/{len(tasks)} symbols.")
 
 if __name__ == "__main__":
     main()
