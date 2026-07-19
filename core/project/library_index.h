@@ -28,6 +28,8 @@ public:
     static LibraryIndex& instance();
 
     bool initialize();
+    bool beginTransaction();
+    bool commitTransaction();
     
     // Indexing
     void addFootprint(const QString& name, const QString& library, const QString& category, const QString& tags = QString());

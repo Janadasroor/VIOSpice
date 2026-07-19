@@ -6,6 +6,7 @@
 #include "footprint_library.h"
 #include "../core/project/library_index.h"
 #include <QDir>
+#include <QDirIterator>
 #include <QFile>
 #include <QJsonDocument>
 #include <QDebug>
@@ -145,6 +146,7 @@ FootprintLibraryManager::~FootprintLibraryManager() {
 
 void FootprintLibraryManager::initialize() {
     LibraryIndex::instance().initialize();
+    LibraryIndex::instance().beginTransaction();
     
     // 1. Load Built-in from Resources
     FootprintLibrary* builtin = new FootprintLibrary("Built-in Standard", ":/library/builtin.fplib", true);
@@ -158,18 +160,25 @@ void FootprintLibraryManager::initialize() {
     // Seed a richer default library set in user space on first run.
     createDefaultBuiltInLibrary();
 
-    // 3. Scan for user directory libraries (category folders)
-    QDir userDir(baseDir);
-    QFileInfoList subdirs = userDir.entryInfoList(QDir::Dirs | QDir::NoDotAndDotDot);
-    for (const QFileInfo& dirInfo : subdirs) {
-        addLibrary(dirInfo.absoluteFilePath());
+    // 3. Scan recursively for footprint library directories (any directory containing .json files)
+    QSet<QString> libraryPaths;
+    QDirIterator it(baseDir, QStringList() << "*.json", QDir::Files, QDirIterator::Subdirectories);
+    while (it.hasNext()) {
+        it.next();
+        libraryPaths.insert(it.fileInfo().absolutePath());
+    }
+    for (const QString& libPath : libraryPaths) {
+        addLibrary(libPath);
     }
 
     // 4. Scan for standalone .fplib libraries dropped into user footprint root.
+    QDir userDir(baseDir);
     const QFileInfoList fplibFiles = userDir.entryInfoList(QStringList() << "*.fplib", QDir::Files);
     for (const QFileInfo& fileInfo : fplibFiles) {
         addLibrary(fileInfo.absoluteFilePath());
     }
+
+    LibraryIndex::instance().commitTransaction();
 }
 
 void FootprintLibraryManager::loadBuiltInLibrary() {
@@ -346,8 +355,18 @@ void FootprintLibraryManager::createDefaultBuiltInLibrary() {
 void FootprintLibraryManager::addLibrary(const QString& path) {
     QFileInfo info(path);
     QString name;
-    if (info.isFile()) name = info.completeBaseName();
-    else name = QDir(path).dirName();
+    if (info.isFile()) {
+        name = info.completeBaseName();
+    } else {
+        QString baseDir = QDir::cleanPath(QDir::homePath() + "/ViospiceLib/footprints");
+        QString cleanPath = QDir::cleanPath(path);
+        if (cleanPath.startsWith(baseDir)) {
+            name = cleanPath.mid(baseDir.length());
+            if (name.startsWith('/')) name = name.mid(1);
+        } else {
+            name = QDir(path).dirName();
+        }
+    }
     if (name.isEmpty()) name = "User Library";
     
     // Check if already exists
@@ -384,17 +403,54 @@ FootprintLibrary* FootprintLibraryManager::findLibrary(const QString& name) {
 }
 
 FootprintDefinition FootprintLibraryManager::findFootprint(const QString& name) const {
+    // 1. Try exact lookup
     for (auto* lib : m_libraries) {
         if (lib->hasFootprint(name)) return lib->getFootprint(name);
     }
+    
+    // 2. Try library/footprint path lookup (e.g. "kicad/Diode_SMD/D_SOD-123" or "kicad/Diode_SMD/D_SOD-123.json")
+    QString cleanName = name;
+    if (cleanName.endsWith(".json", Qt::CaseInsensitive)) {
+        cleanName = cleanName.left(cleanName.length() - 5);
+    }
+    
+    int lastSlash = cleanName.lastIndexOf('/');
+    if (lastSlash == -1) {
+        lastSlash = cleanName.lastIndexOf('\\');
+    }
+    
+    if (lastSlash != -1) {
+        QString libPart = cleanName.left(lastSlash);
+        QString fpPart = cleanName.mid(lastSlash + 1);
+        
+        for (auto* lib : m_libraries) {
+            QString libName = lib->name();
+            QString libPath = lib->path();
+            if (libName.endsWith(libPart, Qt::CaseSensitivity::CaseInsensitive) || 
+                libPath.endsWith(libPart, Qt::CaseSensitivity::CaseInsensitive)) {
+                if (lib->hasFootprint(fpPart)) {
+                    return lib->getFootprint(fpPart);
+                }
+            }
+        }
+    }
+    
+    // 3. Fallback to base name lookup in all libraries
+    QString baseName = name;
+    int lastSlashFallback = baseName.lastIndexOf('/');
+    if (lastSlashFallback == -1) lastSlashFallback = baseName.lastIndexOf('\\');
+    if (lastSlashFallback != -1) baseName = baseName.mid(lastSlashFallback + 1);
+    if (baseName.endsWith(".json", Qt::CaseInsensitive)) baseName = baseName.left(baseName.length() - 5);
+    
+    for (auto* lib : m_libraries) {
+        if (lib->hasFootprint(baseName)) return lib->getFootprint(baseName);
+    }
+    
     return FootprintDefinition();
 }
 
 bool FootprintLibraryManager::hasFootprint(const QString& name) const {
-    for (auto* lib : m_libraries) {
-        if (lib->hasFootprint(name)) return true;
-    }
-    return false;
+    return findFootprint(name).isValid();
 }
 
 void FootprintLibraryManager::loadUserLibraries(const QString& userLibPath) {
