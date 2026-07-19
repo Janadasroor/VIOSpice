@@ -19,6 +19,20 @@ if(VIOSPICE_ENABLE_TESTS AND BUILD_VIOSPICE_CLI)
     target_link_libraries(test_sim_golden PRIVATE Qt${QT_VERSION_MAJOR}::Core)
     add_test(NAME regression.sim_golden COMMAND test_sim_golden ${CMAKE_SOURCE_DIR}/tests/circuits)
     set_tests_properties(regression.sim_golden PROPERTIES LABELS "fast;regression;simulator")
+
+    # Production validation suite — auto-discovers 200 test circuits
+    add_executable(test_production_validation
+        regression/test_production_validation.cpp
+    )
+    target_compile_definitions(test_production_validation PRIVATE VIO_CMD_PATH=\"$<TARGET_FILE:viora>\")
+    target_link_libraries(test_production_validation PRIVATE Qt${QT_VERSION_MAJOR}::Core)
+    add_test(NAME regression.production_validation
+        COMMAND test_production_validation ${CMAKE_SOURCE_DIR}/tests/production_validation
+    )
+    set_tests_properties(regression.production_validation PROPERTIES
+        LABELS "slow;regression;simulator"
+        TIMEOUT 600
+    )
 endif()
 
 # Python-dependent test suites

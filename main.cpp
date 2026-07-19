@@ -45,17 +45,33 @@
 #include <QSGRendererInterface>
 #include <QSocketNotifier>
 #include <csignal>
+
+#ifndef _WIN32
 #include <unistd.h>
+#else
+#include <windows.h>
+#endif
 
 extern void initEmbeddedPython();
 extern void shutdownEmbeddedPython();
 
+#ifndef _WIN32
 static int sigFd[2] = {-1, -1};
 
 static void sigIntHandler(int) {
     char c = 1;
     if (sigFd[1] != -1) write(sigFd[1], &c, sizeof(c));
 }
+#else
+static QApplication* g_app = nullptr;
+static BOOL WINAPI consoleCtrlHandler(DWORD ctrlType) {
+    if (ctrlType == CTRL_C_EVENT && g_app) {
+        QMetaObject::invokeMethod(g_app, "quit", Qt::QueuedConnection);
+        return TRUE;
+    }
+    return FALSE;
+}
+#endif
 
 extern "C" {
 #include "ui/python_hooks.h"
@@ -276,7 +292,9 @@ int main(int argc, char *argv[])
         checker->checkAsync();
     }, Qt::QueuedConnection);
 
-    // Graceful Ctrl+C: pipe signal to event loop via QSocketNotifier
+    // Graceful Ctrl+C handling
+#ifndef _WIN32
+    // POSIX: pipe signal to event loop via QSocketNotifier
     if (pipe(sigFd) == 0) {
         auto *sn = new QSocketNotifier(sigFd[0], QSocketNotifier::Read, &a);
         QObject::connect(sn, &QSocketNotifier::activated, &a, [&a]() {
@@ -286,6 +304,11 @@ int main(int argc, char *argv[])
         });
         signal(SIGINT, sigIntHandler);
     }
+#else
+    // Windows: use SetConsoleCtrlHandler
+    g_app = &a;
+    SetConsoleCtrlHandler(consoleCtrlHandler, TRUE);
+#endif
 
     int exitCode = a.exec();
 
