@@ -1,10 +1,70 @@
 #!/usr/bin/env python3
 import os
 import sys
+import re
 import json
+import shutil
 import subprocess
 import argparse
 from multiprocessing import Pool
+
+def combine_symdir_to_file(symdir_path, output_filepath):
+    sym_files = [os.path.join(symdir_path, f) for f in os.listdir(symdir_path) if f.endswith('.kicad_sym')]
+    
+    symbol_blocks = []
+    version_line = '(version 20251024)'
+    generator_line = '(generator "kicad_symbol_editor")'
+    
+    for sf in sym_files:
+        try:
+            with open(sf, 'r', encoding='utf-8', errors='ignore') as f:
+                content = f.read()
+                
+                depth = 0
+                in_quotes = False
+                escape = False
+                start_idx = -1
+                
+                i = 0
+                n = len(content)
+                while i < n:
+                    c = content[i]
+                    if escape:
+                        escape = False
+                        i += 1
+                        continue
+                    if c == '\\':
+                        escape = True
+                        i += 1
+                        continue
+                    if c == '"':
+                        in_quotes = not in_quotes
+                        i += 1
+                        continue
+                    if not in_quotes:
+                        if c == '(':
+                            depth += 1
+                            if depth == 2:
+                                if content[i+1:i+8] == "symbol ":
+                                    start_idx = i
+                        elif c == ')':
+                            if depth == 2 and start_idx != -1:
+                                symbol_blocks.append(content[start_idx:i+1])
+                                start_idx = -1
+                            depth -= 1
+                    i += 1
+        except Exception as e:
+            print(f"Failed to read {sf} for combining: {e}", file=sys.stderr)
+            
+    os.makedirs(os.path.dirname(output_filepath), exist_ok=True)
+    with open(output_filepath, 'w', encoding='utf-8') as f:
+        f.write("(kicad_symbol_lib\n")
+        f.write(f"\t{version_line}\n")
+        f.write(f"\t{generator_line}\n")
+        for block in symbol_blocks:
+            f.write(block)
+            f.write("\n")
+        f.write(")\n")
 
 def get_symbols_in_file(filepath):
     symbols = []
@@ -35,7 +95,6 @@ def get_symbols_in_file(filepath):
                 if not in_quotes:
                     if c == '(':
                         depth += 1
-                        # Parent symbols are at depth 2 (direct children of kicad_symbol_lib)
                         if depth == 2:
                             if content[i+1:i+8] == "symbol ":
                                 name_start = content.find('"', i+8)
@@ -95,28 +154,28 @@ def main():
         print(f"Error: KiCad symbols library not found at {kicad_sym_dir}", file=sys.stderr)
         sys.exit(1)
         
-    print(f"Scanning for symbol files in {kicad_sym_dir}...")
+    print(f"Scanning for symbol directories in {kicad_sym_dir}...")
+    
+    temp_combined_dir = "/home/jnd/qt_projects/viospice/scratch/kicad_combined"
+    os.makedirs(temp_combined_dir, exist_ok=True)
     
     symbol_files = []
-    for root, dirs, files in os.walk(kicad_sym_dir):
-        for f in files:
-            if f.endswith(".kicad_sym"):
-                filepath = os.path.join(root, f)
+    for d in os.listdir(kicad_sym_dir):
+        if d.endswith(".kicad_symdir"):
+            category = d[:-13]
+            if args.category and args.category.lower() not in category.lower():
+                continue
                 
-                # Determine Category name based on parent folder (.kicad_symdir name)
-                parent_dir = os.path.basename(root)
-                category = parent_dir
-                if category.endswith(".kicad_symdir"):
-                    category = category[:-13]
-                    
-                if args.category and args.category.lower() not in category.lower():
-                    continue
-                    
-                symbol_files.append((filepath, category))
+            symdir_path = os.path.join(kicad_sym_dir, d)
+            combined_file = os.path.join(temp_combined_dir, f"{category}.kicad_sym")
+            
+            print(f"Combining {d} into a single library file...")
+            combine_symdir_to_file(symdir_path, combined_file)
+            symbol_files.append((combined_file, category))
                 
-    print(f"Found {len(symbol_files)} library/symbol source files.")
+    print(f"Found and combined {len(symbol_files)} libraries.")
     
-    # 1. Discover all symbols to convert using depth-tracking S-expression parser
+    # 1. Discover all symbols to convert
     tasks = []
     print("Discovering symbols in files...")
     for filepath, category in symbol_files:
@@ -137,6 +196,9 @@ def main():
     with Pool(args.workers) as pool:
         results = pool.map(convert_single_symbol, tasks)
         success_count = sum(1 for r in results if r)
+        
+    # Clean up temporary combined files
+    shutil.rmtree(temp_combined_dir, ignore_errors=True)
         
     print(f"Conversion complete: Successfully converted {success_count}/{len(tasks)} symbols.")
 
