@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 import os
 import sys
-import re
 import json
 import subprocess
 import argparse
@@ -9,13 +8,44 @@ from multiprocessing import Pool
 
 def get_symbols_in_file(filepath):
     symbols = []
-    symbol_pat = re.compile(r'^\s*\(symbol\s+"([^"]+)"')
     try:
         with open(filepath, 'r', encoding='utf-8', errors='ignore') as f:
-            for line in f:
-                m = symbol_pat.match(line)
-                if m:
-                    symbols.append(m.group(1))
+            content = f.read()
+            
+            depth = 0
+            in_quotes = False
+            escape = False
+            
+            i = 0
+            n = len(content)
+            while i < n:
+                c = content[i]
+                if escape:
+                    escape = False
+                    i += 1
+                    continue
+                if c == '\\':
+                    escape = True
+                    i += 1
+                    continue
+                if c == '"':
+                    in_quotes = not in_quotes
+                    i += 1
+                    continue
+                if not in_quotes:
+                    if c == '(':
+                        depth += 1
+                        # Parent symbols are at depth 2 (direct children of kicad_symbol_lib)
+                        if depth == 2:
+                            if content[i+1:i+8] == "symbol ":
+                                name_start = content.find('"', i+8)
+                                if name_start != -1:
+                                    name_end = content.find('"', name_start + 1)
+                                    if name_end != -1:
+                                        symbols.append(content[name_start+1:name_end])
+                    elif c == ')':
+                        depth -= 1
+                i += 1
     except Exception as e:
         print(f"Failed to read {filepath}: {e}", file=sys.stderr)
     return symbols
@@ -86,7 +116,7 @@ def main():
                 
     print(f"Found {len(symbol_files)} library/symbol source files.")
     
-    # 1. Discover all symbols to convert using regex S-expression parser
+    # 1. Discover all symbols to convert using depth-tracking S-expression parser
     tasks = []
     print("Discovering symbols in files...")
     for filepath, category in symbol_files:
