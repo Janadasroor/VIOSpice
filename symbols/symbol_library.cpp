@@ -1322,6 +1322,17 @@ void SymbolLibraryManager::loadUserLibraries(const QString& userLibPath, bool as
             if (!info.tags.isEmpty()) stub.setCustomField("__searchTags", info.tags);
 
             const QString parentDir = fileInfo.absolutePath();
+            QString relPath = QDir(path).relativeFilePath(parentDir);
+            QString firstSeg = relPath.section('/', 0, 0);
+            QString libName = firstSeg;
+            if (libName.isEmpty() || libName.endsWith(".viosym") || libName == ".") {
+                libName = "User Symbols";
+            }
+            QString libKey = QDir(path).absoluteFilePath(firstSeg);
+            if (firstSeg.isEmpty() || firstSeg == ".") {
+                libKey = path;
+            }
+
             if (info.category.isEmpty() && parentDir != path) {
                 stub.setCategory(QFileInfo(parentDir).fileName());
             } else {
@@ -1329,12 +1340,10 @@ void SymbolLibraryManager::loadUserLibraries(const QString& userLibPath, bool as
             }
 
             SymbolLibrary* lib = nullptr;
-            const QString libKey = parentDir;
             if (looseLibs.contains(libKey)) {
                 lib = looseLibs.value(libKey);
             } else {
-                const QString dirName = QFileInfo(libKey).fileName();
-                lib = new SymbolLibrary(dirName, false);
+                lib = new SymbolLibrary(libName, false);
                 lib->setPath(libKey);
                 addLibrary(lib);
                 didChangeLibraries = true;
@@ -1464,19 +1473,37 @@ void SymbolLibraryManager::loadUserLibraries(const QString& userLibPath, bool as
                 if (!info.tags.isEmpty()) stub.setCustomField("__searchTags", info.tags);
 
                 const QString parentDir = fileInfo.absolutePath();
-                bool isRoot = false;
-                for(const QString& p : paths) if(parentDir == p) { isRoot = true; break; }
+                QString rootPath;
+                for (const QString& p : paths) {
+                    if (parentDir.startsWith(p)) {
+                        rootPath = p;
+                        break;
+                    }
+                }
+                
+                QString libName = "User Symbols";
+                QString libKey = parentDir;
+                if (!rootPath.isEmpty()) {
+                    QString relPath = QDir(rootPath).relativeFilePath(parentDir);
+                    QString firstSeg = relPath.section('/', 0, 0);
+                    if (!firstSeg.isEmpty() && !firstSeg.endsWith(".viosym") && firstSeg != ".") {
+                        libName = firstSeg;
+                        libKey = QDir(rootPath).absoluteFilePath(firstSeg);
+                    } else {
+                        libKey = rootPath;
+                    }
+                }
 
+                bool isRoot = (parentDir == rootPath || rootPath.isEmpty());
                 if (info.category.isEmpty() && !isRoot) {
                     stub.setCategory(QFileInfo(parentDir).fileName());
                 } else {
                     stub.setCategory(info.category);
                 }
 
-                const QString libKey = parentDir;
                 SymbolLibrary* lib = asyncLooseLibs.value(libKey);
                 if (!lib) {
-                    lib = new SymbolLibrary(QFileInfo(libKey).fileName(), false);
+                    lib = new SymbolLibrary(libName, false);
                     lib->setPath(libKey);
                     asyncLooseLibs.insert(libKey, lib);
                     loadedLibraries.append(lib);
