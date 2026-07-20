@@ -881,6 +881,15 @@ QList<PCBAutoRouter::AStarNode> PCBAutoRouter::getNeighbors(const AStarNode& nod
 void PCBAutoRouter::convertPathToTraces(const QVector<AStarNode>& path, const UnroutedConnection& conn) {
     if (path.size() < 2) return;
 
+    // Start connection from exact start pad position to the first grid node
+    QPointF firstGridPos = gridToScene(path[0].x, path[0].y);
+    int startLayer = m_activeLayers[path[0].layer];
+    TraceItem* startTrace = createTraceSegment(conn.start, firstGridPos, startLayer, conn.netName, conn.traceWidth);
+    if (startTrace) {
+        m_stats.traceSegmentCount++;
+        m_stats.totalTraceLength += QLineF(conn.start, firstGridPos).length();
+    }
+
     QVector<AStarNode> segmentPoints;
     segmentPoints.append(path[0]);
 

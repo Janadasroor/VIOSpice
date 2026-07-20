@@ -1012,6 +1012,155 @@ public:
     }
 };
 
+class PcbNetlistCommand : public CLICommand {
+public:
+    QString name() const override { return "pcb-netlist"; }
+    QString description() const override { return "Dump detailed netlist and connectivity report of a PCB file."; }
+    void setupParser(QCommandLineParser& parser) override {
+        parser.addOption(QCommandLineOption("json", "Output results in JSON format"));
+    }
+    QJsonObject inputSchema() const override {
+        return QJsonObject{
+            {"args", QJsonArray{"file.pcb"}},
+            {"options", QJsonObject{
+                {"json", "bool"}
+            }}
+        };
+    }
+    QJsonObject outputSchema() const override {
+        return QJsonObject{};
+    }
+    int execute(const QStringList& args, const QCommandLineParser& parser) override {
+        if (args.isEmpty()) {
+            std::cerr << "Usage: viora pcb-netlist <file.pcb>" << std::endl;
+            return 1;
+        }
+        QString filePath = args.at(0);
+        QGraphicsScene scene;
+        if (!PCBFileIO::loadPCB(&scene, filePath)) {
+            std::cerr << "Error loading PCB: " << PCBFileIO::lastError().toStdString() << std::endl;
+            return 1;
+        }
+
+        QJsonArray padsArray;
+        QJsonArray tracesArray;
+        QJsonArray viasArray;
+
+        for (auto* item : scene.items()) {
+            if (auto* pad = dynamic_cast<PadItem*>(item)) {
+                QJsonObject p;
+                QString compName = "Board";
+                if (auto* comp = dynamic_cast<ComponentItem*>(pad->parentItem())) {
+                    compName = comp->name();
+                }
+                p["component"] = compName;
+                QString pinName = pad->name();
+                if (pinName.isEmpty() && pad->model()) {
+                    pinName = pad->model()->number();
+                }
+                p["pin"] = pinName;
+                p["net"] = pad->netName();
+                p["layer"] = pad->layer();
+                p["x"] = pad->scenePos().x();
+                p["y"] = pad->scenePos().y();
+                p["drill"] = pad->drillSize();
+                padsArray.append(p);
+            } else if (auto* trace = dynamic_cast<TraceItem*>(item)) {
+                QJsonObject t;
+                t["net"] = trace->netName();
+                t["layer"] = trace->layer();
+                t["width"] = trace->width();
+                t["x1"] = trace->startPoint().x();
+                t["y1"] = trace->startPoint().y();
+                t["x2"] = trace->endPoint().x();
+                t["y2"] = trace->endPoint().y();
+                tracesArray.append(t);
+            } else if (auto* via = dynamic_cast<ViaItem*>(item)) {
+                QJsonObject v;
+                v["net"] = via->netName();
+                v["x"] = via->scenePos().x();
+                v["y"] = via->scenePos().y();
+                v["startLayer"] = via->startLayer();
+                v["endLayer"] = via->endLayer();
+                v["diameter"] = via->diameter();
+                v["drill"] = via->drillSize();
+                viasArray.append(v);
+            }
+        }
+
+        QJsonObject out;
+        out["ok"] = true;
+        out["file"] = filePath;
+        out["pads"] = padsArray;
+        out["traces"] = tracesArray;
+        out["vias"] = viasArray;
+
+        if (parser.isSet("json")) {
+            printJsonValue(out);
+        } else {
+            std::cout << "PCB Netlist & Connectivity Report for: " << filePath.toStdString() << "\n";
+            std::cout << "========================================================================\n\n";
+
+            std::cout << "Component Pads:\n";
+            std::cout << "------------------------------------------------------------------------\n";
+            QMap<QString, QList<QJsonObject>> compPads;
+            for (const auto& val : padsArray) {
+                QJsonObject p = val.toObject();
+                compPads[p["component"].toString()].append(p);
+            }
+            for (auto it = compPads.begin(); it != compPads.end(); ++it) {
+                std::cout << "Component " << it.key().toStdString() << ":\n";
+                for (const auto& p : it.value()) {
+                    std::cout << "  Pad " << p["pin"].toString().toStdString()
+                              << ": Net='" << p["net"].toString().toStdString()
+                              << "', Layer=" << p["layer"].toInt()
+                              << ", Pos=(" << p["x"].toDouble() << ", " << p["y"].toDouble() << ")"
+                              << (p["drill"].toDouble() > 0.001 ? " [THT]" : " [SMD]") << "\n";
+                }
+            }
+            std::cout << "\n";
+
+            std::cout << "Trace Segments (by Net):\n";
+            std::cout << "------------------------------------------------------------------------\n";
+            QMap<QString, QList<QJsonObject>> netTraces;
+            for (const auto& val : tracesArray) {
+                QJsonObject t = val.toObject();
+                netTraces[t["net"].toString()].append(t);
+            }
+            for (auto it = netTraces.begin(); it != netTraces.end(); ++it) {
+                std::cout << "Net '" << (it.key().isEmpty() ? "unassigned" : it.key().toStdString()) << "':\n";
+                for (const auto& t : it.value()) {
+                    std::cout << "  - Segment: (" << t["x1"].toDouble() << ", " << t["y1"].toDouble() << ") -> ("
+                              << t["x2"].toDouble() << ", " << t["y2"].toDouble() << ")"
+                              << ", Layer=" << t["layer"].toInt()
+                              << ", Width=" << t["width"].toDouble() << "mm\n";
+                }
+            }
+            std::cout << "\n";
+
+            std::cout << "Vias (by Net):\n";
+            std::cout << "------------------------------------------------------------------------\n";
+            QMap<QString, QList<QJsonObject>> netVias;
+            for (const auto& val : viasArray) {
+                QJsonObject v = val.toObject();
+                netVias[v["net"].toString()].append(v);
+            }
+            for (auto it = netVias.begin(); it != netVias.end(); ++it) {
+                std::cout << "Net '" << (it.key().isEmpty() ? "unassigned" : it.key().toStdString()) << "':\n";
+                for (const auto& v : it.value()) {
+                    std::cout << "  - Via: Pos=(" << v["x"].toDouble() << ", " << v["y"].toDouble() << ")"
+                              << ", Layers=" << v["startLayer"].toInt() << " to " << v["endLayer"].toInt()
+                              << ", Drill=" << v["drill"].toDouble() << "mm"
+                              << ", Dia=" << v["diameter"].toDouble() << "mm\n";
+                }
+            }
+            std::cout << std::endl;
+        }
+
+        return 0;
+    }
+};
+
 } // namespace
 
 void registerPCBCommands() {
@@ -1023,4 +1172,5 @@ void registerPCBCommands() {
     reg.registerCommand(std::make_unique<PcbComposeCommand>());
     reg.registerCommand(std::make_unique<PcbSyncCommand>());
     reg.registerCommand(std::make_unique<PcbShrinkCommand>());
+    reg.registerCommand(std::make_unique<PcbNetlistCommand>());
 }
