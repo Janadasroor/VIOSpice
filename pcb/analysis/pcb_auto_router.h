@@ -219,6 +219,9 @@ private:
     // Localized collision tracking: mapping failed nets to the nets that blocked them
     QMap<QString, QSet<QString>> m_blockingNets;
 
+    QVector<int> m_activeLayers;
+    int gridLayerIndex(int physicalLayer) const;
+
     // A* open/closed sets (using vectors for performance)
     struct AStarOpenEntry {
         double fCost;
