@@ -21,6 +21,7 @@
 #include "pcb/models/board_model.h"
 #include "pcb/layers/pcb_layer.h"
 #include "pcb/analysis/pcb_auto_router.h"
+#include "net_class.h"
 
 #include "flux/schematic/io/schematic_file_io.h"
 #include "schematic/io/netlist_generator.h"
@@ -452,6 +453,8 @@ public:
         parser.addOption(QCommandLineOption("shrink-outline", "Automatically shrink the board outline to fit components: margin=<val_in_mm>", "spec"));
         parser.addOption(QCommandLineOption("auto-route", "Automatically route all connections after composing"));
         parser.addOption(QCommandLineOption("route-layers", "Routing layer selection: top | bottom | both (default: both)", "layers", "both"));
+        parser.addOption(QCommandLineOption("add-netclass", "Inject net class rules: name=...,width=...,clearance=...", "spec"));
+        parser.addOption(QCommandLineOption("assign-net", "Assign net to a net class: net=...,class=...", "spec"));
         parser.addOption(QCommandLineOption("json", "Output results in JSON format"));
     }
 
@@ -466,6 +469,8 @@ public:
                 {"shrink-outline", "string"},
                 {"auto-route", "bool"},
                 {"route-layers", "string"},
+                {"add-netclass", "string (repeatable)"},
+                {"assign-net", "string (repeatable)"},
                 {"json", "bool"}
             }}
         };
@@ -548,6 +553,31 @@ public:
             PCBLayerManager::instance().setCopperLayerCount(2);
             PCBFileIO::modelToScene(board, &scene);
             delete board;
+        }
+
+        // 0.5. Handle Net Classes and Assignments
+        const QStringList netClasses = parser.values("add-netclass");
+        for (const QString& ncStr : netClasses) {
+            auto props = parseProperties(ncStr);
+            QString name = props.value("name");
+            if (name.isEmpty()) continue;
+            double width = props.contains("width") ? props.value("width").toDouble() : 0.25;
+            double clearance = props.contains("clearance") ? props.value("clearance").toDouble() : 0.2;
+            double viaDiameter = props.contains("viadiameter") ? props.value("viadiameter").toDouble() : 0.6;
+            double viaDrill = props.contains("viadrill") ? props.value("viadrill").toDouble() : 0.3;
+
+            NetClass nc(name, width, clearance, viaDiameter, viaDrill);
+            NetClassManager::instance().addClass(nc);
+        }
+
+        const QStringList netAssigns = parser.values("assign-net");
+        for (const QString& naStr : netAssigns) {
+            auto props = parseProperties(naStr);
+            QString netName = props.value("net");
+            QString className = props.value("class");
+            if (!netName.isEmpty() && !className.isEmpty()) {
+                NetClassManager::instance().assignNetToClass(netName, className);
+            }
         }
 
         // 1. Handle Deletions

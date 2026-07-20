@@ -4,6 +4,7 @@
  */
 
 #include "pcb_auto_router.h"
+#include "net_class.h"
 #include "../items/trace_item.h"
 #include "../items/via_item.h"
 #include "../items/pad_item.h"
@@ -266,9 +267,9 @@ void PCBAutoRouter::markObstacles() {
             int layerIdx = gridLayerIndex(pad->layer());
             if (layerIdx < 0) continue;
 
-            // Get pad physical bounding rect in scene coordinates, adjusted by clearance
+            double cl = NetClassManager::instance().getClassForNet(pad->netName()).clearance;
             QRectF sceneRect = pad->sceneBoundingRect();
-            sceneRect.adjust(-m_config.clearance, -m_config.clearance, m_config.clearance, m_config.clearance);
+            sceneRect.adjust(-cl, -cl, cl, cl);
 
             QPoint gMin = sceneToGrid(sceneRect.topLeft());
             QPoint gMax = sceneToGrid(sceneRect.bottomRight());
@@ -310,8 +311,9 @@ void PCBAutoRouter::markObstacles() {
             int minL = qMin(startL, endL);
             int maxL = qMax(startL, endL);
 
+            double cl = NetClassManager::instance().getClassForNet(via->netName()).clearance;
             QRectF sceneRect = via->sceneBoundingRect();
-            sceneRect.adjust(-m_config.viaClearance, -m_config.viaClearance, m_config.viaClearance, m_config.viaClearance);
+            sceneRect.adjust(-cl, -cl, cl, cl);
 
             QPoint gMin = sceneToGrid(sceneRect.topLeft());
             QPoint gMax = sceneToGrid(sceneRect.bottomRight());
@@ -361,9 +363,11 @@ void PCBAutoRouter::markExistingTraces() {
                     cellAt(x, y, layerIdx)->occupancyCost += 5.0; // Prefer not routing over existing traces
                 }
                 
-                // Mark clearance cells (3x3 box) around trace path point
-                for (int dy2 = -1; dy2 <= 1; ++dy2) {
-                    for (int dx2 = -1; dx2 <= 1; ++dx2) {
+                // Mark clearance cells around trace path point dynamically
+                double cl = NetClassManager::instance().getClassForNet(trace->netName()).clearance;
+                int numCells = qMax(1, static_cast<int>(qCeil(cl / m_config.gridSpacing)));
+                for (int dy2 = -numCells; dy2 <= numCells; ++dy2) {
+                    for (int dx2 = -numCells; dx2 <= numCells; ++dx2) {
                         if (dx2 == 0 && dy2 == 0) continue;
                         markCellOccupied(x + dx2, y + dy2, layerIdx, trace->netName());
                     }
@@ -496,8 +500,9 @@ QList<PCBAutoRouter::UnroutedConnection> PCBAutoRouter::findUnroutedConnections(
             conn.netName = netName;
             conn.start = p1;
             conn.end = p2;
-            conn.traceWidth = 0.25; // Default, could be from net class
-            conn.startClearance = m_config.clearance;
+            NetClass netClass = NetClassManager::instance().getClassForNet(netName);
+            conn.traceWidth = netClass.traceWidth;
+            conn.startClearance = netClass.clearance;
             connections.append(conn);
         }
     }
@@ -723,6 +728,32 @@ bool PCBAutoRouter::isCellPassable(int x, int y, int layer, const QString& netNa
 
     if (cell->blocked && cell->netName.isEmpty()) return false;
     if (!cell->netName.isEmpty() && cell->netName != netName) return false;
+
+    // Dynamic symmetric clearance check against neighbors
+    double clA = NetClassManager::instance().getClassForNet(netName).clearance;
+    double wA = NetClassManager::instance().getClassForNet(netName).traceWidth;
+    double totalClA = clA + wA / 2.0;
+    int k = static_cast<int>(qCeil(totalClA / m_config.gridSpacing)) + 1;
+
+    for (int dy = -k; dy <= k; ++dy) {
+        for (int dx = -k; dx <= k; ++dx) {
+            if (dx == 0 && dy == 0) continue;
+            int nx = x + dx;
+            int ny = y + dy;
+            if (!isValidCell(nx, ny, layer)) continue;
+
+            const GridCell* neighbor = cellAt(nx, ny, layer);
+            if (neighbor && !neighbor->netName.isEmpty() && neighbor->netName != netName) {
+                double dist = m_config.gridSpacing * qSqrt(dx * dx + dy * dy);
+                double clNeighbor = NetClassManager::instance().getClassForNet(neighbor->netName).clearance;
+                double wNeighbor = NetClassManager::instance().getClassForNet(neighbor->netName).traceWidth;
+                double reqDist = qMax(clA, clNeighbor) + wA / 2.0 + wNeighbor / 2.0;
+                if (dist < reqDist) {
+                    return false;
+                }
+            }
+        }
+    }
 
     return true;
 }
