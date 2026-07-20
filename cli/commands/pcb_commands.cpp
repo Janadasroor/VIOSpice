@@ -40,6 +40,8 @@
 
 namespace {
 
+void shrinkBoardOutline(QGraphicsScene* scene, double margin);
+
 void getBoardSize(const Flux::Model::BoardModel* board, double& outWidth, double& outHeight) {
     double minX = std::numeric_limits<double>::max();
     double minY = std::numeric_limits<double>::max();
@@ -447,6 +449,7 @@ public:
         parser.addOption(QCommandLineOption("add-trace", "Inject trace: x1=...,y1=...,x2=...,y2=...,width=...,layer=...,net=...", "spec"));
         parser.addOption(QCommandLineOption("add-via", "Inject via: x=...,y=...,diameter=...,drill=...,startlayer=...,endlayer=...,net=...", "spec"));
         parser.addOption(QCommandLineOption("delete-item", "Delete item: id=... OR name=...", "spec"));
+        parser.addOption(QCommandLineOption("shrink-outline", "Automatically shrink the board outline to fit components: margin=<val_in_mm>", "spec"));
         parser.addOption(QCommandLineOption("auto-route", "Automatically route all connections after composing"));
         parser.addOption(QCommandLineOption("json", "Output results in JSON format"));
     }
@@ -459,6 +462,7 @@ public:
                 {"add-trace", "string (repeatable)"},
                 {"add-via", "string (repeatable)"},
                 {"delete-item", "string (repeatable)"},
+                {"shrink-outline", "string"},
                 {"auto-route", "bool"},
                 {"json", "bool"}
             }}
@@ -692,6 +696,21 @@ public:
             addedVias++;
         }
 
+        // 4.5. Handle board outline shrinking
+        if (parser.isSet("shrink-outline")) {
+            double margin = 5.0; // default
+            QString spec = parser.value("shrink-outline");
+            if (!spec.isEmpty()) {
+                auto props = parseProperties(spec);
+                if (props.contains("margin")) {
+                    margin = props.value("margin").toDouble();
+                } else if (spec.toDouble() > 0.001) { // Accept direct number too
+                    margin = spec.toDouble();
+                }
+            }
+            shrinkBoardOutline(&scene, margin);
+        }
+
         // 5. Handle Auto-routing
         int routedCount = 0;
         if (parser.isSet("auto-route")) {
@@ -727,6 +746,134 @@ public:
                 }
             }
         }
+        return 0;
+    }
+};
+
+void shrinkBoardOutline(QGraphicsScene* scene, double margin) {
+    if (!scene) return;
+
+    // 1. Gather and delete existing EdgeCuts outline items
+    QList<QGraphicsItem*> toDelete;
+    for (auto* item : scene->items()) {
+        if (auto* pcbItem = dynamic_cast<PCBItem*>(item)) {
+            if (pcbItem->layer() == PCBLayerManager::EdgeCuts) {
+                toDelete.append(item);
+            }
+        }
+    }
+    for (auto* item : toDelete) {
+        scene->removeItem(item);
+        delete item;
+    }
+
+    // 2. Find bounding rect of all other items
+    QRectF contentRect;
+    bool first = true;
+    for (auto* item : scene->items()) {
+        if (auto* pcbItem = dynamic_cast<PCBItem*>(item)) {
+            if (pcbItem->layer() != PCBLayerManager::EdgeCuts) {
+                QRectF r = pcbItem->sceneBoundingRect();
+                if (first) {
+                    contentRect = r;
+                    first = false;
+                } else {
+                    contentRect = contentRect.united(r);
+                }
+            }
+        }
+    }
+
+    if (first || contentRect.isEmpty()) {
+        contentRect = QRectF(0, 0, 50, 50);
+    }
+
+    double left = contentRect.left() - margin;
+    double top = contentRect.top() - margin;
+    double right = contentRect.right() + margin;
+    double bottom = contentRect.bottom() + margin;
+
+    // 3. Create new border traces on the EdgeCuts layer
+    auto createEdgeTrace = [&](QPointF p1, QPointF p2) {
+        TraceItem* trace = new TraceItem(p1, p2);
+        trace->setLayer(PCBLayerManager::EdgeCuts);
+        trace->setWidth(0.2);
+        scene->addItem(trace);
+    };
+
+    createEdgeTrace(QPointF(left, top), QPointF(right, top));
+    createEdgeTrace(QPointF(right, top), QPointF(right, bottom));
+    createEdgeTrace(QPointF(right, bottom), QPointF(left, bottom));
+    createEdgeTrace(QPointF(left, bottom), QPointF(left, top));
+}
+
+class PcbShrinkCommand : public CLICommand {
+public:
+    QString name() const override { return "pcb-shrink"; }
+    QString description() const override { return "Automatically shrink the PCB board outline (EdgeCuts layer) to fit placed components/traces tightly."; }
+
+    void setupParser(QCommandLineParser& parser) override {
+        parser.addOption(QCommandLineOption("margin", "Clearance margin around components in mm (default: 5.0)", "value", "5.0"));
+        parser.addOption(QCommandLineOption("json", "Output results in JSON format"));
+    }
+
+    QJsonObject inputSchema() const override {
+        return QJsonObject{
+            {"args", QJsonArray{"file.pcb"}},
+            {"options", QJsonObject{
+                {"margin", "string"},
+                {"json", "bool"}
+            }}
+        };
+    }
+
+    QJsonObject outputSchema() const override {
+        return QJsonObject{
+            {"ok", "bool"},
+            {"file", "string"},
+            {"margin", "double"}
+        };
+    }
+
+    int execute(const QStringList& args, const QCommandLineParser& parser) override {
+        if (args.isEmpty()) {
+            std::cerr << "Usage: viora pcb-shrink <file.pcb> [options]" << std::endl;
+            return 1;
+        }
+
+        QString pcbPath = args.at(0);
+        double margin = 5.0;
+        if (parser.isSet("margin")) {
+            margin = parser.value("margin").toDouble();
+        }
+
+        QGraphicsScene scene;
+        if (!PCBFileIO::loadPCB(&scene, pcbPath)) {
+            std::cerr << "Error loading PCB: " << PCBFileIO::lastError().toStdString() << std::endl;
+            return 1;
+        }
+
+        shrinkBoardOutline(&scene, margin);
+
+        if (!PCBFileIO::savePCB(&scene, pcbPath)) {
+            std::cerr << "Failed to save PCB: " << PCBFileIO::lastError().toStdString() << std::endl;
+            return 1;
+        }
+
+        QJsonObject out;
+        out["ok"] = true;
+        out["file"] = pcbPath;
+        out["margin"] = margin;
+
+        if (parser.isSet("json")) {
+            printJsonValue(out);
+        } else {
+            if (!g_quiet) {
+                std::cout << "Successfully shrunk board outline for " << pcbPath.toStdString() 
+                          << " with margin of " << margin << "mm." << std::endl;
+            }
+        }
+
         return 0;
     }
 };
@@ -822,4 +969,5 @@ void registerPCBCommands() {
     reg.registerCommand(std::make_unique<PcbInitCommand>());
     reg.registerCommand(std::make_unique<PcbComposeCommand>());
     reg.registerCommand(std::make_unique<PcbSyncCommand>());
+    reg.registerCommand(std::make_unique<PcbShrinkCommand>());
 }
