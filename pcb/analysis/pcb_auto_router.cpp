@@ -791,11 +791,11 @@ bool PCBAutoRouter::isViaPassable(int cx, int cy, const QString& netName) const 
             }
         }
         if (auto* pad = dynamic_cast<PadItem*>(item)) {
-            if (pad->drillSize() > 0.001) {
-                double dist = QLineF(pad->scenePos(), targetPos).length();
-                if (dist < (pad->drillSize() / 2.0 + 0.25)) {
-                    return false;
-                }
+            QRectF padRect = pad->sceneBoundingRect();
+            // Block via placement within the pad boundary or its immediate vicinity (0.4mm clearance)
+            padRect.adjust(-0.4, -0.4, 0.4, 0.4);
+            if (padRect.contains(targetPos)) {
+                return false;
             }
         }
     }
