@@ -666,6 +666,79 @@ void PCBDRC::checkManufacturingRules(QGraphicsScene* scene) {
             ));
         }
     }
+
+    // 1. Component Courtyard Collision Check
+    QList<ComponentItem*> components;
+    for (QGraphicsItem* raw : scene->items()) {
+        if (ComponentItem* comp = dynamic_cast<ComponentItem*>(raw)) {
+            components.append(comp);
+        }
+    }
+
+    for (int i = 0; i < components.size(); ++i) {
+        ComponentItem* c1 = components[i];
+        QPainterPath court1;
+        for (QGraphicsItem* child : c1->childItems()) {
+            int layerVal = child->data(0x46504C59).toInt();
+            if (layerVal == 1 || layerVal == 12) { // Top_Courtyard = 1, Bottom_Courtyard = 12
+                court1.addPath(child->sceneTransform().map(child->shape()));
+            }
+        }
+        if (court1.isEmpty()) {
+            court1 = c1->sceneTransform().map(c1->shape());
+        }
+
+        for (int j = i + 1; j < components.size(); ++j) {
+            ComponentItem* c2 = components[j];
+            if (c1->layer() != c2->layer()) continue;
+
+            QPainterPath court2;
+            for (QGraphicsItem* child : c2->childItems()) {
+                int layerVal = child->data(0x46504C59).toInt();
+                if (layerVal == 1 || layerVal == 12) {
+                    court2.addPath(child->sceneTransform().map(child->shape()));
+                }
+            }
+            if (court2.isEmpty()) {
+                court2 = c2->sceneTransform().map(c2->shape());
+            }
+
+            if (court1.intersects(court2)) {
+                QPointF collisionPos = (c1->scenePos() + c2->scenePos()) * 0.5;
+                addViolation(DRCViolation(
+                    DRCViolation::ClearanceViolation,
+                    DRCViolation::Warning,
+                    QString("Component courtyard collision between '%1' and '%2'")
+                        .arg(c1->name())
+                        .arg(c2->name()),
+                    collisionPos,
+                    c1->idString(),
+                    c2->idString()
+                ));
+            }
+        }
+    }
+
+    // 2. Silkscreen Overlap Check
+    for (int i = 0; i < silkPrims.size(); ++i) {
+        const SilkPrimitive& s1 = silkPrims[i];
+        for (int j = i + 1; j < silkPrims.size(); ++j) {
+            const SilkPrimitive& s2 = silkPrims[j];
+            if (s1.sideLayer != s2.sideLayer || s1.id == s2.id) continue;
+
+            if (s1.bounds.intersects(s2.bounds) && s1.path.intersects(s2.path)) {
+                QPointF collisionPos = (s1.bounds.center() + s2.bounds.center()) * 0.5;
+                addViolation(DRCViolation(
+                    DRCViolation::SilkTextOnPad,
+                    DRCViolation::Warning,
+                    QString("Silkscreen overlap detected between component markings"),
+                    collisionPos,
+                    s1.id,
+                    s2.id
+                ));
+            }
+        }
+    }
 }
 
 void PCBDRC::checkDrillClearance(QGraphicsScene* scene) {

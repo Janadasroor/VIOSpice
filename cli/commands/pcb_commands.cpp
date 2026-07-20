@@ -731,6 +731,87 @@ public:
     }
 };
 
+class PcbSyncCommand : public CLICommand {
+public:
+    QString name() const override { return "pcb-sync"; }
+    QString description() const override { return "Synchronize a PCB layout with a schematic file (importing netlist and footprint changes incrementally)."; }
+
+    void setupParser(QCommandLineParser& parser) override {
+        parser.addOption(QCommandLineOption("schematic", "Source schematic file to synchronize with", "file.flxsch"));
+        parser.addOption(QCommandLineOption("json", "Output results in JSON format"));
+    }
+
+    QJsonObject inputSchema() const override {
+        return QJsonObject{
+            {"args", QJsonArray{"file.pcb"}},
+            {"options", QJsonObject{
+                {"schematic", "string"},
+                {"json", "bool"}
+            }}
+        };
+    }
+
+    QJsonObject outputSchema() const override {
+        return QJsonObject{
+            {"ok", "bool"},
+            {"file", "string"},
+            {"sourceSchematic", "string"},
+            {"changesCount", "int"}
+        };
+    }
+
+    int execute(const QStringList& args, const QCommandLineParser& parser) override {
+        if (args.isEmpty() || !parser.isSet("schematic")) {
+            std::cerr << "Usage: viora pcb-sync <file.pcb> --schematic <file.flxsch>" << std::endl;
+            return 1;
+        }
+
+        QString pcbPath = args.at(0);
+        QString schematicPath = parser.value("schematic");
+
+        QGraphicsScene pcbScene;
+        if (!PCBFileIO::loadPCB(&pcbScene, pcbPath)) {
+            std::cerr << "Error loading PCB: " << PCBFileIO::lastError().toStdString() << std::endl;
+            return 1;
+        }
+
+        QGraphicsScene schematicScene;
+        QString pageSize;
+        TitleBlockData dummyTB;
+        if (!SchematicFileIO::loadSchematic(&schematicScene, schematicPath, pageSize, dummyTB)) {
+            std::cerr << "Error loading schematic: " << SchematicFileIO::lastError().toStdString() << std::endl;
+            return 1;
+        }
+
+        ECOPackage pkg = NetlistGenerator::generateECOPackage(&schematicScene, QFileInfo(schematicPath).absolutePath(), nullptr);
+        PCBECOResolver::applyECO(pkg, &pcbScene, nullptr, nullptr);
+
+        if (!PCBFileIO::savePCB(&pcbScene, pcbPath)) {
+            std::cerr << "Failed to save PCB: " << PCBFileIO::lastError().toStdString() << std::endl;
+            return 1;
+        }
+
+        int changes = pkg.components.size() + pkg.nets.size();
+        QJsonObject out;
+        out["ok"] = true;
+        out["file"] = pcbPath;
+        out["sourceSchematic"] = schematicPath;
+        out["changesCount"] = changes;
+
+        if (parser.isSet("json")) {
+            printJsonValue(out);
+        } else {
+            if (!g_quiet) {
+                std::cout << "Successfully synchronized PCB at " << pcbPath.toStdString() 
+                          << " with schematic at " << schematicPath.toStdString() 
+                          << " (" << changes << " components/nets imported)." << std::endl;
+            }
+        }
+
+        return 0;
+    }
+};
+
 } // namespace
 
 void registerPCBCommands() {
@@ -740,4 +821,5 @@ void registerPCBCommands() {
     reg.registerCommand(std::make_unique<PcbRenderCommand>());
     reg.registerCommand(std::make_unique<PcbInitCommand>());
     reg.registerCommand(std::make_unique<PcbComposeCommand>());
+    reg.registerCommand(std::make_unique<PcbSyncCommand>());
 }
