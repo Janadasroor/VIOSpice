@@ -17,6 +17,8 @@
 #include "component_model.h"
 #include "copper_pour_model.h"
 
+#include "net_class.h"
+
 namespace Flux {
 namespace Model {
 
@@ -86,6 +88,8 @@ public:
         metadata["modifiedAt"] = m_modifiedAt.toString(Qt::ISODate);
         root["metadata"] = metadata;
 
+        root["designRules"] = NetClassManager::instance().toJson();
+
         QJsonArray itemsArray;
         for (auto* t : m_traces) { QJsonObject j = t->toJson(); j["type"] = "Trace"; itemsArray.append(j); }
         for (auto* v : m_vias) { QJsonObject j = v->toJson(); j["type"] = "Via"; itemsArray.append(j); }
@@ -106,6 +110,10 @@ public:
         m_name = metadata["name"].toString("Untitled Board");
         m_createdAt = QDateTime::fromString(metadata["createdAt"].toString(), Qt::ISODate);
         m_modifiedAt = QDateTime::fromString(metadata["modifiedAt"].toString(), Qt::ISODate);
+
+        if (root.contains("designRules")) {
+            NetClassManager::instance().fromJson(root["designRules"].toObject());
+        }
 
         QJsonArray itemsArray = root["items"].toArray();
         for (const QJsonValue& val : itemsArray) {
