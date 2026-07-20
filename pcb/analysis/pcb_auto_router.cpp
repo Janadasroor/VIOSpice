@@ -229,10 +229,18 @@ void PCBAutoRouter::buildGrid() {
 
     m_gridWidth = qMin(static_cast<int>((maxX - minX) / m_config.gridSpacing) + 2, m_config.maxGridWidth);
     m_gridHeight = qMin(static_cast<int>((maxY - minY) / m_config.gridSpacing) + 2, m_config.maxGridHeight);
-    m_gridLayers = 0;
-    if (m_config.preferTopLayer) m_gridLayers++;
-    if (m_config.preferBottomLayer) m_gridLayers++;
-    if (m_gridLayers == 0) m_gridLayers = 2; // Default: both layers
+    m_activeLayers.clear();
+    if (m_config.preferTopLayer) {
+        m_activeLayers.append(PCBLayerManager::TopCopper);
+    }
+    if (m_config.preferBottomLayer) {
+        m_activeLayers.append(PCBLayerManager::BottomCopper);
+    }
+    if (m_activeLayers.isEmpty()) {
+        m_activeLayers.append(PCBLayerManager::TopCopper);
+        m_activeLayers.append(PCBLayerManager::BottomCopper);
+    }
+    m_gridLayers = m_activeLayers.size();
 
     m_grid.resize(m_gridWidth * m_gridHeight * m_gridLayers);
 
@@ -255,11 +263,8 @@ void PCBAutoRouter::markObstacles() {
     for (auto* item : m_scene->items()) {
         // Pads are obstacles on their layer
         if (auto* pad = dynamic_cast<PadItem*>(item)) {
-            int layerIdx = 0;
-            if (m_config.preferBottomLayer && !m_config.preferTopLayer) layerIdx = 1;
-            else if (m_config.preferTopLayer && m_config.preferBottomLayer) {
-                layerIdx = (pad->layer() == 1) ? 1 : 0;
-            }
+            int layerIdx = gridLayerIndex(pad->layer());
+            if (layerIdx < 0) continue;
 
             // Get pad physical bounding rect in scene coordinates, adjusted by clearance
             QRectF sceneRect = pad->sceneBoundingRect();
@@ -287,10 +292,8 @@ void PCBAutoRouter::markObstacles() {
                 QPoint g1 = sceneToGrid(rect.topLeft());
                 QPoint g2 = sceneToGrid(rect.bottomRight());
 
-                int layerIdx = 0;
-                if (m_config.preferTopLayer && m_config.preferBottomLayer) {
-                    layerIdx = (pour->layer() == 1) ? 1 : 0;
-                }
+                int layerIdx = gridLayerIndex(pour->layer());
+                if (layerIdx < 0) continue;
 
                 for (int y = qMax(0, g1.y()); y < qMin(m_gridHeight, g2.y()); ++y) {
                     for (int x = qMax(0, g1.x()); x < qMin(m_gridWidth, g2.x()); ++x) {
@@ -319,10 +322,8 @@ void PCBAutoRouter::markObstacles() {
             int yMax = qBound(0, qMax(gMin.y(), gMax.y()), m_gridHeight - 1);
 
             for (int l = minL; l <= maxL; ++l) {
-                int layerIdx = 0;
-                if (m_config.preferTopLayer && m_config.preferBottomLayer) {
-                    layerIdx = (l == 1) ? 1 : 0;
-                }
+                int layerIdx = gridLayerIndex(l);
+                if (layerIdx < 0) continue;
                 for (int y = yMin; y <= yMax; ++y) {
                     for (int x = xMin; x <= xMax; ++x) {
                         markCellOccupied(x, y, layerIdx, via->netName());
@@ -342,10 +343,8 @@ void PCBAutoRouter::markExistingTraces() {
             QPoint gStart = sceneToGrid(trace->startPoint());
             QPoint gEnd = sceneToGrid(trace->endPoint());
 
-            int layerIdx = 0;
-            if (m_config.preferTopLayer && m_config.preferBottomLayer) {
-                layerIdx = (trace->layer() == 1) ? 1 : 0;
-            }
+            int layerIdx = gridLayerIndex(trace->layer());
+            if (layerIdx < 0) continue;
 
             // Bresenham-like line drawing to mark trace cells
             int dx = qAbs(gEnd.x() - gStart.x());
@@ -521,14 +520,8 @@ bool PCBAutoRouter::findPath(const UnroutedConnection& conn, QVector<AStarNode>&
     gEnd.setY(qBound(0, gEnd.y(), m_gridHeight - 1));
 
     auto getGridLayer = [&](int itemLayer) -> int {
-        if (m_gridLayers <= 1) return 0;
-        if (m_config.preferTopLayer && m_config.preferBottomLayer) {
-            return (itemLayer == 1) ? 1 : 0;
-        }
-        if (!m_config.preferTopLayer && !m_config.preferBottomLayer) {
-            return (itemLayer == 1) ? 1 : 0;
-        }
-        return 0;
+        int idx = gridLayerIndex(itemLayer);
+        return (idx >= 0) ? idx : 0;
     };
 
     int startLayer = 0;
@@ -713,6 +706,15 @@ double PCBAutoRouter::heuristic(int x1, int y1, int x2, int y2) const {
     }
 }
 
+int PCBAutoRouter::gridLayerIndex(int physicalLayer) const {
+    for (int i = 0; i < m_activeLayers.size(); ++i) {
+        if (m_activeLayers[i] == physicalLayer) {
+            return i;
+        }
+    }
+    return -1;
+}
+
 bool PCBAutoRouter::isCellPassable(int x, int y, int layer, const QString& netName) const {
     if (!isValidCell(x, y, layer)) return false;
 
@@ -827,14 +829,14 @@ void PCBAutoRouter::convertPathToTraces(const QVector<AStarNode>& path, const Un
 
         if (path[i].isVia) {
             // Create via for layer transition
-            int viaStartLayer = (prevLayer == 0) ? PCBLayerManager::TopCopper : PCBLayerManager::BottomCopper;
-            int viaEndLayer = (path[i].layer == 0) ? PCBLayerManager::TopCopper : PCBLayerManager::BottomCopper;
+            int viaStartLayer = m_activeLayers[prevLayer];
+            int viaEndLayer = m_activeLayers[path[i].layer];
             ViaItem* via = createVia(prevPos, viaStartLayer, viaEndLayer, conn.netName);
             if (via) m_stats.viaCount++;
             prevLayer = path[i].layer;
         } else {
             // Create trace segment
-            int traceLayer = (path[i].layer == 0) ? PCBLayerManager::TopCopper : PCBLayerManager::BottomCopper;
+            int traceLayer = m_activeLayers[path[i].layer];
             TraceItem* trace = createTraceSegment(prevPos, currPos, traceLayer, conn.netName, conn.traceWidth);
             if (trace) {
                 m_stats.traceSegmentCount++;
@@ -847,7 +849,7 @@ void PCBAutoRouter::convertPathToTraces(const QVector<AStarNode>& path, const Un
 
     // Final connection to exact pad position
     QPointF lastGridPos = gridToScene(path.last().x, path.last().y);
-    int finalLayer = (path.last().layer == 0) ? PCBLayerManager::TopCopper : PCBLayerManager::BottomCopper;
+    int finalLayer = m_activeLayers[path.last().layer];
     TraceItem* finalTrace = createTraceSegment(lastGridPos, conn.end, finalLayer, conn.netName, conn.traceWidth);
     if (finalTrace) {
         m_stats.traceSegmentCount++;
