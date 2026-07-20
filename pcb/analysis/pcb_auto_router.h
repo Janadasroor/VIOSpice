@@ -216,6 +216,9 @@ private:
     int m_currentConnection = 0;
     int m_totalConnections = 0;
 
+    // Localized collision tracking: mapping failed nets to the nets that blocked them
+    QMap<QString, QSet<QString>> m_blockingNets;
+
     // A* open/closed sets (using vectors for performance)
     struct AStarOpenEntry {
         double fCost;
