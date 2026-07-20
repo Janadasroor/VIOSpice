@@ -652,6 +652,23 @@ bool PCBAutoRouter::findPath(const UnroutedConnection& conn, QVector<AStarNode>&
                 moveCost += m_config.gridSpacing * 5.0; // Via cost penalty
             }
 
+            // Turn penalty: discourage unnecessary bends and zig-zags
+            if (current.parentX != -1 && current.parentY != -1 && !neighbor.isVia) {
+                int prevDx = current.x - current.parentX;
+                int prevDy = current.y - current.parentY;
+                int newDx = neighbor.x - current.x;
+                int newDy = neighbor.y - current.y;
+                
+                int prevDirX = (prevDx > 0) ? 1 : ((prevDx < 0) ? -1 : 0);
+                int prevDirY = (prevDy > 0) ? 1 : ((prevDy < 0) ? -1 : 0);
+                int newDirX = (newDx > 0) ? 1 : ((newDx < 0) ? -1 : 0);
+                int newDirY = (newDy > 0) ? 1 : ((newDy < 0) ? -1 : 0);
+
+                if (prevDirX != newDirX || prevDirY != newDirY) {
+                    moveCost += m_config.gridSpacing * 2.0; // Significant penalty for turns
+                }
+            }
+
             // Add occupancy cost from obstacles
             GridCell* cell = cellAt(neighbor.x, neighbor.y, neighbor.layer);
             if (cell) moveCost += cell->occupancyCost;
