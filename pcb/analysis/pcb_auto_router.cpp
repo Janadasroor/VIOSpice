@@ -51,6 +51,7 @@ PCBAutoRouter::RouteStats PCBAutoRouter::routeAll(const RouterConfig& config) {
     m_stats = RouteStats();
     m_running = true;
     m_stopRequested = false;
+    m_blockingNets.clear();
 
     QElapsedTimer timer;
     timer.start();
@@ -633,7 +634,13 @@ bool PCBAutoRouter::findPath(const UnroutedConnection& conn, QVector<AStarNode>&
             QString neighborKey = makeKey(neighbor.x, neighbor.y, neighbor.layer);
             if (closedSet.contains(neighborKey)) continue;
 
-            if (!isCellPassable(neighbor.x, neighbor.y, neighbor.layer, conn.netName)) continue;
+            if (!isCellPassable(neighbor.x, neighbor.y, neighbor.layer, conn.netName)) {
+                const GridCell* cell = cellAt(neighbor.x, neighbor.y, neighbor.layer);
+                if (cell && !cell->netName.isEmpty() && cell->netName != conn.netName) {
+                    m_blockingNets[conn.netName].insert(cell->netName);
+                }
+                continue;
+            }
 
             double moveCost = m_config.gridSpacing;
             if (neighbor.x != current.x && neighbor.y != current.y) {
@@ -884,23 +891,38 @@ ViaItem* PCBAutoRouter::createVia(QPointF pos, int startLayer, int endLayer, con
 int PCBAutoRouter::ripUpWorstTraces(int count, const QSet<QString>& failedNets) {
     int removed = 0;
 
+    // Collect all nets that are blocking the failed nets
+    QSet<QString> blockerNets;
+    for (const QString& failedNet : failedNets) {
+        blockerNets.unite(m_blockingNets.value(failedNet));
+    }
+
     // Collect all trace items
-    QList<TraceItem*> traces;
+    QList<TraceItem*> blockerTraces;
+    QList<TraceItem*> failedNetTraces;
+    QList<TraceItem*> otherTraces;
+
     for (auto* item : m_scene->items()) {
         if (auto* trace = dynamic_cast<TraceItem*>(item)) {
-            // Prioritize traces on failed nets
-            if (failedNets.contains(trace->netName())) {
-                traces.prepend(trace); // Remove these first
+            if (blockerNets.contains(trace->netName())) {
+                blockerTraces.append(trace);
+            } else if (failedNets.contains(trace->netName())) {
+                failedNetTraces.append(trace);
             } else {
-                traces.append(trace);
+                otherTraces.append(trace);
             }
         }
     }
 
+    // Prioritize: blocker traces first, then failed net traces, then other traces
+    QList<TraceItem*> tracesToRip = blockerTraces;
+    tracesToRip.append(failedNetTraces);
+    tracesToRip.append(otherTraces);
+
     // Remove up to 'count' traces
-    for (int i = 0; i < qMin(count, traces.size()); ++i) {
-        m_scene->removeItem(traces[i]);
-        delete traces[i];
+    for (int i = 0; i < qMin(count, tracesToRip.size()); ++i) {
+        m_scene->removeItem(tracesToRip[i]);
+        delete tracesToRip[i];
         removed++;
     }
 
