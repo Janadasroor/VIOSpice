@@ -38,6 +38,7 @@ public:
     void setDrillSize(double size);
 
     void setLayer(int layer) override;
+    void setNetName(const QString& net) override;
 
     int startLayer() const { return m_model->startLayer(); }
     void setStartLayer(int layer);

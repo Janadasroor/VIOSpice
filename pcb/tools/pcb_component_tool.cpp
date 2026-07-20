@@ -84,6 +84,25 @@ void PCBComponentTool::keyPressEvent(QKeyEvent* event) {
         event->ignore(); // Let PCBView handle return to Select tool
         return;
     }
+
+    if (m_previewItem) {
+        if (event->key() == Qt::Key_R) {
+            m_previewItem->setRotation(m_previewItem->rotation() + 90);
+            event->accept();
+            return;
+        }
+        if (event->key() == Qt::Key_H || event->key() == Qt::Key_M) {
+            m_previewItem->setTransform(QTransform().scale(-1, 1), true);
+            event->accept();
+            return;
+        }
+        if (event->key() == Qt::Key_F) {
+            m_previewItem->setLayer(m_previewItem->layer() == 0 ? 1 : 0);
+            event->accept();
+            return;
+        }
+    }
+
     PCBTool::keyPressEvent(event);
 }
 
@@ -106,6 +125,11 @@ void PCBComponentTool::mousePressEvent(QMouseEvent* event) {
 
     PCBItem* component = factory.createItem("Component", snappedPos, properties);
     if (component) {
+        if (m_previewItem) {
+            component->setRotation(m_previewItem->rotation());
+            component->setTransform(m_previewItem->transform());
+            component->setLayer(m_previewItem->layer());
+        }
         if (view()->undoStack()) {
             view()->undoStack()->push(new PCBAddItemCommand(view()->scene(), component));
         } else {

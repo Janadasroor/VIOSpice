@@ -41,6 +41,7 @@ public:
     void setWidth(double width);
 
     void setLayer(int layer) override;
+    void setNetName(const QString& net) override;
 
     // QGraphicsItem interface
     QRectF boundingRect() const override;

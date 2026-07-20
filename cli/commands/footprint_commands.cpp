@@ -10,6 +10,7 @@
 #include "footprints/models/footprint_primitive.h"
 #include "footprints/models/footprint_schema.h"
 #include "footprints/kicad_footprint_importer.h"
+#include "footprints/footprint_library.h"
 
 #include <QFile>
 #include <QJsonDocument>
@@ -501,10 +502,106 @@ public:
     }
 };
 
+class FootprintListCommand : public CLICommand {
+public:
+    QString name() const override { return "footprint-list"; }
+    QString description() const override { return "List and search available footprints."; }
+    
+    void setupParser(QCommandLineParser& parser) override {
+        parser.addOption(QCommandLineOption("query", "Search query for footprint names", "query"));
+        parser.addOption(QCommandLineOption("limit", "Maximum number of footprints to return", "limit", "-1"));
+        parser.addOption(QCommandLineOption("offset", "Number of footprints to skip", "offset", "0"));
+        parser.addOption(QCommandLineOption("json", "Output results in JSON format"));
+    }
+
+    QJsonObject inputSchema() const override {
+        return QJsonObject{
+            {"options", QJsonObject{
+                {"query", "string"},
+                {"limit", "int"},
+                {"offset", "int"},
+                {"json", "bool"}
+            }}
+        };
+    }
+
+    QJsonObject outputSchema() const override {
+        return QJsonObject{
+            {"footprints", "array"},
+            {"totalCount", "int"},
+            {"limit", "int"},
+            {"offset", "int"}
+        };
+    }
+
+    int execute(const QStringList& args, const QCommandLineParser& parser) override {
+        FootprintLibraryManager::instance().initialize();
+
+        struct FootprintItem {
+            QString name;
+            QString library;
+        };
+
+        QList<FootprintItem> allFootprints;
+        for (auto* lib : FootprintLibraryManager::instance().libraries()) {
+            for (const QString& name : lib->getFootprintNames()) {
+                allFootprints.append({name, lib->name()});
+            }
+        }
+
+        QString query = parser.value("query");
+        QList<FootprintItem> filtered;
+        for (const auto& fp : allFootprints) {
+            if (query.isEmpty() || fp.name.contains(query, Qt::CaseInsensitive)) {
+                filtered.append(fp);
+            }
+        }
+
+        int totalCount = filtered.size();
+        
+        bool okOffset;
+        int offset = parser.value("offset").toInt(&okOffset);
+        if (!okOffset || offset < 0) offset = 0;
+        
+        bool okLimit;
+        int limit = parser.isSet("limit") ? parser.value("limit").toInt(&okLimit) : totalCount;
+        if (!okLimit || limit < 0) limit = totalCount;
+
+        QJsonArray footprintsArray;
+        int end = std::min(offset + limit, totalCount);
+        for (int i = offset; i < end; ++i) {
+            QJsonObject fpObj;
+            fpObj["name"] = filtered[i].name;
+            fpObj["library"] = filtered[i].library;
+            footprintsArray.append(fpObj);
+        }
+
+        QJsonObject out;
+        out["footprints"] = footprintsArray;
+        out["totalCount"] = totalCount;
+        out["limit"] = limit;
+        out["offset"] = offset;
+
+        if (parser.isSet("json")) {
+            printJsonValue(out);
+        } else {
+            if (!g_quiet) {
+                std::cout << "Available footprints (showing " << (end - offset) << " of " << totalCount << "):" << std::endl;
+                for (int i = offset; i < end; ++i) {
+                    std::cout << "  - " << filtered[i].name.toStdString() << " (Library: " << filtered[i].library.toStdString() << ")" << std::endl;
+                }
+            }
+        }
+
+        return 0;
+    }
+};
+
 } // namespace
 
 void registerFootprintCommands() {
     auto& reg = CommandRegistry::instance();
     reg.registerCommand(std::make_unique<FootprintRenderCommand>());
     reg.registerCommand(std::make_unique<FootprintImportCommand>());
+    reg.registerCommand(std::make_unique<FootprintListCommand>());
 }

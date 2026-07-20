@@ -194,8 +194,10 @@ int main(int argc, char *argv[]) {
 #endif
     SchematicItemRegistry::registerBuiltInItems();
     
-    SymbolLibraryManager::instance().loadUserLibraries(QDir::homePath() + "/ViospiceLib/sym");
-    ModelLibraryManager::instance().reload();
+    if (command != "symbol-import" && command != "symbol-query" && command != "symbol-validate") {
+        SymbolLibraryManager::instance().loadUserLibraries(QDir::homePath() + "/ViospiceLib/sym");
+        ModelLibraryManager::instance().reload();
+    }
 
     // 7. Execute the command
     // Note: The positional arguments list includes 'viora' and the command name at index 0 and 1,

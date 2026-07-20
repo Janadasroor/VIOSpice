@@ -35,10 +35,12 @@ public:
     bool saveFootprint(const FootprintDefinition& footprint); // Save to this lib (dir)
 
 private:
+    void ensureLoaded() const;
     QString m_name;
     QString m_path;
     bool m_builtIn;
-    QMap<QString, FootprintDefinition> m_footprints;
+    mutable bool m_loaded;
+    mutable QMap<QString, FootprintDefinition> m_footprints;
 };
 
 class FootprintLibraryManager : public QObject {

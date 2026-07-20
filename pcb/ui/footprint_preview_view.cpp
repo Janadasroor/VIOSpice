@@ -38,19 +38,15 @@ void FootprintPreviewView::setFootprint(const FootprintDefinition& def) {
     if (!def.isValid()) return;
 
     PCBTheme* theme = ThemeManager::theme();
+    setBackgroundBrush(QBrush(theme ? theme->canvasBackground() : QColor(30, 30, 30)));
     
     // Consistent with ComponentItem - use safety defaults if theme is missing
     QColor silkColor = theme ? theme->componentOutline() : Qt::yellow;
-    QColor padFillColor = theme ? theme->padFill() : QColor(200, 200, 0);
-    QColor padStrokeColor = theme ? theme->padStroke() : Qt::white;
     
     QPen silkPen(silkColor, 1.0);
     silkPen.setCosmetic(true);
     silkPen.setCapStyle(Qt::RoundCap);
     silkPen.setJoinStyle(Qt::RoundJoin);
-    
-    QBrush padBrush(padFillColor);
-    QPen padPen(padStrokeColor, 0.1);
 
     for (const auto& prim : def.primitives()) {
         if (prim.type == FootprintPrimitive::Pad) {
@@ -59,11 +55,24 @@ void FootprintPreviewView::setFootprint(const FootprintDefinition& def) {
             qreal x = prim.data["x"].toDouble();
             qreal y = prim.data["y"].toDouble();
             QString shape = prim.data["shape"].toString();
+            qreal drill = prim.data["drill_size"].toDouble();
+            const bool isThroughHole = (drill > 0.001);
             
             // Safety defaults for zero sizes
             if (w <= 0) w = 1.0;
             if (h <= 0) h = 1.0;
             
+            QColor padFillColor = isThroughHole 
+                ? (theme ? theme->multiLayer() : QColor(0, 150, 136))
+                : (theme ? theme->padFill() : QColor(200, 200, 0));
+            QBrush padBrush(padFillColor);
+            QPen padPen(padFillColor.darker(150), 1.0);
+            padPen.setCosmetic(true);
+            
+#include <QJsonArray>
+#include <QJsonObject>
+#include <QPainterPathStroker>
+
             QGraphicsItem* padItem = nullptr;
             if (shape == "Round" || shape == "Circle") {
                 padItem = m_scene->addEllipse(-w/2, -h/2, w, h, padPen, padBrush);
@@ -71,6 +80,60 @@ void FootprintPreviewView::setFootprint(const FootprintDefinition& def) {
                 QPainterPath path;
                 qreal r = std::min(w, h) / 2.0;
                 path.addRoundedRect(-w/2, -h/2, w, h, r, r);
+                padItem = m_scene->addPath(path, padPen, padBrush);
+            } else if (shape.toLower() == "custom" && prim.data.contains("custom_primitives")) {
+                QPainterPath path;
+                for (const auto& val : prim.data["custom_primitives"].toArray()) {
+                    QJsonObject primObj = val.toObject();
+                    QString type = primObj.value("type").toString().toLower();
+                    QJsonObject data = primObj.value("data").toObject();
+                    if (type == "line") {
+                        qreal x1 = data.value("x1").toDouble();
+                        qreal y1 = data.value("y1").toDouble();
+                        qreal x2 = data.value("x2").toDouble();
+                        qreal y2 = data.value("y2").toDouble();
+                        qreal pw = data.value("width").toDouble(0.15);
+                        QPainterPathStroker stroker;
+                        stroker.setWidth(pw);
+                        stroker.setCapStyle(Qt::RoundCap);
+                        stroker.setJoinStyle(Qt::RoundJoin);
+                        QPainterPath lp;
+                        lp.moveTo(x1, y1);
+                        lp.lineTo(x2, y2);
+                        path.addPath(stroker.createStroke(lp));
+                    } else if (type == "rect") {
+                        qreal rx = data.value("x").toDouble();
+                        qreal ry = data.value("y").toDouble();
+                        qreal rw = data.value("width").toDouble();
+                        qreal rh = data.value("height").toDouble();
+                        path.addRect(rx, ry, rw, rh);
+                    } else if (type == "circle") {
+                        qreal cx = data.value("cx").toDouble();
+                        qreal cy = data.value("cy").toDouble();
+                        qreal r = data.value("radius").toDouble();
+                        path.addEllipse(QPointF(cx, cy), r, r);
+                    } else if (type == "arc") {
+                        qreal cx = data.value("cx").toDouble();
+                        qreal cy = data.value("cy").toDouble();
+                        qreal r = data.value("radius").toDouble();
+                        qreal lw = data.value("lineWidth").toDouble(0.15);
+                        QPainterPathStroker stroker;
+                        stroker.setWidth(lw);
+                        QPainterPath ap;
+                        qreal startAngle = data.value("startAngle").toDouble();
+                        qreal spanAngle = data.value("spanAngle").toDouble();
+                        ap.arcMoveTo(QRectF(cx - r, cy - r, r * 2.0, r * 2.0), startAngle);
+                        ap.arcTo(QRectF(cx - r, cy - r, r * 2.0, r * 2.0), startAngle, spanAngle);
+                        path.addPath(stroker.createStroke(ap));
+                    } else if (type == "polygon") {
+                        QPolygonF poly;
+                        for (const auto& v : data.value("points").toArray()) {
+                            QJsonObject pt = v.toObject();
+                            poly << QPointF(pt["x"].toDouble(), pt["y"].toDouble());
+                        }
+                        path.addPolygon(poly);
+                    }
+                }
                 padItem = m_scene->addPath(path, padPen, padBrush);
             } else {
                 padItem = m_scene->addRect(-w/2, -h/2, w, h, padPen, padBrush);
@@ -86,7 +149,7 @@ void FootprintPreviewView::setFootprint(const FootprintDefinition& def) {
             if (prim.data.contains("drill_size")) {
                 double drill = prim.data["drill_size"].toDouble();
                 if (drill > 0) {
-                    auto* hole = m_scene->addEllipse(x - drill/2, y - drill/2, drill, drill, Qt::NoPen, QBrush(QColor(30, 30, 30)));
+                    auto* hole = m_scene->addEllipse(x - drill/2, y - drill/2, drill, drill, Qt::NoPen, QBrush(theme ? theme->canvasBackground() : QColor(30, 30, 30)));
                     hole->setZValue(1.1);
                 }
             }

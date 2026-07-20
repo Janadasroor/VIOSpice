@@ -35,6 +35,7 @@ public:
     void addFootprint(const QString& name, const QString& library, const QString& category, const QString& tags = QString());
     void addSymbol(const QString& name, const QString& library, const QString& category, const QString& tags = QString());
     void clearIndex();
+    bool hasLibrary(const QString& library, const QString& type);
 
     // Fast Search
     QList<SearchResult> search(const QString& query, const QString& typeFilter = "");

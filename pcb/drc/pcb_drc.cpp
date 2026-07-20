@@ -8,6 +8,7 @@
 #include "trace_item.h"
 #include "via_item.h"
 #include "pad_item.h"
+#include <iostream>
 #include "component_item.h"
 #include "copper_pour_item.h"
 #include "ratsnest_item.h"
@@ -125,8 +126,11 @@ bool PCBDRC::checkItemClearance(PCBItem* item1, PCBItem* item2, double minCleara
     if (item1 == item2) return false;
 
     auto itemsOverlapLayers = [](PCBItem* a, PCBItem* b) {
-        // If they share a primary layer, they definitely overlap
-        if (a->layer() == b->layer()) return true;
+        // If they share a primary layer, they definitely overlap if it's copper
+        if (a->layer() == b->layer()) {
+            const PCBLayer* lay = PCBLayerManager::instance().layer(a->layer());
+            return lay && lay->isCopperLayer();
+        }
 
         // Check if either is a through-hole item (spans all copper)
         const PadItem* padA = dynamic_cast<const PadItem*>(a);
@@ -272,6 +276,31 @@ void PCBDRC::checkClearances(QGraphicsScene* scene) {
                 bool isShort = p1.intersects(p2);
                 
                 if (isShort) {
+                    std::cerr << "!!! SHORT CIRCUIT DETECTED: net1=" << item1->netName().toStdString() 
+                              << " (" << item1->itemTypeName().toStdString() << " layer=" << item1->layer() << ")"
+                              << " net2=" << item2->netName().toStdString()
+                              << " (" << item2->itemTypeName().toStdString() << " layer=" << item2->layer() << ")"
+                              << " at position=" << violationPos.x() << "," << violationPos.y() << std::endl;
+                    if (auto* trace1 = dynamic_cast<TraceItem*>(item1)) {
+                        std::cerr << "  Trace1 start=(" << trace1->startPoint().x() << "," << trace1->startPoint().y() 
+                                  << ") end=(" << trace1->endPoint().x() << "," << trace1->endPoint().y() << ")" << std::endl;
+                    }
+                    if (auto* trace2 = dynamic_cast<TraceItem*>(item2)) {
+                        std::cerr << "  Trace2 start=(" << trace2->startPoint().x() << "," << trace2->startPoint().y() 
+                                  << ") end=(" << trace2->endPoint().x() << "," << trace2->endPoint().y() << ")" << std::endl;
+                    }
+                    if (auto* pad1 = dynamic_cast<PadItem*>(item1)) {
+                        std::cerr << "  Pad1 component=" << (pad1->parentItem() ? dynamic_cast<ComponentItem*>(pad1->parentItem())->name().toStdString() : "")
+                                  << " num=" << (pad1->model() ? pad1->model()->number().toStdString() : "") << " sceneBoundingRect=(" << pad1->sceneBoundingRect().x()
+                                  << "," << pad1->sceneBoundingRect().y() << "," << pad1->sceneBoundingRect().width()
+                                  << "," << pad1->sceneBoundingRect().height() << ")" << std::endl;
+                    }
+                    if (auto* pad2 = dynamic_cast<PadItem*>(item2)) {
+                        std::cerr << "  Pad2 component=" << (pad2->parentItem() ? dynamic_cast<ComponentItem*>(pad2->parentItem())->name().toStdString() : "")
+                                  << " num=" << (pad2->model() ? pad2->model()->number().toStdString() : "") << " sceneBoundingRect=(" << pad2->sceneBoundingRect().x()
+                                  << "," << pad2->sceneBoundingRect().y() << "," << pad2->sceneBoundingRect().width()
+                                  << "," << pad2->sceneBoundingRect().height() << ")" << std::endl;
+                    }
                     addViolation(DRCViolation(
                         DRCViolation::ShortCircuit,
                         DRCViolation::Error,
@@ -700,6 +729,10 @@ void PCBDRC::checkFloatingCopper(QGraphicsScene* scene) {
         if (type != PCBItem::TraceType && type != PCBItem::ViaType && 
             type != PCBItem::PadType && type != PCBItem::CopperPourType) continue;
 
+        // Skip non-copper layers
+        const PCBLayer* layer = PCBLayerManager::instance().layer(item->layer());
+        if (!layer || !layer->isCopperLayer()) continue;
+
         if (item->netName().isEmpty() || item->netName() == "No Net") {
             // Check if it's a Pad (often pads are part of a component, some might be mounting holes)
             if (type == PCBItem::PadType) {
@@ -734,6 +767,9 @@ void PCBDRC::checkBoardEdge(QGraphicsScene* scene) {
     if (!foundEdge) return;
 
     QRectF boardRect = boardOutline.boundingRect();
+    QPainterPath filledBoard;
+    filledBoard.addRect(boardRect);
+
     double gap = m_rules.copperToEdge();
     QRectF safeRect = boardRect.adjusted(gap, gap, -gap, -gap);
 
@@ -744,9 +780,9 @@ void PCBDRC::checkBoardEdge(QGraphicsScene* scene) {
         QPainterPath itemPath = pcbItem->sceneTransform().map(pcbItem->shape());
         
         // 1. Check if item is outside board
-        if (!boardOutline.contains(itemPath)) {
+        if (!filledBoard.contains(itemPath)) {
             // Check if it's completely outside or partially
-            if (boardOutline.intersected(itemPath).isEmpty()) {
+            if (filledBoard.intersected(itemPath).isEmpty()) {
                  addViolation(DRCViolation(
                     DRCViolation::BoardEdgeClearance,
                     DRCViolation::Error,
