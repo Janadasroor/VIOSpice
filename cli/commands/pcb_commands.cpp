@@ -455,6 +455,7 @@ public:
         parser.addOption(QCommandLineOption("route-layers", "Routing layer selection: top | bottom | both (default: both)", "layers", "both"));
         parser.addOption(QCommandLineOption("add-netclass", "Inject net class rules: name=...,width=...,clearance=...", "spec"));
         parser.addOption(QCommandLineOption("assign-net", "Assign net to a net class: net=...,class=...", "spec"));
+        parser.addOption(QCommandLineOption("allow-diagonals", "Allow the auto-router to use 45-degree diagonal traces"));
         parser.addOption(QCommandLineOption("json", "Output results in JSON format"));
     }
 
@@ -471,6 +472,7 @@ public:
                 {"route-layers", "string"},
                 {"add-netclass", "string (repeatable)"},
                 {"assign-net", "string (repeatable)"},
+                {"allow-diagonals", "bool"},
                 {"json", "bool"}
             }}
         };
@@ -761,6 +763,10 @@ public:
                     config.preferTopLayer = true;
                     config.preferBottomLayer = true;
                 }
+            }
+
+            if (parser.isSet("allow-diagonals")) {
+                config.allowDiagonals = true;
             }
 
             auto stats = router.routeAll(config);

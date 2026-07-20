@@ -118,6 +118,7 @@ PCBAutoRouter::RouteStats PCBAutoRouter::routeAll(const RouterConfig& config) {
             passConfig.maxIterations *= 2;
             passConfig.allowDiagonals = true;
         }
+        m_config = passConfig;
 
         QList<UnroutedConnection> stillFailed;
 
@@ -262,11 +263,8 @@ void PCBAutoRouter::buildGrid() {
 
 void PCBAutoRouter::markObstacles() {
     for (auto* item : m_scene->items()) {
-        // Pads are obstacles on their layer
+        // Pads are obstacles on their layer (or all layers if through-hole)
         if (auto* pad = dynamic_cast<PadItem*>(item)) {
-            int layerIdx = gridLayerIndex(pad->layer());
-            if (layerIdx < 0) continue;
-
             double cl = NetClassManager::instance().getClassForNet(pad->netName()).clearance;
             QRectF sceneRect = pad->sceneBoundingRect();
             sceneRect.adjust(-cl, -cl, cl, cl);
@@ -279,9 +277,15 @@ void PCBAutoRouter::markObstacles() {
             int yMin = qBound(0, qMin(gMin.y(), gMax.y()), m_gridHeight - 1);
             int yMax = qBound(0, qMax(gMin.y(), gMax.y()), m_gridHeight - 1);
 
-            for (int y = yMin; y <= yMax; ++y) {
-                for (int x = xMin; x <= xMax; ++x) {
-                    markCellOccupied(x, y, layerIdx, pad->netName());
+            bool isTH = (pad->drillSize() > 0.001);
+            for (int l = 0; l < m_gridLayers; ++l) {
+                if (!isTH && l != gridLayerIndex(pad->layer())) {
+                    continue; // Skip if SMD pad and not on this grid layer
+                }
+                for (int y = yMin; y <= yMax; ++y) {
+                    for (int x = xMin; x <= xMax; ++x) {
+                        markCellOccupied(x, y, l, pad->netName());
+                    }
                 }
             }
         }
@@ -821,6 +825,14 @@ QList<PCBAutoRouter::AStarNode> PCBAutoRouter::getNeighbors(const AStarNode& nod
 
         if (!isValidCell(nx, ny, node.layer)) continue;
         if (!isCellPassable(nx, ny, node.layer, netName)) continue;
+
+        // Block diagonal moves that slice through corners of another net's pads/traces
+        if (dx[i] != 0 && dy[i] != 0) {
+            if (!isCellPassable(node.x + dx[i], node.y, node.layer, netName) ||
+                !isCellPassable(node.x, node.y + dy[i], node.layer, netName)) {
+                continue;
+            }
+        }
 
         AStarNode n;
         n.x = nx; n.y = ny; n.layer = node.layer;
