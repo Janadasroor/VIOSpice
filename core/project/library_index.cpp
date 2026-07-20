@@ -167,3 +167,17 @@ bool LibraryIndex::commitTransaction() {
     return database.commit();
 }
 
+bool LibraryIndex::hasLibrary(const QString& library, const QString& type) {
+    QSqlDatabase database = db();
+    if (!database.isOpen()) return false;
+
+    QSqlQuery q(database);
+    q.prepare("SELECT 1 FROM components WHERE library = ? AND type = ? LIMIT 1");
+    q.addBindValue(library);
+    q.addBindValue(type);
+    if (q.exec() && q.next()) {
+        return true;
+    }
+    return false;
+}
+

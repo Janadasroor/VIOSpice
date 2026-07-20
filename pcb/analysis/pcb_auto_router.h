@@ -47,7 +47,7 @@ class PCBAutoRouter : public QObject {
 public:
     struct RouterConfig {
         // Grid settings
-        double gridSpacing = 0.5;        // Grid cell size in mm (default 0.5mm)
+        double gridSpacing = 0.25;        // Grid cell size in mm (default 0.25mm)
         int maxGridWidth = 2000;          // Max grid width to limit memory
         int maxGridHeight = 2000;         // Max grid height
 
@@ -139,6 +139,7 @@ private:
         bool traceOccupied = false;      // Existing trace (route around)
         double occupancyCost = 0.0;      // Cost penalty for using this cell
         int layer = 0;                   // Which copper layer this cell belongs to
+        QString netName;                 // Net name occupying this cell
     };
 
     // A* node
@@ -168,6 +169,7 @@ private:
     GridCell* cellAt(int x, int y, int layer);
     const GridCell* cellAt(int x, int y, int layer) const;
     bool isValidCell(int x, int y, int layer) const;
+    void markCellOccupied(int x, int y, int layer, const QString& netName);
 
     // Coordinate conversion
     QPointF gridToScene(int gx, int gy) const;
@@ -176,8 +178,9 @@ private:
     // A* pathfinding
     bool findPath(const UnroutedConnection& conn, QVector<AStarNode>& outPath);
     double heuristic(int x1, int y1, int x2, int y2) const;
-    bool isCellPassable(int x, int y, int layer, double clearance) const;
-    QList<AStarNode> getNeighbors(const AStarNode& node, double clearance) const;
+    bool isCellPassable(int x, int y, int layer, const QString& netName) const;
+    bool isViaPassable(int cx, int cy, const QString& netName) const;
+    QList<AStarNode> getNeighbors(const AStarNode& node, const QString& netName) const;
 
     // Path conversion
     void convertPathToTraces(const QVector<AStarNode>& path, const UnroutedConnection& conn);

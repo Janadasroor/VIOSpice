@@ -6,6 +6,7 @@
 #include "pcb_file_io.h"
 #include "diagnostics/runtime_diagnostics.h"
 #include "../factories/pcb_item_factory.h"
+#include "../layers/pcb_layer.h"
 #include "../items/pcb_item.h"
 #include "../items/trace_item.h"
 #include "../items/via_item.h"
@@ -14,7 +15,6 @@
 #include "../items/copper_pour_item.h"
 #include "../items/shape_item.h"
 #include "../items/image_item.h"
-#include "../factories/pcb_item_factory.h"
 #include <QFile>
 #include <QJsonDocument>
 #include <QJsonArray>
@@ -36,6 +36,7 @@ bool PCBFileIO::saveBoard(const BoardModel* board, const QString& filePath) {
     }
 
     QJsonObject root = board->toJson();
+    root["layers"] = PCBLayerManager::instance().toJson();
     QJsonDocument doc(root);
     
     QFile file(filePath);
@@ -80,7 +81,11 @@ bool PCBFileIO::loadBoard(BoardModel* board, const QString& filePath) {
         return false;
     }
 
-    board->fromJson(doc.object());
+    QJsonObject root = doc.object();
+    board->fromJson(root);
+    if (root.contains("layers")) {
+        PCBLayerManager::instance().fromJson(root["layers"].toObject());
+    }
     return true;
 }
 
@@ -199,4 +204,89 @@ QJsonObject PCBFileIO::serializeSceneToJson(QGraphicsScene* scene) {
 
 QString PCBFileIO::lastError() {
     return s_lastError;
+}
+
+QJsonObject PCBFileIO::serializePCBItem(const PCBItem* item) {
+    QJsonObject obj;
+    if (!item) return obj;
+
+    obj["x"] = item->pos().x();
+    obj["y"] = item->pos().y();
+    obj["rotation"] = item->rotation();
+    obj["layer"] = item->layer();
+
+    if (auto* trace = dynamic_cast<const TraceItem*>(item)) {
+        obj["type"] = "Trace";
+        if (trace->model()) obj["model"] = trace->model()->toJson();
+    } else if (auto* via = dynamic_cast<const ViaItem*>(item)) {
+        obj["type"] = "Via";
+        if (via->model()) obj["model"] = via->model()->toJson();
+    } else if (auto* pad = dynamic_cast<const PadItem*>(item)) {
+        obj["type"] = "Pad";
+        if (pad->model()) obj["model"] = pad->model()->toJson();
+    } else if (auto* comp = dynamic_cast<const ComponentItem*>(item)) {
+        obj["type"] = "Component";
+        if (comp->model()) obj["model"] = comp->model()->toJson();
+    } else if (auto* pour = dynamic_cast<const CopperPourItem*>(item)) {
+        obj["type"] = "CopperPour";
+        if (pour->model()) obj["model"] = pour->model()->toJson();
+    } else if (auto* shape = dynamic_cast<const PCBShapeItem*>(item)) {
+        obj["type"] = "Shape";
+        obj["properties"] = shape->toJson();
+    } else if (auto* img = dynamic_cast<const PCBImageItem*>(item)) {
+        obj["type"] = "Image";
+        obj["properties"] = img->toJson();
+    }
+    return obj;
+}
+
+PCBItem* PCBFileIO::deserializePCBItem(const QJsonObject& obj) {
+    QString type = obj["type"].toString();
+    PCBItem* item = nullptr;
+
+    if (type == "Trace") {
+        auto* model = new Flux::Model::TraceModel();
+        model->fromJson(obj["model"].toObject());
+        auto* trace = new TraceItem(model);
+        trace->setOwned(true);
+        item = trace;
+    } else if (type == "Via") {
+        auto* model = new Flux::Model::ViaModel();
+        model->fromJson(obj["model"].toObject());
+        auto* via = new ViaItem(model);
+        via->setOwned(true);
+        item = via;
+    } else if (type == "Pad") {
+        auto* model = new Flux::Model::PadModel();
+        model->fromJson(obj["model"].toObject());
+        auto* pad = new PadItem(model);
+        pad->setOwned(true);
+        item = pad;
+    } else if (type == "Component") {
+        auto* model = new Flux::Model::ComponentModel();
+        model->fromJson(obj["model"].toObject());
+        auto* comp = new ComponentItem(model);
+        comp->setOwned(true);
+        item = comp;
+    } else if (type == "CopperPour") {
+        auto* model = new Flux::Model::CopperPourModel();
+        model->fromJson(obj["model"].toObject());
+        auto* pour = new CopperPourItem(model);
+        pour->setOwned(true);
+        item = pour;
+    } else if (type == "Shape" || type == "Image") {
+        QJsonObject props = obj["properties"].toObject();
+        item = PCBItemFactory::instance().createItem(type, QPointF(), props, nullptr);
+        if (item) {
+            item->fromJson(props);
+        }
+    }
+
+    if (item) {
+        item->setPos(QPointF(obj["x"].toDouble(), obj["y"].toDouble()));
+        item->setRotation(obj["rotation"].toDouble());
+        item->setLayer(obj["layer"].toInt());
+    }
+
+    return item;
 }

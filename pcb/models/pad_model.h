@@ -12,6 +12,8 @@
 #include <QString>
 #include <QJsonObject>
 
+#include <QJsonArray>
+
 namespace Flux {
 namespace Model {
 
@@ -74,6 +76,9 @@ public:
     QString number() const { return m_number; }
     void setNumber(const QString& number) { m_number = number; }
 
+    QJsonArray customPrimitives() const { return m_customPrimitives; }
+    void setCustomPrimitives(const QJsonArray& arr) { m_customPrimitives = arr; }
+
     // Serialization
     QJsonObject toJson() const {
         QJsonObject json;
@@ -92,6 +97,7 @@ public:
         json["pasteExpansion"] = m_pasteExpansion;
         json["netName"] = m_netName;
         json["number"] = m_number;
+        json["customPrimitives"] = m_customPrimitives;
         return json;
     }
 
@@ -109,6 +115,7 @@ public:
         m_pasteExpansion = json["pasteExpansion"].toDouble();
         m_netName = json["netName"].toString();
         m_number = json["number"].toString();
+        m_customPrimitives = json["customPrimitives"].toArray();
     }
 
     PadModel* clone() const {
@@ -126,6 +133,7 @@ public:
         c->m_pasteExpansion = m_pasteExpansion;
         c->m_netName = m_netName;
         c->m_number = m_number;
+        c->m_customPrimitives = m_customPrimitives;
         return c;
     }
 
@@ -143,6 +151,7 @@ private:
     double m_pasteExpansion;
     QString m_netName;
     QString m_number;
+    QJsonArray m_customPrimitives;
 };
 
 } // namespace Model

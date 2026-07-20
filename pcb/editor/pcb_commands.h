@@ -134,6 +134,21 @@ private:
 };
 
 /**
+ * @brief Command for mirroring items on the PCB
+ */
+class PCBMirrorItemCommand : public PCBCommand {
+public:
+    PCBMirrorItemCommand(QGraphicsScene* scene, QList<PCBItem*> items, QUndoCommand* parent = nullptr);
+    
+    void undo() override;
+    void redo() override;
+
+private:
+    QList<PCBItem*> m_items;
+    QList<QTransform> m_oldTransforms;
+};
+
+/**
  * @brief Command for flipping items (changing layer)
  */
 class PCBFlipItemCommand : public PCBCommand {

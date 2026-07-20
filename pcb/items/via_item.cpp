@@ -101,6 +101,13 @@ void ViaItem::setEndLayer(int layer) {
     update();
 }
 
+void ViaItem::setNetName(const QString& net) {
+    PCBItem::setNetName(net);
+    if (m_model) {
+        m_model->setNetName(net);
+    }
+}
+
 bool ViaItem::spansLayer(int layerId) const {
     const int a = copperLayerOrderIndex(m_model->startLayer());
     const int b = copperLayerOrderIndex(m_model->endLayer());

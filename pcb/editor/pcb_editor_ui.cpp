@@ -204,10 +204,14 @@ void MainWindow::createMenuBar() {
     m_redoAction->setIcon(getThemeIcon(":/icons/redo.svg"));
     editMenu->addAction(m_redoAction);
     addAction(m_redoAction); // Register globally
-    editMenu->addSeparator();
-    editMenu->addAction("Cu&t", QKeySequence::Cut);
-    editMenu->addAction("&Copy", QKeySequence::Copy);
-    editMenu->addAction("&Paste", QKeySequence::Paste);
+    QAction* cutAct = editMenu->addAction("Cu&t", QKeySequence::Cut, this, &MainWindow::onCut);
+    addAction(cutAct);
+    QAction* copyAct = editMenu->addAction("&Copy", QKeySequence::Copy, this, &MainWindow::onCopy);
+    addAction(copyAct);
+    QAction* pasteAct = editMenu->addAction("&Paste", QKeySequence::Paste, this, &MainWindow::onPaste);
+    addAction(pasteAct);
+    QAction* duplicateAct = editMenu->addAction("Duplicate", QKeySequence("Ctrl+D"), this, &MainWindow::onDuplicate);
+    addAction(duplicateAct);
     editMenu->addSeparator();
     editMenu->addAction("&Delete", QKeySequence::Delete, this, &MainWindow::onDeleteSelection);
     QAction* bringToFrontAct = editMenu->addAction("Bring To Front");
@@ -488,6 +492,7 @@ void MainWindow::createToolBar() {
 
     QAction* deleteAction = toolbar->addAction(getThemeIcon(":/icons/tool_delete.svg"), "Delete");
     deleteAction->setToolTip("Delete selected items (Del / Bksp)");
+    deleteAction->setShortcuts({QKeySequence(Qt::Key_Delete), QKeySequence(Qt::Key_Backspace)});
     connect(deleteAction, &QAction::triggered, this, &MainWindow::onDeleteSelection);
 
     toolbar->addSeparator();
@@ -510,11 +515,19 @@ void MainWindow::createToolBar() {
     rotateAction->setToolTip("Rotate selected items (R)");
     rotateAction->setShortcut(QKeySequence("R"));
     connect(rotateAction, &QAction::triggered, this, &MainWindow::onRotate);
+    addAction(rotateAction);
     
     QAction* mirrorAction = toolbar->addAction(getThemeIcon(":/icons/flip_h.svg"), "Mirror");
-    mirrorAction->setToolTip("Mirror selected items (M)");
-    mirrorAction->setShortcut(QKeySequence("Ctrl+M"));
+    mirrorAction->setToolTip("Mirror selected items (H)");
+    mirrorAction->setShortcut(QKeySequence("H"));
     connect(mirrorAction, &QAction::triggered, this, &MainWindow::onMirror);
+    addAction(mirrorAction);
+
+    QAction* flipAction = toolbar->addAction(getThemeIcon(":/icons/flip_v.svg"), "Flip Layer");
+    flipAction->setToolTip("Flip selected items to opposite layer (F)");
+    flipAction->setShortcut(QKeySequence("F"));
+    connect(flipAction, &QAction::triggered, this, &MainWindow::onFlip);
+    addAction(flipAction);
 
     toolbar->addSeparator();
 
@@ -591,6 +604,16 @@ void MainWindow::createToolBar() {
     topToolbar->setIconSize(QSize(20, 20));
     topToolbar->setMovable(false);
     topToolbar->setToolButtonStyle(Qt::ToolButtonIconOnly);
+    
+    if (m_undoAction) {
+        m_undoAction->setToolTip("Undo last action (Ctrl+Z)");
+        topToolbar->addAction(m_undoAction);
+    }
+    if (m_redoAction) {
+        m_redoAction->setToolTip("Redo last action (Ctrl+Shift+Z)");
+        topToolbar->addAction(m_redoAction);
+    }
+    topToolbar->addSeparator();
     topToolbar->setStyleSheet(
         "QToolBar#TopMainToolbar {"
         "  background-color: #2d2d30;"
@@ -673,6 +696,26 @@ void MainWindow::createToolBar() {
     top3DAct->setToolTip("Open PCB 3D Preview (Alt+3)");
     connect(top3DAct, &QAction::triggered, this, &MainWindow::onToggle3DView);
 
+    // --- PANEL TOGGLES (VS CODE STYLE) ---
+    QWidget* spacer = new QWidget();
+    spacer->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
+    topToolbar->addWidget(spacer);
+
+    auto addPanelToggle = [&](const QString& iconName, const QString& tooltip, auto slot) {
+        QToolButton* btn = new QToolButton(this);
+        btn->setIcon(createPCBIcon(iconName));
+        btn->setToolTip(tooltip);
+        btn->setCheckable(true);
+        btn->setChecked(true);
+        connect(btn, &QToolButton::clicked, this, slot);
+        topToolbar->addWidget(btn);
+        return btn;
+    };
+
+    addPanelToggle("Panel Sidebar Left", "Toggle Left Sidebar", &MainWindow::onToggleLeftSidebar);
+    addPanelToggle("Panel Bottom", "Toggle Bottom Panel (DRC)", &MainWindow::onToggleBottomPanel);
+    addPanelToggle("Panel Sidebar Right", "Toggle Right Sidebar", &MainWindow::onToggleRightSidebar);
+
     // ─── Options Toolbar (Context Settings) ──────────────────────────────────
     m_optionsToolbar = new QToolBar("Tool Settings", this);
     m_optionsToolbar->setObjectName("OptionsToolbar");
@@ -726,26 +769,30 @@ void MainWindow::createToolBar() {
         "  background-color: #3c3c3c;"
         "}"
     );
-    auto addAlignAct = [this, layoutToolbar](const QString& text, const QString& tooltip, auto slot) {
+    auto addAlignAct = [this, layoutToolbar](const QString& text, const QString& tooltip, const QKeySequence& shortcut, auto slot) {
         QAction* act = layoutToolbar->addAction(createPCBIcon(text), text);
         act->setToolTip(tooltip);
+        if (!shortcut.isEmpty()) {
+            act->setShortcut(shortcut);
+            addAction(act);
+        }
         connect(act, &QAction::triggered, this, slot);
     };
 
-    addAlignAct("Align Left", "Align Left", &MainWindow::onAlignLeft);
-    addAlignAct("Align Right", "Align Right", &MainWindow::onAlignRight);
-    addAlignAct("Align Top", "Align Top", &MainWindow::onAlignTop);
-    addAlignAct("Align Bottom", "Align Bottom", &MainWindow::onAlignBottom);
+    addAlignAct("Align Left", "Align Left (Ctrl+Alt+Left)", QKeySequence("Ctrl+Alt+Left"), &MainWindow::onAlignLeft);
+    addAlignAct("Align Right", "Align Right (Ctrl+Alt+Right)", QKeySequence("Ctrl+Alt+Right"), &MainWindow::onAlignRight);
+    addAlignAct("Align Top", "Align Top (Ctrl+Alt+Up)", QKeySequence("Ctrl+Alt+Up"), &MainWindow::onAlignTop);
+    addAlignAct("Align Bottom", "Align Bottom (Ctrl+Alt+Down)", QKeySequence("Ctrl+Alt+Down"), &MainWindow::onAlignBottom);
     
     layoutToolbar->addSeparator();
 
-    addAlignAct("Center X", "Center Horizontal", &MainWindow::onAlignCenterX);
-    addAlignAct("Center Y", "Center Vertical", &MainWindow::onAlignCenterY);
+    addAlignAct("Center X", "Center Horizontal (Ctrl+Alt+H)", QKeySequence("Ctrl+Alt+H"), &MainWindow::onAlignCenterX);
+    addAlignAct("Center Y", "Center Vertical (Ctrl+Alt+V)", QKeySequence("Ctrl+Alt+V"), &MainWindow::onAlignCenterY);
     
     layoutToolbar->addSeparator();
 
-    addAlignAct("Distribute H", "Distribute Horizontally", &MainWindow::onDistributeH);
-    addAlignAct("Distribute V", "Distribute Vertically", &MainWindow::onDistributeV);
+    addAlignAct("Distribute H", "Distribute Horizontally", QKeySequence(), &MainWindow::onDistributeH);
+    addAlignAct("Distribute V", "Distribute Vertically", QKeySequence(), &MainWindow::onDistributeV);
 }
 
 void MainWindow::ensureRightBottomDockTabs() {
@@ -1171,6 +1218,18 @@ QIcon MainWindow::createPCBIcon(const QString& name) {
         painter.drawLine(4, 28, 28, 28);
         painter.drawRect(12, 10, 8, 4);
         painter.drawRect(12, 18, 8, 4);
+    } else if (name == "Panel Sidebar Left") {
+        painter.drawRect(6, 8, 20, 16);
+        painter.setBrush(ThemeManager::theme() ? ThemeManager::theme()->accentColor() : color);
+        painter.drawRect(6, 8, 6, 16);
+    } else if (name == "Panel Bottom") {
+        painter.drawRect(6, 8, 20, 16);
+        painter.setBrush(ThemeManager::theme() ? ThemeManager::theme()->accentColor() : color);
+        painter.drawRect(6, 18, 20, 6);
+    } else if (name == "Panel Sidebar Right") {
+        painter.drawRect(6, 8, 20, 16);
+        painter.setBrush(ThemeManager::theme() ? ThemeManager::theme()->accentColor() : color);
+        painter.drawRect(20, 8, 6, 16);
     } else {
         painter.drawText(pixmap.rect(), Qt::AlignCenter, name.left(1));
     }

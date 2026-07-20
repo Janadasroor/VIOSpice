@@ -29,6 +29,10 @@ public:
     static QJsonObject serializeSceneToJson(QGraphicsScene* scene);
     static QString lastError();
 
+    // --- Clipboard / Group IO ---
+    static QJsonObject serializePCBItem(const class PCBItem* item);
+    static class PCBItem* deserializePCBItem(const QJsonObject& obj);
+
 private:
     static QString s_lastError;
     static const int FILE_FORMAT_VERSION = 1;

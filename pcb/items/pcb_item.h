@@ -48,7 +48,7 @@ public:
     void setName(const QString& name) { m_name = name; }
 
     QString netName() const { return m_netName; }
-    void setNetName(const QString& net) { m_netName = net; }
+    virtual void setNetName(const QString& net) { m_netName = net; }
 
     double height() const { return m_height; }
     void setHeight(double h) { m_height = h; update(); }

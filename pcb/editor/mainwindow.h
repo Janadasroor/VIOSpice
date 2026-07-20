@@ -105,7 +105,15 @@ private slots:
     void onDistributeV();
     void onRotate();
     void onMirror();
+    void onFlip();
     void onDeleteSelection();
+    void onCopy();
+    void onCut();
+    void onPaste();
+    void onDuplicate();
+    void onToggleLeftSidebar();
+    void onToggleBottomPanel();
+    void onToggleRightSidebar();
     void onBringToFront();
     void onSendToBack();
     void updateOptionsBar(const QString& toolName);

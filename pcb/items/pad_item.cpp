@@ -9,9 +9,80 @@
 #include <QPainter>
 #include <QStyleOptionGraphicsItem>
 #include <QJsonObject>
+#include <QJsonArray>
 #include <QDebug>
 
 using namespace Flux::Model;
+
+static void drawCustomPadPrimitives(QPainter* painter, const QJsonArray& customPrims, const QColor& padColor) {
+    auto parsePoints = [](const QJsonArray& arr) {
+        QPolygonF poly;
+        for (const auto& val : arr) {
+            QJsonObject pt = val.toObject();
+            poly << QPointF(pt.value("x").toDouble(), pt.value("y").toDouble());
+        }
+        return poly;
+    };
+
+    for (const auto& val : customPrims) {
+        QJsonObject primObj = val.toObject();
+        QString type = primObj.value("type").toString().toLower();
+        QJsonObject data = primObj.value("data").toObject();
+        
+        if (type == "line") {
+            qreal x1 = data.value("x1").toDouble();
+            qreal y1 = data.value("y1").toDouble();
+            qreal x2 = data.value("x2").toDouble();
+            qreal y2 = data.value("y2").toDouble();
+            qreal w = data.value("width").toDouble(0.15);
+            painter->setPen(QPen(padColor, w, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+            painter->drawLine(QPointF(x1, y1), QPointF(x2, y2));
+        } else if (type == "rect") {
+            qreal x = data.value("x").toDouble();
+            qreal y = data.value("y").toDouble();
+            qreal w = data.value("width").toDouble();
+            qreal h = data.value("height").toDouble();
+            qreal lw = data.value("lineWidth").toDouble(0.15);
+            bool filled = data.value("filled").toBool(true);
+            painter->setPen(QPen(padColor, lw, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+            if (filled) painter->setBrush(padColor);
+            else painter->setBrush(Qt::NoBrush);
+            painter->drawRect(QRectF(x, y, w, h));
+        } else if (type == "circle") {
+            qreal cx = data.value("cx").toDouble();
+            qreal cy = data.value("cy").toDouble();
+            qreal r = data.value("radius").toDouble();
+            qreal lw = data.value("lineWidth").toDouble(0.15);
+            bool filled = data.value("filled").toBool(true);
+            painter->setPen(QPen(padColor, lw, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+            if (filled) painter->setBrush(padColor);
+            else painter->setBrush(Qt::NoBrush);
+            painter->drawEllipse(QPointF(cx, cy), r, r);
+        } else if (type == "arc") {
+            qreal cx = data.value("cx").toDouble();
+            qreal cy = data.value("cy").toDouble();
+            qreal r = data.value("radius").toDouble();
+            qreal lw = data.value("lineWidth").toDouble(0.15);
+            qreal startAngle = data.value("startAngle").toDouble();
+            qreal spanAngle = data.value("spanAngle").toDouble();
+            painter->setPen(QPen(padColor, lw, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+            painter->setBrush(Qt::NoBrush);
+            painter->drawArc(QRectF(cx - r, cy - r, r * 2.0, r * 2.0), qRound(startAngle * 16.0), qRound(spanAngle * 16.0));
+        } else if (type == "polygon") {
+            QPolygonF poly = parsePoints(data.value("points").toArray());
+            bool filled = data.value("filled").toBool(true);
+            qreal lw = data.value("lineWidth").toDouble(0.15);
+            painter->setPen(QPen(padColor, lw, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+            if (filled) {
+                painter->setBrush(padColor);
+                painter->drawPolygon(poly);
+            } else {
+                painter->setBrush(Qt::NoBrush);
+                painter->drawPolyline(poly);
+            }
+        }
+    }
+}
 
 PadItem::PadItem(QPointF pos, double diameter, QGraphicsItem *parent)
     : PCBItem(parent)
@@ -87,11 +158,74 @@ void PadItem::setLayer(int layer) {
     }
 }
 
+static QRectF getCustomPrimitivesBoundingRect(const QJsonArray& customPrims) {
+    if (customPrims.isEmpty()) return QRectF();
+    QRectF rect;
+    bool first = true;
+    for (const auto& val : customPrims) {
+        QJsonObject primObj = val.toObject();
+        QString type = primObj.value("type").toString().toLower();
+        QJsonObject data = primObj.value("data").toObject();
+        QRectF primRect;
+        if (type == "line") {
+            qreal x1 = data.value("x1").toDouble();
+            qreal y1 = data.value("y1").toDouble();
+            qreal x2 = data.value("x2").toDouble();
+            qreal y2 = data.value("y2").toDouble();
+            qreal w = data.value("width").toDouble(0.15);
+            primRect = QRectF(QPointF(x1, y1), QPointF(x2, y2)).normalized();
+            primRect.adjust(-w/2, -w/2, w/2, w/2);
+        } else if (type == "rect") {
+            qreal x = data.value("x").toDouble();
+            qreal y = data.value("y").toDouble();
+            qreal w = data.value("width").toDouble();
+            qreal h = data.value("height").toDouble();
+            primRect = QRectF(x, y, w, h);
+        } else if (type == "circle") {
+            qreal cx = data.value("cx").toDouble();
+            qreal cy = data.value("cy").toDouble();
+            qreal r = data.value("radius").toDouble();
+            primRect = QRectF(cx - r, cy - r, r * 2.0, r * 2.0);
+        } else if (type == "arc") {
+            qreal cx = data.value("cx").toDouble();
+            qreal cy = data.value("cy").toDouble();
+            qreal r = data.value("radius").toDouble();
+            primRect = QRectF(cx - r, cy - r, r * 2.0, r * 2.0);
+        } else if (type == "polygon") {
+            QJsonArray pts = data.value("points").toArray();
+            if (!pts.isEmpty()) {
+                QJsonObject pt0 = pts.first().toObject();
+                primRect = QRectF(pt0["x"].toDouble(), pt0["y"].toDouble(), 0, 0);
+                for (const auto& v : pts) {
+                    QJsonObject pt = v.toObject();
+                    primRect = primRect.united(QRectF(pt["x"].toDouble(), pt["y"].toDouble(), 0, 0));
+                }
+            }
+        }
+        if (primRect.isValid()) {
+            if (first) {
+                rect = primRect;
+                first = false;
+            } else {
+                rect = rect.united(primRect);
+            }
+        }
+    }
+    return rect;
+}
+
 QRectF PadItem::boundingRect() const {
     double border = m_pen.widthF() / 2.0;
     QSizeF size = m_model->size();
-    return QRectF(-size.width()/2 - border, -size.height()/2 - border,
+    QRectF rect(-size.width()/2 - border, -size.height()/2 - border,
                   size.width() + 2*border, size.height() + 2*border);
+    if (m_model->shape().toLower() == "custom" && !m_model->customPrimitives().isEmpty()) {
+        QRectF primsRect = getCustomPrimitivesBoundingRect(m_model->customPrimitives());
+        if (primsRect.isValid()) {
+            rect = rect.united(primsRect);
+        }
+    }
+    return rect;
 }
 
 QPainterPath PadItem::shape() const {
@@ -110,6 +244,58 @@ QPainterPath PadItem::shape() const {
         double r = std::min(size.width(), size.height()) * 0.25;
         path.addRoundedRect(-size.width()/2, -size.height()/2, 
                            size.width(), size.height(), r, r);
+    } else if (shape == "custom" && !m_model->customPrimitives().isEmpty()) {
+        for (const auto& val : m_model->customPrimitives()) {
+            QJsonObject primObj = val.toObject();
+            QString type = primObj.value("type").toString().toLower();
+            QJsonObject data = primObj.value("data").toObject();
+            if (type == "line") {
+                qreal x1 = data.value("x1").toDouble();
+                qreal y1 = data.value("y1").toDouble();
+                qreal x2 = data.value("x2").toDouble();
+                qreal y2 = data.value("y2").toDouble();
+                qreal w = data.value("width").toDouble(0.15);
+                QPainterPathStroker stroker;
+                stroker.setWidth(w);
+                stroker.setCapStyle(Qt::RoundCap);
+                stroker.setJoinStyle(Qt::RoundJoin);
+                QPainterPath lp;
+                lp.moveTo(x1, y1);
+                lp.lineTo(x2, y2);
+                path.addPath(stroker.createStroke(lp));
+            } else if (type == "rect") {
+                qreal x = data.value("x").toDouble();
+                qreal y = data.value("y").toDouble();
+                qreal w = data.value("width").toDouble();
+                qreal h = data.value("height").toDouble();
+                path.addRect(x, y, w, h);
+            } else if (type == "circle") {
+                qreal cx = data.value("cx").toDouble();
+                qreal cy = data.value("cy").toDouble();
+                qreal r = data.value("radius").toDouble();
+                path.addEllipse(QPointF(cx, cy), r, r);
+            } else if (type == "arc") {
+                qreal cx = data.value("cx").toDouble();
+                qreal cy = data.value("cy").toDouble();
+                qreal r = data.value("radius").toDouble();
+                qreal lw = data.value("lineWidth").toDouble(0.15);
+                QPainterPathStroker stroker;
+                stroker.setWidth(lw);
+                QPainterPath ap;
+                qreal startAngle = data.value("startAngle").toDouble();
+                qreal spanAngle = data.value("spanAngle").toDouble();
+                ap.arcMoveTo(QRectF(cx - r, cy - r, r * 2.0, r * 2.0), startAngle);
+                ap.arcTo(QRectF(cx - r, cy - r, r * 2.0, r * 2.0), startAngle, spanAngle);
+                path.addPath(stroker.createStroke(ap));
+            } else if (type == "polygon") {
+                QPolygonF poly;
+                for (const auto& v : data.value("points").toArray()) {
+                    QJsonObject pt = v.toObject();
+                    poly << QPointF(pt["x"].toDouble(), pt["y"].toDouble());
+                }
+                path.addPolygon(poly);
+            }
+        }
     } else {
         path.addEllipse(-size.width()/2, -size.height()/2, size.width(), size.height());
     }
@@ -144,7 +330,7 @@ void PadItem::paint(QPainter *painter, const QStyleOptionGraphicsItem *option, Q
     }
     
     // Draw the main pad body
-    painter->setPen(QPen(baseColor.darker(150), 0.05));
+    painter->setPen(QPen(baseColor.darker(150), 0));
     painter->setBrush(QBrush(baseColor));
 
     QSizeF size = m_model->size();
@@ -160,6 +346,8 @@ void PadItem::paint(QPainter *painter, const QStyleOptionGraphicsItem *option, Q
     } else if (shape == "roundedrect" || shape == "roundrect") {
         double r = std::min(size.width(), size.height()) * 0.25;
         painter->drawRoundedRect(rect, r, r);
+    } else if (shape == "custom" && !m_model->customPrimitives().isEmpty()) {
+        drawCustomPadPrimitives(painter, m_model->customPrimitives(), baseColor);
     } else {
         painter->drawEllipse(rect);
     }
@@ -168,13 +356,13 @@ void PadItem::paint(QPainter *painter, const QStyleOptionGraphicsItem *option, Q
     if (onActiveLayer && activeLayer) {
         QColor highlightColor = activeLayer->color();
         painter->setBrush(Qt::NoBrush);
-        // Bright, thick outline to show connectability
-        QPen highlightPen(highlightColor, 0.15); 
+        // Bright, cosmetic outline to show connectability
+        QPen highlightPen(highlightColor, 1.0); 
+        highlightPen.setCosmetic(true);
         painter->setPen(highlightPen);
         
-        // Draw slightly outside the pad
-        double margin = 0.05;
-        QRectF highlightRect = rect.adjusted(-margin, -margin, margin, margin);
+        // Draw exactly on the pad boundary to prevent overlap
+        QRectF highlightRect = rect;
         
         if (shape == "rect" || shape == "rectangle" || shape == "square") {
             painter->drawRect(highlightRect);
@@ -184,6 +372,8 @@ void PadItem::paint(QPainter *painter, const QStyleOptionGraphicsItem *option, Q
         } else if (shape == "roundedrect" || shape == "roundrect") {
             double r = std::min(highlightRect.width(), highlightRect.height()) * 0.25;
             painter->drawRoundedRect(highlightRect, r, r);
+        } else if (shape == "custom" && !m_model->customPrimitives().isEmpty()) {
+            drawCustomPadPrimitives(painter, m_model->customPrimitives(), highlightColor);
         } else {
             painter->drawEllipse(highlightRect);
         }
@@ -202,9 +392,25 @@ void PadItem::paint(QPainter *painter, const QStyleOptionGraphicsItem *option, Q
     painter->drawLine(QLineF(0, -crossSize, 0, crossSize));
 
     if (!padNumber.isEmpty()) {
-        painter->setPen(baseColor.lightness() < 140 ? Qt::white : Qt::black);
-        painter->setFont(QFont("Monospace", 1));
-        painter->drawText(rect, Qt::AlignCenter, padNumber);
+        double w = size.width();
+        double h = size.height();
+        double maxDim = std::max(w, h);
+        double minDim = std::min(w, h);
+        if (maxDim > 0.5) {
+            painter->setPen(baseColor.lightness() < 140 ? Qt::white : Qt::black);
+            double fontSize = qMax(minDim * 0.5, 0.7); // 50% of min dimension, but at least 0.7 points
+            fontSize = qMin(fontSize, maxDim * 0.8);   // Ensure it fits within the pad length
+            
+            // Safety check: skip text drawing if effective pixel size is too small to avoid Qt/FreeType crash
+            QTransform trans = painter->transform();
+            qreal viewScale = QLineF(trans.map(QPointF(0,0)), trans.map(QPointF(1,0))).length();
+            if (fontSize * viewScale >= 2.0) {
+                QFont font("Monospace");
+                font.setPointSizeF(fontSize);
+                painter->setFont(font);
+                painter->drawText(rect, Qt::AlignCenter, padNumber);
+            }
+        }
     }
 
     drawSelectionGlow(painter);

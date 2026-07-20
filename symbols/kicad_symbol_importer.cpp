@@ -848,6 +848,12 @@ SymbolDefinition importSymbolFromContent(const QString& content, const QString& 
         if (pnPos != -1) {
             QString pnS = extractAt(subContent, "pin_names", pnPos);
             if (pnS.contains("(hide yes)")) hidePinNames = true;
+        } else {
+            int parentPnPos = symbolContent.indexOf("(pin_names");
+            if (parentPnPos != -1) {
+                QString pnS = extractAt(symbolContent, "pin_names", parentPnPos);
+                if (pnS.contains("(hide yes)")) hidePinNames = true;
+            }
         }
 
         bool hidePinNumbers = false;
@@ -855,6 +861,12 @@ SymbolDefinition importSymbolFromContent(const QString& content, const QString& 
         if (pnumPos != -1) {
             QString pnumS = extractAt(subContent, "pin_numbers", pnumPos);
             if (pnumS.contains("(hide yes)")) hidePinNumbers = true;
+        } else {
+            int parentPnumPos = symbolContent.indexOf("(pin_numbers");
+            if (parentPnumPos != -1) {
+                QString pnumS = extractAt(symbolContent, "pin_numbers", parentPnumPos);
+                if (pnumS.contains("(hide yes)")) hidePinNumbers = true;
+            }
         }
 
         // Parse Pins
@@ -900,6 +912,7 @@ SymbolDefinition importSymbolFromContent(const QString& content, const QString& 
 
                 SymbolPrimitive pin = SymbolPrimitive::createPin(QPointF(x, y), pinNum, pinNameStr, orient, len);
                 pin.data["num"] = pinNumStr;
+                pin.data["number"] = pinNumStr;
                 pin.data["hideName"] = thisHideName;
                 pin.data["hideNum"] = thisHideNum;
                 if (mHead.hasMatch()) {

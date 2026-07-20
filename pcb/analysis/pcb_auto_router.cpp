@@ -22,6 +22,7 @@
 #include <QSet>
 #include <algorithm>
 #include <queue>
+#include <iostream>
 
 // ============================================================================
 // Construction
@@ -57,6 +58,16 @@ PCBAutoRouter::RouteStats PCBAutoRouter::routeAll(const RouterConfig& config) {
     // Step 1: Build routing grid
     buildGrid();
     markObstacles();
+
+    int blockedCountL0 = 0;
+    int blockedCountL1 = 0;
+    for (int y = 0; y < m_gridHeight; ++y) {
+        for (int x = 0; x < m_gridWidth; ++x) {
+            if (cellAt(x, y, 0) && cellAt(x, y, 0)->blocked) blockedCountL0++;
+            if (cellAt(x, y, 1) && cellAt(x, y, 1)->blocked) blockedCountL1++;
+        }
+    }
+    std::cerr << "Grid size: " << m_gridWidth << "x" << m_gridHeight << " Blocked cells L0: " << blockedCountL0 << " L1: " << blockedCountL1 << std::endl;
 
     // Step 2: Discover unrouted connections
     QList<UnroutedConnection> connections = findUnroutedConnections();
@@ -118,6 +129,11 @@ PCBAutoRouter::RouteStats PCBAutoRouter::routeAll(const RouterConfig& config) {
             bool ok = findPath(conn, path);
 
             if (ok && !path.isEmpty()) {
+                std::cerr << "Routed net: " << conn.netName.toStdString() << " Path size: " << path.size() << std::endl;
+                for (const auto& node : path) {
+                    QPointF p = gridToScene(node.x, node.y);
+                    std::cerr << "  Node (" << node.x << ", " << node.y << ") -> Scene (" << p.x() << ", " << p.y() << ") layer " << node.layer << (node.isVia ? " (Via)" : "") << std::endl;
+                }
                 convertPathToTraces(path, conn);
                 m_stats.routedConnections++;
                 emit connectionRouted(conn.netName, m_currentConnection, m_totalConnections);
@@ -228,6 +244,7 @@ void PCBAutoRouter::buildGrid() {
                 cell->traceOccupied = false;
                 cell->occupancyCost = 0.0;
                 cell->layer = l;
+                cell->netName = "";
             }
         }
     }
@@ -237,28 +254,27 @@ void PCBAutoRouter::markObstacles() {
     for (auto* item : m_scene->items()) {
         // Pads are obstacles on their layer
         if (auto* pad = dynamic_cast<PadItem*>(item)) {
-            QPoint gridPos = sceneToGrid(pad->scenePos());
             int layerIdx = 0;
             if (m_config.preferBottomLayer && !m_config.preferTopLayer) layerIdx = 1;
             else if (m_config.preferTopLayer && m_config.preferBottomLayer) {
                 layerIdx = (pad->layer() == 1) ? 1 : 0;
             }
 
-            // Mark pad cell and surrounding clearance cells as blocked
-            int clearanceCells = qCeil(m_config.clearance / m_config.gridSpacing);
-            for (int dy = -clearanceCells; dy <= clearanceCells; ++dy) {
-                for (int dx = -clearanceCells; dx <= clearanceCells; ++dx) {
-                    if (isValidCell(gridPos.x() + dx, gridPos.y() + dy, layerIdx)) {
-                        cellAt(gridPos.x() + dx, gridPos.y() + dy, layerIdx)->blocked = true;
-                    }
-                }
-            }
+            // Get pad physical bounding rect in scene coordinates, adjusted by clearance
+            QRectF sceneRect = pad->sceneBoundingRect();
+            sceneRect.adjust(-m_config.clearance, -m_config.clearance, m_config.clearance, m_config.clearance);
 
-            // Also mark via clearance (pads are connection targets, not routing obstacles on other layers)
-            for (int l = 0; l < m_gridLayers; ++l) {
-                if (l == layerIdx) continue;
-                if (isValidCell(gridPos.x(), gridPos.y(), l)) {
-                    // Mark only the exact cell (via can land adjacent)
+            QPoint gMin = sceneToGrid(sceneRect.topLeft());
+            QPoint gMax = sceneToGrid(sceneRect.bottomRight());
+
+            int xMin = qBound(0, qMin(gMin.x(), gMax.x()), m_gridWidth - 1);
+            int xMax = qBound(0, qMax(gMin.x(), gMax.x()), m_gridWidth - 1);
+            int yMin = qBound(0, qMin(gMin.y(), gMax.y()), m_gridHeight - 1);
+            int yMax = qBound(0, qMax(gMin.y(), gMax.y()), m_gridHeight - 1);
+
+            for (int y = yMin; y <= yMax; ++y) {
+                for (int x = xMin; x <= xMax; ++x) {
+                    markCellOccupied(x, y, layerIdx, pad->netName());
                 }
             }
         }
@@ -277,14 +293,46 @@ void PCBAutoRouter::markObstacles() {
 
                 for (int y = qMax(0, g1.y()); y < qMin(m_gridHeight, g2.y()); ++y) {
                     for (int x = qMax(0, g1.x()); x < qMin(m_gridWidth, g2.x()); ++x) {
-                        if (isValidCell(x, y, layerIdx)) {
-                            cellAt(x, y, layerIdx)->blocked = true;
-                        }
+                        markCellOccupied(x, y, layerIdx, "");
+                    }
+                }
+            }
+        }
+
+        // Vias are obstacles on the layers they span
+        if (auto* via = dynamic_cast<ViaItem*>(item)) {
+            int startL = via->startLayer();
+            int endL = via->endLayer();
+            int minL = qMin(startL, endL);
+            int maxL = qMax(startL, endL);
+
+            QRectF sceneRect = via->sceneBoundingRect();
+            sceneRect.adjust(-m_config.viaClearance, -m_config.viaClearance, m_config.viaClearance, m_config.viaClearance);
+
+            QPoint gMin = sceneToGrid(sceneRect.topLeft());
+            QPoint gMax = sceneToGrid(sceneRect.bottomRight());
+
+            int xMin = qBound(0, qMin(gMin.x(), gMax.x()), m_gridWidth - 1);
+            int xMax = qBound(0, qMax(gMin.x(), gMax.x()), m_gridWidth - 1);
+            int yMin = qBound(0, qMin(gMin.y(), gMax.y()), m_gridHeight - 1);
+            int yMax = qBound(0, qMax(gMin.y(), gMax.y()), m_gridHeight - 1);
+
+            for (int l = minL; l <= maxL; ++l) {
+                int layerIdx = 0;
+                if (m_config.preferTopLayer && m_config.preferBottomLayer) {
+                    layerIdx = (l == 1) ? 1 : 0;
+                }
+                for (int y = yMin; y <= yMax; ++y) {
+                    for (int x = xMin; x <= xMax; ++x) {
+                        markCellOccupied(x, y, layerIdx, via->netName());
                     }
                 }
             }
         }
     }
+
+    // Always mark existing traces as occupied/obstacles
+    markExistingTraces();
 }
 
 void PCBAutoRouter::markExistingTraces() {
@@ -307,10 +355,20 @@ void PCBAutoRouter::markExistingTraces() {
             int x = gStart.x(), y = gStart.y();
 
             while (true) {
+                markCellOccupied(x, y, layerIdx, trace->netName());
                 if (isValidCell(x, y, layerIdx)) {
                     cellAt(x, y, layerIdx)->traceOccupied = true;
                     cellAt(x, y, layerIdx)->occupancyCost += 5.0; // Prefer not routing over existing traces
                 }
+                
+                // Mark clearance cells (3x3 box) around trace path point
+                for (int dy2 = -1; dy2 <= 1; ++dy2) {
+                    for (int dx2 = -1; dx2 <= 1; ++dx2) {
+                        if (dx2 == 0 && dy2 == 0) continue;
+                        markCellOccupied(x + dx2, y + dy2, layerIdx, trace->netName());
+                    }
+                }
+
                 if (x == gEnd.x() && y == gEnd.y()) break;
                 int e2 = 2 * err;
                 if (e2 > -dy) { err -= dy; x += sx; }
@@ -332,6 +390,30 @@ const PCBAutoRouter::GridCell* PCBAutoRouter::cellAt(int x, int y, int layer) co
 
 bool PCBAutoRouter::isValidCell(int x, int y, int layer) const {
     return x >= 0 && x < m_gridWidth && y >= 0 && y < m_gridHeight && layer >= 0 && layer < m_gridLayers;
+}
+
+void PCBAutoRouter::markCellOccupied(int x, int y, int layer, const QString& netName) {
+    if (!isValidCell(x, y, layer)) return;
+    GridCell* cell = cellAt(x, y, layer);
+    if (!cell) return;
+
+    if (netName.isEmpty()) {
+        cell->blocked = true;
+        cell->netName = "";
+        return;
+    }
+
+    if (cell->blocked && cell->netName.isEmpty()) {
+        return;
+    }
+
+    if (cell->netName.isEmpty()) {
+        cell->netName = netName;
+        cell->blocked = true;
+    } else if (cell->netName != netName) {
+        cell->netName = "";
+        cell->blocked = true;
+    }
 }
 
 QPointF PCBAutoRouter::gridToScene(int gx, int gy) const {
@@ -437,8 +519,31 @@ bool PCBAutoRouter::findPath(const UnroutedConnection& conn, QVector<AStarNode>&
     gEnd.setX(qBound(0, gEnd.x(), m_gridWidth - 1));
     gEnd.setY(qBound(0, gEnd.y(), m_gridHeight - 1));
 
-    // Start layer preference
+    auto getGridLayer = [&](int itemLayer) -> int {
+        if (m_gridLayers <= 1) return 0;
+        if (m_config.preferTopLayer && m_config.preferBottomLayer) {
+            return (itemLayer == 1) ? 1 : 0;
+        }
+        if (!m_config.preferTopLayer && !m_config.preferBottomLayer) {
+            return (itemLayer == 1) ? 1 : 0;
+        }
+        return 0;
+    };
+
     int startLayer = 0;
+    int endLayer = 0;
+    for (auto* item : m_scene->items()) {
+        if (auto* pad = dynamic_cast<PadItem*>(item)) {
+            if (pad->netName() == conn.netName) {
+                if (QLineF(pad->scenePos(), conn.start).length() < 0.1) {
+                    startLayer = getGridLayer(pad->layer());
+                }
+                if (QLineF(pad->scenePos(), conn.end).length() < 0.1) {
+                    endLayer = getGridLayer(pad->layer());
+                }
+            }
+        }
+    }
 
     // A* structures
     QHash<QString, int> closedSet;  // Key: "x,y,layer" -> index
@@ -450,15 +555,48 @@ bool PCBAutoRouter::findPath(const UnroutedConnection& conn, QVector<AStarNode>&
         return QString("%1,%2,%3").arg(x).arg(y).arg(layer);
     };
 
-    // Start node
-    AStarNode startNode;
-    startNode.x = gStart.x(); startNode.y = gStart.y(); startNode.layer = startLayer;
-    startNode.gCost = 0;
-    startNode.hCost = heuristic(gStart.x(), gStart.y(), gEnd.x(), gEnd.y());
-    nodes.append(startNode);
+    // Check if start pad is through-hole
+    bool startIsTH = false;
+    bool endIsTH = false;
+    for (auto* item : m_scene->items()) {
+        if (auto* pad = dynamic_cast<PadItem*>(item)) {
+            if (pad->netName() == conn.netName) {
+                if (QLineF(pad->scenePos(), conn.start).length() < 0.1) {
+                    if (pad->drillSize() > 0.001) {
+                        startIsTH = true;
+                    }
+                }
+                if (QLineF(pad->scenePos(), conn.end).length() < 0.1) {
+                    if (pad->drillSize() > 0.001) {
+                        endIsTH = true;
+                    }
+                }
+            }
+        }
+    }
 
-    openMap.insert(makeKey(startNode.x, startNode.y, startNode.layer), 0);
-    openQueue.push({startNode.fCost(), startNode.x, startNode.y, startNode.layer});
+    if (startIsTH && m_gridLayers > 1) {
+        for (int l = 0; l < m_gridLayers; ++l) {
+            AStarNode startNode;
+            startNode.x = gStart.x(); startNode.y = gStart.y(); startNode.layer = l;
+            startNode.gCost = 0;
+            startNode.hCost = heuristic(gStart.x(), gStart.y(), gEnd.x(), gEnd.y());
+            int nodeIdx = nodes.size();
+            nodes.append(startNode);
+            openMap.insert(makeKey(startNode.x, startNode.y, startNode.layer), nodeIdx);
+            openQueue.push({startNode.fCost(), startNode.x, startNode.y, startNode.layer});
+        }
+    } else {
+        AStarNode startNode;
+        startNode.x = gStart.x(); startNode.y = gStart.y(); startNode.layer = startLayer;
+        startNode.gCost = 0;
+        startNode.hCost = heuristic(gStart.x(), gStart.y(), gEnd.x(), gEnd.y());
+        nodes.append(startNode);
+        openMap.insert(makeKey(startNode.x, startNode.y, startNode.layer), 0);
+        openQueue.push({startNode.fCost(), startNode.x, startNode.y, startNode.layer});
+    }
+
+
 
     int iterations = 0;
     int goalNodeIdx = -1;
@@ -481,19 +619,21 @@ bool PCBAutoRouter::findPath(const UnroutedConnection& conn, QVector<AStarNode>&
 
         // Check if we reached the goal
         if (current.x == gEnd.x() && current.y == gEnd.y()) {
-            goalNodeIdx = currentIdx;
-            break;
+            if (endIsTH || current.layer == endLayer) {
+                goalNodeIdx = currentIdx;
+                break;
+            }
         }
 
         closedSet.insert(currentKey, currentIdx);
 
         // Explore neighbors
-        auto neighbors = getNeighbors(current, conn.startClearance);
+        auto neighbors = getNeighbors(current, conn.netName);
         for (const AStarNode& neighbor : neighbors) {
             QString neighborKey = makeKey(neighbor.x, neighbor.y, neighbor.layer);
             if (closedSet.contains(neighborKey)) continue;
 
-            if (!isCellPassable(neighbor.x, neighbor.y, neighbor.layer, conn.startClearance)) continue;
+            if (!isCellPassable(neighbor.x, neighbor.y, neighbor.layer, conn.netName)) continue;
 
             double moveCost = m_config.gridSpacing;
             if (neighbor.isVia) {
@@ -563,19 +703,63 @@ double PCBAutoRouter::heuristic(int x1, int y1, int x2, int y2) const {
     }
 }
 
-bool PCBAutoRouter::isCellPassable(int x, int y, int layer, double clearance) const {
+bool PCBAutoRouter::isCellPassable(int x, int y, int layer, const QString& netName) const {
     if (!isValidCell(x, y, layer)) return false;
 
     const GridCell* cell = cellAt(x, y, layer);
     if (!cell) return false;
 
-    if (cell->blocked) return false;
-    if (cell->traceOccupied) return false; // Route around existing traces
+    if (cell->blocked && cell->netName.isEmpty()) return false;
+    if (!cell->netName.isEmpty() && cell->netName != netName) return false;
 
     return true;
 }
 
-QList<PCBAutoRouter::AStarNode> PCBAutoRouter::getNeighbors(const AStarNode& node, double clearance) const {
+bool PCBAutoRouter::isViaPassable(int cx, int cy, const QString& netName) const {
+    QPointF targetPos = gridToScene(cx, cy);
+
+    // 1. Drill-hole collision check against all other vias and through-holes in the scene
+    for (auto* item : m_scene->items()) {
+        if (auto* otherVia = dynamic_cast<ViaItem*>(item)) {
+            double dist = QLineF(otherVia->scenePos(), targetPos).length();
+            if (dist < 0.65) { // 0.4mm drill size + 0.25mm spacing requirement
+                return false;
+            }
+        }
+        if (auto* pad = dynamic_cast<PadItem*>(item)) {
+            if (pad->drillSize() > 0.001) {
+                double dist = QLineF(pad->scenePos(), targetPos).length();
+                if (dist < (pad->drillSize() / 2.0 + 0.25)) {
+                    return false;
+                }
+            }
+        }
+    }
+
+    // 2. Copper clearance check
+    double reqRadius = 0.8 / 2.0 + m_config.viaClearance;
+    int cellRadius = qCeil(reqRadius / m_config.gridSpacing);
+
+    for (int l = 0; l < m_gridLayers; ++l) {
+        for (int dy = -cellRadius; dy <= cellRadius; ++dy) {
+            for (int dx = -cellRadius; dx <= cellRadius; ++dx) {
+                // Circular check
+                if (dx*dx + dy*dy > cellRadius*cellRadius) continue;
+
+                int nx = cx + dx;
+                int ny = cy + dy;
+                if (!isValidCell(nx, ny, l)) return false;
+
+                const GridCell* cell = cellAt(nx, ny, l);
+                if (cell->blocked && cell->netName.isEmpty()) return false;
+                if (!cell->netName.isEmpty() && cell->netName != netName) return false;
+            }
+        }
+    }
+    return true;
+}
+
+QList<PCBAutoRouter::AStarNode> PCBAutoRouter::getNeighbors(const AStarNode& node, const QString& netName) const {
     QList<AStarNode> neighbors;
 
     // 4-directional (or 8 if diagonals allowed)
@@ -593,25 +777,19 @@ QList<PCBAutoRouter::AStarNode> PCBAutoRouter::getNeighbors(const AStarNode& nod
         int ny = node.y + dy[i];
 
         if (!isValidCell(nx, ny, node.layer)) continue;
-        if (!isCellPassable(nx, ny, node.layer, clearance)) continue;
+        if (!isCellPassable(nx, ny, node.layer, netName)) continue;
 
         AStarNode n;
         n.x = nx; n.y = ny; n.layer = node.layer;
         n.isVia = false;
         neighbors.append(n);
-
-        // Diagonal moves have higher cost
-        if (m_config.allowDiagonals && dx[i] != 0 && dy[i] != 0) {
-            // Diagonal already added above
-        }
     }
 
     // Via transitions (layer changes)
     if (m_gridLayers > 1) {
         for (int l = 0; l < m_gridLayers; ++l) {
             if (l == node.layer) continue;
-            if (!isValidCell(node.x, node.y, l)) continue;
-            if (!isCellPassable(node.x, node.y, l, clearance)) continue;
+            if (!isViaPassable(node.x, node.y, netName)) continue;
 
             AStarNode n;
             n.x = node.x; n.y = node.y; n.layer = l;

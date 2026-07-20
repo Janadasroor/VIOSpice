@@ -125,6 +125,13 @@ void TraceItem::paint(QPainter *painter, const QStyleOptionGraphicsItem *option,
     drawSelectionGlow(painter);
 }
 
+void TraceItem::setNetName(const QString& net) {
+    PCBItem::setNetName(net);
+    if (m_model) {
+        m_model->setNetName(net);
+    }
+}
+
 void TraceItem::updateConnectivity() {
     if (!scene()) return;
 
