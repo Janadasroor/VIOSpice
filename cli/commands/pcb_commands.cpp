@@ -451,6 +451,7 @@ public:
         parser.addOption(QCommandLineOption("delete-item", "Delete item: id=... OR name=...", "spec"));
         parser.addOption(QCommandLineOption("shrink-outline", "Automatically shrink the board outline to fit components: margin=<val_in_mm>", "spec"));
         parser.addOption(QCommandLineOption("auto-route", "Automatically route all connections after composing"));
+        parser.addOption(QCommandLineOption("route-layers", "Routing layer selection: top | bottom | both (default: both)", "layers", "both"));
         parser.addOption(QCommandLineOption("json", "Output results in JSON format"));
     }
 
@@ -464,6 +465,7 @@ public:
                 {"delete-item", "string (repeatable)"},
                 {"shrink-outline", "string"},
                 {"auto-route", "bool"},
+                {"route-layers", "string"},
                 {"json", "bool"}
             }}
         };
@@ -716,6 +718,21 @@ public:
         if (parser.isSet("auto-route")) {
             PCBAutoRouter router(&scene);
             PCBAutoRouter::RouterConfig config;
+
+            if (parser.isSet("route-layers")) {
+                QString val = parser.value("route-layers").trimmed().toLower();
+                if (val == "top") {
+                    config.preferTopLayer = true;
+                    config.preferBottomLayer = false;
+                } else if (val == "bottom") {
+                    config.preferTopLayer = false;
+                    config.preferBottomLayer = true;
+                } else if (val == "both") {
+                    config.preferTopLayer = true;
+                    config.preferBottomLayer = true;
+                }
+            }
+
             auto stats = router.routeAll(config);
             routedCount = stats.routedConnections;
         }
