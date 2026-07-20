@@ -293,7 +293,7 @@ void PCBAutoRouter::markObstacles() {
 
                 for (int y = qMax(0, g1.y()); y < qMin(m_gridHeight, g2.y()); ++y) {
                     for (int x = qMax(0, g1.x()); x < qMin(m_gridWidth, g2.x()); ++x) {
-                        markCellOccupied(x, y, layerIdx, "");
+                        markCellOccupied(x, y, layerIdx, pour->netName());
                     }
                 }
             }
@@ -636,6 +636,9 @@ bool PCBAutoRouter::findPath(const UnroutedConnection& conn, QVector<AStarNode>&
             if (!isCellPassable(neighbor.x, neighbor.y, neighbor.layer, conn.netName)) continue;
 
             double moveCost = m_config.gridSpacing;
+            if (neighbor.x != current.x && neighbor.y != current.y) {
+                moveCost *= 1.41421356237; // Diagonal move cost correction
+            }
             if (neighbor.isVia) {
                 moveCost += m_config.gridSpacing * 5.0; // Via cost penalty
             }
