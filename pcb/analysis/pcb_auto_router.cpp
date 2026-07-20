@@ -979,6 +979,32 @@ TraceItem* PCBAutoRouter::createTraceSegment(QPointF start, QPointF end, int lay
     // Don't create zero-length traces
     if (QLineF(start, end).length() < 0.01) return nullptr;
 
+    // Avoid duplicate trace segments
+    for (auto* item : m_scene->items()) {
+        if (auto* existing = dynamic_cast<TraceItem*>(item)) {
+            if (existing->layer() == layer && existing->netName() == netName) {
+                QPointF s = existing->startPoint();
+                QPointF e = existing->endPoint();
+                QPointF absS = existing->mapToScene(s);
+                QPointF absE = existing->mapToScene(e);
+                double d1 = QLineF(absS, start).length();
+                double d2 = QLineF(absE, end).length();
+                double d3 = QLineF(absS, end).length();
+                double d4 = QLineF(absE, start).length();
+                std::cerr << "DUPCHECK: net=" << netName.toStdString() << " lay=" << layer
+                          << " exist=(" << absS.x() << "," << absS.y() << ")->(" << absE.x() << "," << absE.y() << ")"
+                          << " target=(" << start.x() << "," << start.y() << ")->(" << end.x() << "," << end.y() << ")"
+                          << " d1=" << d1 << " d2=" << d2 << " d3=" << d3 << " d4=" << d4 << std::endl;
+                bool matchDirect = (d1 < 0.05 && d2 < 0.05);
+                bool matchReverse = (d3 < 0.05 && d4 < 0.05);
+                if (matchDirect || matchReverse) {
+                    std::cerr << "  -> MATCHED DUP! Skipping." << std::endl;
+                    return nullptr;
+                }
+            }
+        }
+    }
+
     TraceItem* trace = new TraceItem(start, end);
     trace->setLayer(layer);
     trace->setWidth(width);
