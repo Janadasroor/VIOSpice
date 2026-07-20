@@ -52,6 +52,16 @@
 #include "pad_item.h"
 #include "trace_item.h"
 #include "via_item.h"
+#include "../models/trace_model.h"
+#include "../models/via_model.h"
+#include "../models/pad_model.h"
+#include "../models/component_model.h"
+#include "../models/copper_pour_model.h"
+#include "../factories/pcb_item_factory.h"
+#include <QClipboard>
+#include <QMimeData>
+#include <QJsonArray>
+#include <QJsonDocument>
 #include "../ui/pcb_3d_window.h"
 #include "copper_pour_item.h"
 #include "shape_item.h"
@@ -63,6 +73,8 @@
 #include <QFile>
 #include "ratsnest_item.h"
 #include "sync_manager.h"
+
+QList<PCBItem*> uniqueTopLevelPCBItems(const QList<QGraphicsItem*>& graphicsItems);
 #include "../io/pcb_file_io.h"
 #include "settings_dialog.h"
 #include "config_manager.h"
@@ -591,23 +603,27 @@ void MainWindow::onDistributeV() {
 }
 
 void MainWindow::onRotate() {
-    QList<QGraphicsItem*> selected = m_scene->selectedItems();
-    if (selected.isEmpty()) return;
+    QList<PCBItem*> items = uniqueTopLevelPCBItems(m_scene->selectedItems());
+    if (items.isEmpty()) return;
     
-    for (auto* item : selected) {
-        item->setRotation(item->rotation() + 90);
-    }
+    m_undoStack->push(new PCBRotateItemCommand(m_scene, items, 90));
     statusBar()->showMessage("Rotated selected items", 2000);
 }
 
 void MainWindow::onMirror() {
-    QList<QGraphicsItem*> selected = m_scene->selectedItems();
-    if (selected.isEmpty()) return;
+    QList<PCBItem*> items = uniqueTopLevelPCBItems(m_scene->selectedItems());
+    if (items.isEmpty()) return;
     
-    for (auto* item : selected) {
-        item->setTransform(QTransform().scale(-1, 1), true);
-    }
+    m_undoStack->push(new PCBMirrorItemCommand(m_scene, items));
     statusBar()->showMessage("Mirrored selected items", 2000);
+}
+
+void MainWindow::onFlip() {
+    QList<PCBItem*> items = uniqueTopLevelPCBItems(m_scene->selectedItems());
+    if (items.isEmpty()) return;
+    
+    m_undoStack->push(new PCBFlipItemCommand(m_scene, items));
+    statusBar()->showMessage("Flipped selected items (swapped layers)", 2000);
 }
 
 void MainWindow::onDeleteSelection() {
@@ -872,4 +888,169 @@ void MainWindow::onToggle3DView() {
         m_3dWindow->activateWindow();
         m_3dWindow->updateView();
     }
+}
+
+
+
+QList<PCBItem*> uniqueTopLevelPCBItems(const QList<QGraphicsItem*>& graphicsItems) {
+    QList<PCBItem*> result;
+    QSet<PCBItem*> seen;
+
+    for (QGraphicsItem* graphicsItem : graphicsItems) {
+        PCBItem* pcbItem = nullptr;
+        QGraphicsItem* current = graphicsItem;
+        while (current) {
+            PCBItem* candidate = dynamic_cast<PCBItem*>(current);
+            if (candidate) {
+                pcbItem = candidate;
+            }
+            current = current->parentItem();
+        }
+        if (!pcbItem || seen.contains(pcbItem)) continue;
+        seen.insert(pcbItem);
+        result.append(pcbItem);
+    }
+
+    return result;
+}
+
+void MainWindow::onCopy() {
+    if (!m_scene) return;
+
+    const QList<PCBItem*> selectedItems = uniqueTopLevelPCBItems(m_scene->selectedItems());
+    if (selectedItems.isEmpty()) return;
+
+    QJsonArray itemsArray;
+    int count = 0;
+    for (PCBItem* pItem : selectedItems) {
+        QJsonObject obj = PCBFileIO::serializePCBItem(pItem);
+        if (!obj.isEmpty()) {
+            itemsArray.append(obj);
+            count++;
+        }
+    }
+
+    if (itemsArray.isEmpty()) return;
+
+    QJsonObject clipboardData;
+    clipboardData["application"] = "viospice";
+    clipboardData["type"] = "pcb-items";
+    clipboardData["items"] = itemsArray;
+
+    QMimeData* mimeData = new QMimeData;
+    mimeData->setData("application/x-viora_eda-pcb-items", QJsonDocument(clipboardData).toJson());
+    QApplication::clipboard()->setMimeData(mimeData);
+    statusBar()->showMessage(QString("Copied %1 item(s)").arg(count), 2000);
+}
+
+void MainWindow::onCut() {
+    onCopy();
+    onDeleteSelection();
+}
+
+void MainWindow::onPaste() {
+    if (!m_scene) return;
+
+    const QMimeData* mimeData = QApplication::clipboard()->mimeData();
+    if (!mimeData || !mimeData->hasFormat("application/x-viora_eda-pcb-items")) return;
+
+    QByteArray data = mimeData->data("application/x-viora_eda-pcb-items");
+    QJsonDocument doc = QJsonDocument::fromJson(data);
+    QJsonObject clipboardData = doc.object();
+
+    if (clipboardData["application"].toString() != "viospice" ||
+        clipboardData["type"].toString() != "pcb-items") return;
+
+    QJsonArray itemsArray = clipboardData["items"].toArray();
+    if (itemsArray.isEmpty()) return;
+
+    QPointF pasteOffset(2.0, 2.0);
+
+    m_undoStack->beginMacro("Paste Items");
+    QList<PCBItem*> pastedItems;
+    int count = 0;
+
+    for (const QJsonValue& val : itemsArray) {
+        QJsonObject obj = val.toObject();
+        PCBItem* item = PCBFileIO::deserializePCBItem(obj);
+        if (item) {
+            item->setId(QUuid::createUuid());
+            item->setPos(item->pos() + pasteOffset);
+            
+            m_undoStack->push(new PCBAddItemCommand(m_scene, item));
+            pastedItems.append(item);
+            count++;
+        }
+    }
+    m_undoStack->endMacro();
+
+    m_scene->clearSelection();
+    for (auto* item : pastedItems) {
+        item->setSelected(true);
+    }
+    statusBar()->showMessage(QString("Pasted %1 item(s)").arg(count), 2000);
+    PCBRatsnestManager::instance().update();
+}
+
+void MainWindow::onDuplicate() {
+    if (!m_scene) return;
+
+    const QList<PCBItem*> selectedItems = uniqueTopLevelPCBItems(m_scene->selectedItems());
+    if (selectedItems.isEmpty()) return;
+
+    QJsonArray itemsArray;
+    int count = 0;
+    for (PCBItem* pItem : selectedItems) {
+        QJsonObject obj = PCBFileIO::serializePCBItem(pItem);
+        if (!obj.isEmpty()) {
+            itemsArray.append(obj);
+            count++;
+        }
+    }
+
+    if (itemsArray.isEmpty()) return;
+
+    QPointF pasteOffset(5.0, 5.0);
+
+    m_undoStack->beginMacro("Duplicate Items");
+    QList<PCBItem*> duplicatedItems;
+    for (const QJsonValue& val : itemsArray) {
+        QJsonObject obj = val.toObject();
+        PCBItem* item = PCBFileIO::deserializePCBItem(obj);
+        if (item) {
+            item->setId(QUuid::createUuid());
+            item->setPos(item->pos() + pasteOffset);
+            m_undoStack->push(new PCBAddItemCommand(m_scene, item));
+            duplicatedItems.append(item);
+        }
+    }
+    m_undoStack->endMacro();
+
+    m_scene->clearSelection();
+    for (auto* item : duplicatedItems) {
+        item->setSelected(true);
+    }
+    statusBar()->showMessage(QString("Duplicated %1 item(s)").arg(count), 2000);
+    PCBRatsnestManager::instance().update();
+}
+
+void MainWindow::onToggleLeftSidebar() {
+    bool visible = m_libraryDock && m_libraryDock->isVisible();
+    if (m_libraryDock) m_libraryDock->setVisible(!visible);
+}
+
+void MainWindow::onToggleBottomPanel() {
+    bool visible = m_drcDock && m_drcDock->isVisible();
+    if (m_drcDock) m_drcDock->setVisible(!visible);
+}
+
+void MainWindow::onToggleRightSidebar() {
+    bool visible = false;
+    if (m_layerDock && m_layerDock->isVisible()) visible = true;
+    else if (m_propertiesDock && m_propertiesDock->isVisible()) visible = true;
+    else if (m_geminiDock && m_geminiDock->isVisible()) visible = true;
+
+    if (m_layerDock) m_layerDock->setVisible(!visible);
+    if (m_propertiesDock) m_propertiesDock->setVisible(!visible);
+    if (m_geminiDock) m_geminiDock->setVisible(!visible);
 }

@@ -22,6 +22,7 @@
 #include <QPainterPathStroker>
 #include <QUndoStack>
 #include <QMouseEvent>
+#include <QKeyEvent>
 #include <QPen>
 #include <QBrush>
 #include <QDebug>
@@ -931,4 +932,40 @@ bool PCBSelectTool::applyResizeFromScenePoint(const QPointF& scenePos) {
     }
 
     return false;
+}
+
+void PCBSelectTool::keyPressEvent(QKeyEvent* event) {
+    if (!view() || !view()->scene()) {
+        PCBTool::keyPressEvent(event);
+        return;
+    }
+    
+    // Ctrl+A: Select All
+    if (event->matches(QKeySequence::SelectAll)) {
+        QList<QGraphicsItem*> allItems = view()->scene()->items();
+        for (QGraphicsItem* item : allItems) {
+            if (PCBItem* pItem = dynamic_cast<PCBItem*>(item)) {
+                // Only select top-level items
+                if (dynamic_cast<PCBItem*>(pItem->parentItem()) == nullptr) {
+                    pItem->setSelected(true);
+                }
+            }
+        }
+        updateTraceEditHandles();
+        updateResizeHandles();
+        event->accept();
+        return;
+    }
+    
+    // Ctrl+D or Escape: Deselect All
+    if ((event->key() == Qt::Key_D && (event->modifiers() & Qt::ControlModifier)) || 
+         event->key() == Qt::Key_Escape) {
+        view()->scene()->clearSelection();
+        updateTraceEditHandles();
+        updateResizeHandles();
+        event->accept();
+        return;
+    }
+
+    PCBTool::keyPressEvent(event);
 }

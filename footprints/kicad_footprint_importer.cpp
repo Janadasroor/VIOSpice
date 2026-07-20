@@ -149,8 +149,13 @@ FootprintPrimitive::Layer extractLayer(const QString& expr, FootprintPrimitive::
 }
 
 qreal parseStrokeWidth(const QString& expr, qreal fallback = 0.12) {
-    static const QRegularExpression re("\\(stroke[\\s\\S]*?\\(width\\s+([\\-0-9.]+)\\)");
-    QRegularExpressionMatch m = re.match(expr);
+    static const QRegularExpression strokeRe("\\(stroke[\\s\\S]*?\\(width\\s+([\\-0-9.]+)\\)");
+    QRegularExpressionMatch m = strokeRe.match(expr);
+    if (m.hasMatch()) {
+        return m.captured(1).toDouble();
+    }
+    static const QRegularExpression widthRe("\\(width\\s+([\\-0-9.]+)\\)");
+    m = widthRe.match(expr);
     return m.hasMatch() ? m.captured(1).toDouble() : fallback;
 }
 

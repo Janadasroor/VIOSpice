@@ -129,8 +129,13 @@ void SymbolRectItem::paint(QPainter* painter, const QStyleOptionGraphicsItem* op
     if (ThemeManager::theme()) color = ThemeManager::theme()->schematicLine();
 
     painter->setPen(QPen(color, 1.5));
-    if (filled) painter->setBrush(color);
-    else painter->setBrush(Qt::NoBrush);
+    if (filled) {
+        QColor fillColor = Qt::white;
+        if (ThemeManager::theme()) fillColor = ThemeManager::theme()->canvasBackground();
+        painter->setBrush(fillColor);
+    } else {
+        painter->setBrush(Qt::NoBrush);
+    }
 
     painter->drawRect(QRectF(x, y, w, h));
 
@@ -165,8 +170,13 @@ void SymbolCircleItem::paint(QPainter* painter, const QStyleOptionGraphicsItem* 
     if (ThemeManager::theme()) color = ThemeManager::theme()->schematicLine();
 
     painter->setPen(QPen(color, 1.5));
-    if (filled) painter->setBrush(color);
-    else painter->setBrush(Qt::NoBrush);
+    if (filled) {
+        QColor fillColor = Qt::white;
+        if (ThemeManager::theme()) fillColor = ThemeManager::theme()->canvasBackground();
+        painter->setBrush(fillColor);
+    } else {
+        painter->setBrush(Qt::NoBrush);
+    }
 
     painter->drawEllipse(QPointF(cx, cy), r, r);
 
@@ -266,8 +276,13 @@ void SymbolPolygonItem::paint(QPainter* painter, const QStyleOptionGraphicsItem*
     if (ThemeManager::theme()) color = ThemeManager::theme()->schematicLine();
 
     painter->setPen(QPen(color, 1.5));
-    if (filled) painter->setBrush(color);
-    else painter->setBrush(Qt::NoBrush);
+    if (filled) {
+        QColor fillColor = Qt::white;
+        if (ThemeManager::theme()) fillColor = ThemeManager::theme()->canvasBackground();
+        painter->setBrush(fillColor);
+    } else {
+        painter->setBrush(Qt::NoBrush);
+    }
 
     painter->drawPolygon(poly);
 
@@ -360,7 +375,12 @@ void SymbolTextItem::paint(QPainter* painter, const QStyleOptionGraphicsItem* op
     if (vAlign == "center") py += tb.height() * 0.5;
     else if (vAlign == "top") py += fm.ascent();
     
-    painter->drawText(QPointF(anchorX + dx, py), resolved);
+    // Safety check: skip text drawing if effective pixel size is too small to avoid Qt/FreeType crash
+    QTransform trans = painter->transform();
+    qreal viewScale = QLineF(trans.map(QPointF(0,0)), trans.map(QPointF(1,0))).length();
+    if (fs * viewScale >= 2.0) {
+        painter->drawText(QPointF(anchorX + dx, py), resolved);
+    }
 
     paintSelectionBorder(painter, option);
 }
@@ -487,41 +507,58 @@ void SymbolPinItem::paint(QPainter* painter, const QStyleOptionGraphicsItem* opt
     QString stacked = m_model.data.value("stackedNumbers").toString();
     if (!stacked.isEmpty()) numStr += QString(" [+%1]").arg(stacked.split(",", Qt::SkipEmptyParts).size());
 
+    QTransform trans = painter->transform();
+    qreal viewScale = QLineF(trans.map(QPointF(0,0)), trans.map(QPointF(1,0))).length();
+
     if (!m_model.data.value("hideNum").toBool()) {
         int nsz = m_model.data.value("numSize").toInt(7);
-        painter->setFont(QFont("Monospace", nsz > 0 ? nsz : 7));
-        painter->setPen(textColor);
-        const QPointF numCenter = readablePoint((QPointF(px, py) + endPt) * 0.5);
-        QRectF numRect(numCenter.x() - 12.0, numCenter.y() - 8.0, 24.0, 16.0);
-        painter->drawText(numRect, Qt::AlignCenter, numStr);
+        if (nsz <= 0) nsz = 7;
+        if (nsz * viewScale >= 2.0) {
+            painter->setFont(QFont("Monospace", nsz));
+            painter->setPen(textColor);
+            const QPointF numCenter = readablePoint((QPointF(px, py) + endPt) * 0.5);
+            QRectF numRect(numCenter.x() - 12.0, numCenter.y() - 8.0, 24.0, 16.0);
+            painter->drawText(numRect, Qt::AlignCenter, numStr);
+        }
     }
 
     if (!m_model.data.value("hideName").toBool()) {
         QString nameStr = m_model.data.value("name").toString();
         int asz = m_model.data.value("nameSize").toInt(7);
-        painter->setFont(QFont("SansSerif", asz > 0 ? asz : 7));
-        painter->setPen(textColor);
-        QPointF nameAnchor;
-        Qt::Alignment nameAlign = Qt::AlignLeft | Qt::AlignVCenter;
-        QRectF nameRect;
-        if (orient == "Right") {
-            nameAnchor = readablePoint(QPointF(endPt.x() + 4.0, py));
-            nameAlign = Qt::AlignLeft | Qt::AlignVCenter;
-            nameRect = QRectF(nameAnchor.x(), nameAnchor.y() - 8.0, 80.0, 16.0);
-        } else if (orient == "Left") {
-            nameAnchor = readablePoint(QPointF(endPt.x() - 4.0, py));
-            nameAlign = Qt::AlignRight | Qt::AlignVCenter;
-            nameRect = QRectF(nameAnchor.x() - 80.0, nameAnchor.y() - 8.0, 80.0, 16.0);
-        } else if (orient == "Up") {
-            nameAnchor = readablePoint(QPointF(px, endPt.y() - 4.0));
-            nameAlign = Qt::AlignHCenter | Qt::AlignBottom;
-            nameRect = QRectF(nameAnchor.x() - 40.0, nameAnchor.y() - 16.0, 80.0, 16.0);
-        } else {
-            nameAnchor = readablePoint(QPointF(px, endPt.y() + 4.0));
-            nameAlign = Qt::AlignHCenter | Qt::AlignTop;
-            nameRect = QRectF(nameAnchor.x() - 40.0, nameAnchor.y(), 80.0, 16.0);
+        if (asz <= 0) asz = 7;
+
+        // Dynamically scale down font size if body is extremely narrow to prevent overlap
+        qreal availW = std::abs(endPt.x());
+        if (availW < 35.0 && (orient == "Left" || orient == "Right")) {
+            int scaledSize = qMax(4, int(availW / 4.5));
+            if (scaledSize < asz) asz = scaledSize;
         }
-        painter->drawText(nameRect, nameAlign, nameStr);
+
+        if (asz * viewScale >= 2.0) {
+            painter->setFont(QFont("SansSerif", asz));
+            painter->setPen(textColor);
+            QPointF nameAnchor;
+            Qt::Alignment nameAlign = Qt::AlignLeft | Qt::AlignVCenter;
+            QRectF nameRect;
+            if (orient == "Right") {
+                nameAnchor = readablePoint(QPointF(endPt.x() + 4.0, py));
+                nameAlign = Qt::AlignLeft | Qt::AlignVCenter;
+                nameRect = QRectF(nameAnchor.x(), nameAnchor.y() - 8.0, 80.0, 16.0);
+            } else if (orient == "Left") {
+                nameAnchor = readablePoint(QPointF(endPt.x() - 4.0, py));
+                nameAlign = Qt::AlignRight | Qt::AlignVCenter;
+                nameRect = QRectF(nameAnchor.x() - 80.0, nameAnchor.y() - 8.0, 80.0, 16.0);
+            } else if (orient == "Up") {
+                nameAnchor = readablePoint(QPointF(px, endPt.y() - 4.0));
+                nameAlign = Qt::AlignHCenter | Qt::AlignBottom;
+                nameRect = QRectF(nameAnchor.x() - 40.0, nameAnchor.y() - 16.0, 80.0, 16.0);
+            } else {
+                nameAnchor = readablePoint(QPointF(px, endPt.y() + 4.0));
+                nameAlign = Qt::AlignHCenter | Qt::AlignTop;
+                nameRect = QRectF(nameAnchor.x() - 40.0, nameAnchor.y(), 80.0, 16.0);
+            }
+            painter->drawText(nameRect, nameAlign, nameStr);
+        }
     }
 
     painter->restore();

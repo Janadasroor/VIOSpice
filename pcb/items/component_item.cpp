@@ -175,18 +175,22 @@ QRectF ComponentItem::boundingRect() const {
 
 QPainterPath ComponentItem::shape() const {
     QPainterPath path;
-    for (QGraphicsItem* child : childItems()) {
-        if (child->isVisible() && (dynamic_cast<PadItem*>(child))) {
-            path.addPath(child->mapToParent(child->shape()));
-        }
-    }
-
-    if (path.isEmpty()) {
-        // Always provide a valid shape even if no pads exist
+    
+    // Add the body/footprint bounding rectangle so clicking anywhere inside selects the component
+    if (FootprintLibraryManager::instance().hasFootprint(m_model->componentType())) {
+        FootprintDefinition def = FootprintLibraryManager::instance().findFootprint(m_model->componentType());
+        path.addRect(def.boundingRect());
+    } else {
         QSizeF size = m_model->size();
         if (size.width() <= 0) size.setWidth(2.0);
         if (size.height() <= 0) size.setHeight(2.0);
         path.addRect(-size.width()/2, -size.height()/2, size.width(), size.height());
+    }
+
+    for (QGraphicsItem* child : childItems()) {
+        if (child->isVisible() && (dynamic_cast<PadItem*>(child))) {
+            path.addPath(child->mapToParent(child->shape()));
+        }
     }
 
     return path.simplified();
@@ -254,6 +258,7 @@ void ComponentItem::createPads() {
                 pm->setLayer(m_model->layer());
                 pm->setNetName(""); // Default
                 pm->setNumber(prim.data["number"].toString());
+                pm->setCustomPrimitives(prim.data["custom_primitives"].toArray());
                 m_model->addPad(pm);
             }
         }

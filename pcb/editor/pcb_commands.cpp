@@ -215,6 +215,33 @@ void PCBRotateItemCommand::redo() {
     }
 }
 
+// === PCBMirrorItemCommand ===
+PCBMirrorItemCommand::PCBMirrorItemCommand(QGraphicsScene* scene, QList<PCBItem*> items, QUndoCommand* parent)
+    : PCBCommand(scene, QString("Mirror %1 item(s)").arg(items.size()), parent)
+    , m_items(items) {
+    for (PCBItem* item : items) {
+        m_oldTransforms.append(item ? item->transform() : QTransform());
+    }
+}
+
+void PCBMirrorItemCommand::undo() {
+    for (int i = 0; i < m_items.size() && i < m_oldTransforms.size(); ++i) {
+        if (m_items[i]) {
+            m_items[i]->setTransform(m_oldTransforms[i]);
+            m_items[i]->update();
+        }
+    }
+}
+
+void PCBMirrorItemCommand::redo() {
+    for (int i = 0; i < m_items.size() && i < m_oldTransforms.size(); ++i) {
+        if (m_items[i]) {
+            m_items[i]->setTransform(QTransform().scale(-1, 1), true);
+            m_items[i]->update();
+        }
+    }
+}
+
 // === PCBFlipItemCommand ===
 PCBFlipItemCommand::PCBFlipItemCommand(QGraphicsScene* scene, QList<PCBItem*> items, QUndoCommand* parent)
     : PCBCommand(scene, QString("Flip %1 item(s)").arg(items.size()), parent)

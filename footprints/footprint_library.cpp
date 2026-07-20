@@ -29,6 +29,10 @@ QString buildFootprintTags(const FootprintDefinition& def) {
 
 void indexLibraryFootprints(FootprintLibrary* lib) {
     if (!lib) return;
+    if (LibraryIndex::instance().hasLibrary(lib->name(), "Footprint")) {
+        qDebug() << "[BOOT] Library" << lib->name() << "is already indexed. Skipping re-indexing.";
+        return;
+    }
     for (const QString& name : lib->getFootprintNames()) {
         const FootprintDefinition def = lib->getFootprint(name);
         LibraryIndex::instance().addFootprint(name, lib->name(), def.category(), buildFootprintTags(def));
@@ -39,11 +43,16 @@ void indexLibraryFootprints(FootprintLibrary* lib) {
 // ================= FootprintLibrary =================
 
 FootprintLibrary::FootprintLibrary(const QString& name, const QString& path, bool builtIn)
-    : m_name(name), m_path(path), m_builtIn(builtIn) {
-    load();
+    : m_name(name), m_path(path), m_builtIn(builtIn), m_loaded(false) {
+}
+
+void FootprintLibrary::ensureLoaded() const {
+    if (m_loaded) return;
+    const_cast<FootprintLibrary*>(this)->load();
 }
 
 void FootprintLibrary::load() {
+    m_loaded = true;
     if (m_path.endsWith(".fplib")) {
         // Load from a single library file
         QFile file(m_path);
@@ -90,24 +99,29 @@ void FootprintLibrary::load() {
 }
 
 bool FootprintLibrary::hasFootprint(const QString& name) const {
+    ensureLoaded();
     return m_footprints.contains(name);
 }
 
 FootprintDefinition FootprintLibrary::getFootprint(const QString& name) const {
+    ensureLoaded();
     return m_footprints.value(name);
 }
 
 QStringList FootprintLibrary::getFootprintNames() const {
+    ensureLoaded();
     return m_footprints.keys();
 }
 
 void FootprintLibrary::addFootprint(const FootprintDefinition& footprint) {
+    ensureLoaded();
     if (footprint.isValid() && !footprint.name().isEmpty()) {
         m_footprints[footprint.name()] = footprint;
     }
 }
 
 bool FootprintLibrary::saveFootprint(const FootprintDefinition& footprint) {
+    ensureLoaded();
     if (!footprint.isValid() || footprint.name().isEmpty()) return false;
 
     // Update memory

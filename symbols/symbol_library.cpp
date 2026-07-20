@@ -156,6 +156,7 @@ public:
 
             SymbolLibrary::SymbolInfo info;
             info.name = name;
+            info.category = obj.value("category").toString().trimmed();
             info.description = obj.value("description").toString().trimmed();
             info.tags = obj.value("tags").toString().trimmed();
             infos.append(info);
@@ -173,6 +174,7 @@ public:
 
             QJsonObject obj;
             obj["name"] = trimmed;
+            if (!info.category.trimmed().isEmpty()) obj["category"] = info.category.trimmed();
             if (!info.description.trimmed().isEmpty()) obj["description"] = info.description.trimmed();
             if (!info.tags.trimmed().isEmpty()) obj["tags"] = info.tags.trimmed();
             symbols.append(obj);
@@ -544,7 +546,24 @@ void SymbolLibrary::ensureLoaded() const {
     }
     if (!hasStubs) return;
 
-    if (m_path.endsWith(".kicad_sym", Qt::CaseInsensitive)) {
+    if (m_path.endsWith(".sclib", Qt::CaseInsensitive)) {
+        QFile file(m_path);
+        if (file.open(QIODevice::ReadOnly)) {
+            QJsonDocument doc = QJsonDocument::fromJson(file.readAll());
+            if (doc.isObject()) {
+                QJsonObject root = doc.object();
+                QJsonObject libObj = root["library"].toObject();
+                QJsonArray symbolsArr = libObj["symbols"].toArray();
+                for (const QJsonValue& val : symbolsArr) {
+                    SymbolDefinition sym = SymbolDefinition::fromJson(val.toObject());
+                    sym.setStub(false);
+                    normalizeExternalSymbolPinGrid(sym);
+                    m_symbols[sym.name()] = sym;
+                }
+            }
+            file.close();
+        }
+    } else if (m_path.endsWith(".kicad_sym", Qt::CaseInsensitive)) {
         QMap<QString, SymbolDefinition> loaded = KicadSymbolImporter::importLibrary(m_path);
         for (auto it = loaded.begin(); it != loaded.end(); ++it) {
             if (m_symbols.contains(it.key())) {
@@ -1261,22 +1280,54 @@ void SymbolLibraryManager::loadUserLibraries(const QString& userLibPath, bool as
             }
             if (loaded) continue;
 
+            const QFileInfo fileInfo(filePath);
+            QList<SymbolLibrary::SymbolInfo> cachedInfos = metadataCache.symbolInfosForFile(fileInfo);
+            
             SymbolLibrary* lib = new SymbolLibrary();
-            if (lib->load(filePath)) {
-                for (const QString& name : lib->symbolNames()) {
-                    SymbolDefinition* sym = lib->findSymbol(name);
-                    if (sym) normalizeExternalSymbolPinGrid(*sym);
+            lib->setName(fileInfo.completeBaseName());
+            lib->setPath(filePath);
+
+            if (!cachedInfos.isEmpty()) {
+                // Load from cache as stubs
+                for (const SymbolLibrary::SymbolInfo& info : cachedInfos) {
+                    SymbolDefinition stub(info.name);
+                    stub.setStub(true);
+                    stub.setCategory(info.category);
+                    stub.setDescription(info.description);
+                    stub.setLibraryPath(filePath);
+                    lib->addSymbol(stub);
                 }
                 addLibrary(lib);
                 didChangeLibraries = true;
-                // Index symbols
-                for (const QString& name : lib->symbolNames()) {
-                    SymbolDefinition* sym = lib->findSymbol(name);
-                }
-                qDebug() << "Loaded external library:" << filePath;
+                qDebug() << "Loaded external library from cache as stubs:" << filePath;
             } else {
-                delete lib;
-                qWarning() << "Failed to load library:" << filePath;
+                // Cold run: load fully and store in cache
+                if (lib->load(filePath)) {
+                    for (const QString& name : lib->symbolNames()) {
+                        SymbolDefinition* sym = lib->findSymbol(name);
+                        if (sym) normalizeExternalSymbolPinGrid(*sym);
+                    }
+                    addLibrary(lib);
+                    didChangeLibraries = true;
+
+                    QList<SymbolLibrary::SymbolInfo> symbolInfos;
+                    for (const QString& name : lib->symbolNames()) {
+                        SymbolDefinition* sym = lib->findSymbol(name);
+                        if (sym) {
+                            SymbolLibrary::SymbolInfo info;
+                            info.name = name;
+                            info.category = sym->category();
+                            info.description = sym->description();
+                            info.tags = sym->customFields().value("__searchTags");
+                            symbolInfos.append(info);
+                        }
+                    }
+                    metadataCache.storeSymbolInfos(fileInfo, symbolInfos);
+                    qDebug() << "Loaded external library (cold run) and cached:" << filePath;
+                } else {
+                    delete lib;
+                    qWarning() << "Failed to load library:" << filePath;
+                }
             }
         }
 

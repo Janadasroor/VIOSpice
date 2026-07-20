@@ -36,6 +36,7 @@ void registerSchematicCommands();
 void registerNetlistCommands();
 void registerSymbolCommands();
 void registerFootprintCommands();
+void registerPCBCommands();
 void registerPluginCommands();
 void registerExtCommands();
 void registerExtTestCommand();
@@ -50,6 +51,7 @@ void registerAllCommands() {
     registerNetlistCommands();
     registerSymbolCommands();
     registerFootprintCommands();
+    registerPCBCommands();
     registerPluginCommands();
     registerExtCommands();
     registerExtTestCommand();
