@@ -184,6 +184,7 @@ private:
 
     // Path conversion
     void convertPathToTraces(const QVector<AStarNode>& path, const UnroutedConnection& conn);
+    void createTraceFromPoints(const QVector<AStarNode>& points, const UnroutedConnection& conn);
     TraceItem* createTraceSegment(QPointF start, QPointF end, int layer, const QString& netName, double width);
     ViaItem* createVia(QPointF pos, int startLayer, int endLayer, const QString& netName);
 

@@ -852,30 +852,62 @@ QList<PCBAutoRouter::AStarNode> PCBAutoRouter::getNeighbors(const AStarNode& nod
 void PCBAutoRouter::convertPathToTraces(const QVector<AStarNode>& path, const UnroutedConnection& conn) {
     if (path.size() < 2) return;
 
-    QPointF prevPos = gridToScene(path[0].x, path[0].y);
-    int prevLayer = path[0].layer;
+    QVector<AStarNode> segmentPoints;
+    segmentPoints.append(path[0]);
 
     for (int i = 1; i < path.size(); ++i) {
-        QPointF currPos = gridToScene(path[i].x, path[i].y);
-
-        if (path[i].isVia) {
-            // Create via for layer transition
-            int viaStartLayer = m_activeLayers[prevLayer];
-            int viaEndLayer = m_activeLayers[path[i].layer];
-            ViaItem* via = createVia(prevPos, viaStartLayer, viaEndLayer, conn.netName);
-            if (via) m_stats.viaCount++;
-            prevLayer = path[i].layer;
-        } else {
-            // Create trace segment
-            int traceLayer = m_activeLayers[path[i].layer];
-            TraceItem* trace = createTraceSegment(prevPos, currPos, traceLayer, conn.netName, conn.traceWidth);
-            if (trace) {
-                m_stats.traceSegmentCount++;
-                m_stats.totalTraceLength += QLineF(prevPos, currPos).length();
+        const auto& curr = path[i];
+        
+        if (curr.isVia) {
+            // Finalize current segment trace if we have accumulated points
+            if (segmentPoints.size() >= 2) {
+                createTraceFromPoints(segmentPoints, conn);
             }
-            prevPos = currPos;
-            prevLayer = path[i].layer;
+            segmentPoints.clear();
+            
+            // Create via
+            int viaStartLayer = m_activeLayers[curr.parentLayer];
+            int viaEndLayer = m_activeLayers[curr.layer];
+            QPointF viaPos = gridToScene(curr.x, curr.y);
+            ViaItem* via = createVia(viaPos, viaStartLayer, viaEndLayer, conn.netName);
+            if (via) m_stats.viaCount++;
+
+            // Start new segment from the via position
+            segmentPoints.append(curr);
+        } else {
+            if (segmentPoints.isEmpty()) {
+                segmentPoints.append(curr);
+            } else {
+                // Check collinearity with the last segment direction
+                if (segmentPoints.size() < 2) {
+                    segmentPoints.append(curr);
+                } else {
+                    const auto& prev = segmentPoints[segmentPoints.size() - 2];
+                    const auto& last = segmentPoints.last();
+                    
+                    int dx1 = last.x - prev.x;
+                    int dy1 = last.y - prev.y;
+                    int dx2 = curr.x - last.x;
+                    int dy2 = curr.y - last.y;
+                    
+                    bool sameLayer = (curr.layer == last.layer && last.layer == prev.layer);
+                    bool collinear = (dx1 * dy2 == dx2 * dy1);
+                    bool sameDirection = ((dx1 >= 0 && dx2 >= 0) || (dx1 <= 0 && dx2 <= 0)) &&
+                                         ((dy1 >= 0 && dy2 >= 0) || (dy1 <= 0 && dy2 <= 0));
+                                         
+                    if (sameLayer && collinear && sameDirection) {
+                        // Replace last with curr to extend the segment
+                        segmentPoints.last() = curr;
+                    } else {
+                        segmentPoints.append(curr);
+                    }
+                }
+            }
         }
+    }
+
+    if (segmentPoints.size() >= 2) {
+        createTraceFromPoints(segmentPoints, conn);
     }
 
     // Final connection to exact pad position
@@ -885,6 +917,20 @@ void PCBAutoRouter::convertPathToTraces(const QVector<AStarNode>& path, const Un
     if (finalTrace) {
         m_stats.traceSegmentCount++;
         m_stats.totalTraceLength += QLineF(lastGridPos, conn.end).length();
+    }
+}
+
+void PCBAutoRouter::createTraceFromPoints(const QVector<AStarNode>& points, const UnroutedConnection& conn) {
+    for (int i = 0; i < points.size() - 1; ++i) {
+        QPointF start = gridToScene(points[i].x, points[i].y);
+        QPointF end = gridToScene(points[i+1].x, points[i+1].y);
+        int layer = m_activeLayers[points[i+1].layer];
+        
+        TraceItem* trace = createTraceSegment(start, end, layer, conn.netName, conn.traceWidth);
+        if (trace) {
+            m_stats.traceSegmentCount++;
+            m_stats.totalTraceLength += QLineF(start, end).length();
+        }
     }
 }
 
