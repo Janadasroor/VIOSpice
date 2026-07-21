@@ -1,8 +1,9 @@
+// File: pcb/ui/pcb_3d_window.h
+// ============================================================================
 /*
  * Copyright 2026 Janada Sroor
  * SPDX-License-Identifier: Apache-2.0
  */
-
 #ifndef PCB_3D_WINDOW_H
 #define PCB_3D_WINDOW_H
 
@@ -13,7 +14,6 @@
 
 class PCB3DWindow : public QMainWindow {
     Q_OBJECT
-
 public:
     explicit PCB3DWindow(QGraphicsScene* scene, QWidget* parent = nullptr);
     ~PCB3DWindow() override;
@@ -32,12 +32,16 @@ protected:
 
 private:
     void refreshNetList();
+    void refreshComponentList();
 
     PCB3DView* m_view = nullptr;
     QGraphicsScene* m_scene = nullptr;
     class QComboBox* m_netCombo = nullptr;
+    class QComboBox* m_focusCombo = nullptr;
     class QLabel* m_collisionLabel = nullptr;
     class QLabel* m_measureLabel = nullptr;
 };
 
 #endif // PCB_3D_WINDOW_H
+
+// ============================================================================
