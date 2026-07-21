@@ -1,11 +1,13 @@
+// File: pcb/ui/pcb_3d_window.cpp
+// ============================================================================
 /*
  * Copyright 2026 Janada Sroor
  * SPDX-License-Identifier: Apache-2.0
  */
-
 #include "pcb_3d_window.h"
 #include "../mcad/mcad_exporter.h"
 #include "config_manager.h"
+#include "../items/component_item.h"
 
 #include <QAction>
 #include <QCheckBox>
@@ -22,8 +24,10 @@
 #include <QSet>
 #include <QSpinBox>
 #include <QSlider>
+#include <QStatusBar>
 #include <QToolBar>
 #include <QVBoxLayout>
+
 #include <algorithm>
 
 #include "../items/pcb_item.h"
@@ -37,7 +41,6 @@ PCB3DWindow::PCB3DWindow(QGraphicsScene* scene, QWidget* parent)
     m_view = new PCB3DView(this);
     m_view->setScene(scene);
     setCentralWidget(m_view);
-
     connect(m_view, &PCB3DView::componentPicked, this, &PCB3DWindow::componentPicked);
 
     setStyleSheet(
@@ -49,6 +52,12 @@ PCB3DWindow::PCB3DWindow(QGraphicsScene* scene, QWidget* parent)
         "QLabel { color: #9fb0c0; font-size: 11px; font-weight: 600; }"
         "QComboBox, QSlider { background: #1f2933; color: #d0d7de; border: 1px solid #2f3a46; border-radius: 5px; }"
     );
+
+    statusBar()->setStyleSheet("QStatusBar { background: #10151b; color: #9fb0c0; font-size: 11px; }");
+    statusBar()->showMessage(QStringLiteral("1-9 load view · Ctrl+1-9 save view · F fit · R reset"));
+    connect(m_view, &PCB3DView::statusUpdated, this, [this](const QString& msg) {
+        statusBar()->showMessage(msg, 6000);
+    });
 
     QToolBar* toolbar = addToolBar("3D Controls");
     toolbar->setMovable(false);
@@ -67,12 +76,14 @@ PCB3DWindow::PCB3DWindow(QGraphicsScene* scene, QWidget* parent)
     addToggle("Silk", true, [this](bool on) { m_view->setShowSilkscreen(on); });
     addToggle("Grid", false, [this](bool on) { m_view->setShowGrid(on); });
     addToggle("Components", true, [this](bool on) { m_view->setShowComponents(on); });
-    addToggle("Raytraced", false, [this](bool on) { m_view->setRaytracingEnabled(on); });
-
+    addToggle("Enhanced Light", false, [this](bool on) { m_view->setEnhancedLighting(on); });
+    addToggle("Stats", false, [this](bool on) { m_view->setShowStats(on); });
+    addToggle("Cull", true, [this](bool on) { m_view->setFrustumCullingEnabled(on); });
+    addToggle("Hover Info", true, [this](bool on) { m_view->setHoverInfoEnabled(on); });
     toolbar->addSeparator();
     addToggle("Selected Only", false, [this](bool on) { m_view->setSelectedOnly(on); });
-
     toolbar->addSeparator();
+
     toolbar->addWidget(new QLabel("Projection"));
     QComboBox* projection = new QComboBox(this);
     projection->addItems({"Perspective", "Orthographic"});
@@ -103,8 +114,8 @@ PCB3DWindow::PCB3DWindow(QGraphicsScene* scene, QWidget* parent)
         spaceMouse->blockSignals(false);
         ConfigManager::instance().setToolProperty("PCB3DView", "SpaceMouseEnabled", false);
     }
-
     toolbar->addSeparator();
+
     toolbar->addWidget(new QLabel("View"));
     QComboBox* preset = new QComboBox(this);
     preset->addItems({"Isometric", "Top", "Bottom", "Front", "Back", "Flip Board", "Spin CW", "Spin CCW", "Spin Stop"});
@@ -113,8 +124,8 @@ PCB3DWindow::PCB3DWindow(QGraphicsScene* scene, QWidget* parent)
     connect(preset, &QComboBox::currentTextChanged, this, [this](const QString& p) {
         m_view->setViewPreset(p);
     });
-
     toolbar->addSeparator();
+
     toolbar->addWidget(new QLabel("Net"));
     m_netCombo = new QComboBox(this);
     m_netCombo->setMinimumWidth(170);
@@ -123,7 +134,16 @@ PCB3DWindow::PCB3DWindow(QGraphicsScene* scene, QWidget* parent)
         m_view->setNetFilter(n == "All Nets" ? QString() : n);
     });
 
+    toolbar->addWidget(new QLabel("Focus"));
+    m_focusCombo = new QComboBox(this);
+    m_focusCombo->setMinimumWidth(120);
+    toolbar->addWidget(m_focusCombo);
+    connect(m_focusCombo, QOverload<int>::of(&QComboBox::activated), this, [this](int idx) {
+        const QUuid id = m_focusCombo->itemData(idx).toUuid();
+        if (!id.isNull()) m_view->focusComponent(id);
+    });
     toolbar->addSeparator();
+
     toolbar->addWidget(new QLabel("Mask"));
     QSlider* maskAlpha = new QSlider(Qt::Horizontal, this);
     maskAlpha->setRange(5, 100);
@@ -139,8 +159,8 @@ PCB3DWindow::PCB3DWindow(QGraphicsScene* scene, QWidget* parent)
         ConfigManager::instance().setToolProperty("PCB3DView", "MaskAlpha", clamped);
         m_view->setSoldermaskAlpha(float(clamped) / 100.0f);
     });
-
     toolbar->addSeparator();
+
     toolbar->addWidget(new QLabel("X-Ray"));
     QSlider* xray = new QSlider(Qt::Horizontal, this);
     xray->setRange(5, 100);
@@ -150,8 +170,8 @@ PCB3DWindow::PCB3DWindow(QGraphicsScene* scene, QWidget* parent)
     connect(xray, &QSlider::valueChanged, this, [this](int v) {
         m_view->setSubstrateAlpha(float(v) / 100.0f);
     });
-
     toolbar->addSeparator();
+
     toolbar->addWidget(new QLabel("Explode"));
     QSlider* explode = new QSlider(Qt::Horizontal, this);
     explode->setRange(0, 100);
@@ -161,14 +181,14 @@ PCB3DWindow::PCB3DWindow(QGraphicsScene* scene, QWidget* parent)
     explode->setValue(std::clamp(savedExplodePct, 0, 100));
     explode->setFixedWidth(110);
     toolbar->addWidget(explode);
-    m_view->setExplodeAmount(float(explode->value()) * 0.30f); // 0..30 mm lift
+    m_view->setExplodeAmount(float(explode->value()) * 0.30f);
     connect(explode, &QSlider::valueChanged, this, [this](int v) {
         const int pct = std::clamp(v, 0, 100);
         ConfigManager::instance().setToolProperty("PCB3DView", "ExplodePercent", pct);
         m_view->setExplodeAmount(float(pct) * 0.30f);
     });
-
     toolbar->addSeparator();
+
     toolbar->addWidget(new QLabel("Zoom"));
     QSlider* zoomSlider = new QSlider(Qt::Horizontal, this);
     zoomSlider->setRange(20, 2000);
@@ -185,19 +205,20 @@ PCB3DWindow::PCB3DWindow(QGraphicsScene* scene, QWidget* parent)
         zoomSlider->setValue(value);
         zoomSlider->blockSignals(false);
     });
-
     toolbar->addSeparator();
+
     QAction* reset = toolbar->addAction("Reset Camera");
     connect(reset, &QAction::triggered, this, [this]() { m_view->resetCamera(); });
+    QAction* fit = toolbar->addAction("Fit Board");
+    connect(fit, &QAction::triggered, this, [this]() { m_view->fitBoard(); });
 
     QAction* measureToggle = toolbar->addAction("Measure");
     measureToggle->setCheckable(true);
     measureToggle->setToolTip("Measure distance on board plane (click two points)");
     connect(measureToggle, &QAction::toggled, this, [this](bool on) {
         m_view->setMeasureMode(on);
-        if (m_measureLabel) {
+        if (m_measureLabel)
             m_measureLabel->setText(on ? "Measure: pick first point" : "Measure: off");
-        }
     });
     QAction* clearMeasure = toolbar->addAction("Clear Measure");
     connect(clearMeasure, &QAction::triggered, this, [this]() {
@@ -210,18 +231,15 @@ PCB3DWindow::PCB3DWindow(QGraphicsScene* scene, QWidget* parent)
         QDialog dlg(this);
         dlg.setWindowTitle("Export 3D Snapshot");
         QFormLayout form(&dlg);
-
         QSpinBox* wSpin = new QSpinBox(&dlg);
         wSpin->setRange(320, 8192);
         wSpin->setValue(std::max(320, m_view->width()));
         QSpinBox* hSpin = new QSpinBox(&dlg);
         hSpin->setRange(240, 8192);
         hSpin->setValue(std::max(240, m_view->height()));
-
         QComboBox* fmtCombo = new QComboBox(&dlg);
         fmtCombo->addItem("PNG (*.png)", "PNG");
         fmtCombo->addItem("JPG (*.jpg)", "JPG");
-
         QCheckBox* transparentBg = new QCheckBox("Transparent background (PNG)", &dlg);
         transparentBg->setChecked(true);
         connect(fmtCombo, &QComboBox::currentTextChanged, &dlg, [fmtCombo, transparentBg]() {
@@ -229,39 +247,28 @@ PCB3DWindow::PCB3DWindow(QGraphicsScene* scene, QWidget* parent)
             transparentBg->setEnabled(png);
             if (!png) transparentBg->setChecked(false);
         });
-
         form.addRow("Width:", wSpin);
         form.addRow("Height:", hSpin);
         form.addRow("Format:", fmtCombo);
         form.addRow("", transparentBg);
-
         QDialogButtonBox* bb = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dlg);
         connect(bb, &QDialogButtonBox::accepted, &dlg, &QDialog::accept);
         connect(bb, &QDialogButtonBox::rejected, &dlg, &QDialog::reject);
         form.addRow(bb);
-
         if (dlg.exec() != QDialog::Accepted) return;
-
         const QString fmt = fmtCombo->currentData().toString();
         QString filter = (fmt == "PNG") ? "PNG (*.png)" : "JPG (*.jpg)";
         QString path = QFileDialog::getSaveFileName(this, "Save 3D Snapshot", QString(), filter);
         if (path.isEmpty()) return;
-
         if (fmt == "PNG" && !path.endsWith(".png", Qt::CaseInsensitive)) path += ".png";
-        if (fmt == "JPG" && !path.endsWith(".jpg", Qt::CaseInsensitive) && !path.endsWith(".jpeg", Qt::CaseInsensitive)) {
+        if (fmt == "JPG" && !path.endsWith(".jpg", Qt::CaseInsensitive) && !path.endsWith(".jpeg", Qt::CaseInsensitive))
             path += ".jpg";
-        }
-
         QImage img = m_view->grabFramebuffer();
         if (img.isNull()) return;
-
         const QSize targetSize(wSpin->value(), hSpin->value());
-        if (img.size() != targetSize) {
+        if (img.size() != targetSize)
             img = img.scaled(targetSize, Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
-        }
-
         if (fmt == "PNG" && transparentBg->isChecked()) {
-            // Chroma-key the known GL clear color used by PCB3DView.
             const QColor keyColor = QColor::fromRgbF(0.07, 0.09, 0.12, 1.0);
             QImage rgba = img.convertToFormat(QImage::Format_RGBA8888);
             for (int y = 0; y < rgba.height(); ++y) {
@@ -271,16 +278,16 @@ PCB3DWindow::PCB3DWindow(QGraphicsScene* scene, QWidget* parent)
                     const int dr = std::abs(c.red() - keyColor.red());
                     const int dg = std::abs(c.green() - keyColor.green());
                     const int db = std::abs(c.blue() - keyColor.blue());
-                    if (dr <= 8 && dg <= 8 && db <= 8) {
+                    if (dr <= 8 && dg <= 8 && db <= 8)
                         line[x] = qRgba(c.red(), c.green(), c.blue(), 0);
-                    }
                 }
             }
             rgba.save(path, "PNG");
+            statusBar()->showMessage("Snapshot saved: " + path, 6000);
             return;
         }
-
         img.save(path, fmt.toUtf8().constData());
+        statusBar()->showMessage("Snapshot saved: " + path, 6000);
     });
 
     QAction* exportMCAD = toolbar->addAction("Export MCAD");
@@ -297,23 +304,19 @@ PCB3DWindow::PCB3DWindow(QGraphicsScene* scene, QWidget* parent)
         connect(bb, &QDialogButtonBox::rejected, &dlg, &QDialog::reject);
         form.addRow(bb);
         if (dlg.exec() != QDialog::Accepted) return;
-
         const QString kind = fmt->currentData().toString();
         QString filter = (kind == "STEP") ? "STEP Files (*.step *.stp)" : "VRML Files (*.wrl)";
         QString path = QFileDialog::getSaveFileName(this, "Export MCAD", "Board", filter);
         if (path.isEmpty()) return;
-
         if (kind == "STEP" && !path.endsWith(".step", Qt::CaseInsensitive) && !path.endsWith(".stp", Qt::CaseInsensitive)) {
             path += ".step";
         } else if (kind == "VRML" && !path.endsWith(".wrl", Qt::CaseInsensitive)) {
             path += ".wrl";
         }
-
         QString err;
         bool ok = false;
         if (kind == "STEP") ok = MCADExporter::exportSTEPWireframe(m_scene, path, &err);
         else ok = MCADExporter::exportVRMLAssembly(m_scene, path, &err);
-
         if (!ok) {
             QDialog errDlg(this);
             errDlg.setWindowTitle("MCAD Export Failed");
@@ -325,9 +328,10 @@ PCB3DWindow::PCB3DWindow(QGraphicsScene* scene, QWidget* parent)
             errDlg.exec();
             return;
         }
+        statusBar()->showMessage("MCAD exported: " + path, 6000);
     });
-
     toolbar->addSeparator();
+
     QAction* collisionCheck = toolbar->addAction("Check Collisions");
     connect(collisionCheck, &QAction::triggered, this, [this]() {
         const int pairs = m_view->detectComponentCollisions();
@@ -335,9 +339,11 @@ PCB3DWindow::PCB3DWindow(QGraphicsScene* scene, QWidget* parent)
             if (pairs > 0) {
                 m_collisionLabel->setText(QString("Collisions: %1 pair(s)").arg(pairs));
                 m_collisionLabel->setStyleSheet("color: #ff6b6b; font-weight: 700;");
+                statusBar()->showMessage(QString("Component collision check: %1 overlapping pair(s) found").arg(pairs), 8000);
             } else {
                 m_collisionLabel->setText("Collisions: none");
                 m_collisionLabel->setStyleSheet("color: #7fe28a; font-weight: 700;");
+                statusBar()->showMessage("Component collision check: no overlaps", 8000);
             }
         }
     });
@@ -345,7 +351,6 @@ PCB3DWindow::PCB3DWindow(QGraphicsScene* scene, QWidget* parent)
     toolbar->addWidget(m_collisionLabel);
     m_measureLabel = new QLabel("Measure: off");
     toolbar->addWidget(m_measureLabel);
-
     connect(m_view, &PCB3DView::measurementUpdated, this, [this](double mm) {
         if (!m_measureLabel) return;
         if (mm < 0.0) m_measureLabel->setText("Measure: pick second point");
@@ -353,10 +358,11 @@ PCB3DWindow::PCB3DWindow(QGraphicsScene* scene, QWidget* parent)
     });
 
     refreshNetList();
-
+    refreshComponentList();
     if (m_scene) {
         connect(m_scene, &QGraphicsScene::changed, this, [this](const QList<QRectF>&) {
             refreshNetList();
+            refreshComponentList();
         });
     }
 
@@ -403,13 +409,11 @@ PCB3DWindow::PCB3DWindow(QGraphicsScene* scene, QWidget* parent)
         rh->addWidget(b);
         av->addWidget(row);
     };
-
     mkColorRow("Soldermask", QColor(38, 132, 76), [this](const QColor& c) { m_view->setSoldermaskColor(c); });
     mkColorRow("Copper Top", QColor(212, 71, 51), [this](const QColor& c) { m_view->setCopperTopColor(c); });
     mkColorRow("Copper Bottom", QColor(46, 107, 219), [this](const QColor& c) { m_view->setCopperBottomColor(c); });
     mkColorRow("Components", QColor(82, 86, 96), [this](const QColor& c) { m_view->setComponentColor(c); });
     av->addStretch();
-
     appearanceDock->setWidget(appearance);
     addDockWidget(Qt::RightDockWidgetArea, appearanceDock);
 }
@@ -418,6 +422,7 @@ PCB3DWindow::~PCB3DWindow() = default;
 
 void PCB3DWindow::updateView() {
     refreshNetList();
+    refreshComponentList();
     if (m_view) m_view->updateScene();
 }
 
@@ -443,7 +448,6 @@ void PCB3DWindow::closeEvent(QCloseEvent* event) {
 
 void PCB3DWindow::refreshNetList() {
     if (!m_scene || !m_netCombo) return;
-
     const QString current = m_netCombo->currentText();
     QSet<QString> nets;
     for (QGraphicsItem* item : m_scene->items()) {
@@ -452,19 +456,43 @@ void PCB3DWindow::refreshNetList() {
         const QString net = pcb->netName();
         if (!net.isEmpty() && net != "No Net") nets.insert(net);
     }
-
     QStringList list = nets.values();
     std::sort(list.begin(), list.end(), [](const QString& a, const QString& b) {
         return a.localeAwareCompare(b) < 0;
     });
-
     m_netCombo->blockSignals(true);
     m_netCombo->clear();
     m_netCombo->addItem("All Nets");
     m_netCombo->addItems(list);
-
     int idx = m_netCombo->findText(current);
     if (idx < 0) idx = 0;
     m_netCombo->setCurrentIndex(idx);
     m_netCombo->blockSignals(false);
+}
+
+void PCB3DWindow::refreshComponentList() {
+    if (!m_scene || !m_focusCombo) return;
+    const QUuid current = m_focusCombo->currentData().toUuid();
+    QList<QPair<QString, QUuid>> comps;
+    for (QGraphicsItem* item : m_scene->items()) {
+        if (auto* comp = dynamic_cast<ComponentItem*>(item))
+            comps.append({comp->name(), comp->id()});
+    }
+    std::sort(comps.begin(), comps.end(), [](const QPair<QString, QUuid>& a, const QPair<QString, QUuid>& b) {
+        return a.first.localeAwareCompare(b.first) < 0;
+    });
+    m_focusCombo->blockSignals(true);
+    m_focusCombo->clear();
+    m_focusCombo->addItem(QStringLiteral("(none)"), QVariant::fromValue(QUuid()));
+    for (const auto& c : comps)
+        m_focusCombo->addItem(c.first, QVariant::fromValue(c.second));
+    int idx = 0;
+    for (int i = 0; i < m_focusCombo->count(); ++i) {
+        if (m_focusCombo->itemData(i).toUuid() == current) {
+            idx = i;
+            break;
+        }
+    }
+    m_focusCombo->setCurrentIndex(idx);
+    m_focusCombo->blockSignals(false);
 }
