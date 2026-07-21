@@ -60,6 +60,7 @@ PCBAutoRouter::RouteStats PCBAutoRouter::routeAll(const RouterConfig& config) {
     // Step 1: Build routing grid
     buildGrid();
     markObstacles();
+    rebuildCommittedEdgeSet();
 
     int blockedCountL0 = 0;
     int blockedCountL1 = 0;
@@ -107,6 +108,7 @@ PCBAutoRouter::RouteStats PCBAutoRouter::routeAll(const RouterConfig& config) {
             // Rebuild grid after rip-up
             buildGrid();
             markObstacles();
+            rebuildCommittedEdgeSet();
 
             // Re-find connections (some may now be routed)
             connections = findUnroutedConnections();
@@ -649,7 +651,7 @@ bool PCBAutoRouter::findPath(const UnroutedConnection& conn, QVector<AStarNode>&
                 moveCost *= 1.41421356237; // Diagonal move cost correction
             }
             if (neighbor.isVia) {
-                moveCost += m_config.gridSpacing * 5.0; // Via cost penalty
+                moveCost = neighbor.extraCost;
             }
 
             // Turn penalty: discourage unnecessary bends and zig-zags
@@ -779,47 +781,130 @@ bool PCBAutoRouter::isCellPassable(int x, int y, int layer, const QString& netNa
     return true;
 }
 
-bool PCBAutoRouter::isViaPassable(int cx, int cy, const QString& netName) const {
-    QPointF targetPos = gridToScene(cx, cy);
+bool PCBAutoRouter::isViaPassable(int cx, int cy, const QString& netName, double* penaltyOut) const {
+    if (penaltyOut) {
+        *penaltyOut = 0.0;
+    }
 
-    // 1. Drill-hole collision check against all other vias and through-holes in the scene
-    for (auto* item : m_scene->items()) {
+    if (!isValidCell(cx, cy, 0)) {
+        return false;
+    }
+
+    const QPointF pos = gridToScene(cx, cy);
+
+    // 1. Scene-based drill/pad/via clearance check
+    const double searchRadius =
+        m_config.viaRadius +
+        m_config.clearance +
+        m_config.viaPreferredClearanceMargin +
+        0.25;
+
+    const QRectF searchRect(
+        pos.x() - searchRadius,
+        pos.y() - searchRadius,
+        searchRadius * 2.0,
+        searchRadius * 2.0);
+
+    const QList<QGraphicsItem*> localItems = m_scene->items(searchRect);
+
+    for (QGraphicsItem* item : localItems) {
+        // Via-to-via spacing.
         if (auto* otherVia = dynamic_cast<ViaItem*>(item)) {
-            double dist = QLineF(otherVia->scenePos(), targetPos).length();
-            if (dist < 0.65) { // 0.4mm drill size + 0.25mm spacing requirement
+            const double d = QLineF(otherVia->scenePos(), pos).length();
+
+            // Hard spacing violation.
+            if (d < m_config.viaToViaSpacing) {
                 return false;
             }
+
+            // Preferred spacing penalty.
+            const double preferred =
+                m_config.viaToViaSpacing +
+                m_config.viaPreferredClearanceMargin;
+
+            if (d < preferred && penaltyOut) {
+                const double deficit = preferred - d;
+                *penaltyOut += m_config.viaProximityPenalty *
+                               (deficit * deficit) /
+                               (preferred * preferred);
+            }
         }
+
+        // Pad/drill keepout.
         if (auto* pad = dynamic_cast<PadItem*>(item)) {
             QRectF padRect = pad->sceneBoundingRect();
-            // Block via placement within the pad boundary or its immediate vicinity (0.4mm clearance)
-            padRect.adjust(-0.4, -0.4, 0.4, 0.4);
-            if (padRect.contains(targetPos)) {
+
+            // Hard via-in-pad and near-drill keepout.
+            padRect.adjust(
+                -m_config.viaDrillKeepoutRadius,
+                -m_config.viaDrillKeepoutRadius,
+                 m_config.viaDrillKeepoutRadius,
+                 m_config.viaDrillKeepoutRadius);
+
+            if (padRect.contains(pos)) {
                 return false;
             }
         }
     }
 
     // 2. Copper clearance check
-    double reqRadius = 0.8 / 2.0 + m_config.viaClearance;
-    int cellRadius = qCeil(reqRadius / m_config.gridSpacing);
+    const double hardMinimum =
+        m_config.viaRadius + m_config.clearance;
+
+    const double preferred =
+        hardMinimum + m_config.viaPreferredClearanceMargin;
+
+    const int cellRadius =
+        qMax(1, static_cast<int>(qCeil(preferred / m_config.gridSpacing)));
 
     for (int l = 0; l < m_gridLayers; ++l) {
         for (int dy = -cellRadius; dy <= cellRadius; ++dy) {
             for (int dx = -cellRadius; dx <= cellRadius; ++dx) {
-                // Circular check
-                if (dx*dx + dy*dy > cellRadius*cellRadius) continue;
+                // Circular window.
+                if ((dx * dx + dy * dy) > (cellRadius * cellRadius)) {
+                    continue;
+                }
 
-                int nx = cx + dx;
-                int ny = cy + dy;
-                if (!isValidCell(nx, ny, l)) return false;
+                const int nx = cx + dx;
+                const int ny = cy + dy;
+
+                if (!isValidCell(nx, ny, l)) {
+                    continue;
+                }
 
                 const GridCell* cell = cellAt(nx, ny, l);
-                if (cell->blocked && cell->netName.isEmpty()) return false;
-                if (!cell->netName.isEmpty() && cell->netName != netName) return false;
+                if (!cell) {
+                    continue;
+                }
+
+                const double dist =
+                    m_config.gridSpacing *
+                    qSqrt(double(dx * dx + dy * dy));
+
+                // Anonymous keepout/block.
+                if (cell->blocked && cell->netName.isEmpty()) {
+                    if (dist < hardMinimum) {
+                        return false;
+                    }
+                }
+
+                // Foreign net copper.
+                if (!cell->netName.isEmpty() && cell->netName != netName) {
+                    if (dist < hardMinimum) {
+                        return false;
+                    }
+
+                    if (dist < preferred && penaltyOut) {
+                        const double deficit = preferred - dist;
+                        *penaltyOut += m_config.viaProximityPenalty *
+                                       (deficit * deficit) /
+                                       (preferred * preferred);
+                    }
+                }
             }
         }
     }
+
     return true;
 }
 
@@ -861,12 +946,14 @@ QList<PCBAutoRouter::AStarNode> PCBAutoRouter::getNeighbors(const AStarNode& nod
     if (m_gridLayers > 1) {
         for (int l = 0; l < m_gridLayers; ++l) {
             if (l == node.layer) continue;
-            if (!isViaPassable(node.x, node.y, netName)) continue;
+            double viaPenalty = 0.0;
+            if (!isViaPassable(node.x, node.y, netName, &viaPenalty)) continue;
 
             AStarNode n;
             n.x = node.x; n.y = node.y; n.layer = l;
             n.isVia = true;
             n.parentX = node.x; n.parentY = node.y; n.parentLayer = node.layer;
+            n.extraCost = m_config.viaBasePenaltyMm + viaPenalty;
             neighbors.append(n);
         }
     }
@@ -878,16 +965,188 @@ QList<PCBAutoRouter::AStarNode> PCBAutoRouter::getNeighbors(const AStarNode& nod
 // Path to trace conversion
 // ============================================================================
 
+static double traceAngleDeg(const QPointF& a, const QPointF& b, const QPointF& c) {
+    const QPointF u = b - a;
+    const QPointF v = c - b;
+
+    const double lu = QLineF(QPointF(0, 0), u).length();
+    const double lv = QLineF(QPointF(0, 0), v).length();
+
+    if (lu < 1e-6 || lv < 1e-6) {
+        return 180.0;
+    }
+
+    double dot = QPointF::dotProduct(u, v) / (lu * lv);
+    dot = qBound(-1.0, dot, 1.0);
+
+    const double vectorAngle = qRadiansToDegrees(qAcos(dot));
+
+    if (vectorAngle < 0.001) {
+        return 180.0;
+    }
+
+    if (vectorAngle > 179.999) {
+        return 0.0;
+    }
+
+    return qMin(vectorAngle, 180.0 - vectorAngle);
+}
+
+bool PCBAutoRouter::stubAnglesLegal(const QVector<QPointF>& points) const {
+    for (int i = 1; i + 1 < points.size(); ++i) {
+        const double angle = traceAngleDeg(points[i - 1], points[i], points[i + 1]);
+        if (angle < m_config.minStubAngleDeg) {
+            return false;
+        }
+    }
+    return true;
+}
+
+QVector<QPointF> PCBAutoRouter::makeLegalStub(
+    const QPointF& pad,
+    const QPointF& gridNode,
+    const QPointF& neighborGridPoint,
+    bool isStart) const
+{
+    auto appendPoint = [](QVector<QPointF>& pts, const QPointF& p) {
+        if (pts.isEmpty() || QLineF(pts.last(), p).length() > 0.01) {
+            pts.append(p);
+        }
+    };
+
+    auto pathLength = [](const QVector<QPointF>& pts) {
+        double len = 0.0;
+        for (int i = 1; i < pts.size(); ++i) {
+            len += QLineF(pts[i - 1], pts[i]).length();
+        }
+        return len;
+    };
+
+    auto fullStubWithNeighbor = [&](const QVector<QPointF>& stub) {
+        QVector<QPointF> full;
+        if (!isStart && !neighborGridPoint.isNull()) {
+            full.append(neighborGridPoint);
+        }
+        full.append(stub);
+        if (isStart && !neighborGridPoint.isNull()) {
+            full.append(neighborGridPoint);
+        }
+        return full;
+    };
+
+    auto isLegal = [&](const QVector<QPointF>& stub) {
+        return stubAnglesLegal(fullStubWithNeighbor(stub));
+    };
+
+    auto minAngle = [&](const QVector<QPointF>& stub) {
+        const QVector<QPointF> full = fullStubWithNeighbor(stub);
+        double worst = 180.0;
+        for (int i = 1; i + 1 < full.size(); ++i) {
+            worst = qMin(worst, traceAngleDeg(full[i - 1], full[i], full[i + 1]));
+        }
+        return worst;
+    };
+
+    // Candidate 1: direct connection
+    QVector<QPointF> direct;
+    appendPoint(direct, pad);
+    appendPoint(direct, gridNode);
+
+    if (isLegal(direct)) {
+        return direct;
+    }
+
+    // Candidate 2: horizontal then vertical
+    QVector<QPointF> hv;
+    appendPoint(hv, pad);
+    appendPoint(hv, QPointF(gridNode.x(), pad.y()));
+    appendPoint(hv, gridNode);
+
+    // Candidate 3: vertical then horizontal
+    QVector<QPointF> vh;
+    appendPoint(vh, pad);
+    appendPoint(vh, QPointF(pad.x(), gridNode.y()));
+    appendPoint(vh, gridNode);
+
+    const bool hvLegal = isLegal(hv);
+    const bool vhLegal = isLegal(vh);
+
+    if (hvLegal && vhLegal) {
+        return (pathLength(hv) <= pathLength(vh)) ? hv : vh;
+    }
+    if (hvLegal) return hv;
+    if (vhLegal) return vh;
+
+    const double hvAngle = minAngle(hv);
+    const double vhAngle = minAngle(vh);
+
+    if (hvAngle > vhAngle) return hv;
+    if (vhAngle > hvAngle) return vh;
+
+    return (pathLength(hv) <= pathLength(vh)) ? hv : vh;
+}
+
+EdgeKey PCBAutoRouter::makeEdgeKey(const QPointF& a, const QPointF& b, int layer) const {
+    auto quantize = [](double v) -> qint64 {
+        return qint64(qRound(v * 100.0)); // 0.01mm resolution
+    };
+
+    qint64 x1 = quantize(a.x());
+    qint64 y1 = quantize(a.y());
+    qint64 x2 = quantize(b.x());
+    qint64 y2 = quantize(b.y());
+
+    if (x1 > x2 || (x1 == x2 && y1 > y2)) {
+        std::swap(x1, x2);
+        std::swap(y1, y2);
+    }
+
+    EdgeKey key;
+    key.x1 = x1;
+    key.y1 = y1;
+    key.x2 = x2;
+    key.y2 = y2;
+    key.layer = layer;
+    return key;
+}
+
+void PCBAutoRouter::rebuildCommittedEdgeSet() {
+    m_committedEdges.clear();
+    if (!m_scene) return;
+
+    for (auto* item : m_scene->items()) {
+        if (auto* trace = dynamic_cast<TraceItem*>(item)) {
+            EdgeKey key = makeEdgeKey(trace->startPoint(), trace->endPoint(), trace->layer());
+            m_committedEdges.insert(key);
+        }
+    }
+}
+
 void PCBAutoRouter::convertPathToTraces(const QVector<AStarNode>& path, const UnroutedConnection& conn) {
     if (path.size() < 2) return;
 
-    // Start connection from exact start pad position to the first grid node
+    // Start connection using legal-angle escape stubs
     QPointF firstGridPos = gridToScene(path[0].x, path[0].y);
     int startLayer = m_activeLayers[path[0].layer];
-    TraceItem* startTrace = createTraceSegment(conn.start, firstGridPos, startLayer, conn.netName, conn.traceWidth);
-    if (startTrace) {
-        m_stats.traceSegmentCount++;
-        m_stats.totalTraceLength += QLineF(conn.start, firstGridPos).length();
+
+    QPointF startNeighbor;
+    if (path.size() >= 2) {
+        startNeighbor = gridToScene(path[1].x, path[1].y);
+    }
+
+    QVector<QPointF> startStub;
+    if (m_config.useLegalAngleEscapeStubs) {
+        startStub = makeLegalStub(conn.start, firstGridPos, startNeighbor, true);
+    } else {
+        startStub = {conn.start, firstGridPos};
+    }
+
+    for (int i = 1; i < startStub.size(); ++i) {
+        TraceItem* t = createTraceSegment(startStub[i - 1], startStub[i], startLayer, conn.netName, conn.traceWidth);
+        if (t) {
+            m_stats.traceSegmentCount++;
+            m_stats.totalTraceLength += QLineF(startStub[i - 1], startStub[i]).length();
+        }
     }
 
     QVector<AStarNode> segmentPoints;
@@ -948,13 +1207,30 @@ void PCBAutoRouter::convertPathToTraces(const QVector<AStarNode>& path, const Un
         createTraceFromPoints(segmentPoints, conn);
     }
 
-    // Final connection to exact pad position
+    // Final connection using legal-angle escape stubs
     QPointF lastGridPos = gridToScene(path.last().x, path.last().y);
     int finalLayer = m_activeLayers[path.last().layer];
-    TraceItem* finalTrace = createTraceSegment(lastGridPos, conn.end, finalLayer, conn.netName, conn.traceWidth);
-    if (finalTrace) {
-        m_stats.traceSegmentCount++;
-        m_stats.totalTraceLength += QLineF(lastGridPos, conn.end).length();
+
+    QPointF endNeighbor;
+    if (path.size() >= 2) {
+        endNeighbor = gridToScene(path[path.size() - 2].x, path[path.size() - 2].y);
+    }
+
+    QVector<QPointF> endStub;
+    if (m_config.useLegalAngleEscapeStubs) {
+        endStub = makeLegalStub(conn.end, lastGridPos, endNeighbor, false);
+    } else {
+        endStub = {conn.end, lastGridPos};
+    }
+
+    std::reverse(endStub.begin(), endStub.end());
+
+    for (int i = 1; i < endStub.size(); ++i) {
+        TraceItem* t = createTraceSegment(endStub[i - 1], endStub[i], finalLayer, conn.netName, conn.traceWidth);
+        if (t) {
+            m_stats.traceSegmentCount++;
+            m_stats.totalTraceLength += QLineF(endStub[i - 1], endStub[i]).length();
+        }
     }
 }
 
@@ -979,31 +1255,12 @@ TraceItem* PCBAutoRouter::createTraceSegment(QPointF start, QPointF end, int lay
     // Don't create zero-length traces
     if (QLineF(start, end).length() < 0.01) return nullptr;
 
-    // Avoid duplicate trace segments
-    for (auto* item : m_scene->items()) {
-        if (auto* existing = dynamic_cast<TraceItem*>(item)) {
-            if (existing->layer() == layer && existing->netName() == netName) {
-                QPointF s = existing->startPoint();
-                QPointF e = existing->endPoint();
-                QPointF absS = existing->mapToScene(s);
-                QPointF absE = existing->mapToScene(e);
-                double d1 = QLineF(absS, start).length();
-                double d2 = QLineF(absE, end).length();
-                double d3 = QLineF(absS, end).length();
-                double d4 = QLineF(absE, start).length();
-                std::cerr << "DUPCHECK: net=" << netName.toStdString() << " lay=" << layer
-                          << " exist=(" << absS.x() << "," << absS.y() << ")->(" << absE.x() << "," << absE.y() << ")"
-                          << " target=(" << start.x() << "," << start.y() << ")->(" << end.x() << "," << end.y() << ")"
-                          << " d1=" << d1 << " d2=" << d2 << " d3=" << d3 << " d4=" << d4 << std::endl;
-                bool matchDirect = (d1 < 0.05 && d2 < 0.05);
-                bool matchReverse = (d3 < 0.05 && d4 < 0.05);
-                if (matchDirect || matchReverse) {
-                    std::cerr << "  -> MATCHED DUP! Skipping." << std::endl;
-                    return nullptr;
-                }
-            }
-        }
+    // Fast duplicate check via EdgeKey set
+    EdgeKey key = makeEdgeKey(start, end, layer);
+    if (m_committedEdges.contains(key)) {
+        return nullptr;
     }
+    m_committedEdges.insert(key);
 
     TraceItem* trace = new TraceItem(start, end);
     trace->setLayer(layer);
