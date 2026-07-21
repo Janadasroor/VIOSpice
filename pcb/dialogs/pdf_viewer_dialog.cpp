@@ -1,8 +1,8 @@
+// ===== File: pcb/dialogs/pdf_viewer_dialog.cpp =====
 /*
- * Copyright 2026 Janada Sroor
- * SPDX-License-Identifier: Apache-2.0
- */
-
+  * Copyright 2026 Janada Sroor
+  * SPDX-License-Identifier: Apache-2.0
+  */
 #include "pdf_viewer_dialog.h"
 
 #include <QDesktopServices>
@@ -14,6 +14,7 @@
 #include <QToolBar>
 #include <QUrl>
 #include <QVBoxLayout>
+#include <QPixmap>
 
 #ifdef VIOSPICE_HAS_QT_PDF
 #include <QtPdf/QPdfDocument>
@@ -22,14 +23,17 @@
 
 PdfViewerDialog::PdfViewerDialog(const QString& filePath, QWidget* parent)
     : QDialog(parent)
-    , m_pdfPath(filePath) {
-    setWindowTitle("PDF Viewer");
+    , m_pdfPath(filePath)
+{
+    setWindowTitle(QStringLiteral("PDF Viewer"));
     resize(1000, 760);
+
     setupUI();
     loadPdf(filePath);
 }
 
-PdfViewerDialog::~PdfViewerDialog() {
+PdfViewerDialog::~PdfViewerDialog()
+{
 #ifdef VIOSPICE_HAS_QT_PDF
     if (m_document) {
         disconnect(m_document, nullptr, this, nullptr);
@@ -40,7 +44,8 @@ PdfViewerDialog::~PdfViewerDialog() {
 #endif
 }
 
-void PdfViewerDialog::setupUI() {
+void PdfViewerDialog::setupUI()
+{
     QVBoxLayout* mainLayout = new QVBoxLayout(this);
     mainLayout->setContentsMargins(4, 4, 4, 4);
     mainLayout->setSpacing(4);
@@ -52,51 +57,55 @@ void PdfViewerDialog::setupUI() {
 #ifdef VIOSPICE_HAS_QT_PDF
     m_document = new QPdfDocument();
 
-    QAction* prevBtn = toolbar->addAction("◀ Prev");
+    QAction* prevBtn = toolbar->addAction(QStringLiteral("◀ Prev"));
     connect(prevBtn, &QAction::triggered, this, [this]() {
         if (!m_document) {
             return;
         }
+
         if (m_currentPage > 0) {
             --m_currentPage;
             renderCurrentPage();
         }
     });
 
-    QAction* nextBtn = toolbar->addAction("Next ▶");
+    QAction* nextBtn = toolbar->addAction(QStringLiteral("Next ▶"));
     connect(nextBtn, &QAction::triggered, this, [this]() {
         if (!m_document) {
             return;
         }
+
         if (m_currentPage + 1 < m_document->pageCount()) {
             ++m_currentPage;
             renderCurrentPage();
         }
     });
 
-    m_pageInfoLabel = new QLabel("Page 0 of 0", this);
+    m_pageInfoLabel = new QLabel(QStringLiteral("Page 0 of 0"), this);
     toolbar->addWidget(m_pageInfoLabel);
+
     toolbar->addSeparator();
 
-    QAction* zoomOutBtn = toolbar->addAction("−");
+    QAction* zoomOutBtn = toolbar->addAction(QStringLiteral("−"));
     connect(zoomOutBtn, &QAction::triggered, this, &PdfViewerDialog::onZoomOut);
 
-    QAction* zoomInBtn = toolbar->addAction("+");
+    QAction* zoomInBtn = toolbar->addAction(QStringLiteral("+"));
     connect(zoomInBtn, &QAction::triggered, this, &PdfViewerDialog::onZoomIn);
 
-    QAction* fitBtn = toolbar->addAction("Fit Page");
+    QAction* fitBtn = toolbar->addAction(QStringLiteral("Fit Page"));
     connect(fitBtn, &QAction::triggered, this, &PdfViewerDialog::onZoomFit);
 
-    QAction* actualBtn = toolbar->addAction("100%");
+    QAction* actualBtn = toolbar->addAction(QStringLiteral("100%"));
     connect(actualBtn, &QAction::triggered, this, &PdfViewerDialog::onZoomActualSize);
 
-    m_zoomLabel = new QLabel("Fit", this);
+    m_zoomLabel = new QLabel(QStringLiteral("Fit"), this);
     m_zoomLabel->setFixedWidth(60);
     m_zoomLabel->setAlignment(Qt::AlignCenter);
     toolbar->addWidget(m_zoomLabel);
 
     toolbar->addSeparator();
-    QAction* openExtBtn = toolbar->addAction("Open External");
+
+    QAction* openExtBtn = toolbar->addAction(QStringLiteral("Open External"));
     connect(openExtBtn, &QAction::triggered, this, [this]() {
         QDesktopServices::openUrl(QUrl::fromLocalFile(m_pdfPath));
     });
@@ -110,12 +119,14 @@ void PdfViewerDialog::setupUI() {
     m_imageLabel->setAlignment(Qt::AlignCenter);
     m_imageLabel->setBackgroundRole(QPalette::Base);
     m_imageLabel->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
+
     m_scrollArea->setWidget(m_imageLabel);
 
     connect(m_document, &QPdfDocument::pageCountChanged, this, [this]() {
         if (m_currentPage >= m_document->pageCount()) {
             m_currentPage = qMax(0, m_document->pageCount() - 1);
         }
+
         updatePageInfo();
         renderCurrentPage();
     });
@@ -123,23 +134,29 @@ void PdfViewerDialog::setupUI() {
     mainLayout->addWidget(toolbar);
     mainLayout->addWidget(m_scrollArea, 1);
 #else
-    QAction* openExtBtn = toolbar->addAction("Open External");
+    QAction* openExtBtn = toolbar->addAction(QStringLiteral("Open External"));
     connect(openExtBtn, &QAction::triggered, this, [this]() {
         QDesktopServices::openUrl(QUrl::fromLocalFile(m_pdfPath));
         accept();
     });
+
     mainLayout->addWidget(toolbar);
 
-    m_fallbackLabel = new QLabel("QtPdf is not available in this build.\nUse Open External to view the PDF.", this);
+    m_fallbackLabel = new QLabel(
+        QStringLiteral("QtPdf is not available in this build.\nUse Open External to view the PDF."),
+        this);
     m_fallbackLabel->setAlignment(Qt::AlignCenter);
     mainLayout->addWidget(m_fallbackLabel, 1);
 #endif
 }
 
-void PdfViewerDialog::loadPdf(const QString& filePath) {
+void PdfViewerDialog::loadPdf(const QString& filePath)
+{
     QFileInfo fi(filePath);
     if (!fi.exists()) {
-        QMessageBox::warning(this, "PDF Viewer", "File not found:\n" + filePath);
+        QMessageBox::warning(this,
+                             QStringLiteral("PDF Viewer"),
+                             QStringLiteral("File not found:\n%1").arg(filePath));
         reject();
         return;
     }
@@ -152,23 +169,30 @@ void PdfViewerDialog::loadPdf(const QString& filePath) {
 
     const QPdfDocument::Error err = m_document->load(filePath);
     if (err != QPdfDocument::Error::None) {
-        QMessageBox::warning(this, "PDF Viewer", "Failed to load PDF:\n" + filePath);
+        QMessageBox::warning(this,
+                             QStringLiteral("PDF Viewer"),
+                             QStringLiteral("Failed to load PDF:\n%1").arg(filePath));
         QDesktopServices::openUrl(QUrl::fromLocalFile(filePath));
         reject();
         return;
     }
 
     m_currentPage = 0;
-    setWindowTitle("PDF Viewer — " + fi.fileName());
+    m_fitToWindow = true;
+    m_zoomFactor = 1.0;
+
+    setWindowTitle(QStringLiteral("PDF Viewer — %1").arg(fi.fileName()));
+
     updatePageInfo();
     updateZoomLabel();
     renderCurrentPage();
 #else
-    setWindowTitle("PDF Viewer — " + fi.fileName());
+    setWindowTitle(QStringLiteral("PDF Viewer — %1").arg(fi.fileName()));
 #endif
 }
 
-void PdfViewerDialog::onZoomIn() {
+void PdfViewerDialog::onZoomIn()
+{
 #ifdef VIOSPICE_HAS_QT_PDF
     m_fitToWindow = false;
     m_zoomFactor = qMin(m_zoomFactor * 1.2, 8.0);
@@ -177,7 +201,8 @@ void PdfViewerDialog::onZoomIn() {
 #endif
 }
 
-void PdfViewerDialog::onZoomOut() {
+void PdfViewerDialog::onZoomOut()
+{
 #ifdef VIOSPICE_HAS_QT_PDF
     m_fitToWindow = false;
     m_zoomFactor = qMax(m_zoomFactor / 1.2, 0.1);
@@ -186,7 +211,8 @@ void PdfViewerDialog::onZoomOut() {
 #endif
 }
 
-void PdfViewerDialog::onZoomFit() {
+void PdfViewerDialog::onZoomFit()
+{
 #ifdef VIOSPICE_HAS_QT_PDF
     m_fitToWindow = true;
     updateZoomLabel();
@@ -194,7 +220,8 @@ void PdfViewerDialog::onZoomFit() {
 #endif
 }
 
-void PdfViewerDialog::onZoomActualSize() {
+void PdfViewerDialog::onZoomActualSize()
+{
 #ifdef VIOSPICE_HAS_QT_PDF
     m_fitToWindow = false;
     m_zoomFactor = 1.0;
@@ -203,30 +230,34 @@ void PdfViewerDialog::onZoomActualSize() {
 #endif
 }
 
-void PdfViewerDialog::updatePageInfo() {
+void PdfViewerDialog::updatePageInfo()
+{
 #ifdef VIOSPICE_HAS_QT_PDF
     if (m_pageInfoLabel && m_document) {
         const int total = m_document->pageCount();
         const int current = total > 0 ? (m_currentPage + 1) : 0;
-        m_pageInfoLabel->setText(QString("Page %1 of %2").arg(current).arg(total));
+        m_pageInfoLabel->setText(QStringLiteral("Page %1 of %2").arg(current).arg(total));
     }
 #endif
 }
 
-void PdfViewerDialog::updateZoomLabel() {
+void PdfViewerDialog::updateZoomLabel()
+{
 #ifdef VIOSPICE_HAS_QT_PDF
     if (!m_zoomLabel) {
         return;
     }
+
     if (m_fitToWindow) {
-        m_zoomLabel->setText("Fit");
+        m_zoomLabel->setText(QStringLiteral("Fit"));
     } else {
-        m_zoomLabel->setText(QString("%1%").arg(qRound(m_zoomFactor * 100.0)));
+        m_zoomLabel->setText(QStringLiteral("%1%").arg(qRound(m_zoomFactor * 100.0)));
     }
 #endif
 }
 
-void PdfViewerDialog::renderCurrentPage() {
+void PdfViewerDialog::renderCurrentPage()
+{
 #ifdef VIOSPICE_HAS_QT_PDF
     if (!m_document || !m_imageLabel || !m_scrollArea || m_document->pageCount() <= 0) {
         return;
@@ -237,35 +268,54 @@ void PdfViewerDialog::renderCurrentPage() {
         return;
     }
 
-    QSize targetSize;
+    const qreal dpr = devicePixelRatioF();
+
+    QSize logicalSize;
+
     if (m_fitToWindow) {
-        const QSize viewportSize = m_scrollArea->viewport()->size() - QSize(16, 16);
+        QSize viewportSize = m_scrollArea->viewport()->size() - QSize(16, 16);
+        viewportSize.setWidth(qMax(16, viewportSize.width()));
+        viewportSize.setHeight(qMax(16, viewportSize.height()));
+
         const qreal sx = viewportSize.width() / qMax(1.0, pagePoints.width());
         const qreal sy = viewportSize.height() / qMax(1.0, pagePoints.height());
         const qreal fitScale = qMax(0.1, qMin(sx, sy));
-        targetSize = QSize(qMax(1, qRound(pagePoints.width() * fitScale)),
-                           qMax(1, qRound(pagePoints.height() * fitScale)));
+
+        logicalSize = QSize(qMax(1, qRound(pagePoints.width() * fitScale)),
+                            qMax(1, qRound(pagePoints.height() * fitScale)));
     } else {
-        targetSize = QSize(qMax(1, qRound(pagePoints.width() * m_zoomFactor)),
-                           qMax(1, qRound(pagePoints.height() * m_zoomFactor)));
+        logicalSize = QSize(qMax(1, qRound(pagePoints.width() * m_zoomFactor)),
+                            qMax(1, qRound(pagePoints.height() * m_zoomFactor)));
     }
 
+    QSize pixelSize(qMax(1, qRound(logicalSize.width() * dpr)),
+                    qMax(1, qRound(logicalSize.height() * dpr)));
+
     QPdfDocumentRenderOptions options;
-    const QImage image = m_document->render(m_currentPage, targetSize, options);
+    QImage image = m_document->render(m_currentPage, pixelSize, options);
+
     if (image.isNull()) {
+        m_imageLabel->setText(QStringLiteral("Failed to render PDF page."));
+        m_imageLabel->resize(logicalSize);
         return;
     }
 
+    image.setDevicePixelRatio(dpr);
+
+    m_imageLabel->setText(QString());
     m_imageLabel->setPixmap(QPixmap::fromImage(image));
-    m_imageLabel->resize(image.size());
+    m_imageLabel->resize(logicalSize);
 #endif
 }
 
-void PdfViewerDialog::resizeEvent(QResizeEvent* event) {
+void PdfViewerDialog::resizeEvent(QResizeEvent* event)
+{
     QDialog::resizeEvent(event);
+
 #ifdef VIOSPICE_HAS_QT_PDF
     if (m_fitToWindow) {
         renderCurrentPage();
     }
 #endif
 }
+
