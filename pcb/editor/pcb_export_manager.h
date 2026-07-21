@@ -1,8 +1,8 @@
+// ===== File: pcb/editor/pcb_export_manager.h =====
 /*
- * Copyright 2026 Janada Sroor
- * SPDX-License-Identifier: Apache-2.0
- */
-
+  * Copyright 2026 Janada Sroor
+  * SPDX-License-Identifier: Apache-2.0
+  */
 #ifndef PCB_EXPORT_MANAGER_H
 #define PCB_EXPORT_MANAGER_H
 
@@ -24,3 +24,4 @@ public:
 };
 
 #endif // PCB_EXPORT_MANAGER_H
+

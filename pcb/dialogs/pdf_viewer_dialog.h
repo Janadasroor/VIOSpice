@@ -1,8 +1,8 @@
+// ===== File: pcb/dialogs/pdf_viewer_dialog.h =====
 /*
- * Copyright 2026 Janada Sroor
- * SPDX-License-Identifier: Apache-2.0
- */
-
+  * Copyright 2026 Janada Sroor
+  * SPDX-License-Identifier: Apache-2.0
+  */
 #ifndef PDF_VIEWER_DIALOG_H
 #define PDF_VIEWER_DIALOG_H
 
@@ -43,6 +43,7 @@ protected:
     QLabel* m_zoomLabel = nullptr;
     QLabel* m_imageLabel = nullptr;
     QScrollArea* m_scrollArea = nullptr;
+
     int m_currentPage = 0;
     qreal m_zoomFactor = 1.0;
     bool m_fitToWindow = true;
@@ -55,3 +56,4 @@ protected:
 };
 
 #endif // PDF_VIEWER_DIALOG_H
+

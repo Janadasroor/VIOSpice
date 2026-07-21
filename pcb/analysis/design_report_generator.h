@@ -1,8 +1,8 @@
+// ===== File: pcb/analysis/design_report_generator.h =====
 /*
- * Copyright 2026 Janada Sroor
- * SPDX-License-Identifier: Apache-2.0
- */
-
+  * Copyright 2026 Janada Sroor
+  * SPDX-License-Identifier: Apache-2.0
+  */
 #ifndef DESIGN_REPORT_GENERATOR_H
 #define DESIGN_REPORT_GENERATOR_H
 
@@ -28,6 +28,7 @@ struct DesignReportData {
     int copperLayerCount = 0;
     double boardThickness = 1.6; // mm
     QString surfaceFinish;       // ENIG, HASL, OSP
+
     struct LayerInfo {
         QString name;
         QString type;
@@ -36,6 +37,7 @@ struct DesignReportData {
         QString material;
         double copperWeightOz = 0;
     };
+
     QList<LayerInfo> layers;
 
     // Component summary
@@ -60,12 +62,14 @@ struct DesignReportData {
     int drcErrors = 0;
     int drcWarnings = 0;
     int drcInfos = 0;
+
     struct DRCViolationInfo {
         QString severity; // Error, Warning, Info
         QString type;
         QString message;
         QString location;
     };
+
     QList<DRCViolationInfo> drcViolations;
 
     // Net classes
@@ -77,6 +81,7 @@ struct DesignReportData {
         double viaDrill = 0;
         int netCount = 0;
     };
+
     QList<NetClassInfo> netClasses;
 
     // BOM summary
@@ -88,6 +93,7 @@ struct DesignReportData {
         QStringList references;
         int quantity = 0;
     };
+
     QList<BOMSummary> bomSummary;
 };
 
@@ -95,7 +101,7 @@ class DesignReportGenerator {
 public:
     enum ReportFormat {
         HTML,    // HTML file (can be opened in browser)
-        PDF      // PDF file (via QPrinter)
+        PDF      // PDF file
     };
 
     struct ReportOptions {
@@ -125,8 +131,11 @@ public:
      * @brief Generate a design report and save to file (PDF or HTML).
      * @return true on success, error message in errorMessage if false
      */
-    static bool generateReport(QGraphicsScene* scene, const QString& filePath,
-                               const ReportOptions& options, QString* errorMessage = nullptr);
+    static bool generateReport(QGraphicsScene* scene,
+                               const QString& filePath,
+                               const ReportOptions& options,
+                               QString* errorMessage = nullptr);
 };
 
 #endif // DESIGN_REPORT_GENERATOR_H
+
