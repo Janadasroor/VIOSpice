@@ -21,6 +21,31 @@ class ViaItem;
 class PadItem;
 class PCBItem;
 
+struct EdgeKey {
+    qint64 x1 = 0;
+    qint64 y1 = 0;
+    qint64 x2 = 0;
+    qint64 y2 = 0;
+    int layer = -1;
+
+    bool operator==(const EdgeKey& other) const {
+        return x1 == other.x1 &&
+               y1 == other.y1 &&
+               x2 == other.x2 &&
+               y2 == other.y2 &&
+               layer == other.layer;
+    }
+};
+
+inline uint qHash(const EdgeKey& key, uint seed = 0) noexcept {
+    uint h = qHash(key.x1, seed);
+    h = qHash(key.y1, h);
+    h = qHash(key.x2, h);
+    h = qHash(key.y2, h);
+    h = qHash(key.layer, h);
+    return h;
+}
+
 /**
  * @brief Grid-based A* auto-router with rip-up and retry strategy.
  *
@@ -40,6 +65,7 @@ class PCBItem;
  * - Existing trace preservation (routes around pre-routed traces)
  * - Progress callbacks
  * - Rip-up and retry for difficult connections
+ *
  */
 class PCBAutoRouter : public QObject {
     Q_OBJECT
@@ -64,6 +90,18 @@ public:
         bool preferBottomLayer = true;    // Also use bottom layer
         bool allowDiagonals = false;      // Allow 45-degree diagonal moves
         bool optimizeTraceLength = true;  // Prioritize shorter traces
+
+        // Via geometry and clearance policy
+        double viaRadius = 0.40;                  // Via copper/diameter equivalent radius in mm
+        double viaToViaSpacing = 0.65;            // Minimum via-to-via center spacing in mm
+        double viaDrillKeepoutRadius = 0.40;      // Hard keepout around pads/drills for via centers
+        double viaPreferredClearanceMargin = 0.15;// Extra preferred clearance beyond hard minimum
+        double viaProximityPenalty = 25.0;        // Cost penalty gain for via near foreign copper
+        double viaBasePenaltyMm = 1.25;           // Base cost for layer change, excluding clearance penalty
+
+        // Trace/angle policy
+        double minStubAngleDeg = 45.0;            // Minimum allowed trace-to-trace angle for stubs
+        bool useLegalAngleEscapeStubs = true;     // Replace direct pad-to-grid snap traces
 
         // Progress
         bool reportProgress = true;
@@ -152,6 +190,7 @@ private:
         int parentX = -1, parentY = -1;  // Parent node
         int parentLayer = -1;
         bool isVia = false;              // True if this node transitions layers
+        double extraCost = 0.0;          // Extra via proximity clearance penalty
     };
 
     struct UnroutedConnection {
@@ -179,7 +218,7 @@ private:
     bool findPath(const UnroutedConnection& conn, QVector<AStarNode>& outPath);
     double heuristic(int x1, int y1, int x2, int y2) const;
     bool isCellPassable(int x, int y, int layer, const QString& netName) const;
-    bool isViaPassable(int cx, int cy, const QString& netName) const;
+    bool isViaPassable(int cx, int cy, const QString& netName, double* penaltyOut = nullptr) const;
     QList<AStarNode> getNeighbors(const AStarNode& node, const QString& netName) const;
 
     // Path conversion
@@ -196,6 +235,12 @@ private:
     QMultiMap<QString, QPointF> groupPadsByNet();
     bool arePadsConnected(QPointF p1, QPointF p2, const QString& netName) const;
 
+    // Escape routing and duplicate check helpers
+    EdgeKey makeEdgeKey(const QPointF& a, const QPointF& b, int layer) const;
+    bool stubAnglesLegal(const QVector<QPointF>& points) const;
+    QVector<QPointF> makeLegalStub(const QPointF& pad, const QPointF& gridNode, const QPointF& neighborGridPoint, bool isStart) const;
+    void rebuildCommittedEdgeSet();
+
     // Statistics
     void updateStats();
 
@@ -204,6 +249,9 @@ private:
     RouteStats m_stats;
     bool m_running = false;
     bool m_stopRequested = false;
+
+    // Duplicate trace prevention committed edge set
+    QSet<EdgeKey> m_committedEdges;
 
     // Grid
     QVector<GridCell> m_grid;             // Flat grid: [layer][y][x]
