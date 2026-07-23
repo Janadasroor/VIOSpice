@@ -227,9 +227,13 @@ public:
         parser.addOption(QCommandLineOption("transparent", "Render PNG with transparent background"));
         parser.addOption(QCommandLineOption("json", "Output results in JSON format"));
         parser.addOption(QCommandLineOption("layers", "Comma-separated list of layers to render", "layers"));
+        parser.addOption(QCommandLineOption("mode", "Render mode: fab (default), assembly, copper", "mode", "fab"));
+        parser.addOption(QCommandLineOption("grid", "Show grid overlay"));
+        parser.addOption(QCommandLineOption("labels", "Show component reference designators"));
+        parser.addOption(QCommandLineOption("margin", "Margin around board in mm", "margin", "5"));
     }
     QJsonObject inputSchema() const override {
-        return QJsonObject{{"args", QJsonArray{"file.pcb", "out.png"}}, {"options", QJsonObject{{"transparent", "bool"}, {"json", "bool"}, {"scale", "number"}, {"layers", "string"}}}};
+        return QJsonObject{{"args", QJsonArray{"file.pcb", "out.png"}}, {"options", QJsonObject{{"transparent", "bool"}, {"json", "bool"}, {"scale", "number"}, {"layers", "string"}, {"mode", "string"}, {"grid", "bool"}, {"labels", "bool"}, {"margin", "number"}}}};
     }
     QJsonObject outputSchema() const override {
         return QJsonObject{{"file", "string"}, {"output", "string"}, {"width", "int"}, {"height", "int"}, {"scale", "number"}, {"transparent", "bool"}, {"bounds", "rect"}};
@@ -268,16 +272,84 @@ public:
 
         QRectF rect = scene.itemsBoundingRect();
         if (rect.isEmpty()) rect = QRectF(-50, -50, 100, 100);
-        rect.adjust(-10, -10, 10, 10);
+        const qreal marginVal = parser.value("margin").toDouble();
+        rect.adjust(-marginVal, -marginVal, marginVal, marginVal);
 
         const qreal scale = qMax(0.1, parser.value("scale").toDouble());
         QImage image(rect.size().toSize() * scale, QImage::Format_ARGB32);
         const bool transparent = parser.isSet("transparent");
-        image.fill(transparent ? Qt::transparent : QColor(20, 20, 25));
+        const bool showGrid = parser.isSet("grid");
+        const bool showLabels = parser.isSet("labels");
+
+        // Background colors by mode
+        QString mode = parser.value("mode").toLower();
+        QColor bgColor;
+        if (transparent) {
+            bgColor = Qt::transparent;
+        } else if (mode == "copper") {
+            bgColor = QColor(15, 15, 20);
+        } else if (mode == "assembly") {
+            bgColor = QColor(245, 245, 240);
+        } else {
+            bgColor = QColor(20, 25, 30); // Dark fab view
+        }
+        image.fill(bgColor);
 
         QPainter painter(&image);
-        painter.setRenderHint(QPainter::Antialiasing);
+        painter.setRenderHint(QPainter::Antialiasing, true);
+        painter.setRenderHint(QPainter::SmoothPixmapTransform, true);
+
+        // Draw subtle grid if requested
+        if (showGrid && !transparent) {
+            QPen gridPen(QColor(255, 255, 255, 15), 0.1);
+            painter.setPen(gridPen);
+            qreal gridStep = 1.0; // 1mm grid
+            for (qreal x = rect.left(); x <= rect.right(); x += gridStep) {
+                painter.drawLine(QPointF(x, rect.top()), QPointF(x, rect.bottom()));
+            }
+            for (qreal y = rect.top(); y <= rect.bottom(); y += gridStep) {
+                painter.drawLine(QPointF(rect.left(), y), QPointF(rect.right(), y));
+            }
+        }
+
+        // Render the scene
         scene.render(&painter, QRectF(), rect);
+
+        // Draw component labels if requested
+        if (showLabels) {
+            QFont labelFont("Arial", qMax(6, (int)(scale * 0.8)));
+            labelFont.setBold(true);
+            painter.setFont(labelFont);
+
+            for (auto* item : scene.items()) {
+                if (auto* comp = dynamic_cast<ComponentItem*>(item)) {
+                    if (!comp->isVisible()) continue;
+                    QPointF pos = comp->pos();
+                    // Transform to image coordinates
+                    QPointF imgPos = (pos - rect.topLeft()) * scale;
+                    QString label = comp->name();
+                    if (label.isEmpty()) label = comp->componentType();
+
+                    // Draw label with background
+                    QFontMetrics fm(labelFont);
+                    QRect textRect = fm.boundingRect(label);
+                    QPointF textPos(imgPos.x() - textRect.width() / 2.0,
+                                   imgPos.y() + scale * 3.0);
+
+                    // Background pill
+                    painter.setPen(Qt::NoPen);
+                    painter.setBrush(QColor(0, 0, 0, 180));
+                    QRectF bgRect(textPos.x() - 2, textPos.y() - fm.ascent() - 1,
+                                  textRect.width() + 4, fm.height() + 2);
+                    painter.drawRoundedRect(bgRect, 3, 3);
+
+                    // White text
+                    painter.setPen(QColor(255, 255, 255));
+                    painter.drawText(textPos, label);
+                }
+            }
+        }
+
         painter.end();
 
         if (!image.save(outPath)) {
@@ -293,6 +365,7 @@ public:
             out["height"] = image.height();
             out["scale"] = scale;
             out["transparent"] = transparent;
+            out["mode"] = mode;
             QJsonObject bounds;
             bounds["x"] = rect.x();
             bounds["y"] = rect.y();

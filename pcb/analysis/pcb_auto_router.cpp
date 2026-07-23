@@ -267,9 +267,11 @@ void PCBAutoRouter::markObstacles() {
     for (auto* item : m_scene->items()) {
         // Pads are obstacles on their layer (or all layers if through-hole)
         if (auto* pad = dynamic_cast<PadItem*>(item)) {
-            double cl = NetClassManager::instance().getClassForNet(pad->netName()).clearance;
+            // Mark pad cells at actual pad extent only.
+            // Clearance enforcement is handled dynamically by isCellPassable().
+            // Do NOT inflate here — double-inflation blocks valid routing channels
+            // between closely-spaced components on different nets.
             QRectF sceneRect = pad->sceneBoundingRect();
-            sceneRect.adjust(-cl, -cl, cl, cl);
 
             QPoint gMin = sceneToGrid(sceneRect.topLeft());
             QPoint gMax = sceneToGrid(sceneRect.bottomRight());
@@ -756,7 +758,7 @@ bool PCBAutoRouter::isCellPassable(int x, int y, int layer, const QString& netNa
     double clA = NetClassManager::instance().getClassForNet(netName).clearance;
     double wA = NetClassManager::instance().getClassForNet(netName).traceWidth;
     double totalClA = clA + wA / 2.0;
-    int k = static_cast<int>(qCeil(totalClA / m_config.gridSpacing)) + 1;
+    int k = static_cast<int>(qCeil(totalClA / m_config.gridSpacing));
 
     for (int dy = -k; dy <= k; ++dy) {
         for (int dx = -k; dx <= k; ++dx) {
