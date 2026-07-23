@@ -310,15 +310,85 @@ void FootprintLibraryManager::createDefaultBuiltInLibrary() {
     addPot();
 
     // === SMD Passives ===
-    addSMDResCap("R_0402", 1.0, 0.5, 0.5, 0.6);
-    addSMDResCap("R_0603", 1.6, 0.8, 0.8, 0.9);
-    addSMDResCap("R_0805", 2.0, 1.25, 1.0, 1.3);
-    addSMDResCap("R_1206", 3.2, 1.6, 1.2, 1.8);
+    // Pads must not overlap: padW must be < body width
+    addSMDResCap("R_0402", 1.0, 0.5, 0.4, 0.5);
+    addSMDResCap("R_0603", 1.6, 0.8, 0.6, 0.7);
+    addSMDResCap("R_0805", 2.0, 1.25, 0.8, 1.0);
+    addSMDResCap("R_1206", 3.2, 1.6, 1.0, 1.5);
 
-    addSMDResCap("C_0402", 1.0, 0.5, 0.5, 0.6);
-    addSMDResCap("C_0603", 1.6, 0.8, 0.8, 0.9);
-    addSMDResCap("C_0805", 2.0, 1.25, 1.0, 1.3);
-    addSMDResCap("C_1206", 3.2, 1.6, 1.2, 1.8);
+    addSMDResCap("C_0402", 1.0, 0.5, 0.4, 0.5);
+    addSMDResCap("C_0603", 1.6, 0.8, 0.6, 0.7);
+    addSMDResCap("C_0805", 2.0, 1.25, 0.8, 1.0);
+    addSMDResCap("C_1206", 3.2, 1.6, 1.0, 1.5);
+
+    // === LEDs ===
+    auto addSMDLED = [&](const QString& name, qreal w, qreal h, qreal padW, qreal padH) {
+        FootprintDefinition def(name);
+        def.setCategory("LEDs");
+        qreal x = (w / 2.0) - (padW / 2.0);
+        def.addPrimitive(FootprintPrimitive::createPad(QPointF(-x, 0), "K", "Rect", QSizeF(padW, padH)));
+        def.addPrimitive(FootprintPrimitive::createPad(QPointF(x, 0), "A", "Rect", QSizeF(padW, padH)));
+        def.addPrimitive(FootprintPrimitive::createRect(QRectF(-w/2 - 0.2, -h/2 - 0.2, w + 0.4, h + 0.4)));
+        // Cathode mark
+        def.addPrimitive(FootprintPrimitive::createLine(QPointF(-w/2 - 0.1, -h/2 - 0.3), QPointF(-w/2 - 0.1, h/2 + 0.3)));
+        addFootprintToCat(def);
+    };
+    addSMDLED("LED_0402", 1.0, 0.5, 0.4, 0.5);
+    addSMDLED("LED_0603", 1.6, 0.8, 0.6, 0.7);
+    addSMDLED("LED_0805", 2.0, 1.25, 0.8, 1.0);
+    addSMDLED("LED_1206", 3.2, 1.6, 1.0, 1.5);
+
+    // === Connectors ===
+    // USB Type-C (simplified 16-pin SMD)
+    FootprintDefinition usbC("USB_C");
+    usbC.setCategory("Connectors");
+    // Main signal pins (simplified)
+    usbC.addPrimitive(FootprintPrimitive::createPad(QPointF(-3.25, -3.1), "GND", "Rect", QSizeF(1.0, 0.6)));
+    usbC.addPrimitive(FootprintPrimitive::createPad(QPointF(-3.25, -2.1), "TX1+", "Rect", QSizeF(0.6, 0.4)));
+    usbC.addPrimitive(FootprintPrimitive::createPad(QPointF(-3.25, -1.5), "TX1-", "Rect", QSizeF(0.6, 0.4)));
+    usbC.addPrimitive(FootprintPrimitive::createPad(QPointF(-3.25, -0.5), "CC1", "Rect", QSizeF(0.6, 0.4)));
+    usbC.addPrimitive(FootprintPrimitive::createPad(QPointF(-3.25, 0.5), "D+", "Rect", QSizeF(0.6, 0.4)));
+    usbC.addPrimitive(FootprintPrimitive::createPad(QPointF(-3.25, 1.5), "D-", "Rect", QSizeF(0.6, 0.4)));
+    usbC.addPrimitive(FootprintPrimitive::createPad(QPointF(-3.25, 2.1), "SBU1", "Rect", QSizeF(0.6, 0.4)));
+    usbC.addPrimitive(FootprintPrimitive::createPad(QPointF(-3.25, 3.1), "VBUS", "Rect", QSizeF(1.0, 0.6)));
+    // Right side pins
+    usbC.addPrimitive(FootprintPrimitive::createPad(QPointF(3.25, -3.1), "GND", "Rect", QSizeF(1.0, 0.6)));
+    usbC.addPrimitive(FootprintPrimitive::createPad(QPointF(3.25, -2.1), "RX2+", "Rect", QSizeF(0.6, 0.4)));
+    usbC.addPrimitive(FootprintPrimitive::createPad(QPointF(3.25, -1.5), "RX2-", "Rect", QSizeF(0.6, 0.4)));
+    usbC.addPrimitive(FootprintPrimitive::createPad(QPointF(3.25, -0.5), "CC2", "Rect", QSizeF(0.6, 0.4)));
+    usbC.addPrimitive(FootprintPrimitive::createPad(QPointF(3.25, 0.5), "D+", "Rect", QSizeF(0.6, 0.4)));
+    usbC.addPrimitive(FootprintPrimitive::createPad(QPointF(3.25, 1.5), "D-", "Rect", QSizeF(0.6, 0.4)));
+    usbC.addPrimitive(FootprintPrimitive::createPad(QPointF(3.25, 2.1), "SBU2", "Rect", QSizeF(0.6, 0.4)));
+    usbC.addPrimitive(FootprintPrimitive::createPad(QPointF(3.25, 3.1), "VBUS", "Rect", QSizeF(1.0, 0.6)));
+    // Shield pads
+    usbC.addPrimitive(FootprintPrimitive::createPad(QPointF(-4.0, -3.5), "SH", "Round", QSizeF(1.0, 1.0)));
+    usbC.addPrimitive(FootprintPrimitive::createPad(QPointF(4.0, -3.5), "SH", "Round", QSizeF(1.0, 1.0)));
+    usbC.addPrimitive(FootprintPrimitive::createPad(QPointF(-4.0, 3.5), "SH", "Round", QSizeF(1.0, 1.0)));
+    usbC.addPrimitive(FootprintPrimitive::createPad(QPointF(4.0, 3.5), "SH", "Round", QSizeF(1.0, 1.0)));
+    // Body outline
+    usbC.addPrimitive(FootprintPrimitive::createRect(QRectF(-4.5, -4.0, 9.0, 8.0)));
+    addFootprintToCat(usbC);
+
+    // USB Type-A (4-pin through-hole)
+    FootprintDefinition usbA("USB_A");
+    usbA.setCategory("Connectors");
+    usbA.addPrimitive(FootprintPrimitive::createPad(QPointF(-3.5, 0), "VBUS", "Rect", QSizeF(2.0, 1.5)));
+    usbA.addPrimitive(FootprintPrimitive::createPad(QPointF(-1.2, 0), "D-", "Rect", QSizeF(1.5, 1.5)));
+    usbA.addPrimitive(FootprintPrimitive::createPad(QPointF(1.2, 0), "D+", "Rect", QSizeF(1.5, 1.5)));
+    usbA.addPrimitive(FootprintPrimitive::createPad(QPointF(3.5, 0), "GND", "Rect", QSizeF(2.0, 1.5)));
+    for(int i=0; i<4; ++i) usbA.primitives()[i].data["drill_size"] = 1.0;
+    usbA.addPrimitive(FootprintPrimitive::createRect(QRectF(-5.0, -3.5, 10.0, 7.0)));
+    addFootprintToCat(usbA);
+
+    // Barrel Jack (3-pin)
+    FootprintDefinition barrelJack("Barrel_Jack");
+    barrelJack.setCategory("Connectors");
+    barrelJack.addPrimitive(FootprintPrimitive::createPad(QPointF(-3.81, 0), "1", "Round", QSizeF(2.0, 2.0)));
+    barrelJack.addPrimitive(FootprintPrimitive::createPad(QPointF(0, 0), "2", "Round", QSizeF(1.5, 1.5)));
+    barrelJack.addPrimitive(FootprintPrimitive::createPad(QPointF(3.81, 0), "3", "Round", QSizeF(2.0, 2.0)));
+    for(int i=0; i<3; ++i) barrelJack.primitives()[i].data["drill_size"] = 1.2;
+    barrelJack.addPrimitive(FootprintPrimitive::createCircle(QPointF(0, 0), 5.0));
+    addFootprintToCat(barrelJack);
 
     // === Transistors ===
     FootprintDefinition sot23("SOT-23");
