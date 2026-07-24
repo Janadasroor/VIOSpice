@@ -835,13 +835,14 @@ bool PCBAutoRouter::isViaPassable(int cx, int cy, const QString& netName, double
         // Pad/drill keepout.
         if (auto* pad = dynamic_cast<PadItem*>(item)) {
             QRectF padRect = pad->sceneBoundingRect();
+            double keepoutMargin = m_config.viaRadius + m_config.clearance + m_config.viaDrillKeepoutRadius;
 
             // Hard via-in-pad and near-drill keepout.
             padRect.adjust(
-                -m_config.viaDrillKeepoutRadius,
-                -m_config.viaDrillKeepoutRadius,
-                 m_config.viaDrillKeepoutRadius,
-                 m_config.viaDrillKeepoutRadius);
+                -keepoutMargin,
+                -keepoutMargin,
+                 keepoutMargin,
+                 keepoutMargin);
 
             if (padRect.contains(pos)) {
                 return false;
@@ -1281,6 +1282,12 @@ ViaItem* PCBAutoRouter::createVia(QPointF pos, int startLayer, int endLayer, con
     via->setStartLayer(startLayer);
     via->setEndLayer(endLayer);
     via->setNetName(netName);
+
+    NetClass nc = NetClassManager::instance().getClassForNet(netName);
+    if (via->model()) {
+        if (nc.viaDiameter > 0.001) via->model()->setDiameter(nc.viaDiameter);
+        if (nc.viaDrill > 0.001) via->model()->setDrillSize(nc.viaDrill);
+    }
 
     m_scene->addItem(via);
     return via;
