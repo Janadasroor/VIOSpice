@@ -1316,6 +1316,14 @@ void ProjectManager::onProjectTreeItemDoubleClicked(QTreeWidgetItem* item, int c
         path.endsWith(".SchDoc", Qt::CaseInsensitive) ||
         path.endsWith(".flxsch", Qt::CaseInsensitive)) {
         launchSchematicEditor(path);
+    } else if (path.endsWith(".pcb", Qt::CaseInsensitive) || 
+               path.endsWith(".flxpcb", Qt::CaseInsensitive) || 
+               path.endsWith(".kicad_pcb", Qt::CaseInsensitive) ||
+               path.endsWith(".PcbDoc", Qt::CaseInsensitive)) {
+        MainWindow* editor = new MainWindow();
+        editor->setAttribute(Qt::WA_DeleteOnClose);
+        editor->openFile(path);
+        editor->show();
     } else if (path.endsWith(".flux", Qt::CaseInsensitive)) {
         openProject(path);
     } else if (path.endsWith(".sym", Qt::CaseInsensitive) || 
@@ -1938,7 +1946,13 @@ void ProjectManager::openPcbEditor() {
     editor->setAttribute(Qt::WA_DeleteOnClose);
     if (!m_workspaceFolders.isEmpty()) {
         const QString projectDir = m_workspaceFolders.first();
-        editor->setProjectContext(QFileInfo(projectDir).baseName(), projectDir);
+        QDir dir(projectDir);
+        QStringList pcbFiles = dir.entryList(QStringList() << "*.pcb" << "*.flxpcb" << "*.kicad_pcb", QDir::Files);
+        if (!pcbFiles.isEmpty()) {
+            editor->openFile(dir.absoluteFilePath(pcbFiles.first()));
+        } else {
+            editor->setProjectContext(QFileInfo(projectDir).baseName(), projectDir);
+        }
     }
     editor->show();
 }

@@ -352,68 +352,16 @@ void PadItem::paint(QPainter *painter, const QStyleOptionGraphicsItem *option, Q
         painter->drawEllipse(rect);
     }
 
-    // KiCad-style Active Layer Highlight (Outline)
-    if (onActiveLayer && activeLayer) {
-        QColor highlightColor = activeLayer->color();
-        painter->setBrush(Qt::NoBrush);
-        // Bright, cosmetic outline to show connectability
-        QPen highlightPen(highlightColor, 1.0); 
-        highlightPen.setCosmetic(true);
-        painter->setPen(highlightPen);
-        
-        // Draw exactly on the pad boundary to prevent overlap
-        QRectF highlightRect = rect;
-        
-        if (shape == "rect" || shape == "rectangle" || shape == "square") {
-            painter->drawRect(highlightRect);
-        } else if (shape == "oblong" || shape == "oval") {
-            double r = std::min(highlightRect.width(), highlightRect.height()) / 2.0;
-            painter->drawRoundedRect(highlightRect, r, r);
-        } else if (shape == "roundedrect" || shape == "roundrect") {
-            double r = std::min(highlightRect.width(), highlightRect.height()) * 0.25;
-            painter->drawRoundedRect(highlightRect, r, r);
-        } else if (shape == "custom" && !m_model->customPrimitives().isEmpty()) {
-            drawCustomPadPrimitives(painter, m_model->customPrimitives(), highlightColor);
-        } else {
-            painter->drawEllipse(highlightRect);
-        }
-    }
-
     // Draw the drill hole
     if (isTH) {
         painter->setPen(Qt::NoPen);
-        painter->setBrush(QBrush(QColor(30, 30, 30)));
+        painter->setBrush(QBrush(QColor(24, 24, 28)));
         painter->drawEllipse(QPointF(0, 0), m_model->drillSize()/2, m_model->drillSize()/2);
     }
-    
-    painter->setPen(QPen(baseColor.lighter(130), 0.02));
-    double crossSize = std::min(size.width(), size.height()) * 0.2;
-    painter->drawLine(QLineF(-crossSize, 0, crossSize, 0));
-    painter->drawLine(QLineF(0, -crossSize, 0, crossSize));
 
-    if (!padNumber.isEmpty()) {
-        double w = size.width();
-        double h = size.height();
-        double maxDim = std::max(w, h);
-        double minDim = std::min(w, h);
-        if (maxDim > 0.5) {
-            painter->setPen(baseColor.lightness() < 140 ? Qt::white : Qt::black);
-            double fontSize = qMax(minDim * 0.5, 0.7); // 50% of min dimension, but at least 0.7 points
-            fontSize = qMin(fontSize, maxDim * 0.8);   // Ensure it fits within the pad length
-            
-            // Safety check: skip text drawing if effective pixel size is too small to avoid Qt/FreeType crash
-            QTransform trans = painter->transform();
-            qreal viewScale = QLineF(trans.map(QPointF(0,0)), trans.map(QPointF(1,0))).length();
-            if (fontSize * viewScale >= 2.0) {
-                QFont font("Monospace");
-                font.setPointSizeF(fontSize);
-                painter->setFont(font);
-                painter->drawText(rect, Qt::AlignCenter, padNumber);
-            }
-        }
+    if (option->state & QStyle::State_Selected) {
+        drawSelectionGlow(painter);
     }
-
-    drawSelectionGlow(painter);
 }
 
 QJsonObject PadItem::toJson() const {

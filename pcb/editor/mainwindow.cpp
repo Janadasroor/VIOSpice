@@ -189,13 +189,17 @@ MainWindow::MainWindow(QWidget *parent)
     QTimer::singleShot(0, this, [this](){
         QByteArray geom = ConfigManager::instance().windowGeometry("PCBEditor");
         QByteArray state = ConfigManager::instance().windowState("PCBEditor");
+        bool restoredState = false;
         if (!geom.isEmpty()) restoreGeometry(geom);
-        if (!state.isEmpty()) restoreState(state);
+        if (!state.isEmpty()) restoredState = restoreState(state);
 
-        ensureRightBottomDockTabs();
+        // Only enforce default tabbed docks if no saved window state was restored
+        if (!restoredState) {
+            ensureRightBottomDockTabs();
+        }
 
-        // Restore last open file if no file was set by caller
-        if (m_currentFilePath.isEmpty()) {
+        // Restore last open file if no valid file was set by caller
+        if (m_currentFilePath.isEmpty() || !QFile::exists(m_currentFilePath)) {
             QString lastFile = ConfigManager::instance().toolProperty("PCBEditor", "openFile").toString();
             if (!lastFile.isEmpty() && QFile::exists(lastFile)) {
                 openFile(lastFile);

@@ -43,19 +43,26 @@ QMap<QString, QVariant> PCBPourTool::toolProperties() const {
     return props;
 }
 
+#include "config_manager.h"
+
 void PCBPourTool::setToolProperty(const QString& name, const QVariant& value) {
     if (name == "Net Name") {
         m_netName = value.toString();
+        ConfigManager::instance().setToolProperty("pour_tool", "net_name", m_netName);
     } else if (name == "Clearance (mm)") {
         m_clearance = std::max(0.05, value.toDouble());
+        ConfigManager::instance().setToolProperty("pour_tool", "clearance", m_clearance);
     } else if (name == "Active Layer") {
         m_layerId = value.toInt();
+        PCBLayerManager::instance().setActiveLayer(m_layerId);
+        ConfigManager::instance().setToolProperty("pcb_editor", "active_layer", m_layerId);
     }
 }
 
 void PCBPourTool::activate(PCBView* view) {
     PCBTool::activate(view);
     m_isDrawing = false;
+    m_layerId = PCBLayerManager::instance().activeLayerId();
     m_currentPolygon.clear();
 }
 

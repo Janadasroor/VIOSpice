@@ -41,6 +41,8 @@ public:
     int pdfOrientationMode() const; // 0 = Auto, 1 = Portrait, 2 = Landscape
     qreal pdfMarginMm() const;
     bool pdfTitleBlock() const;
+    bool pdfMirrorPlot() const;
+    int pdfDrillMarksMode() const; // 0 = None, 1 = Small, 2 = Full Size
 
 private slots:
     void onBrowse();
@@ -67,6 +69,8 @@ private:
     QComboBox* m_pdfOrientation = nullptr;
     QComboBox* m_pdfMargin = nullptr;
     QCheckBox* m_pdfTitleBlockCheck = nullptr;
+    QCheckBox* m_pdfMirrorCheck = nullptr;
+    QComboBox* m_pdfDrillMarksCombo = nullptr;
 
     Mode m_mode = Mode::Gerber;
 };

@@ -450,27 +450,6 @@ void FootprintPadItem::paint(QPainter* painter, const QStyleOptionGraphicsItem* 
         painter->drawEllipse(QPointF(x, y), drill / 2.0, drill / 2.0);
     }
 
-    // Draw number
-    if (!num.isEmpty()) {
-        double maxDim = std::max(w, h);
-        double minDim = std::min(w, h);
-        if (maxDim > 0.5) {
-            painter->setPen(color.lightness() < 140 ? Qt::white : Qt::black);
-            double fontSize = qMax(minDim * 0.5, 0.7); // 50% of min dimension, but at least 0.7 points
-            fontSize = qMin(fontSize, maxDim * 0.8);   // Ensure it fits within the pad length
-            
-            // Safety check: skip text drawing if effective pixel size is too small to avoid Qt/FreeType crash
-            QTransform trans = painter->transform();
-            qreal viewScale = QLineF(trans.map(QPointF(0,0)), trans.map(QPointF(1,0))).length();
-            if (fontSize * viewScale >= 2.0) {
-                QFont font("Monospace");
-                font.setPointSizeF(fontSize);
-                painter->setFont(font);
-                painter->drawText(QRectF(x - w/2, y - h/2, w, h), Qt::AlignCenter, num);
-            }
-        }
-    }
-
     paintSelectionBorder(painter, option);
 }
 
@@ -497,8 +476,10 @@ void FootprintTextItem::paint(QPainter* painter, const QStyleOptionGraphicsItem*
     // Safety check: skip text drawing if effective pixel size is too small to avoid Qt/FreeType crash
     QTransform trans = painter->transform();
     qreal viewScale = QLineF(trans.map(QPointF(0,0)), trans.map(QPointF(1,0))).length();
-    if (h * viewScale >= 2.0) {
-        painter->setFont(QFont("SansSerif", h));
+    if (h * viewScale >= 10.0) {
+        QFont font("Sans-Serif");
+        font.setPointSizeF(qMax(6.0, h * 3.0));
+        painter->setFont(font);
         painter->drawText(QPointF(x, y + h), text);
     }
 

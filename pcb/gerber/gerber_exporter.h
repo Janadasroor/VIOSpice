@@ -32,6 +32,11 @@ public:
                                                             const QString& outputDirectory,
                                                             const NCDrillExporter::DrillOptions& options);
 
+    // Gerber X2 .gbrjob metadata export
+    static bool exportGerberJobFile(QGraphicsScene* scene,
+                                    const QString& outputDirectory,
+                                    const QString& projectName);
+
 private:
     static QString formatCoord(double val, int decimals);
 };

@@ -104,6 +104,52 @@ public:
         }
     }
 
+    /**
+     * @brief Generate a Reverse ECO to push PCB footprint/value edits back to the Schematic.
+     */
+    static ECOPackage generateBackwardECO(const Model::BoardModel* board, const Model::SchematicPageModel* schematic) {
+        ECOPackage eco;
+        if (!board || !schematic) return eco;
+
+        for (const auto* pComp : board->components()) {
+            for (const auto* sComp : schematic->components()) {
+                if (pComp->name() == sComp->reference()) {
+                    // If footprint or value was modified in PCB editor
+                    if (pComp->componentType() != sComp->footprint() || pComp->value() != sComp->value()) {
+                        ECOComponent e;
+                        e.reference = pComp->name();
+                        e.footprint = pComp->componentType();
+                        e.value = pComp->value();
+                        eco.components.append(e);
+                    }
+                    break;
+                }
+            }
+        }
+        return eco;
+    }
+
+    /**
+     * @brief Apply a Reverse ECOPackage to a SchematicPageModel.
+     */
+    static void applyECOToSchematic(const ECOPackage& eco, Model::SchematicPageModel* schematic) {
+        if (!schematic) return;
+
+        for (const auto& ecoComp : eco.components) {
+            for (auto* sComp : schematic->components()) {
+                if (sComp->reference() == ecoComp.reference) {
+                    if (!ecoComp.footprint.isEmpty()) {
+                        sComp->setFootprint(ecoComp.footprint);
+                    }
+                    if (!ecoComp.value.isEmpty()) {
+                        sComp->setValue(ecoComp.value);
+                    }
+                    break;
+                }
+            }
+        }
+    }
+
 private:
     static ECOComponent convertComponent(const Model::SchematicComponentModel* sComp) {
         ECOComponent e;

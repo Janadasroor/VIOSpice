@@ -221,12 +221,22 @@ void renderGerberPdfPages(QPainter& painter,
                           const QRectF& target,
                           const QString& scaleText,
                           int sheet,
-                          int sheets) {
+                          int sheets,
+                          bool mirror = false) {
         painter.fillRect(pageRect, Qt::white);
 
         if (preview.scene() && src.isValid() && target.isValid() &&
             !src.isEmpty() && !target.isEmpty()) {
-            preview.scene()->render(&painter, target, src, Qt::IgnoreAspectRatio);
+            if (mirror) {
+                painter.save();
+                painter.translate(target.left() + target.width() * 0.5, target.top() + target.height() * 0.5);
+                painter.scale(-1.0, 1.0);
+                painter.translate(-(target.left() + target.width() * 0.5), -(target.top() + target.height() * 0.5));
+                preview.scene()->render(&painter, target, src, Qt::IgnoreAspectRatio);
+                painter.restore();
+            } else {
+                preview.scene()->render(&painter, target, src, Qt::IgnoreAspectRatio);
+            }
         }
 
         drawDecorations(scaleText, sheet, sheets);
@@ -507,23 +517,37 @@ void PCBExportManager::exportPDF(QGraphicsScene* scene,
         }
 
         QPdfWriter writer(pdfPath);
-        configurePdfWriter(writer, pageSizeId, orientation, docName);
+        if (int(pageSizeId) == -1) {
+            // Exact Board Crop Mode (No Extra Details Outside Board)
+            writer.setResolution(600);
+            writer.setPageSize(QPageSize(QSizeF(source.width(), source.height()), QPageSize::Millimeter));
+            writer.setPageOrientation(QPageLayout::Portrait);
+            writer.setPageMargins(QMarginsF(0, 0, 0, 0), QPageLayout::Millimeter);
+            writer.setTitle(docName);
+            writer.setCreator(QStringLiteral("VioraEDA PCB Export"));
+        } else {
+            configurePdfWriter(writer, pageSizeId, orientation, docName);
+        }
 
         QPainter painter(&writer);
         painter.setRenderHint(QPainter::Antialiasing, true);
         painter.setRenderHint(QPainter::TextAntialiasing, true);
         painter.setRenderHint(QPainter::SmoothPixmapTransform, true);
 
+        const bool effectiveTitleBlock = (int(pageSizeId) == -1) ? false : titleBlock;
+        const qreal effectiveMargin = (int(pageSizeId) == -1) ? 0.0 : marginMm;
+        const bool effectiveOneToOne = (int(pageSizeId) == -1) ? true : oneToOne;
+
         renderGerberPdfPages(painter,
                              writer,
                              preview,
                              source,
-                             oneToOne,
-                             titleBlock,
+                             effectiveOneToOne,
+                             effectiveTitleBlock,
                              docName,
                              timestamp,
                              pageSizeId,
-                             marginMm);
+                             effectiveMargin);
 
         painter.end();
 
@@ -611,6 +635,146 @@ void PCBExportManager::exportPDF(QGraphicsScene* scene,
         PdfViewerDialog viewer(generatedFiles.first(), parentWidget);
         viewer.exec();
     }
+}
+
+bool PCBExportManager::exportPDFHeadless(QGraphicsScene* scene,
+                                         const PdfExportOptions& opts,
+                                         QStringList* outGeneratedFiles,
+                                         QString* errorMsg)
+{
+    if (!scene) {
+        if (errorMsg) *errorMsg = QStringLiteral("Invalid graphics scene");
+        return false;
+    }
+
+    QTemporaryDir tempDir;
+    if (!tempDir.isValid()) {
+        if (errorMsg) *errorMsg = QStringLiteral("Failed to create temporary directory");
+        return false;
+    }
+
+    if (!QDir().mkpath(opts.outputDirectory)) {
+        if (errorMsg) *errorMsg = QStringLiteral("Failed to create output directory: %1").arg(opts.outputDirectory);
+        return false;
+    }
+
+    QDir outDirHandle(opts.outputDirectory);
+    QDir tempDirHandle(tempDir.path());
+    const QString timestamp = QDateTime::currentDateTime().toString(QStringLiteral("yyyy-MM-dd HH:mm"));
+
+    QPageSize::PageSizeId pageSizeId = QPageSize::A4;
+    if (opts.pageSizeMode == 1) pageSizeId = QPageSize::A3;
+    else if (opts.pageSizeMode == 2) pageSizeId = QPageSize::A2;
+    else if (opts.pageSizeMode == 3) pageSizeId = QPageSize::Letter;
+    else if (opts.pageSizeMode == -1) pageSizeId = static_cast<QPageSize::PageSizeId>(-1);
+
+    auto renderDocument = [&](const QString& pdfPath,
+                              const QList<GerberLayer*>& layers,
+                              const QString& docName) -> bool {
+        if (layers.isEmpty()) return false;
+
+        GerberView preview;
+        preview.resize(1600, 1100);
+        preview.setBackgroundColor(Qt::white);
+        preview.setMonochrome(opts.blackAndWhite);
+        preview.setLayers(layers);
+        preview.zoomFit();
+
+        QRectF source = preview.plotBounds();
+        if ((!source.isValid() || source.isEmpty()) && preview.scene()) {
+            source = preview.scene()->itemsBoundingRect();
+        }
+        if (!source.isValid() || source.isEmpty()) return false;
+
+        QPageLayout::Orientation orientation = QPageLayout::Portrait;
+        if (opts.orientationMode == 1) orientation = QPageLayout::Portrait;
+        else if (opts.orientationMode == 2) orientation = QPageLayout::Landscape;
+        else orientation = (source.width() >= source.height()) ? QPageLayout::Landscape : QPageLayout::Portrait;
+
+        QPdfWriter writer(pdfPath);
+        if (int(pageSizeId) == -1) {
+            writer.setResolution(600);
+            writer.setPageSize(QPageSize(QSizeF(source.width(), source.height()), QPageSize::Millimeter));
+            writer.setPageOrientation(QPageLayout::Portrait);
+            writer.setPageMargins(QMarginsF(0, 0, 0, 0), QPageLayout::Millimeter);
+            writer.setTitle(docName);
+            writer.setCreator(QStringLiteral("VioraEDA PCB Export"));
+        } else {
+            configurePdfWriter(writer, pageSizeId, orientation, docName);
+        }
+
+        QPainter painter(&writer);
+        painter.setRenderHint(QPainter::Antialiasing, true);
+        painter.setRenderHint(QPainter::TextAntialiasing, true);
+        painter.setRenderHint(QPainter::SmoothPixmapTransform, true);
+
+        const bool effectiveTitleBlock = (int(pageSizeId) == -1) ? false : opts.titleBlock;
+        const qreal effectiveMargin = (int(pageSizeId) == -1) ? 0.0 : opts.marginMm;
+        const bool effectiveOneToOne = (int(pageSizeId) == -1) ? true : opts.oneToOne;
+
+        renderGerberPdfPages(painter, writer, preview, source, effectiveOneToOne, effectiveTitleBlock, docName, timestamp, pageSizeId, effectiveMargin);
+        painter.end();
+
+        QFileInfo fi(pdfPath);
+        return fi.exists() && fi.size() > 0;
+    };
+
+    QList<int> layerList = opts.layerIds;
+    if (layerList.isEmpty()) {
+        for (const auto& l : PCBLayerManager::instance().layers()) {
+            if (l.type() == PCBLayer::Copper || l.type() == PCBLayer::Silkscreen ||
+                l.type() == PCBLayer::Soldermask || l.type() == PCBLayer::EdgeCuts) {
+                layerList.append(l.id());
+            }
+        }
+    }
+
+    int successCount = 0;
+    QStringList genFiles;
+    QSet<QString> usedNames;
+    std::vector<std::unique_ptr<GerberLayer>> combinedOwnedLayers;
+    QList<GerberLayer*> combinedLayers;
+
+    for (int layerId : layerList) {
+        PCBLayer* layer = PCBLayerManager::instance().layer(layerId);
+        if (!layer) continue;
+
+        const QString safeName = uniqueBaseName(safeFileName(layer->name()), usedNames);
+        const QString gerberPath = tempDirHandle.filePath(safeName + QStringLiteral(".gbr"));
+
+        if (!GerberExporter::exportLayer(scene, layerId, gerberPath, GerberExportSettings())) continue;
+
+        std::unique_ptr<GerberLayer> parsedLayer(GerberParser::parse(gerberPath));
+        if (!parsedLayer) continue;
+
+        if (opts.combinedPdf) {
+            std::unique_ptr<GerberLayer> combinedLayer(GerberParser::parse(gerberPath));
+            if (combinedLayer) {
+                combinedLayers.append(combinedLayer.get());
+                combinedOwnedLayers.push_back(std::move(combinedLayer));
+            }
+        }
+
+        const QString pdfPath = outDirHandle.filePath(safeName + QStringLiteral(".pdf"));
+        QList<GerberLayer*> singleLayers;
+        singleLayers.append(parsedLayer.get());
+
+        if (renderDocument(pdfPath, singleLayers, layer->name())) {
+            ++successCount;
+            genFiles.append(pdfPath);
+        }
+    }
+
+    if (opts.combinedPdf && !combinedLayers.isEmpty()) {
+        const QString pdfPath = outDirHandle.filePath(QStringLiteral("Board_Combined.pdf"));
+        if (renderDocument(pdfPath, combinedLayers, QStringLiteral("Board Combined"))) {
+            ++successCount;
+            genFiles.prepend(pdfPath);
+        }
+    }
+
+    if (outGeneratedFiles) *outGeneratedFiles = genFiles;
+    return successCount > 0;
 }
 
 void PCBExportManager::exportSVG(QGraphicsScene* scene,

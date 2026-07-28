@@ -128,9 +128,17 @@ rpi_sim/
 test_build_dir/
 test_out/
 reference_designs/
+scratch/
+output/
 
 # Generated Artifacts
 *.out
 *.viosym
 *fixed.cpp
 *fixed.h
+*.gbr
+*.drl
+*.pdf
+*.step
+*.stp
+*.igs

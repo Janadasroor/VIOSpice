@@ -46,10 +46,13 @@ QRectF shapeRectFromPoints(PCBShapeTool::ShapeKind kind, const QPointF& origin, 
 }
 }
 
+#include "config_manager.h"
+
 PCBShapeTool::PCBShapeTool(const QString& toolName, ShapeKind kind, QObject* parent)
     : PCBTool(toolName, parent)
     , m_shapeKind(kind)
-    , m_layerId(PCBLayerManager::instance().activeLayerId()) {
+    , m_layerId(PCBLayerManager::instance().activeLayerId())
+    , m_strokeWidth(ConfigManager::instance().toolProperty("shape_tool", "stroke_width", 0.20).toDouble()) {
 }
 
 QString PCBShapeTool::tooltip() const {
@@ -70,8 +73,11 @@ QMap<QString, QVariant> PCBShapeTool::toolProperties() const {
 void PCBShapeTool::setToolProperty(const QString& name, const QVariant& value) {
     if (name == "Active Layer") {
         m_layerId = value.toInt();
+        PCBLayerManager::instance().setActiveLayer(m_layerId);
+        ConfigManager::instance().setToolProperty("pcb_editor", "active_layer", m_layerId);
     } else if (name == "Stroke Width (mm)") {
         m_strokeWidth = std::max(0.05, value.toDouble());
+        ConfigManager::instance().setToolProperty("shape_tool", "stroke_width", m_strokeWidth);
     } else if (name == "Arc Start Angle (deg)") {
         m_arcStartAngleDeg = value.toDouble();
     } else if (name == "Arc Span Angle (deg)") {

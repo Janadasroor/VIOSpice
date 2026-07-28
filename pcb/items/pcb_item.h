@@ -25,6 +25,7 @@ public:
         ShapeType,
         ImageType,
         RatsnestType,
+        TeardropType,
         // Reserve space for custom types
         CustomType = QGraphicsItem::UserType + 100
     };

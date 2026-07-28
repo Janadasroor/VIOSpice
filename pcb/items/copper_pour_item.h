@@ -37,6 +37,7 @@ public:
     void addPoint(const QPointF& point);
     void closePolygon();
     void rebuild();
+    void recalculatePour();
 
     void setLayer(int layer) override;
 

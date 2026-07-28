@@ -239,6 +239,12 @@ int main(int argc, char *argv[])
                 ide->setAttribute(Qt::WA_DeleteOnClose);
                 ide->openFile(fileToOpen);
                 ide->show();
+            } else if (fileToOpen.endsWith(".pcb", Qt::CaseInsensitive) || fileToOpen.endsWith(".flxpcb", Qt::CaseInsensitive)) {
+                // Open .pcb / .flxpcb files in PCB Editor MainWindow
+                MainWindow* pcb = new MainWindow();
+                pcb->setAttribute(Qt::WA_DeleteOnClose);
+                pcb->openFile(fileToOpen);
+                pcb->show();
             } else {
                 SchematicEditor* sch = new SchematicEditor();
                 sch->setAttribute(Qt::WA_DeleteOnClose);

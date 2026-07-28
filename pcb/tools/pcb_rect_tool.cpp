@@ -43,9 +43,13 @@ QMap<QString, QVariant> PCBRectTool::toolProperties() const {
     return props;
 }
 
+#include "config_manager.h"
+
 void PCBRectTool::setToolProperty(const QString& name, const QVariant& value) {
     if (name == "Active Layer") {
         m_layerId = value.toInt();
+        PCBLayerManager::instance().setActiveLayer(m_layerId);
+        ConfigManager::instance().setToolProperty("pcb_editor", "active_layer", m_layerId);
     }
 }
 
