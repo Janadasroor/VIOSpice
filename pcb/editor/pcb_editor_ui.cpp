@@ -936,6 +936,21 @@ void MainWindow::createDockWidgets() {
                 m_propertiesDock->show();
                 m_propertiesDock->raise();
             }
+
+            // Cross-probing trigger from 2D PCB view to Schematic
+            QString refDes;
+            QString netName;
+            for (auto* pi : pItems) {
+                if (auto* comp = dynamic_cast<ComponentItem*>(pi)) {
+                    refDes = comp->name().trimmed();
+                    if (!refDes.isEmpty()) break;
+                } else if (netName.isEmpty() && !pi->netName().trimmed().isEmpty()) {
+                    netName = pi->netName().trimmed();
+                }
+            }
+            if (!refDes.isEmpty() || !netName.isEmpty()) {
+                SyncManager::instance().pushCrossProbe(refDes, netName);
+            }
         } else {
             m_propertyEditor->clear();
         }
