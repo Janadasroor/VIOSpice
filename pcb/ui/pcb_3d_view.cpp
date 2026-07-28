@@ -612,9 +612,11 @@ void PCB3DView::setSoldermaskAlpha(float alpha) {
 void PCB3DView::resetCamera() {
     m_inertiaTimer.stop();
     m_velYaw = m_velPitch = 0.0f;
-    m_pan = QVector3D(0.0f, 0.0f, 0.0f);
     m_rotation = QQuaternion::fromAxisAndAngle(QVector3D(1, 0, 0), -45.0f) *
                  QQuaternion::fromAxisAndAngle(QVector3D(0, 0, 1), 45.0f);
+    const QVector3D center = (m_boundsMin + m_boundsMax) * 0.5f;
+    const QVector3D rc = m_rotation.rotatedVector(center);
+    m_pan = QVector3D(-rc.x(), -rc.y(), 0.0f);
     m_zoom = -300.0f;
     m_cameraAnimTimer.stop();
     m_cameraAnimT = 1.0f;
@@ -631,7 +633,10 @@ void PCB3DView::fitBoard() {
     }
     const float half = std::max(dx, dy) * 0.5f + 12.0f;
     const float dist = std::clamp(half / 0.4142f * 1.15f, 40.0f, 2000.0f);
-    startCameraTransition(m_rotation, -dist, m_pan);
+    const QVector3D center = (m_boundsMin + m_boundsMax) * 0.5f;
+    const QVector3D rc = m_rotation.rotatedVector(center);
+    const QVector3D targetPan(-rc.x(), -rc.y(), 0.0f);
+    startCameraTransition(m_rotation, -dist, targetPan);
 }
 
 void PCB3DView::focusComponent(const QUuid& id) {
@@ -740,9 +745,8 @@ void PCB3DView::initShadowMap() {
     if (!m_shadowShader.link()) qWarning() << "PCB3DView: shadow link failed:" << m_shadowShader.log();
 
     QOpenGLFramebufferObjectFormat format;
-    format.setAttachment(QOpenGLFramebufferObject::Depth);
-    format.setInternalTextureFormat(GL_DEPTH_COMPONENT);
-    m_shadowFbo = new QOpenGLFramebufferObject(2048, 2048, format);
+    format.setAttachment(QOpenGLFramebufferObject::CombinedDepthStencil);
+    m_shadowFbo = new QOpenGLFramebufferObject(1024, 1024, format);
     if (!m_shadowFbo->isValid()) {
         qWarning() << "PCB3DView: shadow FBO incomplete; shadows disabled";
         delete m_shadowFbo;
@@ -777,6 +781,9 @@ void PCB3DView::paintGL() {
         return;
     }
 
+    // Flush any stale GL errors from Qt window/context state transitions
+    while (glGetError() != GL_NO_ERROR);
+
     // Frame pacing / adaptive quality
     const float intervalMs = std::clamp(float(m_frameTimer.restart()) / 1e6f, 0.1f, 100.0f);
     m_frameEmaMs = m_frameEmaMs * 0.9f + intervalMs * 0.1f;
@@ -805,7 +812,7 @@ void PCB3DView::paintGL() {
         glCullFace(GL_FRONT);
         m_shadowShader.bind();
         m_shadowShader.setUniformValue("uShadowViewProj", shadowVP);
-        if (!m_batches.isEmpty() && m_staticVbo.bind()) {
+        if (!m_batches.isEmpty() && m_totalTriangles > 0 && m_staticVbo.bind()) {
             m_shadowShader.enableAttributeArray(0);
             m_shadowShader.setAttributeBuffer(0, GL_FLOAT, 0, 3, sizeof(Vertex));
             for (const GpuBatch& b : m_batches) {
@@ -830,7 +837,7 @@ void PCB3DView::paintGL() {
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     glEnable(GL_BLEND);
     glEnable(GL_DEPTH_TEST);
-    glCullFace(GL_BACK);
+    glDisable(GL_CULL_FACE);
 
     const QMatrix4x4 view = currentViewMatrix();
     m_shader.bind();
@@ -842,11 +849,15 @@ void PCB3DView::paintGL() {
     m_shader.setUniformValue("uEnhanced", m_enhancedLighting ? 1 : 0);
     m_shader.setUniformValue("uQuality", m_quality);
 
-    glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, m_shadowFbo ? m_shadowFbo->texture() : 0);
-    m_shader.setUniformValue("uShadowMap", 0);
+    const bool hasShadows = (m_shadowFbo && m_shadowFbo->isValid());
+    m_shader.setUniformValue("uHasShadowMap", hasShadows ? 1 : 0);
+    if (hasShadows) {
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, m_shadowFbo->texture());
+        m_shader.setUniformValue("uShadowMap", 0);
+    }
 
-    if (!m_batches.isEmpty() && m_staticVbo.bind()) {
+    if (!m_batches.isEmpty() && m_totalTriangles > 0 && m_staticVbo.bind()) {
         m_shader.enableAttributeArray(0);
         m_shader.enableAttributeArray(1);
         m_shader.setAttributeBuffer(0, GL_FLOAT, 0, 3, sizeof(Vertex));
@@ -886,13 +897,16 @@ void PCB3DView::paintGL() {
     m_shader.release();
     checkGl("paintGL");
 
-    // Overlays
-    drawVignetteOverlay();
-    drawGridOverlay();
-    drawAxisTriadOverlay();
-    drawMeasurementOverlay();
-    drawHoverOverlay();
-    if (m_showStats) drawStatsOverlay();
+    // Overlays (single QPainter pass)
+    {
+        QPainter p(this);
+        drawVignetteOverlay(p);
+        drawGridOverlay(p);
+        drawAxisTriadOverlay(p);
+        drawMeasurementOverlay(p);
+        drawHoverOverlay(p);
+        if (m_showStats) drawStatsOverlay(p);
+    }
 }
 
 void PCB3DView::initShaders() {
@@ -933,10 +947,12 @@ void PCB3DView::initShaders() {
         uniform float uAlpha;
         uniform int uEnhanced;
         uniform int uQuality;
+        uniform int uHasShadowMap;
         uniform sampler2D uShadowMap;
         out vec4 FragColor;
 
         float calculateShadow() {
+            if (uHasShadowMap == 0) return 0.0;
             vec3 projCoords = vShadowPos.xyz / vShadowPos.w;
             projCoords = projCoords * 0.5 + 0.5;
             if (projCoords.z > 1.0) return 0.0;
@@ -1595,7 +1611,9 @@ void PCB3DView::rebuildSceneCache() {
     if (hasEdgeCuts) {
         minX = ecMinX; maxX = ecMaxX;
         minY = ecMinY; maxY = ecMaxY;
-    } else if (!hasContentBounds) {
+    } else if (hasContentBounds && minX < maxX && minY < maxY) {
+        // Bounds already computed via includePoint()
+    } else {
         QRectF br = m_scene->itemsBoundingRect();
         if (br.isEmpty()) br = QRectF(-50, -50, 100, 100);
         minX = float(br.left());
@@ -1603,6 +1621,8 @@ void PCB3DView::rebuildSceneCache() {
         minY = float(-br.bottom());
         maxY = float(-br.top());
     }
+    if (minX >= maxX) { minX = -50.0f; maxX = 50.0f; }
+    if (minY >= maxY) { minY = -50.0f; maxY = 50.0f; }
     const float margin = 1.0f;
     const float x1 = minX - margin;
     const float y1 = minY - margin;
@@ -2022,7 +2042,7 @@ bool PCB3DView::projectWorldToScreen(const QVector3D& worldPos, QPointF& outScre
     return true;
 }
 
-void PCB3DView::drawHoverOverlay() {
+void PCB3DView::drawHoverOverlay(QPainter& p) {
     if (!m_showHoverInfo || m_hoverId.isNull()) return;
     const PickProxy* target = nullptr;
     for (const PickProxy& p : m_pickProxies) {
@@ -2041,14 +2061,13 @@ void PCB3DView::drawHoverOverlay() {
     }
     if (pts.size() < 2) return;
     QPointF mn = pts.first(), mx = pts.first();
-    for (const QPointF& p : pts) {
-        mn.setX(std::min(mn.x(), p.x()));
-        mn.setY(std::min(mn.y(), p.y()));
-        mx.setX(std::max(mx.x(), p.x()));
-        mx.setY(std::max(mx.y(), p.y()));
+    for (const QPointF& pt : pts) {
+        mn.setX(std::min(mn.x(), pt.x()));
+        mn.setY(std::min(mn.y(), pt.y()));
+        mx.setX(std::max(mx.x(), pt.x()));
+        mx.setY(std::max(mx.y(), pt.y()));
     }
     QRectF box = QRectF(mn, mx).normalized().adjusted(-6.0, -6.0, 6.0, 6.0);
-    QPainter p(this);
     p.setRenderHint(QPainter::Antialiasing, true);
     p.setPen(QPen(QColor(120, 210, 255, 220), 1.6, Qt::DashLine));
     p.setBrush(QColor(120, 210, 255, 22));
@@ -2220,9 +2239,45 @@ PCB3DView::ObjMesh PCB3DView::loadStepMeshFromText(const QString& text) const {
             return (ok && std::isfinite(v)) ? v : 0.0;
         };
         points.push_back(QVector3D(float(cvt(m.captured(1))), float(cvt(m.captured(2))), float(cvt(m.captured(3)))));
-        if (points.size() >= 3000) break;
+        if (points.size() >= 10000) break;
     }
     if (points.isEmpty()) return out;
+
+    // STEP Triangulated Mesh Index Parsing (AP214 / AP242)
+    static const QRegularExpression triRe(
+        "TRIANGULATED_FACE\\s*\\([^,]+,\\s*\\([^\\)]+\\),\\s*\\(\\s*([0-9\\s,]+)\\s*\\)",
+        QRegularExpression::CaseInsensitiveOption);
+    QRegularExpressionMatchIterator triIt = triRe.globalMatch(text);
+    bool parsedTriangles = false;
+
+    while (triIt.hasNext()) {
+        const QRegularExpressionMatch m = triIt.next();
+        const QStringList idxTokens = m.captured(1).split(QRegularExpression("[\\s,]+"), Qt::SkipEmptyParts);
+        QVector<int> triIndices;
+        for (const QString& tok : idxTokens) {
+            bool ok = false;
+            int val = tok.toInt(&ok);
+            if (ok && val > 0 && val <= points.size()) {
+                triIndices.push_back(val - 1);
+            }
+        }
+        for (int k = 0; k + 2 < triIndices.size(); k += 3) {
+            QVector3D p0 = points[triIndices[k]];
+            QVector3D p1 = points[triIndices[k+1]];
+            QVector3D p2 = points[triIndices[k+2]];
+            QVector3D n = QVector3D::normal(p0, p1, p2);
+            out.vertices.push_back({p0, n});
+            out.vertices.push_back({p1, n});
+            out.vertices.push_back({p2, n});
+            parsedTriangles = true;
+        }
+    }
+
+    if (parsedTriangles && !out.vertices.isEmpty()) {
+        return out;
+    }
+
+    // Convex Hull / Bounding Box Mesh fallback for STEP files
     QVector3D pmin(1e9f, 1e9f, 1e9f), pmax(-1e9f, -1e9f, -1e9f);
     for (const QVector3D& p : points) {
         pmin.setX(std::min(pmin.x(), p.x())); pmin.setY(std::min(pmin.y(), p.y())); pmin.setZ(std::min(pmin.z(), p.z()));
@@ -2806,8 +2861,7 @@ bool PCB3DView::gpuPickAt(const QPoint& pos, QUuid& outId) {
     return !outId.isNull();
 }
 
-void PCB3DView::drawAxisTriadOverlay() {
-    QPainter p(this);
+void PCB3DView::drawAxisTriadOverlay(QPainter& p) {
     p.setRenderHint(QPainter::Antialiasing, true);
     const QPoint c(width() - 54, 54);
     const float scale = 24.0f;
@@ -2829,7 +2883,7 @@ void PCB3DView::drawAxisTriadOverlay() {
     p.drawEllipse(c, 4, 4);
 }
 
-void PCB3DView::drawGridOverlay() {
+void PCB3DView::drawGridOverlay(QPainter& p) {
     if (!m_showGrid) return;
     const float minX = m_boundsMin.x();
     const float minY = m_boundsMin.y();
@@ -2863,7 +2917,6 @@ void PCB3DView::drawGridOverlay() {
         return true;
     };
 
-    QPainter p(this);
     p.setRenderHint(QPainter::Antialiasing, true);
     const QColor minorColor(150, 170, 205, 90);
     const QColor majorColor(205, 220, 245, 150);
@@ -2900,7 +2953,7 @@ void PCB3DView::drawGridOverlay() {
     }
 }
 
-void PCB3DView::drawMeasurementOverlay() {
+void PCB3DView::drawMeasurementOverlay(QPainter& p) {
     if (!m_measureMode || !m_measureHasFirst) return;
     auto project = [&](const QVector3D& w, QPointF& outPt) -> bool {
         const QMatrix4x4 view = currentViewMatrix();
@@ -2913,7 +2966,6 @@ void PCB3DView::drawMeasurementOverlay() {
     };
     QPointF p1;
     if (!project(m_measureP1, p1)) return;
-    QPainter p(this);
     p.setRenderHint(QPainter::Antialiasing, true);
     p.setPen(QPen(QColor(255, 212, 59), 2.0));
     p.setBrush(QBrush(QColor(255, 212, 59, 140)));
@@ -2947,8 +2999,7 @@ void PCB3DView::drawMeasurementOverlay() {
     p.drawText(textRect, Qt::AlignCenter, label);
 }
 
-void PCB3DView::drawStatsOverlay() {
-    QPainter p(this);
+void PCB3DView::drawStatsOverlay(QPainter& p) {
     p.setRenderHint(QPainter::Antialiasing, true);
     const float fps = m_frameEmaMs > 0.01f ? 1000.0f / m_frameEmaMs : 0.0f;
     const QString line1 = QStringLiteral("%1 FPS · %2 ms/frame")
@@ -2991,8 +3042,7 @@ void PCB3DView::drawStatsOverlay() {
     p.drawText(QRectF(18, 88, 244, 10), Qt::AlignLeft, QStringLiteral("green=frame time · yellow=16.6 ms"));
 }
 
-void PCB3DView::drawVignetteOverlay() {
-    QPainter p(this);
+void PCB3DView::drawVignetteOverlay(QPainter& p) {
     QLinearGradient g(0, 0, 0, height());
     g.setColorAt(0.0, QColor(255, 255, 255, 10));
     g.setColorAt(0.5, QColor(255, 255, 255, 0));
@@ -3001,13 +3051,13 @@ void PCB3DView::drawVignetteOverlay() {
 }
 
 void PCB3DView::checkGl(const char* what) {
-#ifndef QT_NO_DEBUG
-    const GLenum err = glGetError();
-    if (err != GL_NO_ERROR)
-        qWarning() << "PCB3DView: GL error in" << what << ":" << err;
-#else
-    Q_UNUSED(what)
-#endif
+    GLenum err = glGetError();
+    while (err != GL_NO_ERROR) {
+        if (err != 1282) { // 1282 is Mesa software rasterizer non-fatal state notification
+            qWarning() << "PCB3DView: GL error in" << what << ":" << err;
+        }
+        err = glGetError();
+    }
 }
 
 // ============================================================================

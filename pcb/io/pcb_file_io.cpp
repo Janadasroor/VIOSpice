@@ -14,6 +14,7 @@
 #include "../items/component_item.h"
 #include "../items/copper_pour_item.h"
 #include "../items/shape_item.h"
+#include "../items/teardrop_item.h"
 #include "../items/image_item.h"
 #include <QFile>
 #include <QJsonDocument>
@@ -230,6 +231,9 @@ QJsonObject PCBFileIO::serializePCBItem(const PCBItem* item) {
     } else if (auto* pour = dynamic_cast<const CopperPourItem*>(item)) {
         obj["type"] = "CopperPour";
         if (pour->model()) obj["model"] = pour->model()->toJson();
+    } else if (auto* td = dynamic_cast<const TeardropItem*>(item)) {
+        obj["type"] = "Teardrop";
+        obj["properties"] = td->toJson();
     } else if (auto* shape = dynamic_cast<const PCBShapeItem*>(item)) {
         obj["type"] = "Shape";
         obj["properties"] = shape->toJson();
@@ -274,6 +278,10 @@ PCBItem* PCBFileIO::deserializePCBItem(const QJsonObject& obj) {
         auto* pour = new CopperPourItem(model);
         pour->setOwned(true);
         item = pour;
+    } else if (type == "Teardrop") {
+        auto* td = new TeardropItem();
+        td->fromJson(obj["properties"].toObject());
+        item = td;
     } else if (type == "Shape" || type == "Image") {
         QJsonObject props = obj["properties"].toObject();
         item = PCBItemFactory::instance().createItem(type, QPointF(), props, nullptr);

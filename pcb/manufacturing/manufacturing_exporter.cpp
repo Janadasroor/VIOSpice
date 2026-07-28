@@ -33,73 +33,106 @@ bool ManufacturingExporter::exportIPC2581(QGraphicsScene* scene, const QString& 
     }
 
     QTextStream out(&file);
+    const QRectF bb = scene->itemsBoundingRect();
+    const QString ts = QDateTime::currentDateTimeUtc().toString(Qt::ISODate);
+
     out << "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n";
-    out << "<IPC-2581 revision=\"B\" xmlns=\"http://webstds.ipc.org/2581\">\n";
+    out << "<IPC-2581 revision=\"C\" xmlns=\"http://webstds.ipc.org/2581\">\n";
     out << "  <Header>\n";
     out << "    <Source software=\"Viora EDA\" version=\"0.2\"/>\n";
-    out << "    <Date>" << QDateTime::currentDateTimeUtc().toString(Qt::ISODate) << "</Date>\n";
+    out << "    <Date>" << ts << "</Date>\n";
+    out << "    <Units>MM</Units>\n";
+    out << "    <Spec revision=\"C\"/>\n";
     out << "  </Header>\n";
 
-    out << "  <Stackup>\n";
+    // Layer Stackup & Dielectrics
+    out << "  <Content>\n";
+    out << "    <LayerStackup name=\"PRIMARY_STACKUP\">\n";
     const auto stackup = PCBLayerManager::instance().stackup();
     for (const auto& layer : stackup.stack) {
-        out << "    <Layer name=\"" << layer.name << "\" type=\"" << layer.type
-            << "\" thicknessMm=\"" << layer.thickness << "\" material=\"" << layer.material
-            << "\" er=\"" << layer.dielectricConstant << "\" copperWeightOz=\"" << layer.copperWeightOz
+        out << "      <Layer name=\"" << layer.name << "\" type=\"" << layer.type
+            << "\" thicknessMm=\"" << QString::number(layer.thickness, 'f', 4) << "\" material=\"" << layer.material
+            << "\" er=\"" << QString::number(layer.dielectricConstant, 'f', 2) << "\" copperWeightOz=\"" << layer.copperWeightOz
             << "\"/>\n";
     }
-    out << "    <Finish type=\"" << stackup.surfaceFinish << "\"/>\n";
-    out << "  </Stackup>\n";
+    out << "    </LayerStackup>\n";
+    out << "  </Content>\n";
 
-    out << "  <Components>\n";
+    // BOM Assembly Information
+    out << "  <Bom name=\"BOM_PRIMARY\">\n";
     for (QGraphicsItem* g : scene->items()) {
         if (ComponentItem* comp = dynamic_cast<ComponentItem*>(g)) {
-            out << "    <Component id=\"" << comp->idString()
-                << "\" ref=\"" << comp->name()
-                << "\" footprint=\"" << comp->componentType()
-                << "\" x=\"" << comp->pos().x()
-                << "\" y=\"" << comp->pos().y()
-                << "\" rot=\"" << comp->rotation()
+            out << "    <BomItem refDes=\"" << comp->name()
+                << "\" package=\"" << comp->componentType()
+                << "\" val=\"" << comp->value()
                 << "\"/>\n";
         }
     }
-    out << "  </Components>\n";
+    out << "  </Bom>\n";
 
-    out << "  <Copper>\n";
+    // ECAD Geometry & Layout Features
+    out << "  <Ecad name=\"ECAD_PRIMARY\">\n";
+    out << "    <CadHeader>\n";
+    out << "      <Units>MM</Units>\n";
+    out << "      <BoundingBox minX=\"" << QString::number(bb.left(), 'f', 4)
+        << "\" minY=\"" << QString::number(bb.top(), 'f', 4)
+        << "\" maxX=\"" << QString::number(bb.right(), 'f', 4)
+        << "\" maxY=\"" << QString::number(bb.bottom(), 'f', 4) << "\"/>\n";
+    out << "    </CadHeader>\n";
+    out << "    <CadData>\n";
+    out << "      <Step name=\"BOARD\">\n";
+
+    // Components Placement
+    out << "        <Components>\n";
+    for (QGraphicsItem* g : scene->items()) {
+        if (ComponentItem* comp = dynamic_cast<ComponentItem*>(g)) {
+            out << "          <Component refDes=\"" << comp->name()
+                << "\" pkg=\"" << comp->componentType()
+                << "\" x=\"" << QString::number(comp->pos().x(), 'f', 4)
+                << "\" y=\"" << QString::number(comp->pos().y(), 'f', 4)
+                << "\" rotation=\"" << QString::number(comp->rotation(), 'f', 2)
+                << "\" layer=\"" << (comp->layer() == PCBLayer::Top ? "TOP" : "BOTTOM")
+                << "\"/>\n";
+        }
+    }
+    out << "        </Components>\n";
+
+    // Copper Traces, Vias & Pads Features
+    out << "        <LayerFeatures>\n";
     for (QGraphicsItem* g : scene->items()) {
         if (TraceItem* tr = dynamic_cast<TraceItem*>(g)) {
-            out << "    <Trace id=\"" << tr->idString()
-                << "\" net=\"" << tr->netName()
+            out << "          <Polyline net=\"" << tr->netName()
                 << "\" layer=\"" << tr->layer()
-                << "\" width=\"" << tr->width()
-                << "\" x1=\"" << tr->startPoint().x()
-                << "\" y1=\"" << tr->startPoint().y()
-                << "\" x2=\"" << tr->endPoint().x()
-                << "\" y2=\"" << tr->endPoint().y()
+                << "\" width=\"" << QString::number(tr->width(), 'f', 4)
+                << "\" startX=\"" << QString::number(tr->startPoint().x(), 'f', 4)
+                << "\" startY=\"" << QString::number(tr->startPoint().y(), 'f', 4)
+                << "\" endX=\"" << QString::number(tr->endPoint().x(), 'f', 4)
+                << "\" endY=\"" << QString::number(tr->endPoint().y(), 'f', 4)
                 << "\"/>\n";
         } else if (ViaItem* via = dynamic_cast<ViaItem*>(g)) {
-            out << "    <Via id=\"" << via->idString()
-                << "\" net=\"" << via->netName()
-                << "\" x=\"" << via->pos().x()
-                << "\" y=\"" << via->pos().y()
-                << "\" diameter=\"" << via->diameter()
-                << "\" drill=\"" << via->drillSize()
+            out << "          <Via net=\"" << via->netName()
+                << "\" x=\"" << QString::number(via->pos().x(), 'f', 4)
+                << "\" y=\"" << QString::number(via->pos().y(), 'f', 4)
+                << "\" diameter=\"" << QString::number(via->diameter(), 'f', 4)
+                << "\" drill=\"" << QString::number(via->drillSize(), 'f', 4)
                 << "\" startLayer=\"" << via->startLayer()
                 << "\" endLayer=\"" << via->endLayer()
-                << "\" microvia=\"" << (via->isMicrovia() ? "true" : "false")
                 << "\"/>\n";
         } else if (PadItem* pad = dynamic_cast<PadItem*>(g)) {
-            out << "    <Pad id=\"" << pad->idString()
-                << "\" net=\"" << pad->netName()
-                << "\" x=\"" << pad->pos().x()
-                << "\" y=\"" << pad->pos().y()
-                << "\" sx=\"" << pad->size().width()
-                << "\" sy=\"" << pad->size().height()
+            out << "          <Pad net=\"" << pad->netName()
+                << "\" x=\"" << QString::number(pad->pos().x(), 'f', 4)
+                << "\" y=\"" << QString::number(pad->pos().y(), 'f', 4)
+                << "\" sizeX=\"" << QString::number(pad->size().width(), 'f', 4)
+                << "\" sizeY=\"" << QString::number(pad->size().height(), 'f', 4)
                 << "\" layer=\"" << pad->layer()
                 << "\"/>\n";
         }
     }
-    out << "  </Copper>\n";
+    out << "        </LayerFeatures>\n";
+
+    out << "      </Step>\n";
+    out << "    </CadData>\n";
+    out << "  </Ecad>\n";
     out << "</IPC-2581>\n";
     return true;
 }

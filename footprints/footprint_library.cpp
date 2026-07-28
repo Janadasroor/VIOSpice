@@ -30,7 +30,6 @@ QString buildFootprintTags(const FootprintDefinition& def) {
 void indexLibraryFootprints(FootprintLibrary* lib) {
     if (!lib) return;
     if (LibraryIndex::instance().hasLibrary(lib->name(), "Footprint")) {
-        qDebug() << "[BOOT] Library" << lib->name() << "is already indexed. Skipping re-indexing.";
         return;
     }
     for (const QString& name : lib->getFootprintNames()) {
@@ -211,9 +210,7 @@ void FootprintLibraryManager::createDefaultBuiltInLibrary() {
             QDir().mkpath(libDir);
             catLibs[cat] = new FootprintLibrary(cat, libDir);
         }
-        if (!QFile::exists(catLibs[cat]->path() + "/" + fpt.name() + ".json")) {
-            catLibs[cat]->saveFootprint(fpt);
-        }
+        catLibs[cat]->saveFootprint(fpt);
     };
 
     auto addSMDResCap = [&](const QString& name, qreal w, qreal h, qreal padW, qreal padH) {
@@ -222,7 +219,15 @@ void FootprintLibraryManager::createDefaultBuiltInLibrary() {
         qreal x = (w / 2.0) - (padW / 2.0);
         def.addPrimitive(FootprintPrimitive::createPad(QPointF(-x, 0), "1", "Rect", QSizeF(padW, padH)));
         def.addPrimitive(FootprintPrimitive::createPad(QPointF(x, 0), "2", "Rect", QSizeF(padW, padH)));
-        def.addPrimitive(FootprintPrimitive::createRect(QRectF(-w/2 - 0.2, -h/2 - 0.2, w + 0.4, h + 0.4)));
+
+        FootprintPrimitive fabRect = FootprintPrimitive::createRect(QRectF(-w/2 - 0.1, -h/2 - 0.1, w + 0.2, h + 0.2));
+        fabRect.layer = FootprintPrimitive::Top_Fabrication;
+        def.addPrimitive(fabRect);
+
+        qreal silkY = h / 2.0 + 0.2;
+        qreal silkX = w / 2.0 + 0.2;
+        def.addPrimitive(FootprintPrimitive::createLine(QPointF(-silkX, -silkY), QPointF(silkX, -silkY)));
+        def.addPrimitive(FootprintPrimitive::createLine(QPointF(-silkX, silkY), QPointF(silkX, silkY)));
         addFootprintToCat(def);
     };
 
@@ -234,7 +239,9 @@ void FootprintLibraryManager::createDefaultBuiltInLibrary() {
         def.addPrimitive(FootprintPrimitive::createPad(QPointF(pitch/2, 0), "2", "Round", QSizeF(1.6, 1.6)));
         def.primitives()[0].data["drill_size"] = 0.8;
         def.primitives()[1].data["drill_size"] = 0.8;
-        def.addPrimitive(FootprintPrimitive::createRect(QRectF(-bodyL/2, -bodyD/2, bodyL, bodyD)));
+        FootprintPrimitive fabRect = FootprintPrimitive::createRect(QRectF(-bodyL/2, -bodyD/2, bodyL, bodyD));
+        fabRect.layer = FootprintPrimitive::Top_Fabrication;
+        def.addPrimitive(fabRect);
         addFootprintToCat(def);
     };
     addTHResistor("Resistor_THT_P7.62mm_Horizontal", 7.62, 6.3, 2.5);
@@ -247,7 +254,9 @@ void FootprintLibraryManager::createDefaultBuiltInLibrary() {
         def.addPrimitive(FootprintPrimitive::createPad(QPointF(pitch/2, 0), "2", "Round", QSizeF(1.6, 1.6)));
         def.primitives()[0].data["drill_size"] = 0.8;
         def.primitives()[1].data["drill_size"] = 0.8;
-        def.addPrimitive(FootprintPrimitive::createCircle(QPointF(0, 0), bodyD/2));
+        FootprintPrimitive fabCircle = FootprintPrimitive::createCircle(QPointF(0, 0), bodyD/2);
+        fabCircle.layer = FootprintPrimitive::Top_Fabrication;
+        def.addPrimitive(fabCircle);
         addFootprintToCat(def);
     };
     addTHCapRadial("C_Radial_D5.0mm_P2.00mm", 2.0, 5.0);
@@ -261,8 +270,9 @@ void FootprintLibraryManager::createDefaultBuiltInLibrary() {
         def.addPrimitive(FootprintPrimitive::createPad(QPointF(pitch/2, 0), "2", "Round", QSizeF(1.8, 1.8)));
         def.primitives()[0].data["drill_size"] = 0.9;
         def.primitives()[1].data["drill_size"] = 0.9;
-        def.addPrimitive(FootprintPrimitive::createRect(QRectF(-bodyL/2, -bodyD/2, bodyL, bodyD)));
-        def.addPrimitive(FootprintPrimitive::createLine(QPointF(-bodyL/2 + 0.5, -bodyD/2), QPointF(-bodyL/2 + 0.5, bodyD/2)));
+        FootprintPrimitive fabRect = FootprintPrimitive::createRect(QRectF(-bodyL/2, -bodyD/2, bodyL, bodyD));
+        fabRect.layer = FootprintPrimitive::Top_Fabrication;
+        def.addPrimitive(fabRect);
         addFootprintToCat(def);
     };
     addTHDiode("D_THT_P7.62mm_Horizontal", 7.62, 3.2, 2.0); 
@@ -276,7 +286,9 @@ void FootprintLibraryManager::createDefaultBuiltInLibrary() {
         def.addPrimitive(FootprintPrimitive::createPad(QPointF(pitch/2, 0), "2", "Round", QSizeF(1.2, 1.2)));
         def.primitives()[0].data["drill_size"] = 0.6;
         def.primitives()[1].data["drill_size"] = 0.6;
-        def.addPrimitive(FootprintPrimitive::createRect(QRectF(-bodyW/2, -bodyH/2, bodyW, bodyH)));
+        FootprintPrimitive fabRect = FootprintPrimitive::createRect(QRectF(-bodyW/2, -bodyH/2, bodyW, bodyH));
+        fabRect.layer = FootprintPrimitive::Top_Fabrication;
+        def.addPrimitive(fabRect);
         addFootprintToCat(def);
     };
     addTHCrystal("Crystal_HC49-U_Vertical", 4.88, 10.5, 4.5);
@@ -291,7 +303,13 @@ void FootprintLibraryManager::createDefaultBuiltInLibrary() {
                              (i == 0 ? "Rect" : "Round"), QSizeF(1.7, 1.7)));
             def.primitives().last().data["drill_size"] = 1.0;
         }
-        def.addPrimitive(FootprintPrimitive::createRect(QRectF(startX - 1.27, -1.27, pins * 2.54, 2.54)));
+        FootprintPrimitive fabRect = FootprintPrimitive::createRect(QRectF(startX - 1.27, -1.27, pins * 2.54, 2.54));
+        fabRect.layer = FootprintPrimitive::Top_Fabrication;
+        def.addPrimitive(fabRect);
+
+        qreal edgeY = 1.4;
+        def.addPrimitive(FootprintPrimitive::createLine(QPointF(startX - 1.27, -edgeY), QPointF(startX + (pins-1)*2.54 + 1.27, -edgeY)));
+        def.addPrimitive(FootprintPrimitive::createLine(QPointF(startX - 1.27, edgeY), QPointF(startX + (pins-1)*2.54 + 1.27, edgeY)));
         addFootprintToCat(def);
     };
     for (int p : {2, 3, 4, 6, 8, 10}) addHeader(p);
@@ -304,7 +322,9 @@ void FootprintLibraryManager::createDefaultBuiltInLibrary() {
         def.addPrimitive(FootprintPrimitive::createPad(QPointF(0, 0), "2", "Round", QSizeF(1.5, 1.5)));
         def.addPrimitive(FootprintPrimitive::createPad(QPointF(2.54, 0), "3", "Round", QSizeF(1.5, 1.5)));
         for(int i=0; i<3; i++) def.primitives()[i].data["drill_size"] = 0.7;
-        def.addPrimitive(FootprintPrimitive::createRect(QRectF(-4.8, -2.4, 9.6, 4.8)));
+        FootprintPrimitive fabRect = FootprintPrimitive::createRect(QRectF(-4.8, -2.4, 9.6, 4.8));
+        fabRect.layer = FootprintPrimitive::Top_Fabrication;
+        def.addPrimitive(fabRect);
         addFootprintToCat(def);
     };
     addPot();
@@ -328,11 +348,22 @@ void FootprintLibraryManager::createDefaultBuiltInLibrary() {
         qreal x = (w / 2.0) - (padW / 2.0);
         def.addPrimitive(FootprintPrimitive::createPad(QPointF(-x, 0), "K", "Rect", QSizeF(padW, padH)));
         def.addPrimitive(FootprintPrimitive::createPad(QPointF(x, 0), "A", "Rect", QSizeF(padW, padH)));
-        def.addPrimitive(FootprintPrimitive::createRect(QRectF(-w/2 - 0.2, -h/2 - 0.2, w + 0.4, h + 0.4)));
-        // Cathode mark
-        def.addPrimitive(FootprintPrimitive::createLine(QPointF(-w/2 - 0.1, -h/2 - 0.3), QPointF(-w/2 - 0.1, h/2 + 0.3)));
+        
+        FootprintPrimitive fabRect = FootprintPrimitive::createRect(QRectF(-w/2 - 0.1, -h/2 - 0.1, w + 0.2, h + 0.2));
+        fabRect.layer = FootprintPrimitive::Top_Fabrication;
+        def.addPrimitive(fabRect);
+
+        qreal silkY = h / 2.0 + 0.2;
+        qreal silkX = w / 2.0 + 0.2;
+        def.addPrimitive(FootprintPrimitive::createLine(QPointF(-silkX, -silkY), QPointF(silkX, -silkY)));
+        def.addPrimitive(FootprintPrimitive::createLine(QPointF(-silkX, silkY), QPointF(silkX, silkY)));
+        def.addPrimitive(FootprintPrimitive::createLine(QPointF(-silkX, -silkY), QPointF(-silkX, silkY)));
         addFootprintToCat(def);
     };
+    addSMDLED("LED_0402", 1.0, 0.5, 0.4, 0.5);
+    addSMDLED("LED_0603", 1.6, 0.8, 0.6, 0.7);
+    addSMDLED("LED_0805", 2.0, 1.25, 0.8, 1.0);
+    addSMDLED("LED_1206", 3.2, 1.6, 1.0, 1.5);
     addSMDLED("LED_0402", 1.0, 0.5, 0.4, 0.5);
     addSMDLED("LED_0603", 1.6, 0.8, 0.6, 0.7);
     addSMDLED("LED_0805", 2.0, 1.25, 0.8, 1.0);
@@ -412,8 +443,15 @@ void FootprintLibraryManager::createDefaultBuiltInLibrary() {
             def.primitives().last().data["drill_size"] = 0.8;
             def.primitives()[def.primitives().size()-2].data["drill_size"] = 0.8;
         }
-        def.addPrimitive(FootprintPrimitive::createRect(QRectF(-3.0, -length/2, 6.0, length)));
-        def.addPrimitive(FootprintPrimitive::createCircle(QPointF(-2.0, -length/2 + 1.0), 0.3)); // Pin 1 mark
+        FootprintPrimitive fabRect = FootprintPrimitive::createRect(QRectF(-3.0, -length/2, 6.0, length));
+        fabRect.layer = FootprintPrimitive::Top_Fabrication;
+        def.addPrimitive(fabRect);
+
+        qreal topY = -length/2 - 0.2;
+        qreal botY = length/2 + 0.2;
+        def.addPrimitive(FootprintPrimitive::createLine(QPointF(-2.5, topY), QPointF(2.5, topY)));
+        def.addPrimitive(FootprintPrimitive::createLine(QPointF(-2.5, botY), QPointF(2.5, botY)));
+        def.addPrimitive(FootprintPrimitive::createCircle(QPointF(-1.8, topY + 0.8), 0.25)); // Pin 1 mark
         addFootprintToCat(def);
     };
     addDIP(8, 10.16);

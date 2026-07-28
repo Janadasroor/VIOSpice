@@ -57,6 +57,7 @@
         <file>icons/tool_generic.svg</file>
         <file>icons/tool_pin.svg</file>
         <file>icons/tool_pad.svg</file>
+        <file>icons/tool_via.svg</file>
         <file>icons/tool_pad_settings.svg</file>
         <file>icons/tool_footprint_wizard.svg</file>
         <file>icons/pad_rect.svg</file>

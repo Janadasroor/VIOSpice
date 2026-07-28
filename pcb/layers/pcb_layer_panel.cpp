@@ -176,20 +176,8 @@ void PCBLayerPanel::refreshLayers() {
     PCBLayerManager& mgr = PCBLayerManager::instance();
     int activeId = mgr.activeLayerId();
     PCBLayer* activeLayer = mgr.activeLayer();
-    if (activeLayer && !activeLayer->isVisible()) {
-        setExclusiveVisibleLayer(activeId);
-        return;
-    }
 
-    int visibleCount = 0;
-    for (const PCBLayer& layer : mgr.layers()) {
-        if (layer.isVisible()) ++visibleCount;
-    }
-    if (visibleCount != 1 && activeLayer) {
-        setExclusiveVisibleLayer(activeId);
-        return;
-    }
-
+    QSignalBlocker blocker(m_layerTree);
     m_layerTree->clear();
 
     for (const PCBLayer& layer : mgr.layers()) {
@@ -250,18 +238,14 @@ void PCBLayerPanel::onLayerItemClicked(QTreeWidgetItem* item, int column) {
 
     if (column == 0) {
         bool visible = item->checkState(0) == Qt::Checked;
-        if (visible) {
-            setExclusiveVisibleLayer(layerId);
-        } else {
-            // Keep the clicked layer visible so there is always a single active checkbox.
-            QSignalBlocker blocker(m_layerTree);
-            item->setCheckState(0, Qt::Checked);
-            setExclusiveVisibleLayer(layerId);
-        }
+        PCBLayerManager::instance().setLayerVisible(layerId, visible);
+        refreshLayers();
+        emit layerVisibilityChanged(layerId, visible);
     } else {
         // Select as active layer
         PCBLayerManager::instance().setActiveLayer(layerId);
         refreshLayers();
+        emit activeLayerChanged(layerId);
     }
 }
 
@@ -316,27 +300,33 @@ void PCBLayerPanel::onLayerContextMenu(const QPoint& pos) {
     menu.addSeparator();
 
     QAction* toggleVisibleAction = menu.addAction(layer->isVisible() ? "Hide Layer" : "Show Layer");
-    connect(toggleVisibleAction, &QAction::triggered, this, [this, layer, layerId]() {
-        if (layer->isVisible()) {
-            setExclusiveVisibleLayer(layerId);
-        } else {
-            setExclusiveVisibleLayer(layerId);
+    connect(toggleVisibleAction, &QAction::triggered, this, [this, layerId]() {
+        PCBLayer* l = PCBLayerManager::instance().layer(layerId);
+        if (l) {
+            PCBLayerManager::instance().setLayerVisible(layerId, !l->isVisible());
+            refreshLayers();
         }
     });
 
     QAction* lockAction = menu.addAction(layer->isLocked() ? "Unlock Layer" : "Lock Layer");
-    connect(lockAction, &QAction::triggered, this, [layer, layerId]() {
-        PCBLayerManager::instance().setLayerLocked(layerId, !layer->isLocked());
+    connect(lockAction, &QAction::triggered, this, [layerId]() {
+        PCBLayer* l = PCBLayerManager::instance().layer(layerId);
+        if (l) {
+            PCBLayerManager::instance().setLayerLocked(layerId, !l->isLocked());
+        }
     });
 
     menu.addSeparator();
 
     QAction* changeColorAction = menu.addAction("Change Color...");
-    connect(changeColorAction, &QAction::triggered, this, [this, layer, layerId]() {
-        QColor newColor = QColorDialog::getColor(layer->color(), this);
-        if (newColor.isValid()) {
-            layer->setColor(newColor);
-            refreshLayers();
+    connect(changeColorAction, &QAction::triggered, this, [this, layerId]() {
+        PCBLayer* l = PCBLayerManager::instance().layer(layerId);
+        if (l) {
+            QColor newColor = QColorDialog::getColor(l->color(), this);
+            if (newColor.isValid()) {
+                l->setColor(newColor);
+                refreshLayers();
+            }
         }
     });
 
@@ -345,12 +335,18 @@ void PCBLayerPanel::onLayerContextMenu(const QPoint& pos) {
 
 void PCBLayerPanel::onShowAllLayers() {
     PCBLayerManager& mgr = PCBLayerManager::instance();
-    setExclusiveVisibleLayer(mgr.activeLayerId());
+    for (const PCBLayer& layer : mgr.layers()) {
+        mgr.setLayerVisible(layer.id(), true);
+    }
+    refreshLayers();
 }
 
 void PCBLayerPanel::onHideAllLayers() {
     PCBLayerManager& mgr = PCBLayerManager::instance();
-    setExclusiveVisibleLayer(mgr.activeLayerId());
+    for (const PCBLayer& layer : mgr.layers()) {
+        mgr.setLayerVisible(layer.id(), false);
+    }
+    refreshLayers();
 }
 
 void PCBLayerPanel::onToggleTopLayers() {

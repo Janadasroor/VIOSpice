@@ -93,6 +93,7 @@ private slots:
     void onLengthMatching();
     void onCompareBoard();
     void onGenerateDesignReport();
+    void onLayerStackup();
     
     // Alignment slots
     void onAlignLeft();
@@ -144,6 +145,7 @@ private:
     QIcon createPCBIcon(const QString& name);
     QIcon getThemeIcon(const QString& path);
     void ensureRightBottomDockTabs();
+    void ensureGeminiPanelInitialized();
 
     // UI Components
     QGraphicsScene *m_scene;

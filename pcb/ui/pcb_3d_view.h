@@ -165,11 +165,12 @@ private:
     void updateProjectionMatrix();
     void applyMaterial(MaterialKind material, float alpha, bool hovered);
     bool batchVisible(const GpuBatch& b) const;
-    void drawAxisTriadOverlay();
-    void drawGridOverlay();
-    void drawMeasurementOverlay();
-    void drawStatsOverlay();
-    void drawVignetteOverlay();
+    void drawAxisTriadOverlay(QPainter& p);
+    void drawGridOverlay(QPainter& p);
+    void drawMeasurementOverlay(QPainter& p);
+    void drawStatsOverlay(QPainter& p);
+    void drawVignetteOverlay(QPainter& p);
+    void drawHoverOverlay(QPainter& p);
     bool passesSelectionFilter(QGraphicsItem* item) const;
 
     ObjMesh loadOBJ(const QString& path);

@@ -29,6 +29,56 @@ int copperLayerOrderIndex(int layerId) {
     if (layerId == PCBLayerManager::BottomCopper) return 1000;
     return layerId;
 }
+
+template <typename T>
+class SpatialHashGrid {
+public:
+    SpatialHashGrid(double cellSize = 5.0) : m_cellSize(cellSize) {}
+
+    QPair<int, int> cellKey(QPointF p) const {
+        return { static_cast<int>(std::floor(p.x() / m_cellSize)),
+                 static_cast<int>(std::floor(p.y() / m_cellSize)) };
+    }
+
+    void insert(QPointF p, const T& item) {
+        m_grid[cellKey(p)].append(item);
+    }
+
+    void insertBox(QRectF rect, const T& item) {
+        int minX = static_cast<int>(std::floor(rect.left() / m_cellSize));
+        int maxX = static_cast<int>(std::floor(rect.right() / m_cellSize));
+        int minY = static_cast<int>(std::floor(rect.top() / m_cellSize));
+        int maxY = static_cast<int>(std::floor(rect.bottom() / m_cellSize));
+
+        for (int x = minX; x <= maxX; ++x) {
+            for (int y = minY; y <= maxY; ++y) {
+                m_grid[{x, y}].append(item);
+            }
+        }
+    }
+
+    QList<T> queryBox(QRectF rect) const {
+        QList<T> results;
+        int minX = static_cast<int>(std::floor(rect.left() / m_cellSize));
+        int maxX = static_cast<int>(std::floor(rect.right() / m_cellSize));
+        int minY = static_cast<int>(std::floor(rect.top() / m_cellSize));
+        int maxY = static_cast<int>(std::floor(rect.bottom() / m_cellSize));
+
+        for (int x = minX; x <= maxX; ++x) {
+            for (int y = minY; y <= maxY; ++y) {
+                auto it = m_grid.find({x, y});
+                if (it != m_grid.end()) {
+                    results.append(it.value());
+                }
+            }
+        }
+        return results;
+    }
+
+private:
+    double m_cellSize;
+    QHash<QPair<int, int>, QList<T>> m_grid;
+};
 }
 
 // ============================================================================
@@ -764,9 +814,19 @@ void PCBDRC::checkDrillClearance(QGraphicsScene* scene) {
     const double minHoleToHole = 0.25; // 0.25mm default
     QSet<QString> checkedPairs;
 
+    SpatialHashGrid<int> grid(5.0);
     for (int i = 0; i < holes.size(); ++i) {
-        for (int j = i + 1; j < holes.size(); ++j) {
-            const auto& h1 = holes[i];
+        grid.insert(holes[i].center, i);
+    }
+
+    for (int i = 0; i < holes.size(); ++i) {
+        const auto& h1 = holes[i];
+        double rSearch = h1.radius + minHoleToHole + 1.0;
+        QRectF searchRect(h1.center.x() - rSearch, h1.center.y() - rSearch, rSearch * 2, rSearch * 2);
+        QList<int> candidateIndices = grid.queryBox(searchRect);
+
+        for (int j : candidateIndices) {
+            if (j <= i) continue;
             const auto& h2 = holes[j];
 
             double dist = QLineF(h1.center, h2.center).length();
@@ -849,6 +909,10 @@ void PCBDRC::checkBoardEdge(QGraphicsScene* scene) {
     for (auto* item : scene->items()) {
         PCBItem* pcbItem = dynamic_cast<PCBItem*>(item);
         if (!pcbItem || pcbItem->layer() == PCBLayerManager::EdgeCuts || pcbItem->itemType() == PCBItem::RatsnestType) continue;
+
+        // Skip non-copper mechanical, drawing, and user documentation layers for edge clearance
+        PCBLayer* l = PCBLayerManager::instance().layer(pcbItem->layer());
+        if (l && l->type() != PCBLayer::Copper && l->type() != PCBLayer::Courtyard) continue;
 
         QPainterPath itemPath = pcbItem->sceneTransform().map(pcbItem->shape());
         

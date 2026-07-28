@@ -8,6 +8,8 @@
 
 #include "pcb_tool.h"
 
+class PCBItem;
+
 class PCBPadTool : public PCBTool {
     Q_OBJECT
 
@@ -19,8 +21,16 @@ public:
     QString iconName() const override { return "pad"; }
     QCursor cursor() const override;
 
+    void activate(class PCBView* view) override;
+    void deactivate() override;
     void mousePressEvent(QMouseEvent* event) override;
+    void mouseMoveEvent(QMouseEvent* event) override;
     void keyPressEvent(QKeyEvent* event) override;
+
+private:
+    void updatePreview();
+
+    PCBItem* m_previewPad;
 };
 
 #endif // PCBPADTOOL_H

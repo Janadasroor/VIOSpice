@@ -209,13 +209,14 @@ void ComponentItem::createBody() {
     m_body = new QGraphicsRectItem(-size.width()/2, -size.height()/2,
                                    size.width(), size.height(), this);
     PCBTheme* theme = ThemeManager::theme();
-    m_body->setBrush(QBrush(theme->componentFill()));
-    m_body->setPen(QPen(theme->componentOutline(), 2));
+    m_body->setBrush(Qt::NoBrush);
+    m_body->setPen(QPen(theme->componentOutline(), 0.15));
 }
 
 void ComponentItem::createLabel() {
     if (m_label) delete m_label;
-    m_label = new QGraphicsSimpleTextItem(m_model->componentType(), this);
+    QString labelText = (m_model && !m_model->name().isEmpty()) ? m_model->name() : m_model->componentType();
+    m_label = new QGraphicsSimpleTextItem(labelText, this);
     
     PCBTheme* theme = ThemeManager::theme();
     m_label->setBrush(QBrush(theme->componentOutline()));
@@ -291,13 +292,17 @@ void ComponentItem::createPads() {
                                              prim.data["x2"].toDouble(), prim.data["y2"].toDouble(), this);
                 static_cast<QGraphicsLineItem*>(item)->setPen(primitivePen);
             } else if (prim.type == FootprintPrimitive::Rect) {
-                item = new QGraphicsRectItem(prim.data["x"].toDouble(), prim.data["y"].toDouble(),
+                auto* rItem = new QGraphicsRectItem(prim.data["x"].toDouble(), prim.data["y"].toDouble(),
                                              prim.data["width"].toDouble(), prim.data["height"].toDouble(), this);
-                static_cast<QGraphicsRectItem*>(item)->setPen(primitivePen);
+                rItem->setPen(primitivePen);
+                rItem->setBrush(Qt::NoBrush);
+                item = rItem;
             } else if (prim.type == FootprintPrimitive::Circle) {
                 double r = prim.data["radius"].toDouble();
-                item = new QGraphicsEllipseItem(prim.data["cx"].toDouble()-r, prim.data["cy"].toDouble()-r, r*2, r*2, this);
-                static_cast<QGraphicsEllipseItem*>(item)->setPen(primitivePen);
+                auto* eItem = new QGraphicsEllipseItem(prim.data["cx"].toDouble()-r, prim.data["cy"].toDouble()-r, r*2, r*2, this);
+                eItem->setPen(primitivePen);
+                eItem->setBrush(Qt::NoBrush);
+                item = eItem;
             } else if (prim.type == FootprintPrimitive::Arc) {
                 double r = prim.data["radius"].toDouble();
                 double startAngle = prim.data["startAngle"].toDouble();
@@ -305,8 +310,10 @@ void ComponentItem::createPads() {
                 QPainterPath path;
                 path.arcMoveTo(prim.data["cx"].toDouble()-r, prim.data["cy"].toDouble()-r, r*2, r*2, startAngle);
                 path.arcTo(prim.data["cx"].toDouble()-r, prim.data["cy"].toDouble()-r, r*2, r*2, startAngle, spanAngle);
-                item = new QGraphicsPathItem(path, this);
-                static_cast<QGraphicsPathItem*>(item)->setPen(primitivePen);
+                auto* pItem = new QGraphicsPathItem(path, this);
+                pItem->setPen(primitivePen);
+                pItem->setBrush(Qt::NoBrush);
+                item = pItem;
             } else if (prim.type == FootprintPrimitive::Polygon) {
                 QJsonArray points = prim.data["points"].toArray();
                 QPolygonF poly;
@@ -314,8 +321,10 @@ void ComponentItem::createPads() {
                     QJsonObject pt = p.toObject();
                     poly << QPointF(pt["x"].toDouble(), pt["y"].toDouble());
                 }
-                item = new QGraphicsPolygonItem(poly, this);
-                static_cast<QGraphicsPolygonItem*>(item)->setPen(primitivePen);
+                auto* pgItem = new QGraphicsPolygonItem(poly, this);
+                pgItem->setPen(primitivePen);
+                pgItem->setBrush(Qt::NoBrush);
+                item = pgItem;
             }
             
             if (item) {
@@ -325,12 +334,22 @@ void ComponentItem::createPads() {
             }
         }
     } else {
-        // Fallback fallback
+        // Fallback fallback: hide body for single-pad footprints (e.g. Mounting Holes, Test Points)
         if (m_body) {
-            m_body->show();
-            updateBody();
+            if (m_model->pads().size() <= 1 || m_model->componentType().contains("MountingHole", Qt::CaseInsensitive)) {
+                m_body->hide();
+            } else {
+                m_body->show();
+                updateBody();
+            }
         }
-        if (m_label) m_label->show();
+        if (m_label) {
+            if (m_model->componentType().contains("MountingHole", Qt::CaseInsensitive)) {
+                m_label->hide();
+            } else {
+                m_label->show();
+            }
+        }
     }
 }
 

@@ -20,6 +20,7 @@
 #include "pcb_commands.h"
 #include "../items/component_item.h"
 #include "../items/trace_item.h"
+#include "../items/copper_pour_item.h"
 #include "../dialogs/fanout_wizard_dialog.h"
 #include "../analysis/fanout_engine.h"
 #include "../analysis/length_match_manager.h"
@@ -436,15 +437,49 @@ void PCBView::keyPressEvent(QKeyEvent *event) {
 
 void PCBView::contextMenuEvent(QContextMenuEvent *event) {
     QGraphicsItem* item = itemAt(event->pos());
-    if (!item) {
-        QGraphicsView::contextMenuEvent(event);
-        return;
+    PCBItem* pcbItem = item ? resolveOwningPCBItem(item) : nullptr;
+
+    QMenu menu(this);
+    if (ThemeManager::theme()) {
+        menu.setStyleSheet(ThemeManager::theme()->widgetStylesheet());
     }
 
-    PCBItem* pcbItem = resolveOwningPCBItem(item);
-
     if (!pcbItem) {
-        QGraphicsView::contextMenuEvent(event);
+        // ─── KiCad 8 Canvas Context Menu (Right click on empty canvas) ──────
+        QAction* routeAct = menu.addAction("Route Track [X]");
+        QAction* viaAct = menu.addAction("Place Via [V]");
+        menu.addSeparator();
+        QAction* addCompAct = menu.addAction("Add Component... [Shift+A]");
+        QAction* addPourAct = menu.addAction("Add Copper Pour [Ctrl+Shift+Z]");
+        menu.addSeparator();
+        QAction* fillZonesAct = menu.addAction("Fill All Zones [B]");
+        QAction* unfillZonesAct = menu.addAction("Unfill All Zones [Ctrl+B]");
+        menu.addSeparator();
+        QAction* zoomFitAct = menu.addAction("Zoom Fit [Home]");
+        QAction* selectAllAct = menu.addAction("Select All [Ctrl+A]");
+        
+        QAction* selectedAct = menu.exec(event->globalPos());
+        if (selectedAct == routeAct) setCurrentTool("Trace");
+        else if (selectedAct == viaAct) setCurrentTool("Via");
+        else if (selectedAct == addCompAct) setCurrentTool("Component");
+        else if (selectedAct == addPourAct) setCurrentTool("Copper Pour");
+        else if (selectedAct == fillZonesAct) {
+            for (auto* it : scene()->items()) {
+                if (auto* pour = dynamic_cast<CopperPourItem*>(it)) pour->rebuild();
+            }
+            scene()->update();
+        } else if (selectedAct == unfillZonesAct) {
+            for (auto* it : scene()->items()) {
+                if (auto* pour = dynamic_cast<CopperPourItem*>(it)) pour->setFilled(false);
+            }
+            scene()->update();
+        } else if (selectedAct == zoomFitAct) {
+            if (!scene()->items().isEmpty()) {
+                fitInView(scene()->itemsBoundingRect(), Qt::KeepAspectRatio);
+            }
+        } else if (selectedAct == selectAllAct) {
+            for (auto* it : scene()->items()) it->setSelected(true);
+        }
         return;
     }
 
@@ -461,13 +496,7 @@ void PCBView::contextMenuEvent(QContextMenuEvent *event) {
     }
 
     if (selectedPCBItems.isEmpty()) {
-        QGraphicsView::contextMenuEvent(event);
         return;
-    }
-
-    QMenu menu(this);
-    if (ThemeManager::theme()) {
-        menu.setStyleSheet(ThemeManager::theme()->widgetStylesheet());
     }
 
     QAction* rotateAct = menu.addAction("Rotate (90°)");

@@ -97,6 +97,8 @@
 #include <algorithm>
 #include <cmath>
 
+#include "../import/kicad_pcb_importer.h"
+
 void MainWindow::onNewProject() {
     if (!m_scene) return;
     
@@ -112,6 +114,21 @@ void MainWindow::onNewProject() {
 
 bool MainWindow::openFile(const QString& filePath) {
     if (filePath.isEmpty()) return false;
+
+    if (filePath.endsWith(".kicad_pcb", Qt::CaseInsensitive)) {
+        m_scene->clear();
+        auto stats = KiCadPCBImporter::importKiCadPCB(filePath, m_scene);
+        if (stats.success) {
+            m_currentFilePath = filePath;
+            setWindowTitle("Viora EDA - PCB Editor [" + QFileInfo(filePath).fileName() + "]");
+            statusBar()->showMessage(QString("Imported KiCad PCB: %1 (%2 traces, %3 vias, %4 footprints)")
+                .arg(filePath).arg(stats.tracesCount).arg(stats.viasCount).arg(stats.footprintsCount), 5000);
+            return true;
+        } else {
+            statusBar()->showMessage("Error importing KiCad PCB: " + stats.error, 5000);
+            return false;
+        }
+    }
 
     if (PCBFileIO::loadPCB(m_scene, filePath)) {
         m_currentFilePath = filePath;

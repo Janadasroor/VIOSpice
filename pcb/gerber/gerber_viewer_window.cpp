@@ -77,6 +77,23 @@ void GerberViewerWindow::setupUI() {
     connect(backgroundAct, &QAction::triggered, this, &GerberViewerWindow::onSelectBackgroundColor);
     
     toolbar->addSeparator();
+
+    QAction* wireframeAct = toolbar->addAction("Wireframe");
+    wireframeAct->setCheckable(true);
+    connect(wireframeAct, &QAction::toggled, this, [this](bool on) { if (m_view) m_view->setWireframeMode(on); });
+
+    QAction* dcodeAct = toolbar->addAction("D-Codes");
+    dcodeAct->setCheckable(true);
+    connect(dcodeAct, &QAction::toggled, this, [this](bool on) { if (m_view) m_view->setShowDCodes(on); });
+
+    QAction* measureAct = toolbar->addAction("Measure (M)");
+    measureAct->setCheckable(true);
+    connect(measureAct, &QAction::toggled, this, [this](bool on) { if (m_view) m_view->setMeasureMode(on); });
+
+    QAction* inspectAct = toolbar->addAction("D-Code List...");
+    connect(inspectAct, &QAction::triggered, this, &GerberViewerWindow::onInspectApertures);
+    
+    toolbar->addSeparator();
     
     QWidget* spacer = new QWidget();
     spacer->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
@@ -260,4 +277,57 @@ void GerberViewerWindow::refreshViews() {
     if (m_3dView) {
         m_3dView->setLayers(m_loadedLayers);
     }
+}
+
+#include <QDialog>
+#include <QTableWidget>
+#include <QHeaderView>
+
+void GerberViewerWindow::onInspectApertures() {
+    QDialog dlg(this);
+    dlg.setWindowTitle("D-Code & Aperture Table Inspection");
+    dlg.resize(680, 480);
+    QVBoxLayout* layout = new QVBoxLayout(&dlg);
+
+    QTableWidget* table = new QTableWidget(&dlg);
+    table->setColumnCount(6);
+    table->setHorizontalHeaderLabels({"Layer", "D-Code", "Type", "Dimensions (mm)", "Flashes", "Draws"});
+    table->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
+
+    int row = 0;
+    for (GerberLayer* layer : m_loadedLayers) {
+        if (!layer) continue;
+        QMap<int, int> flashCounts;
+        QMap<int, int> drawCounts;
+        for (const auto& prim : layer->primitives()) {
+            if (prim.type == GerberPrimitive::Flash) flashCounts[prim.apertureId]++;
+            else if (prim.type == GerberPrimitive::Line) drawCounts[prim.apertureId]++;
+        }
+
+        for (auto it = flashCounts.begin(); it != flashCounts.end(); ++it) {
+            const int apId = it.key();
+            GerberAperture ap = layer->getAperture(apId);
+            table->insertRow(row);
+            table->setItem(row, 0, new QTableWidgetItem(layer->name()));
+            table->setItem(row, 1, new QTableWidgetItem(QString("D%1").arg(apId)));
+            
+            QString typeStr = "Circle";
+            if (ap.type == GerberAperture::Rectangle) typeStr = "Rectangle";
+            else if (ap.type == GerberAperture::Obround) typeStr = "Obround";
+            else if (ap.type == GerberAperture::Polygon) typeStr = "Polygon";
+            else if (ap.type == GerberAperture::Macro) typeStr = "Macro";
+            table->setItem(row, 2, new QTableWidgetItem(typeStr));
+
+            QString dims = ap.params.isEmpty() ? "-" : QString::number(ap.params[0], 'f', 3);
+            if (ap.params.size() > 1) dims += QString(" x %1").arg(ap.params[1], 0, 'f', 3);
+            table->setItem(row, 3, new QTableWidgetItem(dims));
+
+            table->setItem(row, 4, new QTableWidgetItem(QString::number(it.value())));
+            table->setItem(row, 5, new QTableWidgetItem(QString::number(drawCounts.value(apId, 0))));
+            row++;
+        }
+    }
+
+    layout->addWidget(table);
+    dlg.exec();
 }

@@ -1299,7 +1299,6 @@ void SymbolLibraryManager::loadUserLibraries(const QString& userLibPath, bool as
                 }
                 addLibrary(lib);
                 didChangeLibraries = true;
-                qDebug() << "Loaded external library from cache as stubs:" << filePath;
             } else {
                 // Cold run: load fully and store in cache
                 if (lib->load(filePath)) {
@@ -1323,7 +1322,6 @@ void SymbolLibraryManager::loadUserLibraries(const QString& userLibPath, bool as
                         }
                     }
                     metadataCache.storeSymbolInfos(fileInfo, symbolInfos);
-                    qDebug() << "Loaded external library (cold run) and cached:" << filePath;
                 } else {
                     delete lib;
                     qWarning() << "Failed to load library:" << filePath;

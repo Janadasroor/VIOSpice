@@ -21,7 +21,20 @@
 #include "pcb/models/board_model.h"
 #include "pcb/layers/pcb_layer.h"
 #include "pcb/analysis/pcb_auto_router.h"
-#include "net_class.h"
+#include "pcb/analysis/pcb_tracks_cleaner.h"
+#include "pcb/analysis/pcb_teardrop_generator.h"
+#include "pcb/analysis/pcb_array_generator.h"
+#include "pcb/analysis/pcb_via_fence_generator.h"
+#include "pcb/analysis/pcb_stackup_manager.h"
+#include "pcb/analysis/serpentine_generator.h"
+#include "pcb/analysis/length_match_manager.h"
+#include "pcb/drc/pcb_drc.h"
+#include "pcb/models/drc_types.h"
+#include "pcb/import/kicad_pcb_importer.h"
+#include "pcb/gerber/gerber_exporter.h"
+#include "pcb/mcad/mcad_exporter.h"
+#include "pcb/manufacturing/manufacturing_exporter.h"
+#include "pcb/editor/pcb_export_manager.h"
 
 #include "flux/schematic/io/schematic_file_io.h"
 #include "schematic/io/netlist_generator.h"
@@ -276,7 +289,6 @@ public:
         rect.adjust(-marginVal, -marginVal, marginVal, marginVal);
 
         const qreal scale = qMax(0.1, parser.value("scale").toDouble());
-        QImage image(rect.size().toSize() * scale, QImage::Format_ARGB32);
         const bool transparent = parser.isSet("transparent");
         const bool showGrid = parser.isSet("grid");
         const bool showLabels = parser.isSet("labels");
@@ -293,57 +305,85 @@ public:
         } else {
             bgColor = QColor(20, 25, 30); // Dark fab view
         }
+
+        qreal renderScale = parser.isSet("scale") ? parser.value("scale").toDouble() : 25.0;
+        int imgW = qRound(rect.width() * renderScale);
+        int imgH = qRound(rect.height() * renderScale);
+
+        // Enforce minimum high-definition 1600px width
+        if (imgW < 1600) {
+            double fitScale = 1600.0 / qMax(1.0, rect.width());
+            imgW = qRound(rect.width() * fitScale);
+            imgH = qRound(rect.height() * fitScale);
+            renderScale = fitScale;
+        }
+
+        QImage image(QSize(imgW, imgH), QImage::Format_ARGB32_Premultiplied);
         image.fill(bgColor);
 
         QPainter painter(&image);
         painter.setRenderHint(QPainter::Antialiasing, true);
+        painter.setRenderHint(QPainter::TextAntialiasing, true);
         painter.setRenderHint(QPainter::SmoothPixmapTransform, true);
 
-        // Draw subtle grid if requested
+        QRectF targetRect(0.0, 0.0, (qreal)imgW, (qreal)imgH);
+
+        // Draw grid overlay mapped to target coordinates
         if (showGrid && !transparent) {
-            QPen gridPen(QColor(255, 255, 255, 15), 0.1);
+            painter.save();
+            QPen gridPen(QColor(255, 255, 255, 25), 1.0);
             painter.setPen(gridPen);
-            qreal gridStep = 1.0; // 1mm grid
+            qreal gridStep = 2.0; // 2mm grid step
             for (qreal x = rect.left(); x <= rect.right(); x += gridStep) {
-                painter.drawLine(QPointF(x, rect.top()), QPointF(x, rect.bottom()));
+                qreal pxX = (x - rect.left()) / rect.width() * imgW;
+                painter.drawLine(QPointF(pxX, 0), QPointF(pxX, imgH));
             }
             for (qreal y = rect.top(); y <= rect.bottom(); y += gridStep) {
-                painter.drawLine(QPointF(rect.left(), y), QPointF(rect.right(), y));
+                qreal pxY = (y - rect.top()) / rect.height() * imgH;
+                painter.drawLine(QPointF(0, pxY), QPointF(imgW, pxY));
+            }
+            painter.restore();
+        }
+
+        // Hide raw text primitives to avoid FreeType glyph rendering underflow in headless export
+        for (auto* item : scene.items()) {
+            if (dynamic_cast<QGraphicsTextItem*>(item)) {
+                item->setVisible(false);
             }
         }
 
-        // Render the scene
-        scene.render(&painter, QRectF(), rect);
+        // Render scene onto high-res target rectangle
+        scene.render(&painter, targetRect, rect);
 
-        // Draw component labels if requested
+        // Draw component reference designator labels
         if (showLabels) {
-            QFont labelFont("Arial", qMax(6, (int)(scale * 0.8)));
+            int fontPt = qMax(12, qRound(renderScale * 0.45));
+            QFont labelFont("DejaVu Sans");
+            labelFont.setStyleHint(QFont::SansSerif);
+            labelFont.setPixelSize(fontPt);
             labelFont.setBold(true);
             painter.setFont(labelFont);
 
             for (auto* item : scene.items()) {
                 if (auto* comp = dynamic_cast<ComponentItem*>(item)) {
                     if (!comp->isVisible()) continue;
-                    QPointF pos = comp->pos();
-                    // Transform to image coordinates
-                    QPointF imgPos = (pos - rect.topLeft()) * scale;
+                    QPointF pos = comp->scenePos();
+                    qreal pxX = (pos.x() - rect.left()) / rect.width() * imgW;
+                    qreal pxY = (pos.y() - rect.top()) / rect.height() * imgH;
+
                     QString label = comp->name();
                     if (label.isEmpty()) label = comp->componentType();
 
-                    // Draw label with background
                     QFontMetrics fm(labelFont);
-                    QRect textRect = fm.boundingRect(label);
-                    QPointF textPos(imgPos.x() - textRect.width() / 2.0,
-                                   imgPos.y() + scale * 3.0);
+                    int txtW = fm.horizontalAdvance(label);
+                    int txtH = fm.height();
+                    QPointF textPos(pxX - txtW / 2.0, pxY + txtH / 2.0 + renderScale * 1.2);
 
-                    // Background pill
+                    QRectF bgRect(textPos.x() - 4, textPos.y() - fm.ascent() - 2, txtW + 8, txtH + 4);
                     painter.setPen(Qt::NoPen);
-                    painter.setBrush(QColor(0, 0, 0, 180));
-                    QRectF bgRect(textPos.x() - 2, textPos.y() - fm.ascent() - 1,
-                                  textRect.width() + 4, fm.height() + 2);
-                    painter.drawRoundedRect(bgRect, 3, 3);
+                    painter.setBrush(QColor(0, 0, 0, 200));
+                    painter.drawRoundedRect(bgRect, 4, 4);
 
-                    // White text
                     painter.setPen(QColor(255, 255, 255));
                     painter.drawText(textPos, label);
                 }
@@ -352,7 +392,7 @@ public:
 
         painter.end();
 
-        if (!image.save(outPath)) {
+        if (!image.save(outPath, "PNG") && !image.save(outPath)) {
             std::cerr << "Failed to save image to " << outPath.toStdString() << std::endl;
             return 1;
         }
@@ -528,6 +568,7 @@ public:
         parser.addOption(QCommandLineOption("route-layers", "Routing layer selection: top | bottom | both (default: both)", "layers", "both"));
         parser.addOption(QCommandLineOption("add-netclass", "Inject net class rules: name=...,width=...,clearance=...", "spec"));
         parser.addOption(QCommandLineOption("assign-net", "Assign net to a net class: net=...,class=...", "spec"));
+        parser.addOption(QCommandLineOption("add-pour", "Inject copper pour: layer=...,net=...,clearance=...", "spec"));
         parser.addOption(QCommandLineOption("allow-diagonals", "Allow the auto-router to use 45-degree diagonal traces"));
         parser.addOption(QCommandLineOption("json", "Output results in JSON format"));
     }
@@ -545,6 +586,7 @@ public:
                 {"route-layers", "string"},
                 {"add-netclass", "string (repeatable)"},
                 {"assign-net", "string (repeatable)"},
+                {"add-pour", "string (repeatable)"},
                 {"allow-diagonals", "bool"},
                 {"json", "bool"}
             }}
@@ -846,6 +888,33 @@ public:
             routedCount = stats.routedConnections;
         }
 
+        // Add copper pours if requested
+        if (parser.isSet("add-pour")) {
+            for (const QString& pourStr : parser.values("add-pour")) {
+                auto props = parseProperties(pourStr);
+                int layer = props.value("layer", "1").toInt();
+                QString net = props.value("net", "GND");
+                double clearance = props.value("clearance", "0.3").toDouble();
+
+                QRectF bounds = scene.itemsBoundingRect();
+                if (bounds.isEmpty() || bounds.width() < 10) {
+                    bounds = QRectF(0, 0, 60, 50);
+                }
+                bounds = bounds.adjusted(-2.0, -2.0, 2.0, 2.0);
+
+                QPolygonF poly;
+                poly << bounds.topLeft() << bounds.topRight() << bounds.bottomRight() << bounds.bottomLeft() << bounds.topLeft();
+
+                auto* pour = new CopperPourItem();
+                pour->setLayer(layer);
+                pour->setNetName(net);
+                if (pour->model()) pour->model()->setClearance(clearance);
+                pour->setPolygon(poly);
+                scene.addItem(pour);
+                pour->rebuild();
+            }
+        }
+
         if (!PCBFileIO::savePCB(&scene, filePath)) {
             std::cerr << "Failed to save PCB file: " << PCBFileIO::lastError().toStdString() << std::endl;
             return 1;
@@ -867,11 +936,182 @@ public:
                 std::cout << "Successfully composed PCB: added " << addedComps << " components, "
                           << addedTraces << " traces, " << addedVias << " vias; deleted "
                           << deletedCount << " items." << std::endl;
-                if (parser.isSet("auto-route")) {
+                if (routedCount > 0) {
                     std::cout << "Auto-routed " << routedCount << " net connections." << std::endl;
                 }
             }
         }
+        return 0;
+    }
+};
+
+class PcbExportCommand : public CLICommand {
+public:
+    QString name() const override { return "pcb-export"; }
+    QString description() const override { return "Export PCB layout to manufacturing formats (Gerber, Drill, STEP, IGES, IPC-2581, ODB++, Pick-and-Place)."; }
+
+    void setupParser(QCommandLineParser& parser) override {
+        parser.addOption(QCommandLineOption(QStringList() << "f" << "format", "Export format: gerber | pdf | step | iges | ipc2581 | odb | pos (default: gerber)", "format", "gerber"));
+        parser.addOption(QCommandLineOption(QStringList() << "o" << "output", "Output directory or file path (default: ./output)", "path", "./output"));
+        parser.addOption(QCommandLineOption("pdf-page", "PDF Page size: a4 | a3 | a2 | letter | board (crop to board only)", "size", "a4"));
+        parser.addOption(QCommandLineOption("pdf-scale", "PDF Scale mode: 1:1 | fit (default: 1:1)", "scale", "1:1"));
+        parser.addOption(QCommandLineOption("pdf-mirror", "Mirror plot (horizontal flip for bottom layer etching)"));
+        parser.addOption(QCommandLineOption("pdf-drill-marks", "Drill marks: none | small | full (default: small)", "mode", "small"));
+        parser.addOption(QCommandLineOption("pdf-no-title-block", "Omit drawing frame and title block (clean plot)"));
+        parser.addOption(QCommandLineOption("pdf-monochrome", "Black and white vector plot"));
+        parser.addOption(QCommandLineOption("json", "Output results in JSON format"));
+    }
+
+    QJsonObject inputSchema() const override {
+        return QJsonObject{
+            {"args", QJsonArray{"file.pcb"}},
+            {"options", QJsonObject{
+                {"format", "string"},
+                {"output", "string"},
+                {"json", "bool"}
+            }}
+        };
+    }
+
+    QJsonObject outputSchema() const override {
+        return QJsonObject{
+            {"ok", "bool"},
+            {"file", "string"},
+            {"format", "string"},
+            {"output", "string"},
+            {"generatedFiles", "array"}
+        };
+    }
+
+    int execute(const QStringList& args, const QCommandLineParser& parser) override {
+        if (args.isEmpty()) {
+            std::cerr << "Usage: viora pcb-export <file.pcb> [--format gerber|pdf|step|iges|ipc2581|odb|pos] [--output <path>] [PDF options]" << std::endl;
+            return 1;
+        }
+
+        QString pcbPath = args.at(0);
+        QString format = parser.value("format").trimmed().toLower();
+        QString outputPath = parser.value("output").trimmed();
+        if (outputPath.isEmpty()) outputPath = "./output";
+
+        QGraphicsScene scene;
+        if (!PCBFileIO::loadPCB(&scene, pcbPath)) {
+            std::cerr << "Error loading PCB file: " << PCBFileIO::lastError().toStdString() << std::endl;
+            return 1;
+        }
+
+        QStringList generatedFiles;
+        bool ok = true;
+        QString errorMsg;
+
+        if (format == "pdf") {
+            PCBExportManager::PdfExportOptions opts;
+            opts.outputDirectory = outputPath;
+            opts.mirrorPlot = parser.isSet("pdf-mirror");
+            opts.titleBlock = !parser.isSet("pdf-no-title-block");
+            opts.blackAndWhite = parser.isSet("pdf-monochrome");
+
+            QString scaleVal = parser.value("pdf-scale").trimmed().toLower();
+            opts.oneToOne = (scaleVal != "fit");
+
+            QString pageVal = parser.value("pdf-page").trimmed().toLower();
+            if (pageVal == "board" || pageVal == "crop") opts.pageSizeMode = -1;
+            else if (pageVal == "a3") opts.pageSizeMode = 1;
+            else if (pageVal == "a2") opts.pageSizeMode = 2;
+            else if (pageVal == "letter") opts.pageSizeMode = 3;
+            else opts.pageSizeMode = 0; // A4 default
+
+            QString drillVal = parser.value("pdf-drill-marks").trimmed().toLower();
+            if (drillVal == "none") opts.drillMarksMode = 0;
+            else if (drillVal == "full") opts.drillMarksMode = 2;
+            else opts.drillMarksMode = 1;
+
+            ok = PCBExportManager::exportPDFHeadless(&scene, opts, &generatedFiles, &errorMsg);
+        } else if (format == "gerber") {
+            QDir().mkpath(outputPath);
+            QDir outDir(outputPath);
+            GerberExportSettings settings;
+            settings.outputDirectory = outputPath;
+
+            const auto& layers = PCBLayerManager::instance().layers();
+            for (const auto& layer : layers) {
+                QString safeName = layer.name().toLower().replace(' ', '_');
+                QString filePath = outDir.filePath(safeName + ".gbr");
+                if (GerberExporter::exportLayer(&scene, layer.id(), filePath, settings)) {
+                    generatedFiles.append(filePath);
+                }
+            }
+
+            QString drillPath = outDir.filePath("drills.drl");
+            if (GerberExporter::generateDrillFile(&scene, drillPath)) {
+                generatedFiles.append(drillPath);
+            }
+        } else if (format == "step") {
+            QFileInfo fi(outputPath);
+            if (fi.isDir() || !outputPath.endsWith(".step", Qt::CaseInsensitive)) {
+                QDir().mkpath(outputPath);
+                outputPath = QDir(outputPath).filePath(QFileInfo(pcbPath).baseName() + ".step");
+            }
+            ok = MCADExporter::exportSTEPWireframe(&scene, outputPath, &errorMsg);
+            if (ok) generatedFiles.append(outputPath);
+        } else if (format == "iges") {
+            QFileInfo fi(outputPath);
+            if (fi.isDir() || !outputPath.endsWith(".igs", Qt::CaseInsensitive)) {
+                QDir().mkpath(outputPath);
+                outputPath = QDir(outputPath).filePath(QFileInfo(pcbPath).baseName() + ".igs");
+            }
+            ok = MCADExporter::exportIGESWireframe(&scene, outputPath, &errorMsg);
+            if (ok) generatedFiles.append(outputPath);
+        } else if (format == "ipc2581") {
+            QFileInfo fi(outputPath);
+            if (fi.isDir() || !outputPath.endsWith(".xml", Qt::CaseInsensitive)) {
+                QDir().mkpath(outputPath);
+                outputPath = QDir(outputPath).filePath(QFileInfo(pcbPath).baseName() + "_ipc2581.xml");
+            }
+            ok = ManufacturingExporter::exportIPC2581(&scene, outputPath, &errorMsg);
+            if (ok) generatedFiles.append(outputPath);
+        } else if (format == "odb") {
+            QDir().mkpath(outputPath);
+            ok = ManufacturingExporter::exportODBppPackage(&scene, outputPath, &errorMsg);
+            if (ok) generatedFiles.append(outputPath);
+        } else if (format == "pos") {
+            QFileInfo fi(outputPath);
+            if (fi.isDir() || !outputPath.endsWith(".csv", Qt::CaseInsensitive)) {
+                QDir().mkpath(outputPath);
+                outputPath = QDir(outputPath).filePath(QFileInfo(pcbPath).baseName() + "_pos.csv");
+            }
+            ManufacturingExporter::PickPlaceOptions opts;
+            ok = ManufacturingExporter::exportPickPlace(&scene, outputPath, opts, &errorMsg);
+            if (ok) generatedFiles.append(outputPath);
+        } else {
+            std::cerr << "Unsupported export format: " << format.toStdString() << std::endl;
+            return 1;
+        }
+
+        if (!ok) {
+            std::cerr << "Export failed: " << errorMsg.toStdString() << std::endl;
+            return 1;
+        }
+
+        QJsonObject out;
+        out["ok"] = true;
+        out["file"] = pcbPath;
+        out["format"] = format;
+        out["output"] = outputPath;
+        QJsonArray genArr;
+        for (const auto& f : generatedFiles) genArr.append(f);
+        out["generatedFiles"] = genArr;
+
+        if (parser.isSet("json")) {
+            printJsonValue(out);
+        } else {
+            if (!g_quiet) {
+                std::cout << "Successfully exported " << format.toUpper().toStdString() 
+                          << " files to " << outputPath.toStdString() 
+                          << " (" << generatedFiles.size() << " files generated)." << std::endl;
+            }
+        }
+
         return 0;
     }
 };
@@ -1234,6 +1474,745 @@ public:
     }
 };
 
+class PcbCleanupCommand : public CLICommand {
+public:
+    QString name() const override { return "pcb-cleanup"; }
+    QString description() const override { return "Automated Board Cleanup: Purge dangling tracks/vias, zero-length tracks, duplicate vias, and merge collinear segments."; }
+    void setupParser(QCommandLineParser& parser) override {
+        parser.addOption(QCommandLineOption({"out", "o"}, "Output PCB file path.", "output"));
+    }
+    QJsonObject inputSchema() const override {
+        return QJsonObject{{"args", QJsonArray{"file.pcb"}}, {"options", QJsonObject{{"out", "string"}}}};
+    }
+    QJsonObject outputSchema() const override {
+        return QJsonObject{
+            {"file", "string"},
+            {"outputFile", "string"},
+            {"cleanedTotal", "int"},
+            {"zeroLengthTracesRemoved", "int"},
+            {"duplicateViasRemoved", "int"},
+            {"danglingTracesRemoved", "int"},
+            {"danglingViasRemoved", "int"},
+            {"collinearTracesMerged", "int"}
+        };
+    }
+    int execute(const QStringList& args, const QCommandLineParser& parser) override {
+        if (args.isEmpty()) {
+            std::cerr << "Usage: viora pcb-cleanup <file.pcb> [--out <output.pcb>]" << std::endl;
+            return 1;
+        }
+
+        QString filePath = args.first();
+        QGraphicsScene scene;
+        if (!PCBFileIO::loadPCB(&scene, filePath)) {
+            std::cerr << "Error: Could not load PCB file: " << filePath.toStdString() << std::endl;
+            return 1;
+        }
+
+        PCBTracksCleaner::Options opts;
+        PCBTracksCleaner::Report report = PCBTracksCleaner::cleanBoard(&scene, opts);
+
+        QString outPath = parser.value("out");
+        if (outPath.isEmpty()) outPath = filePath;
+
+        if (!PCBFileIO::savePCB(&scene, outPath)) {
+            std::cerr << "Error: Failed to save cleaned PCB file to: " << outPath.toStdString() << std::endl;
+            return 1;
+        }
+
+        QJsonObject out{
+            {"file", filePath},
+            {"outputFile", outPath},
+            {"cleanedTotal", report.totalItemsCleaned()},
+            {"zeroLengthTracesRemoved", report.zeroLengthTracesRemoved},
+            {"duplicateViasRemoved", report.duplicateViasRemoved},
+            {"danglingTracesRemoved", report.danglingTracesRemoved},
+            {"danglingViasRemoved", report.danglingViasRemoved},
+            {"collinearTracesMerged", report.collinearTracesMerged}
+        };
+
+        if (parser.isSet("json")) {
+            printJsonValue(out);
+        } else {
+            std::cout << "PCB Board Cleanup Report for: " << filePath.toStdString() << "\n";
+            std::cout << "========================================================================\n";
+            std::cout << "Zero-Length Traces Removed : " << report.zeroLengthTracesRemoved << "\n";
+            std::cout << "Duplicate Vias Removed    : " << report.duplicateViasRemoved << "\n";
+            std::cout << "Dangling Traces Removed   : " << report.danglingTracesRemoved << "\n";
+            std::cout << "Dangling Vias Removed     : " << report.danglingViasRemoved << "\n";
+            std::cout << "Collinear Traces Merged   : " << report.collinearTracesMerged << "\n";
+            std::cout << "------------------------------------------------------------------------\n";
+            std::cout << "Total Items Cleaned       : " << report.totalItemsCleaned() << "\n";
+            std::cout << "Output Saved To           : " << outPath.toStdString() << "\n";
+        }
+
+        return 0;
+    }
+};
+
+class PcbTeardropsCommand : public CLICommand {
+public:
+    QString name() const override { return "pcb-teardrops"; }
+    QString description() const override { return "Smart Teardrop Generator: Add or remove curved/filleted teardrop transitions on pads, vias, and traces."; }
+    void setupParser(QCommandLineParser& parser) override {
+        parser.addOption(QCommandLineOption({"out", "o"}, "Output PCB file path.", "output"));
+        parser.addOption(QCommandLineOption("remove", "Remove all teardrops from the PCB layout."));
+        parser.addOption(QCommandLineOption("shape", "Teardrop shape: curved, fillet, arc (default: curved).", "shape", "curved"));
+    }
+    QJsonObject inputSchema() const override {
+        return QJsonObject{{"args", QJsonArray{"file.pcb"}}, {"options", QJsonObject{{"out", "string"}, {"remove", "bool"}, {"shape", "string"}}}};
+    }
+    QJsonObject outputSchema() const override {
+        return QJsonObject{
+            {"file", "string"},
+            {"outputFile", "string"},
+            {"totalTeardropsAdded", "int"},
+            {"padTeardropsAdded", "int"},
+            {"viaTeardropsAdded", "int"},
+            {"teardropsRemoved", "int"}
+        };
+    }
+    int execute(const QStringList& args, const QCommandLineParser& parser) override {
+        if (args.isEmpty()) {
+            std::cerr << "Usage: viora pcb-teardrops <file.pcb> [--out <output.pcb>] [--remove] [--shape <curved|fillet|arc>]" << std::endl;
+            return 1;
+        }
+
+        QString filePath = args.first();
+        QGraphicsScene scene;
+        if (!PCBFileIO::loadPCB(&scene, filePath)) {
+            std::cerr << "Error: Could not load PCB file: " << filePath.toStdString() << std::endl;
+            return 1;
+        }
+
+        bool isRemove = parser.isSet("remove");
+        int removedCount = 0;
+        PCBTeardropGenerator::Report report;
+
+        if (isRemove) {
+            removedCount = PCBTeardropGenerator::removeTeardrops(&scene);
+        } else {
+            PCBTeardropGenerator::Options opts;
+            QString shapeStr = parser.value("shape").toLower();
+            if (shapeStr == "fillet") opts.shape = PCBTeardropGenerator::TeardropShape::Fillet;
+            else if (shapeStr == "arc") opts.shape = PCBTeardropGenerator::TeardropShape::Arc;
+            else opts.shape = PCBTeardropGenerator::TeardropShape::Curved;
+
+            report = PCBTeardropGenerator::addTeardrops(&scene, opts);
+        }
+
+        QString outPath = parser.value("out");
+        if (outPath.isEmpty()) outPath = filePath;
+
+        if (!PCBFileIO::savePCB(&scene, outPath)) {
+            std::cerr << "Error: Failed to save PCB file to: " << outPath.toStdString() << std::endl;
+            return 1;
+        }
+
+        QJsonObject out{
+            {"file", filePath},
+            {"outputFile", outPath},
+            {"totalTeardropsAdded", report.totalTeardropsAdded()},
+            {"padTeardropsAdded", report.padTeardropsAdded},
+            {"viaTeardropsAdded", report.viaTeardropsAdded},
+            {"teardropsRemoved", removedCount}
+        };
+
+        if (parser.isSet("json")) {
+            printJsonValue(out);
+        } else {
+            std::cout << "PCB Teardrop Generator Report for: " << filePath.toStdString() << "\n";
+            std::cout << "========================================================================\n";
+            if (isRemove) {
+                std::cout << "Teardrops Removed         : " << removedCount << "\n";
+            } else {
+                std::cout << "Pad Teardrops Added       : " << report.padTeardropsAdded << "\n";
+                std::cout << "Via Teardrops Added       : " << report.viaTeardropsAdded << "\n";
+                std::cout << "------------------------------------------------------------------------\n";
+                std::cout << "Total Teardrops Added     : " << report.totalTeardropsAdded() << "\n";
+            }
+            std::cout << "Output Saved To           : " << outPath.toStdString() << "\n";
+        }
+
+        return 0;
+    }
+};
+
+class PcbArrayCommand : public CLICommand {
+public:
+    QString name() const override { return "pcb-array"; }
+    QString description() const override { return "Grid & Circular Array Placement Generator for PCB items."; }
+    void setupParser(QCommandLineParser& parser) override {
+        parser.addOption(QCommandLineOption({"out", "o"}, "Output PCB file path.", "output"));
+        parser.addOption(QCommandLineOption("mode", "Array mode: rect or polar (default: rect).", "mode", "rect"));
+        parser.addOption(QCommandLineOption("count", "Number of array items.", "count", "8"));
+        parser.addOption(QCommandLineOption("radius", "Radius for polar array (mm).", "radius", "15.0"));
+        parser.addOption(QCommandLineOption("cols", "Grid columns.", "cols", "3"));
+        parser.addOption(QCommandLineOption("rows", "Grid rows.", "rows", "3"));
+        parser.addOption(QCommandLineOption("dx", "Delta X spacing (mm).", "dx", "5.0"));
+        parser.addOption(QCommandLineOption("dy", "Delta Y spacing (mm).", "dy", "5.0"));
+    }
+    QJsonObject inputSchema() const override { return QJsonObject(); }
+    QJsonObject outputSchema() const override { return QJsonObject(); }
+    int execute(const QStringList& args, const QCommandLineParser& parser) override {
+        if (args.isEmpty()) {
+            std::cerr << "Usage: viora pcb-array <file.pcb> [--out <output.pcb>] [--mode <rect|polar>]" << std::endl;
+            return 1;
+        }
+
+        QString filePath = args.first();
+        QGraphicsScene scene;
+        if (!PCBFileIO::loadPCB(&scene, filePath)) {
+            std::cerr << "Error: Could not load PCB file: " << filePath.toStdString() << std::endl;
+            return 1;
+        }
+
+        QList<PCBItem*> sourceItems;
+        for (auto* item : scene.items()) {
+            if (PCBItem* pcb = dynamic_cast<PCBItem*>(item)) {
+                sourceItems.append(pcb);
+                break; // Use first item as array source if no selection
+            }
+        }
+
+        if (sourceItems.isEmpty()) {
+            std::cerr << "Error: No items found in PCB layout to array." << std::endl;
+            return 1;
+        }
+
+        PCBArrayGenerator::Options opts;
+        QString modeStr = parser.value("mode").toLower();
+        if (modeStr == "polar" || modeStr == "circular") {
+            opts.mode = PCBArrayGenerator::ArrayMode::Circular;
+            opts.count = parser.value("count").toInt();
+            opts.radius = parser.value("radius").toDouble();
+        } else {
+            opts.mode = PCBArrayGenerator::ArrayMode::Rectangular;
+            opts.cols = parser.value("cols").toInt();
+            opts.rows = parser.value("rows").toInt();
+            opts.deltaX = parser.value("dx").toDouble();
+            opts.deltaY = parser.value("dy").toDouble();
+        }
+
+        PCBArrayGenerator::Report report = PCBArrayGenerator::createArray(&scene, sourceItems, opts);
+
+        QString outPath = parser.value("out");
+        if (outPath.isEmpty()) outPath = filePath;
+
+        if (!PCBFileIO::savePCB(&scene, outPath)) {
+            std::cerr << "Error: Failed to save PCB file to: " << outPath.toStdString() << std::endl;
+            return 1;
+        }
+
+        QJsonObject out{
+            {"file", filePath},
+            {"outputFile", outPath},
+            {"itemsCreated", report.itemsCreated}
+        };
+
+        if (parser.isSet("json")) {
+            printJsonValue(out);
+        } else {
+            std::cout << "PCB Array Generator Report for: " << filePath.toStdString() << "\n";
+            std::cout << "========================================================================\n";
+            std::cout << "Items Created             : " << report.itemsCreated << "\n";
+            std::cout << "Output Saved To           : " << outPath.toStdString() << "\n";
+        }
+
+        return 0;
+    }
+};
+
+class PcbViaFenceCommand : public CLICommand {
+public:
+    QString name() const override { return "pcb-via-fence"; }
+    QString description() const override { return "RF & High-Speed Via Fencing Generator."; }
+    void setupParser(QCommandLineParser& parser) override {
+        parser.addOption(QCommandLineOption({"out", "o"}, "Output PCB file path.", "output"));
+        parser.addOption(QCommandLineOption("net", "Via net name.", "net", "GND"));
+        parser.addOption(QCommandLineOption("pitch", "Via pitch spacing (mm).", "pitch", "1.5"));
+        parser.addOption(QCommandLineOption("offset", "Fence offset distance (mm).", "offset", "1.0"));
+    }
+    QJsonObject inputSchema() const override { return QJsonObject(); }
+    QJsonObject outputSchema() const override { return QJsonObject(); }
+    int execute(const QStringList& args, const QCommandLineParser& parser) override {
+        if (args.isEmpty()) {
+            std::cerr << "Usage: viora pcb-via-fence <file.pcb> [--out <output.pcb>] [--net GND] [--pitch 1.5]" << std::endl;
+            return 1;
+        }
+
+        QString filePath = args.first();
+        QGraphicsScene scene;
+        if (!PCBFileIO::loadPCB(&scene, filePath)) {
+            std::cerr << "Error: Could not load PCB file: " << filePath.toStdString() << std::endl;
+            return 1;
+        }
+
+        QList<TraceItem*> traces;
+        for (auto* item : scene.items()) {
+            if (auto* t = dynamic_cast<TraceItem*>(item)) traces.append(t);
+        }
+
+        PCBViaFenceGenerator::Options opts;
+        opts.netName = parser.value("net");
+        opts.viaPitch = parser.value("pitch").toDouble();
+        opts.offsetDistance = parser.value("offset").toDouble();
+
+        PCBViaFenceGenerator::Report report = PCBViaFenceGenerator::generateViaFence(&scene, traces, opts);
+
+        QString outPath = parser.value("out");
+        if (outPath.isEmpty()) outPath = filePath;
+
+        if (!PCBFileIO::savePCB(&scene, outPath)) {
+            std::cerr << "Error: Failed to save PCB file to: " << outPath.toStdString() << std::endl;
+            return 1;
+        }
+
+        QJsonObject out{
+            {"file", filePath},
+            {"outputFile", outPath},
+            {"viasPlaced", report.viasPlaced}
+        };
+
+        if (parser.isSet("json")) {
+            printJsonValue(out);
+        } else {
+            std::cout << "PCB Via Fence Generator Report for: " << filePath.toStdString() << "\n";
+            std::cout << "========================================================================\n";
+            std::cout << "Fence Vias Placed         : " << report.viasPlaced << "\n";
+            std::cout << "Output Saved To           : " << outPath.toStdString() << "\n";
+        }
+
+        return 0;
+    }
+};
+
+class PcbStackupCommand : public CLICommand {
+public:
+    QString name() const override { return "pcb-stackup"; }
+    QString description() const override { return "Layer Stackup & Dielectric Material Impedance Calculator."; }
+    void setupParser(QCommandLineParser& parser) override {
+        parser.addOption(QCommandLineOption("layers", "Number of copper layers.", "layers", "2"));
+        parser.addOption(QCommandLineOption("width", "Trace width for Z0 calculation (mm).", "width", "0.25"));
+        parser.addOption(QCommandLineOption("space", "Trace spacing for Zdiff calculation (mm).", "space", "0.20"));
+        parser.addOption(QCommandLineOption("thick", "Dielectric thickness (mm).", "thick", "0.20"));
+    }
+    QJsonObject inputSchema() const override { return QJsonObject(); }
+    QJsonObject outputSchema() const override { return QJsonObject(); }
+    int execute(const QStringList& args, const QCommandLineParser& parser) override {
+        int layersCount = parser.value("layers").toInt();
+        double w = parser.value("width").toDouble();
+        double s = parser.value("space").toDouble();
+        double h = parser.value("thick").toDouble();
+
+        auto stackup = PCBStackupManager::createStandardStackup(layersCount);
+        double z0 = PCBStackupManager::calculateMicrostripZ0(w, h);
+        double zDiff = PCBStackupManager::calculateDiffImpedance(w, s, h);
+
+        QJsonObject jsonOut = PCBStackupManager::toJson(stackup);
+        jsonOut["z0_Ohms"] = z0;
+        jsonOut["zDiff_Ohms"] = zDiff;
+
+        if (parser.isSet("json")) {
+            printJsonValue(jsonOut);
+        } else {
+            std::cout << "PCB Board Substrate Stackup & Impedance Report:\n";
+            std::cout << "========================================================================\n";
+            std::cout << "Copper Layers Count        : " << stackup.copperLayers << "\n";
+            std::cout << "Total Substrate Thickness  : " << stackup.totalThicknessMm << " mm\n";
+            std::cout << "------------------------------------------------------------------------\n";
+            std::cout << "Microstrip Z0 Impedance   : " << z0 << " Ohms (Width=" << w << "mm, H=" << h << "mm)\n";
+            std::cout << "Differential Zdiff        : " << zDiff << " Ohms (Width=" << w << "mm, Space=" << s << "mm)\n";
+        }
+
+        return 0;
+    }
+};
+
+class Pcb3DExportCommand : public CLICommand {
+public:
+    QString name() const override { return "pcb-3d-export"; }
+    QString description() const override { return "3D STEP, STL, OBJ, VRML, GLTF MCAD Board Exporter."; }
+    void setupParser(QCommandLineParser& parser) override {
+        parser.addOption(QCommandLineOption({"out", "o"}, "Output 3D MCAD file path.", "output"));
+        parser.addOption(QCommandLineOption("format", "3D Format: stl, obj, step, vrml, gltf (default: stl).", "format", "stl"));
+    }
+    QJsonObject inputSchema() const override { return QJsonObject(); }
+    QJsonObject outputSchema() const override { return QJsonObject(); }
+    int execute(const QStringList& args, const QCommandLineParser& parser) override {
+        if (args.isEmpty()) {
+            std::cerr << "Usage: viora pcb-3d-export <file.pcb> --out <output.stl|obj|step|vrml|gltf> [--format stl|obj|step|vrml|gltf]" << std::endl;
+            return 1;
+        }
+
+        QString filePath = args.first();
+        QGraphicsScene scene;
+        if (!PCBFileIO::loadPCB(&scene, filePath)) {
+            std::cerr << "Error: Could not load PCB file: " << filePath.toStdString() << std::endl;
+            return 1;
+        }
+
+        QString outPath = parser.value("out");
+        if (outPath.isEmpty()) {
+            outPath = QFileInfo(filePath).completeBaseName() + ".stl";
+        }
+
+        QString format = parser.value("format").toLower();
+        if (outPath.endsWith(".obj", Qt::CaseInsensitive)) format = "obj";
+        else if (outPath.endsWith(".step", Qt::CaseInsensitive) || outPath.endsWith(".stp", Qt::CaseInsensitive)) format = "step";
+        else if (outPath.endsWith(".vrml", Qt::CaseInsensitive) || outPath.endsWith(".wrl", Qt::CaseInsensitive)) format = "vrml";
+        else if (outPath.endsWith(".gltf", Qt::CaseInsensitive) || outPath.endsWith(".glb", Qt::CaseInsensitive)) format = "gltf";
+
+        QString error;
+        bool ok = false;
+        if (format == "obj") ok = MCADExporter::exportOBJ3D(&scene, outPath, &error);
+        else if (format == "step" || format == "stp") ok = MCADExporter::exportSTEPWireframe(&scene, outPath, &error);
+        else if (format == "vrml" || format == "wrl") ok = MCADExporter::exportVRMLAssembly(&scene, outPath, &error);
+        else if (format == "gltf" || format == "glb") ok = MCADExporter::exportGLTF3D(&scene, outPath, &error);
+        else ok = MCADExporter::exportSTL3D(&scene, outPath, &error);
+
+        if (!ok) {
+            std::cerr << "Error: 3D MCAD Export failed: " << error.toStdString() << std::endl;
+            return 1;
+        }
+
+        QJsonObject out{
+            {"file", filePath},
+            {"outputFile", outPath},
+            {"format", format},
+            {"status", "success"}
+        };
+
+        if (parser.isSet("json")) {
+            printJsonValue(out);
+        } else {
+            std::cout << "3D MCAD Board Export Report:\n";
+            std::cout << "========================================================================\n";
+            std::cout << "Input Layout              : " << filePath.toStdString() << "\n";
+            std::cout << "3D Export Format          : " << format.toUpper().toStdString() << "\n";
+            std::cout << "Output File               : " << outPath.toStdString() << "\n";
+            std::cout << "Status                    : SUCCESS\n";
+        }
+
+        return 0;
+    }
+};
+
+class PcbExportIpcCommand : public CLICommand {
+public:
+    QString name() const override { return "pcb-export-ipc"; }
+    QString description() const override { return "IPC-2581 / ODB++ Manufacturing Package Exporter."; }
+    void setupParser(QCommandLineParser& parser) override {
+        parser.addOption(QCommandLineOption({"out", "o"}, "Output file/directory path.", "output"));
+        parser.addOption(QCommandLineOption("format", "Format: ipc2581, odbpp, pickplace (default: ipc2581).", "format", "ipc2581"));
+    }
+    QJsonObject inputSchema() const override { return QJsonObject(); }
+    QJsonObject outputSchema() const override { return QJsonObject(); }
+    int execute(const QStringList& args, const QCommandLineParser& parser) override {
+        if (args.isEmpty()) {
+            std::cerr << "Usage: viora pcb-export-ipc <file.pcb> --out <output.xml|dir> [--format ipc2581|odbpp|pickplace]" << std::endl;
+            return 1;
+        }
+
+        QString filePath = args.first();
+        QGraphicsScene scene;
+        if (!PCBFileIO::loadPCB(&scene, filePath)) {
+            std::cerr << "Error: Could not load PCB file: " << filePath.toStdString() << std::endl;
+            return 1;
+        }
+
+        QString format = parser.value("format").toLower();
+        QString outPath = parser.value("out");
+        if (outPath.isEmpty()) {
+            if (format == "odbpp") outPath = QFileInfo(filePath).completeBaseName() + "_odbpp";
+            else if (format == "pickplace") outPath = QFileInfo(filePath).completeBaseName() + "_pos.csv";
+            else outPath = QFileInfo(filePath).completeBaseName() + "_ipc2581.xml";
+        }
+
+        QString error;
+        bool ok = false;
+        if (format == "odbpp") {
+            ok = ManufacturingExporter::exportODBppPackage(&scene, outPath, &error);
+        } else if (format == "pickplace" || format == "pos" || format == "centroid") {
+            ManufacturingExporter::PickPlaceOptions opts;
+            ok = ManufacturingExporter::exportPickPlace(&scene, outPath, opts, &error);
+        } else {
+            ok = ManufacturingExporter::exportIPC2581(&scene, outPath, &error);
+        }
+
+        if (!ok) {
+            std::cerr << "Error: Manufacturing export failed: " << error.toStdString() << std::endl;
+            return 1;
+        }
+
+        QJsonObject out{
+            {"file", filePath},
+            {"output", outPath},
+            {"format", format},
+            {"status", "success"}
+        };
+
+        if (parser.isSet("json")) {
+            printJsonValue(out);
+        } else {
+            std::cout << "Manufacturing Export Report:\n";
+            std::cout << "========================================================================\n";
+            std::cout << "Input PCB Layout          : " << filePath.toStdString() << "\n";
+            std::cout << "Export Format             : " << format.toUpper().toStdString() << "\n";
+            std::cout << "Output File / Directory   : " << outPath.toStdString() << "\n";
+            std::cout << "Status                    : SUCCESS\n";
+        }
+
+        return 0;
+    }
+};
+
+class PcbTuneLengthCommand : public CLICommand {
+public:
+    QString name() const override { return "pcb-tune-length"; }
+    QString description() const override { return "High-Speed Serpentine Meander & Differential Pair Length Tuning Engine."; }
+    void setupParser(QCommandLineParser& parser) override {
+        parser.addOption(QCommandLineOption({"out", "o"}, "Output PCB file path.", "output"));
+        parser.addOption(QCommandLineOption("net", "Target net name to tune.", "net"));
+        parser.addOption(QCommandLineOption("add", "Extra length to add (mm).", "add", "5.0"));
+        parser.addOption(QCommandLineOption("amplitude", "Serpentine amplitude (mm).", "amplitude", "1.5"));
+        parser.addOption(QCommandLineOption("spacing", "Serpentine spacing (mm).", "spacing", "0.3"));
+        parser.addOption(QCommandLineOption("pnet", "Differential pair P net name.", "pnet"));
+        parser.addOption(QCommandLineOption("nnet", "Differential pair N net name.", "nnet"));
+    }
+    QJsonObject inputSchema() const override { return QJsonObject(); }
+    QJsonObject outputSchema() const override { return QJsonObject(); }
+    int execute(const QStringList& args, const QCommandLineParser& parser) override {
+        if (args.isEmpty()) {
+            std::cerr << "Usage: viora pcb-tune-length <file.pcb> --net <netName> --add 5.0 [--out <output.pcb>]" << std::endl;
+            return 1;
+        }
+
+        QString filePath = args.first();
+        QGraphicsScene scene;
+        if (!PCBFileIO::loadPCB(&scene, filePath)) {
+            std::cerr << "Error: Could not load PCB file: " << filePath.toStdString() << std::endl;
+            return 1;
+        }
+
+        QString outPath = parser.value("out");
+        if (outPath.isEmpty()) outPath = filePath;
+
+        QString netName = parser.value("net");
+        QString pNet = parser.value("pnet");
+        QString nNet = parser.value("nnet");
+
+        int tunedCount = 0;
+        double addedLength = 0.0;
+
+        if (!pNet.isEmpty() && !nNet.isEmpty()) {
+            tunedCount = LengthMatchManager::instance().autoTuneDiffPair(pNet, nNet, &scene);
+        } else if (!netName.isEmpty()) {
+            SerpentineGenerator gen(&scene);
+            SerpentineGenerator::SerpentineConfig cfg;
+            cfg.netName = netName;
+            cfg.extraLength = parser.value("add").toDouble();
+            cfg.amplitude = parser.value("amplitude").toDouble();
+            cfg.spacing = parser.value("spacing").toDouble();
+            auto res = gen.generateSerpentine(cfg);
+            if (res.success) {
+                tunedCount = res.segmentsCreated;
+                addedLength = res.actualAddedLength;
+            } else {
+                std::cerr << "Error: Serpentine generation failed: " << res.error.toStdString() << std::endl;
+                return 1;
+            }
+        } else {
+            // Auto-tune all un-matched nets in scene
+            tunedCount = LengthMatchManager::instance().autoTuneAll(&scene);
+        }
+
+        if (!PCBFileIO::savePCB(&scene, outPath)) {
+            std::cerr << "Error: Failed to save tuned PCB to: " << outPath.toStdString() << std::endl;
+            return 1;
+        }
+
+        QJsonObject out{
+            {"file", filePath},
+            {"outputFile", outPath},
+            {"segmentsCreated", tunedCount},
+            {"addedLengthMm", addedLength},
+            {"status", "success"}
+        };
+
+        if (parser.isSet("json")) {
+            printJsonValue(out);
+        } else {
+            std::cout << "High-Speed Length Tuning Report for: " << filePath.toStdString() << "\n";
+            std::cout << "========================================================================\n";
+            std::cout << "Serpentine Segments Added : " << tunedCount << "\n";
+            std::cout << "Actual Added Length       : " << addedLength << " mm\n";
+            std::cout << "Output Saved To           : " << outPath.toStdString() << "\n";
+            std::cout << "Status                    : SUCCESS\n";
+        }
+
+        return 0;
+    }
+};
+
+class PcbDrcCommand : public CLICommand {
+public:
+    QString name() const override { return "pcb-drc"; }
+    QString description() const override { return "Run Automated Design Rule Check (DRC) on a PCB layout."; }
+    void setupParser(QCommandLineParser& parser) override {
+        parser.addOption(QCommandLineOption("clearance", "Minimum copper clearance (mm).", "clearance", "0.2"));
+        parser.addOption(QCommandLineOption("min-width", "Minimum trace width (mm).", "min-width", "0.2"));
+        parser.addOption(QCommandLineOption("min-drill", "Minimum via drill size (mm).", "min-drill", "0.3"));
+        parser.addOption(QCommandLineOption("out", "Output PCB file path.", "out"));
+    }
+    QJsonObject inputSchema() const override { return QJsonObject(); }
+    QJsonObject outputSchema() const override { return QJsonObject(); }
+    int execute(const QStringList& args, const QCommandLineParser& parser) override {
+        if (args.isEmpty()) {
+            std::cerr << "Usage: viora pcb-drc <file.pcb> [options]" << std::endl;
+            return 1;
+        }
+
+        QString filePath = args.first();
+        QGraphicsScene scene;
+        if (!PCBFileIO::loadPCB(&scene, filePath)) {
+            std::cerr << "Error: Could not load PCB file: " << filePath.toStdString() << std::endl;
+            return 1;
+        }
+
+        PCBDRC drc;
+        if (parser.isSet("clearance")) {
+            drc.rules().setMinClearance(parser.value("clearance").toDouble());
+        }
+        if (parser.isSet("min-width")) {
+            drc.rules().setMinTraceWidth(parser.value("min-width").toDouble());
+        }
+        if (parser.isSet("min-drill")) {
+            drc.rules().setMinDrillSize(parser.value("min-drill").toDouble());
+        }
+
+        drc.runFullCheck(&scene);
+
+        const auto& violations = drc.violations();
+        int errors = drc.errorCount();
+        int warnings = drc.warningCount();
+
+        QJsonArray violationArr;
+        for (const auto& v : violations) {
+            QJsonObject obj;
+            obj["type"] = v.typeString();
+            obj["severity"] = v.severityString();
+            obj["message"] = v.message();
+            obj["posX"] = v.location().x();
+            obj["posY"] = v.location().y();
+            violationArr.append(obj);
+        }
+
+        QJsonObject out{
+            {"file", filePath},
+            {"errorCount", errors},
+            {"warningCount", warnings},
+            {"totalViolations", violations.size()},
+            {"violations", violationArr},
+            {"status", (errors == 0) ? "PASS" : "FAIL"}
+        };
+
+        if (parser.isSet("json")) {
+            printJsonValue(out);
+        } else {
+            std::cout << "Design Rule Check (DRC) Report for: " << filePath.toStdString() << "\n";
+            std::cout << "========================================================================\n";
+            std::cout << "Errors Detected   : " << errors << "\n";
+            std::cout << "Warnings Detected : " << warnings << "\n";
+            std::cout << "DRC Status        : " << (errors == 0 ? "PASSED (0 Errors)" : "FAILED (Violations Found)") << "\n";
+            std::cout << "------------------------------------------------------------------------\n";
+            for (int i = 0; i < violations.size(); ++i) {
+                const auto& v = violations[i];
+                std::cout << QString("[%1] %2 at (%3, %4) mm: %5\n")
+                             .arg(v.severityString().toUpper())
+                             .arg(i + 1)
+                             .arg(v.location().x(), 0, 'f', 2)
+                             .arg(v.location().y(), 0, 'f', 2)
+                             .arg(v.message()).toStdString();
+            }
+        }
+
+        if (parser.isSet("out")) {
+            QString outPath = parser.value("out");
+            PCBFileIO::savePCB(&scene, outPath);
+            if (!parser.isSet("json")) {
+                std::cout << "PCB layout saved to: " << outPath.toStdString() << "\n";
+            }
+        }
+
+        return (errors == 0) ? 0 : 2;
+    }
+};
+
+class PcbImportKicadCommand : public CLICommand {
+public:
+    QString name() const override { return "pcb-import-kicad"; }
+    QString description() const override { return "Import a KiCad PCB layout (.kicad_pcb) into VioraEDA PCB format."; }
+    void setupParser(QCommandLineParser& parser) override {
+        parser.addOption(QCommandLineOption({"out", "o"}, "Output VioraEDA PCB file path.", "output"));
+    }
+    QJsonObject inputSchema() const override { return QJsonObject(); }
+    QJsonObject outputSchema() const override { return QJsonObject(); }
+    int execute(const QStringList& args, const QCommandLineParser& parser) override {
+        if (args.isEmpty()) {
+            std::cerr << "Usage: viora pcb-import-kicad <file.kicad_pcb> -o <out.pcb>" << std::endl;
+            return 1;
+        }
+
+        QString filePath = args.first();
+        QGraphicsScene scene;
+        auto stats = KiCadPCBImporter::importKiCadPCB(filePath, &scene);
+
+        if (!stats.success) {
+            std::cerr << "Error: Import failed: " << stats.error.toStdString() << std::endl;
+            return 1;
+        }
+
+        QString outPath = parser.value("out");
+        if (outPath.isEmpty()) {
+            outPath = filePath;
+            outPath.replace(QRegularExpression("\\.kicad_pcb$", QRegularExpression::CaseInsensitiveOption), ".pcb");
+        }
+
+        if (!PCBFileIO::savePCB(&scene, outPath)) {
+            std::cerr << "Error: Failed to save imported PCB to: " << outPath.toStdString() << std::endl;
+            return 1;
+        }
+
+        QJsonObject out{
+            {"file", filePath},
+            {"outputFile", outPath},
+            {"netsCount", stats.netsCount},
+            {"tracesCount", stats.tracesCount},
+            {"viasCount", stats.viasCount},
+            {"footprintsCount", stats.footprintsCount},
+            {"edgeCutsCount", stats.edgeCutsCount},
+            {"status", "success"}
+        };
+
+        if (parser.isSet("json")) {
+            printJsonValue(out);
+        } else {
+            std::cout << "KiCad PCB Import Report for: " << filePath.toStdString() << "\n";
+            std::cout << "========================================================================\n";
+            std::cout << "Nets Imported       : " << stats.netsCount << "\n";
+            std::cout << "Traces Imported     : " << stats.tracesCount << "\n";
+            std::cout << "Vias Imported       : " << stats.viasCount << "\n";
+            std::cout << "Footprints Imported : " << stats.footprintsCount << "\n";
+            std::cout << "Edge Cuts Lines     : " << stats.edgeCutsCount << "\n";
+            std::cout << "Output Saved To     : " << outPath.toStdString() << "\n";
+            std::cout << "Status              : SUCCESS\n";
+        }
+
+        return 0;
+    }
+};
+
 } // namespace
 
 void registerPCBCommands() {
@@ -1246,4 +2225,15 @@ void registerPCBCommands() {
     reg.registerCommand(std::make_unique<PcbSyncCommand>());
     reg.registerCommand(std::make_unique<PcbShrinkCommand>());
     reg.registerCommand(std::make_unique<PcbNetlistCommand>());
+    reg.registerCommand(std::make_unique<PcbExportCommand>());
+    reg.registerCommand(std::make_unique<PcbCleanupCommand>());
+    reg.registerCommand(std::make_unique<PcbTeardropsCommand>());
+    reg.registerCommand(std::make_unique<PcbArrayCommand>());
+    reg.registerCommand(std::make_unique<PcbViaFenceCommand>());
+    reg.registerCommand(std::make_unique<PcbStackupCommand>());
+    reg.registerCommand(std::make_unique<Pcb3DExportCommand>());
+    reg.registerCommand(std::make_unique<PcbExportIpcCommand>());
+    reg.registerCommand(std::make_unique<PcbTuneLengthCommand>());
+    reg.registerCommand(std::make_unique<PcbDrcCommand>());
+    reg.registerCommand(std::make_unique<PcbImportKicadCommand>());
 }

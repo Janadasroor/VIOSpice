@@ -442,6 +442,14 @@ void PCB3DWindow::setShowBottomCopper(bool enabled) {
     if (m_view) m_view->setShowBottomCopper(enabled);
 }
 
+void PCB3DWindow::showEvent(QShowEvent* event) {
+    QMainWindow::showEvent(event);
+    updateView();
+    if (m_view) {
+        m_view->fitBoard();
+    }
+}
+
 void PCB3DWindow::closeEvent(QCloseEvent* event) {
     QMainWindow::closeEvent(event);
 }

@@ -4,9 +4,14 @@
  */
 
 #include "copper_pour_item.h"
+#include "trace_item.h"
+#include "pad_item.h"
+#include "via_item.h"
 #include "theme_manager.h"
 #include "../layers/pcb_layer.h"
 #include <QPainter>
+#include <QPainterPathStroker>
+#include <QGraphicsScene>
 #include <QStyleOptionGraphicsItem>
 #include <QJsonObject>
 #include <QDebug>
@@ -17,7 +22,7 @@ CopperPourItem::CopperPourItem(QGraphicsItem* parent)
     : PCBItem(parent)
     , m_model(new CopperPourModel())
     , m_ownsModel(true) {
-    setZValue(-20); // Copper pours are behind everything
+    setZValue(-10 - m_layer);
     setCacheMode(QGraphicsItem::DeviceCoordinateCache);
 }
 
@@ -25,7 +30,7 @@ CopperPourItem::CopperPourItem(CopperPourModel* model, QGraphicsItem* parent)
     : PCBItem(parent)
     , m_model(model)
     , m_ownsModel(false) {
-    setZValue(-20);
+    setZValue(-10 - m_layer);
     setPos(0, 0); // Polygons are usually in scene coordinates
     setLayer(model->layer());
     setId(model->id());
@@ -68,10 +73,114 @@ void CopperPourItem::rebuild() {
     update();
 }
 
+void CopperPourItem::recalculatePour() {
+    rebuild();
+}
+
+void CopperPourItem::updatePath() {
+    m_path = QPainterPath();
+    if (m_model->polygon().isEmpty()) return;
+    
+    QPainterPath rawPath;
+    rawPath.addPolygon(m_model->polygon());
+
+    double clearanceVal = m_model->clearance();
+    if (clearanceVal < 0.05) clearanceVal = 0.3;
+
+    if (scene()) {
+        QPainterPath keepoutPath;
+        
+        for (auto* item : scene()->items()) {
+            if (!item || item == this) continue;
+
+            if (auto* trace = dynamic_cast<TraceItem*>(item)) {
+                if (trace->layer() == layer() && trace->netName() != netName()) {
+                    QPainterPathStroker stroker;
+                    stroker.setWidth(trace->width() + 2.0 * clearanceVal);
+                    stroker.setCapStyle(Qt::RoundCap);
+                    stroker.setJoinStyle(Qt::RoundJoin);
+
+                    QPainterPath linePath;
+                    linePath.moveTo(trace->startPoint());
+                    linePath.lineTo(trace->endPoint());
+
+                    keepoutPath.addPath(stroker.createStroke(linePath));
+                }
+            } else if (auto* pad = dynamic_cast<PadItem*>(item)) {
+                bool padOnLayer = (pad->layer() == layer() || pad->drillSize() > 0.001);
+                if (padOnLayer) {
+                    QPointF padPos = pad->scenePos();
+                    QSizeF sz = pad->size();
+                    double rW = (sz.width() > 0.01 ? sz.width() : 1.5) / 2.0 + clearanceVal;
+                    double rH = (sz.height() > 0.01 ? sz.height() : 1.5) / 2.0 + clearanceVal;
+                    QRectF bounds(padPos.x() - rW, padPos.y() - rH, rW * 2.0, rH * 2.0);
+                    
+                    QPainterPath padKeepout;
+                    if (pad->padShape() == "Round" || pad->padShape() == "Circle" || pad->drillSize() > 0.001) {
+                        padKeepout.addEllipse(bounds);
+                    } else {
+                        padKeepout.addRect(bounds);
+                    }
+
+                    if (pad->netName() == netName() && !netName().isEmpty() && m_model->useThermalReliefs()) {
+                        // KiCad 4-Spoke Thermal Relief Generation
+                        double spokeW = m_model->thermalSpokeWidth() > 0.01 ? m_model->thermalSpokeWidth() : 0.5;
+                        double baseAngleRad = m_model->thermalSpokeAngleDeg() * M_PI / 180.0;
+                        int spokeCount = m_model->thermalSpokeCount() > 0 ? m_model->thermalSpokeCount() : 4;
+                        double angleStep = 2.0 * M_PI / spokeCount;
+
+                        QPainterPath spokesPath;
+                        for (int k = 0; k < spokeCount; ++k) {
+                            double ang = baseAngleRad + k * angleStep;
+                            QPointF dir(std::cos(ang), std::sin(ang));
+                            QPointF norm(-dir.y(), dir.x());
+
+                            double reach = std::max(rW, rH) * 2.5;
+                            QPolygonF spokePoly;
+                            spokePoly << (padPos + norm * (spokeW * 0.5));
+                            spokePoly << (padPos + norm * (spokeW * 0.5) + dir * reach);
+                            spokePoly << (padPos - norm * (spokeW * 0.5) + dir * reach);
+                            spokePoly << (padPos - norm * (spokeW * 0.5));
+
+                            QPainterPath spokePath;
+                            spokePath.addPolygon(spokePoly);
+                            spokesPath.addPath(spokePath);
+                        }
+
+                        // Thermal relief moat = pad keepout moat minus the 4 spoke bridges!
+                        QPainterPath thermalMoat = padKeepout.subtracted(spokesPath);
+                        keepoutPath.addPath(thermalMoat);
+                    } else if (pad->netName() != netName()) {
+                        keepoutPath.addPath(padKeepout);
+                    }
+                }
+            } else if (auto* via = dynamic_cast<ViaItem*>(item)) {
+                if (via->netName() != netName()) {
+                    QPointF viaPos = via->scenePos();
+                    double r = (via->diameter() > 0.01 ? via->diameter() : 0.8) / 2.0 + clearanceVal;
+                    QRectF bounds(viaPos.x() - r, viaPos.y() - r, r * 2.0, r * 2.0);
+                    QPainterPath viaKeepout;
+                    viaKeepout.addEllipse(bounds);
+                    keepoutPath.addPath(viaKeepout);
+                }
+            }
+        }
+
+        m_path = rawPath.subtracted(keepoutPath);
+    } else {
+        m_path = rawPath;
+    }
+    
+    if (m_model->pourType() == CopperPourModel::HatchPour) {
+        generateHatchPattern();
+    }
+}
+
 void CopperPourItem::setLayer(int layer) {
     if (m_layer != layer) {
         m_layer = layer;
         m_model->setLayer(layer);
+        setZValue(-10 - m_layer);
         update();
     }
 }
@@ -155,16 +264,7 @@ void CopperPourItem::paint(QPainter* painter, const QStyleOptionGraphicsItem* op
     }
 }
 
-void CopperPourItem::updatePath() {
-    m_path = QPainterPath();
-    if (m_model->polygon().isEmpty()) return;
-    
-    m_path.addPolygon(m_model->polygon());
-    
-    if (m_model->pourType() == CopperPourModel::HatchPour) {
-        generateHatchPattern();
-    }
-}
+
 
 void CopperPourItem::generateHatchPattern() {
     m_hatchPath = QPainterPath();

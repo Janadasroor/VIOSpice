@@ -297,6 +297,7 @@ void MainWindow::createMenuBar() {
         if (m_view) m_view->setCurrentTool("Measure");
     });
     toolsMenu->addAction("Board Setup", this, &MainWindow::onBoardSetup);
+    toolsMenu->addAction("📚 Board Layer Stackup & Impedance...", this, &MainWindow::onLayerStackup);
     toolsMenu->addAction("Via Stitching...", this, &MainWindow::onViaStitching);
     toolsMenu->addSeparator();
     QAction* autoRouteAction = toolsMenu->addAction("🚀 Auto-Router...");
@@ -375,7 +376,7 @@ void MainWindow::createToolBar() {
     toolIcons["Diff Pair"] = getThemeIcon(":/icons/tool_diff_pair.svg");
     toolIcons["Length Tuning"] = getThemeIcon(":/icons/tool_meander.svg");
     toolIcons["Pad"] = getThemeIcon(":/icons/tool_pad.svg");
-    toolIcons["Via"] = getThemeIcon(":/icons/tool_circle.svg");
+    toolIcons["Via"] = getThemeIcon(":/icons/tool_via.svg");
     toolIcons["Rectangle"] = getThemeIcon(":/icons/tool_rect.svg");
     toolIcons["Filled Zone"] = getThemeIcon(":/icons/tool_polygon.svg");
     toolIcons["Line"] = getThemeIcon(":/icons/tool_line.svg");
@@ -800,22 +801,30 @@ void MainWindow::ensureRightBottomDockTabs() {
         return;
     }
 
-    // Force these docks into the right tab stack so the core panels are always present.
-    const QList<QDockWidget*> requiredDocks = {m_layerDock, m_propertiesDock, m_drcDock, m_geminiDock};
-    for (QDockWidget* dock : requiredDocks) {
-        if (!dock) continue;
-        if (dock->isFloating()) {
-            dock->setFloating(false);
-        }
-        addDockWidget(Qt::RightDockWidgetArea, dock);
-        dock->show();
-    }
-
+    addDockWidget(Qt::RightDockWidgetArea, m_layerDock);
     tabifyDockWidget(m_layerDock, m_propertiesDock);
     tabifyDockWidget(m_layerDock, m_drcDock);
     tabifyDockWidget(m_layerDock, m_geminiDock);
     setTabPosition(Qt::RightDockWidgetArea, QTabWidget::South);
     m_layerDock->raise();
+}
+
+void MainWindow::ensureGeminiPanelInitialized() {
+    if (m_geminiPanel) return;
+
+    auto* scroll = qobject_cast<QScrollArea*>(m_geminiDock->widget());
+    if (!scroll) return;
+
+    if (QWidget* oldWidget = scroll->takeWidget()) {
+        oldWidget->deleteLater();
+    }
+
+    m_geminiPanel = new GeminiPanel(m_scene, this);
+    m_geminiPanel->setMode("pcb");
+    m_geminiPanel->setUndoStack(m_undoStack);
+    connect(m_geminiPanel, &GeminiPanel::snippetGenerated, this, &MainWindow::onSnippetGenerated);
+
+    scroll->setWidget(m_geminiPanel);
 }
 
 void MainWindow::createDockWidgets() {
@@ -836,7 +845,6 @@ void MainWindow::createDockWidgets() {
     layerLayout->addWidget(m_selectionFilter);
 
     m_layerDock->setWidget(layerContainer);
-    addDockWidget(Qt::RightDockWidgetArea, m_layerDock);
 
     connect(m_layerPanel, &PCBLayerPanel::activeLayerChanged, 
             this, &MainWindow::onActiveLayerChanged);
@@ -849,7 +857,6 @@ void MainWindow::createDockWidgets() {
     m_drcPanel = new PCBDRCPanel(m_drcDock);
     m_drcPanel->setScene(m_scene);
     m_drcDock->setWidget(m_drcPanel);
-    addDockWidget(Qt::RightDockWidgetArea, m_drcDock);
 
     connect(m_drcPanel, &PCBDRCPanel::violationSelected,
             this, &MainWindow::onDRCViolationSelected);
@@ -859,20 +866,32 @@ void MainWindow::createDockWidgets() {
     m_propertiesDock->setObjectName("PropertiesDock");
     m_propertyEditor = new Flux::PCBPropertyEditor();
     m_propertiesDock->setWidget(m_propertyEditor);
-    addDockWidget(Qt::RightDockWidgetArea, m_propertiesDock);
 
     connect(m_propertyEditor, &Flux::PCBPropertyEditor::propertyChanged, this, &MainWindow::onPropertyChanged);
 
-    // === Gemini Assistant Dock ===
+    // === Gemini Assistant Dock (Lazy-initialized on visibility) ===
     m_geminiDock = new QDockWidget("✨ Gemini Assistant", this);
     m_geminiDock->setObjectName("GeminiDock");
     m_geminiDock->setFeatures(QDockWidget::DockWidgetMovable | QDockWidget::DockWidgetFloatable | QDockWidget::DockWidgetClosable);
-    m_geminiPanel = new GeminiPanel(m_scene, this);
-    m_geminiPanel->setMode("pcb");
-    m_geminiPanel->setUndoStack(m_undoStack);
-    connect(m_geminiPanel, &GeminiPanel::snippetGenerated, this, &MainWindow::onSnippetGenerated);
-    m_geminiDock->setWidget(m_geminiPanel);
-    addDockWidget(Qt::RightDockWidgetArea, m_geminiDock);
+
+    QScrollArea* geminiScroll = new QScrollArea(this);
+    geminiScroll->setWidgetResizable(true);
+    geminiScroll->setFrameShape(QFrame::NoFrame);
+    geminiScroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+
+    QLabel* placeholder = new QLabel("AI Assistant panel will initialize when opened.", geminiScroll);
+    placeholder->setAlignment(Qt::AlignCenter);
+    placeholder->setWordWrap(true);
+    placeholder->setStyleSheet("color: #888888; padding: 24px;");
+
+    geminiScroll->setWidget(placeholder);
+    m_geminiDock->setWidget(geminiScroll);
+
+    connect(m_geminiDock, &QDockWidget::visibilityChanged, this, [this](bool visible) {
+        if (visible) {
+            ensureGeminiPanelInitialized();
+        }
+    });
 
     // === Tabify All Right Docks ===
     ensureRightBottomDockTabs();
@@ -984,9 +1003,45 @@ void MainWindow::createStatusBar() {
     m_selectionInfoLabel->setMinimumWidth(320);
     m_selectionInfoLabel->setStyleSheet("QLabel { padding: 4px 12px; }");
 
+    // Track Width Quick Preset Selector
+    QComboBox* widthCombo = new QComboBox();
+    widthCombo->addItem("Trace: 0.15mm (Signal)", 0.15);
+    widthCombo->addItem("Trace: 0.25mm (Std)", 0.25);
+    widthCombo->addItem("Trace: 0.50mm (Medium)", 0.50);
+    widthCombo->addItem("Trace: 1.00mm (Power)", 1.00);
+    widthCombo->addItem("Trace: 2.00mm (High Power)", 2.00);
+    widthCombo->setCurrentIndex(1);
+    widthCombo->setToolTip("Quick Track Width Selection");
+    widthCombo->setStyleSheet("QComboBox { border: none; padding: 2px 8px; background: transparent; font-weight: 500; min-width: 140px; color: #10b981; } QComboBox:hover { background: #2d2d30; }");
+    connect(widthCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this, widthCombo](int index){
+        double w = widthCombo->itemData(index).toDouble();
+        if (m_view && m_view->currentTool()) {
+            m_view->currentTool()->setToolProperty("Width (mm)", w);
+        }
+    });
+
+    // Via Size Quick Preset Selector
+    QComboBox* viaCombo = new QComboBox();
+    viaCombo->addItem("Via: 0.6 / 0.3 mm (Micro)", QPointF(0.6, 0.3));
+    viaCombo->addItem("Via: 0.8 / 0.4 mm (Std)", QPointF(0.8, 0.4));
+    viaCombo->addItem("Via: 1.0 / 0.5 mm (Large)", QPointF(1.0, 0.5));
+    viaCombo->addItem("Via: 1.2 / 0.6 mm (Power)", QPointF(1.2, 0.6));
+    viaCombo->setCurrentIndex(1);
+    viaCombo->setToolTip("Quick Via Diameter & Drill Selection");
+    viaCombo->setStyleSheet("QComboBox { border: none; padding: 2px 8px; background: transparent; font-weight: 500; min-width: 145px; color: #f59e0b; } QComboBox:hover { background: #2d2d30; }");
+    connect(viaCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this, viaCombo](int index){
+        QPointF sizes = viaCombo->itemData(index).toPointF();
+        if (m_view && m_view->currentTool()) {
+            m_view->currentTool()->setToolProperty("Via Diameter (mm)", sizes.x());
+            m_view->currentTool()->setToolProperty("Via Drill (mm)", sizes.y());
+        }
+    });
+
     statusBar()->addWidget(m_coordLabel);
     statusBar()->addWidget(createStatusSeparator());
     statusBar()->addPermanentWidget(m_gridCombo);
+    statusBar()->addPermanentWidget(widthCombo);
+    statusBar()->addPermanentWidget(viaCombo);
     statusBar()->addWidget(createStatusSeparator());
     statusBar()->addPermanentWidget(m_layerLabel);
     statusBar()->addPermanentWidget(m_layerCombo);

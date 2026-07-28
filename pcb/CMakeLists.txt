@@ -36,6 +36,8 @@ set(PCB_SOURCES
     items/copper_pour_item.h
     items/shape_item.cpp
     items/shape_item.h
+    items/teardrop_item.cpp
+    items/teardrop_item.h
     items/image_item.cpp
     items/image_item.h
     items/ratsnest_item.h
@@ -112,6 +114,16 @@ set(PCB_SOURCES
     analysis/pcb_diff_engine.h
     analysis/design_report_generator.cpp
     analysis/design_report_generator.h
+    analysis/pcb_tracks_cleaner.cpp
+    analysis/pcb_tracks_cleaner.h
+    analysis/pcb_teardrop_generator.cpp
+    analysis/pcb_teardrop_generator.h
+    analysis/pcb_array_generator.cpp
+    analysis/pcb_array_generator.h
+    analysis/pcb_via_fence_generator.cpp
+    analysis/pcb_via_fence_generator.h
+    analysis/pcb_stackup_manager.cpp
+    analysis/pcb_stackup_manager.h
 
     # DRC
     drc/pcb_drc.cpp
@@ -120,6 +132,12 @@ set(PCB_SOURCES
     drc/pcb_drc_panel.h
     drc/pcb_design_rules_editor.cpp
     drc/pcb_design_rules_editor.h
+
+    # Import
+    import/netlist_importer.cpp
+    import/netlist_importer.h
+    import/kicad_pcb_importer.cpp
+    import/kicad_pcb_importer.h
 
     # Layers
     layers/pcb_layer.cpp
@@ -142,6 +160,8 @@ set(PCB_SOURCES
     # Dialogs
     dialogs/board_setup_dialog.cpp
     dialogs/board_setup_dialog.h
+    dialogs/layer_stackup_dialog.cpp
+    dialogs/layer_stackup_dialog.h
     dialogs/gerber_export_dialog.cpp
     dialogs/gerber_export_dialog.h
     dialogs/via_stitching_dialog.cpp

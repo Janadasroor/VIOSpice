@@ -126,6 +126,7 @@ void GerberExportDialog::setupUI()
         m_pdfPageSize->addItem(QStringLiteral("A3"), int(QPageSize::A3));
         m_pdfPageSize->addItem(QStringLiteral("A2"), int(QPageSize::A2));
         m_pdfPageSize->addItem(QStringLiteral("Letter"), int(QPageSize::Letter));
+        m_pdfPageSize->addItem(QStringLiteral("Board Size (Crop to Board Only)"), -1);
         pageLayout->addWidget(pageSizeLabel);
         pageLayout->addWidget(m_pdfPageSize, 1);
         pdfLayout->addLayout(pageLayout);
@@ -161,6 +162,21 @@ void GerberExportDialog::setupUI()
         m_pdfTitleBlockCheck = new QCheckBox(QStringLiteral("Add title block"), pdfGroup);
         m_pdfTitleBlockCheck->setChecked(true);
         pdfLayout->addWidget(m_pdfTitleBlockCheck);
+
+        m_pdfMirrorCheck = new QCheckBox(QStringLiteral("Mirror plot (horizontal flip)"), pdfGroup);
+        m_pdfMirrorCheck->setChecked(false);
+        pdfLayout->addWidget(m_pdfMirrorCheck);
+
+        QHBoxLayout* drillMarksLayout = new QHBoxLayout();
+        QLabel* drillMarksLabel = new QLabel(QStringLiteral("Drill marks:"), pdfGroup);
+        m_pdfDrillMarksCombo = new QComboBox(pdfGroup);
+        m_pdfDrillMarksCombo->addItem(QStringLiteral("No drill marks"));
+        m_pdfDrillMarksCombo->addItem(QStringLiteral("Small drill marks (center crosses)"));
+        m_pdfDrillMarksCombo->addItem(QStringLiteral("Full size drill holes"));
+        m_pdfDrillMarksCombo->setCurrentIndex(1);
+        drillMarksLayout->addWidget(drillMarksLabel);
+        drillMarksLayout->addWidget(m_pdfDrillMarksCombo, 1);
+        pdfLayout->addLayout(drillMarksLayout);
 
         mainLayout->addWidget(pdfGroup);
 
@@ -322,6 +338,16 @@ qreal GerberExportDialog::pdfMarginMm() const
 bool GerberExportDialog::pdfTitleBlock() const
 {
     return m_pdfTitleBlockCheck && m_pdfTitleBlockCheck->isChecked();
+}
+
+bool GerberExportDialog::pdfMirrorPlot() const
+{
+    return m_pdfMirrorCheck && m_pdfMirrorCheck->isChecked();
+}
+
+int GerberExportDialog::pdfDrillMarksMode() const
+{
+    return m_pdfDrillMarksCombo ? m_pdfDrillMarksCombo->currentIndex() : 0;
 }
 
 void GerberExportDialog::onFilterTextChanged(const QString& text)

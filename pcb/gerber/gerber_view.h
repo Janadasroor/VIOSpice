@@ -25,6 +25,14 @@ public:
     void zoomFit();
     void setBackgroundColor(const QColor& color);
     void setMonochrome(bool enabled);
+    void setWireframeMode(bool enabled);
+    void setShowDCodes(bool enabled);
+    void setMeasureMode(bool enabled);
+
+    bool wireframeMode() const { return m_wireframeMode; }
+    bool showDCodes() const { return m_showDCodes; }
+    bool measureMode() const { return m_measureMode; }
+
     QRectF plotBounds() const;
     QColor backgroundColor() const { return m_backgroundColor; }
 
@@ -34,6 +42,8 @@ protected:
     void mouseMoveEvent(QMouseEvent* event) override;
     void mouseReleaseEvent(QMouseEvent* event) override;
     void drawBackground(QPainter* painter, const QRectF& rect) override;
+    void drawForeground(QPainter* painter, const QRectF& rect) override;
+    void keyPressEvent(QKeyEvent* event) override;
 
 private:
     void rebuildScene();
@@ -47,7 +57,16 @@ private:
     QList<GerberLayer*> m_layers;
     QColor m_backgroundColor;
     bool m_monochrome = false;
-    
+    bool m_wireframeMode = false;
+    bool m_showDCodes = false;
+    bool m_measureMode = false;
+
+    bool m_measureHasFirst = false;
+    bool m_measureHasSecond = false;
+    QPointF m_measureP1;
+    QPointF m_measureP2;
+    QPointF m_currentMousePos;
+
     bool m_isPanning;
     QPoint m_lastPanPoint;
 };
