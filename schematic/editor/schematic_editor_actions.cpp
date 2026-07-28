@@ -814,7 +814,7 @@ void SchematicEditor::onSelectionChanged() {
             }
 
             // 1. Component Cross-Probe
-            if (ConfigManager::instance().autoFocusOnCrossProbe() && !item->reference().isEmpty()) {
+            if (!item->reference().isEmpty()) {
                 SyncManager::instance().pushCrossProbe(item->reference());
             }
 
@@ -2509,6 +2509,24 @@ void SchematicEditor::onCrossProbeReceived(const QString& refDes, const QString&
             }
             navigateAndSelectHierarchical(refDes);
             statusBar()->showMessage("Cross-probed (Hierarchical): " + refDes, 3000);
+        }
+    } else if (!netName.isEmpty()) {
+        bool netFound = false;
+        QList<QGraphicsItem*> netItems;
+        for (QGraphicsItem* item : m_scene->items()) {
+            if (auto* si = dynamic_cast<SchematicItem*>(item)) {
+                if (si->itemType() == SchematicItem::LabelType && si->value() == netName) {
+                    si->setSelected(true);
+                    netItems.append(si);
+                    netFound = true;
+                }
+            }
+        }
+        if (netFound) {
+            if (autoFocus && !netItems.isEmpty()) {
+                m_view->centerOn(netItems.first());
+            }
+            statusBar()->showMessage("Cross-probed net: " + netName, 3000);
         }
     }
 }
