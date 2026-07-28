@@ -9,6 +9,7 @@
 #include "via_item.h"
 #include "pad_item.h"
 #include "copper_pour_item.h"
+#include "config_manager.h"
 #include "theme_manager.h"
 #include "pcb_commands.h"
 #include "../layers/pcb_layer.h"
@@ -164,6 +165,7 @@ QCursor PCBTraceTool::cursor() const {
 
 void PCBTraceTool::setTraceWidth(double width) {
     m_traceWidth = width;
+    ConfigManager::instance().setToolProperty("trace_tool", "trace_width", m_traceWidth);
     if (m_isRouting) updatePreview(view()->mapToScene(view()->mapFromGlobal(QCursor::pos())));
 }
 
@@ -171,6 +173,7 @@ void PCBTraceTool::setCurrentLayer(int layer) {
     if (m_currentLayer != layer) {
         m_currentLayer = layer;
         PCBLayerManager::instance().setActiveLayer(layer);
+        ConfigManager::instance().setToolProperty("pcb_editor", "active_layer", layer);
         if (m_isRouting) updatePreview(view()->mapToScene(view()->mapFromGlobal(QCursor::pos())));
     }
 }
@@ -193,15 +196,44 @@ void PCBTraceTool::deactivate() {
 void PCBTraceTool::mousePressEvent(QMouseEvent* event) {
     if (!view()) return;
     
+    if (event->button() == Qt::RightButton) {
+        if (m_isRouting) {
+            finishTrace();
+            event->accept();
+            return;
+        }
+        event->ignore();
+        return;
+    }
+
     if (event->button() != Qt::LeftButton) {
-        event->ignore(); // Let PCBView handle right-click tool switching
+        event->ignore();
         return;
     }
 
     QPointF scenePos = view()->mapToScene(event->pos());
+    
+    // Magnetic Pad & Via Center Snapping (4.0mm radius)
     QPointF snappedPos = view()->snapToGrid(scenePos);
-    const bool constrain45 = event->modifiers() & Qt::ShiftModifier;
-    if (m_isRouting && constrain45) {
+    if (view()->scene()) {
+        const double snapRadius = 4.0;
+        QList<QGraphicsItem*> closeItems = view()->scene()->items(QRectF(scenePos.x() - snapRadius, scenePos.y() - snapRadius, snapRadius * 2, snapRadius * 2));
+        for (auto* it : closeItems) {
+            QGraphicsItem* parent = it;
+            while (parent) {
+                if (auto* pcb = dynamic_cast<PCBItem*>(parent)) {
+                    if (pcb->itemType() == PCBItem::PadType || pcb->itemType() == PCBItem::ViaType) {
+                        snappedPos = pcb->scenePos();
+                        break;
+                    }
+                }
+                parent = parent->parentItem();
+            }
+        }
+    }
+
+    const bool freeAngle = (event->modifiers() & Qt::ShiftModifier);
+    if (m_isRouting && !freeAngle) {
         snappedPos = constrainAngle(m_lastPoint, snappedPos, true);
     }
 
@@ -240,7 +272,27 @@ void PCBTraceTool::mouseMoveEvent(QMouseEvent* event) {
     }
 
     QPointF snappedPos = view()->snapToGrid(scenePos);
-    if (m_isRouting && (event->modifiers() & Qt::ShiftModifier)) {
+    
+    // Magnetic Pad & Via Center Snapping
+    if (view()->scene()) {
+        const double snapRadius = 4.0;
+        QList<QGraphicsItem*> closeItems = view()->scene()->items(QRectF(scenePos.x() - snapRadius, scenePos.y() - snapRadius, snapRadius * 2, snapRadius * 2));
+        for (auto* it : closeItems) {
+            QGraphicsItem* parent = it;
+            while (parent) {
+                if (auto* pcb = dynamic_cast<PCBItem*>(parent)) {
+                    if (pcb->itemType() == PCBItem::PadType || pcb->itemType() == PCBItem::ViaType) {
+                        snappedPos = pcb->scenePos();
+                        break;
+                    }
+                }
+                parent = parent->parentItem();
+            }
+        }
+    }
+
+    const bool freeAngle = (event->modifiers() & Qt::ShiftModifier);
+    if (m_isRouting && !freeAngle) {
         snappedPos = constrainAngle(m_lastPoint, snappedPos, true);
     }
     if (m_isRouting) {
@@ -267,8 +319,20 @@ void PCBTraceTool::keyPressEvent(QKeyEvent* event) {
     } else if (event->key() == Qt::Key_Return || event->key() == Qt::Key_Enter) {
         finishTrace();
         event->accept();
-    } else if (event->key() == Qt::Key_V) {
+    } else if (event->key() == Qt::Key_V || event->key() == Qt::Key_Space) {
         if (m_isRouting) placeVia();
+        event->accept();
+    } else if (event->key() == Qt::Key_W) {
+        // Cycle trace width: 0.2 -> 0.25 -> 0.4 -> 0.5 -> 0.8 -> 1.0 -> 0.2 mm
+        static const QVector<double> widths = {0.20, 0.25, 0.40, 0.50, 0.80, 1.00};
+        int idx = 0;
+        for (int i = 0; i < widths.size(); ++i) {
+            if (std::abs(m_traceWidth - widths[i]) < 0.02) { idx = (i + 1) % widths.size(); break; }
+        }
+        setTraceWidth(widths[idx]);
+        event->accept();
+    } else if (event->key() == Qt::Key_F) {
+        setCurrentLayer(m_currentLayer == 0 ? 1 : 0);
         event->accept();
     } else if (event->key() == Qt::Key_1) {
         setCurrentLayer(0);
@@ -404,7 +468,7 @@ void PCBTraceTool::addSegment(QPointF pos) {
         if (m_routingMode == WalkAround) {
             m_currentLevelPoint = chooseWalkAroundElbow(m_lastPoint, pos);
         } else {
-            m_currentLevelPoint = QPointF(pos.x(), m_lastPoint.y());
+            m_currentLevelPoint = constrainAngle(m_lastPoint, pos, true);
         }
 
         if (m_currentLevelPoint != m_lastPoint &&
@@ -413,12 +477,36 @@ void PCBTraceTool::addSegment(QPointF pos) {
         }
         
         if (!routeBlocked && m_currentLevelPoint != m_lastPoint) {
-            TraceItem* seg1 = new TraceItem(m_lastPoint, m_currentLevelPoint, m_traceWidth);
-            seg1->setLayer(m_currentLayer);
-            seg1->setNetName(m_targetNet);
-            view()->scene()->addItem(seg1);
-            seg1->updateConnectivity();
-            m_currentTraceItems.append(seg1);
+            if (m_diffPairMode) {
+                // Coupled Differential Pair Routing
+                QPointF dir = m_currentLevelPoint - m_lastPoint;
+                double len = std::hypot(dir.x(), dir.y());
+                if (len > 0.001) {
+                    QPointF norm(-dir.y() / len, dir.x() / len);
+                    double hGap = (m_traceWidth + m_diffPairGap) * 0.5;
+
+                    TraceItem* segP = new TraceItem(m_lastPoint + norm * hGap, m_currentLevelPoint + norm * hGap, m_traceWidth);
+                    segP->setLayer(m_currentLayer);
+                    segP->setNetName(m_diffPairNetP.isEmpty() ? m_targetNet + "_P" : m_diffPairNetP);
+                    view()->scene()->addItem(segP);
+                    segP->updateConnectivity();
+                    m_currentTraceItems.append(segP);
+
+                    TraceItem* segN = new TraceItem(m_lastPoint - norm * hGap, m_currentLevelPoint - norm * hGap, m_traceWidth);
+                    segN->setLayer(m_currentLayer);
+                    segN->setNetName(m_diffPairNetN.isEmpty() ? m_targetNet + "_N" : m_diffPairNetN);
+                    view()->scene()->addItem(segN);
+                    segN->updateConnectivity();
+                    m_currentTraceItems.append(segN);
+                }
+            } else {
+                TraceItem* seg1 = new TraceItem(m_lastPoint, m_currentLevelPoint, m_traceWidth);
+                seg1->setLayer(m_currentLayer);
+                seg1->setNetName(m_targetNet);
+                view()->scene()->addItem(seg1);
+                seg1->updateConnectivity();
+                m_currentTraceItems.append(seg1);
+            }
             m_lastPoint = m_currentLevelPoint;
         }
 
@@ -428,12 +516,35 @@ void PCBTraceTool::addSegment(QPointF pos) {
         }
 
         if (!routeBlocked && pos != m_lastPoint) {
-            TraceItem* seg2 = new TraceItem(m_lastPoint, pos, m_traceWidth);
-            seg2->setLayer(m_currentLayer);
-            seg2->setNetName(m_targetNet);
-            view()->scene()->addItem(seg2);
-            seg2->updateConnectivity();
-            m_currentTraceItems.append(seg2);
+            if (m_diffPairMode) {
+                QPointF dir = pos - m_lastPoint;
+                double len = std::hypot(dir.x(), dir.y());
+                if (len > 0.001) {
+                    QPointF norm(-dir.y() / len, dir.x() / len);
+                    double hGap = (m_traceWidth + m_diffPairGap) * 0.5;
+
+                    TraceItem* segP = new TraceItem(m_lastPoint + norm * hGap, pos + norm * hGap, m_traceWidth);
+                    segP->setLayer(m_currentLayer);
+                    segP->setNetName(m_diffPairNetP.isEmpty() ? m_targetNet + "_P" : m_diffPairNetP);
+                    view()->scene()->addItem(segP);
+                    segP->updateConnectivity();
+                    m_currentTraceItems.append(segP);
+
+                    TraceItem* segN = new TraceItem(m_lastPoint - norm * hGap, pos - norm * hGap, m_traceWidth);
+                    segN->setLayer(m_currentLayer);
+                    segN->setNetName(m_diffPairNetN.isEmpty() ? m_targetNet + "_N" : m_diffPairNetN);
+                    view()->scene()->addItem(segN);
+                    segN->updateConnectivity();
+                    m_currentTraceItems.append(segN);
+                }
+            } else {
+                TraceItem* seg2 = new TraceItem(m_lastPoint, pos, m_traceWidth);
+                seg2->setLayer(m_currentLayer);
+                seg2->setNetName(m_targetNet);
+                view()->scene()->addItem(seg2);
+                seg2->updateConnectivity();
+                m_currentTraceItems.append(seg2);
+            }
             m_lastPoint = pos;
         }
     }
@@ -713,7 +824,7 @@ void PCBTraceTool::updatePreview(QPointF pos) {
         if (m_routingMode == WalkAround) {
             m_currentLevelPoint = chooseWalkAroundElbow(m_lastPoint, pos);
         } else {
-            m_currentLevelPoint = QPointF(pos.x(), m_lastPoint.y());
+            m_currentLevelPoint = constrainAngle(m_lastPoint, pos, true);
         }
 
         m_previewLine->show();
@@ -1551,16 +1662,34 @@ void PCBTraceTool::placeVia() {
 }
 
 QPointF PCBTraceTool::constrainAngle(QPointF from, QPointF to, bool use45) {
-    QPointF delta = to - from;
-    const double len = std::hypot(delta.x(), delta.y());
-    if (len < 1e-9) return to;
-    const double stepDeg = use45 ? 45.0 : 90.0;
-    const double angle = std::atan2(delta.y(), delta.x()) * 180.0 / M_PI;
-    const double snappedAngle = std::round(angle / stepDeg) * stepDeg;
-    const double rad = snappedAngle * M_PI / 180.0;
-    QPointF constrained(from.x() + std::cos(rad) * len, from.y() + std::sin(rad) * len);
-    if (view()) constrained = view()->snapToGrid(constrained);
-    return constrained;
+    double dx = std::abs(to.x() - from.x());
+    double dy = std::abs(to.y() - from.y());
+    if (dx < 1e-6 && dy < 1e-6) return to;
+
+    if (!use45) {
+        // Pure 90-degree orthogonal
+        return QPointF(to.x(), from.y());
+    }
+
+    // KiCad 45-degree miter corner calculation (Straight segment -> 45-degree diagonal)
+    double sx = (to.x() >= from.x()) ? 1.0 : -1.0;
+    double sy = (to.y() >= from.y()) ? 1.0 : -1.0;
+
+    if (dx == 0 || dy == 0 || std::abs(dx - dy) < 1e-6) {
+        return to;
+    }
+
+    QPointF elbow;
+    if (dx > dy) {
+        // Horizontal straight first, then 45-degree diagonal to target
+        elbow = QPointF(from.x() + (dx - dy) * sx, from.y());
+    } else {
+        // Vertical straight first, then 45-degree diagonal to target
+        elbow = QPointF(from.x(), from.y() + (dy - dx) * sy);
+    }
+
+    if (view()) elbow = view()->snapToGrid(elbow);
+    return elbow;
 }
 
 bool PCBTraceTool::checkClearance(const QPainterPath& path) {

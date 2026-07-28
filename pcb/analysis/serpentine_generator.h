@@ -81,6 +81,7 @@ private:
         int layer;
         double length;
         double angle; // Angle of the segment in degrees
+        TraceItem* traceItem = nullptr;
     };
 
     TraceSegmentInfo findLongestSegment(const QString& netName);

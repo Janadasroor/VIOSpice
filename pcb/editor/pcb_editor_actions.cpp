@@ -28,6 +28,7 @@
 #include "../dialogs/pcb_diff_viewer.h"
 #include "../dialogs/design_report_dialog.h"
 #include "../dialogs/pdf_viewer_dialog.h"
+#include "../dialogs/layer_stackup_dialog.h"
 #include "../analysis/pcb_diff_engine.h"
 #include "../gerber/gerber_exporter.h"
 #include "../manufacturing/manufacturing_exporter.h"
@@ -1053,4 +1054,14 @@ void MainWindow::onToggleRightSidebar() {
     if (m_layerDock) m_layerDock->setVisible(!visible);
     if (m_propertiesDock) m_propertiesDock->setVisible(!visible);
     if (m_geminiDock) m_geminiDock->setVisible(!visible);
+}
+
+void MainWindow::onLayerStackup() {
+    LayerStackupDialog dlg(this);
+    if (dlg.exec() == QDialog::Accepted) {
+        double thickness = dlg.totalBoardThicknessMm();
+        statusBar()->showMessage(QString("Applied Board Stackup: %1 layers, %2 mm total thickness")
+            .arg(dlg.stackupLayers().size())
+            .arg(thickness, 0, 'f', 2), 4000);
+    }
 }

@@ -11,6 +11,7 @@
 #include <QMouseEvent>
 #include <QGraphicsScene>
 #include <QDebug>
+#include "config_manager.h"
 #include "pcb_commands.h"
 #include <QUndoStack>
 #include <algorithm>
@@ -43,6 +44,7 @@ PCBViaTool::PCBViaTool(QObject* parent)
     , m_startLayer(PCBLayerManager::TopCopper)
     , m_endLayer(PCBLayerManager::BottomCopper)
     , m_microviaMode(false)
+    , m_previewVia(nullptr)
 {
 }
 
@@ -50,8 +52,72 @@ QCursor PCBViaTool::cursor() const {
     return QCursor(Qt::CrossCursor);
 }
 
+void PCBViaTool::activate(PCBView* view) {
+    PCBTool::activate(view);
+    updatePreview();
+}
+
+void PCBViaTool::deactivate() {
+    if (m_previewVia && view() && view()->scene()) {
+        view()->scene()->removeItem(m_previewVia);
+        delete m_previewVia;
+        m_previewVia = nullptr;
+    }
+    PCBTool::deactivate();
+}
+
+void PCBViaTool::updatePreview() {
+    if (!view() || !view()->scene()) return;
+
+    if (m_previewVia) {
+        view()->scene()->removeItem(m_previewVia);
+        delete m_previewVia;
+        m_previewVia = nullptr;
+    }
+
+    m_previewVia = new ViaItem(QPointF(0, 0), m_viaDiameter);
+    m_previewVia->setDrillSize(m_holeDiameter);
+    m_previewVia->setStartLayer(m_startLayer);
+    m_previewVia->setEndLayer(m_endLayer);
+    m_previewVia->setMicrovia(m_microviaMode);
+    m_previewVia->setLayer(m_startLayer);
+
+    m_previewVia->setOpacity(0.6);
+    m_previewVia->setZValue(1000);
+    m_previewVia->setFlag(QGraphicsItem::ItemIsSelectable, false);
+    m_previewVia->setFlag(QGraphicsItem::ItemIsMovable, false);
+    view()->scene()->addItem(m_previewVia);
+
+    QPoint localPos = view()->mapFromGlobal(QCursor::pos());
+    QPointF scenePos = view()->mapToScene(localPos);
+    m_previewVia->setPos(view()->snapToGrid(scenePos));
+}
+
+void PCBViaTool::mouseMoveEvent(QMouseEvent* event) {
+    if (m_previewVia && view()) {
+        QPointF scenePos = view()->mapToScene(event->pos());
+        m_previewVia->setPos(view()->snapToGrid(scenePos));
+        event->accept();
+    }
+}
+
+void PCBViaTool::keyPressEvent(QKeyEvent* event) {
+    if (event->key() == Qt::Key_Escape) {
+        event->ignore(); // Let PCBView handle return to Select tool
+        return;
+    }
+    PCBTool::keyPressEvent(event);
+}
+
 void PCBViaTool::mousePressEvent(QMouseEvent* event) {
-    if (!view() || event->button() != Qt::LeftButton) return;
+    if (!view()) return;
+
+    if (event->button() == Qt::RightButton) {
+        event->ignore(); // Let PCBView handle return to Select tool
+        return;
+    }
+
+    if (event->button() != Qt::LeftButton) return;
 
     QPointF scenePos = view()->mapToScene(event->pos());
     QPointF snappedPos = view()->snapToGrid(scenePos);
@@ -103,6 +169,7 @@ void PCBViaTool::mousePressEvent(QMouseEvent* event) {
     }
 
     qDebug() << "Placed via at" << snappedPos;
+    view()->setFocus();
     event->accept();
 }
 
@@ -116,11 +183,38 @@ QMap<QString, QVariant> PCBViaTool::toolProperties() const {
     return props;
 }
 
+void PCBViaTool::setViaDiameter(double diameter) {
+    m_viaDiameter = diameter;
+    updatePreview();
+}
+
+void PCBViaTool::setHoleDiameter(double diameter) {
+    m_holeDiameter = diameter;
+    updatePreview();
+}
+
+void PCBViaTool::setStartLayer(int layer) {
+    m_startLayer = layer;
+    updatePreview();
+}
+
+void PCBViaTool::setEndLayer(int layer) {
+    m_endLayer = layer;
+    updatePreview();
+}
+
+void PCBViaTool::setMicroviaMode(bool enable) {
+    m_microviaMode = enable;
+    updatePreview();
+}
+
 void PCBViaTool::setToolProperty(const QString& name, const QVariant& value) {
     if (name == "Via Diameter (mm)") {
         m_viaDiameter = value.toDouble();
+        ConfigManager::instance().setToolProperty("via_tool", "via_diameter", m_viaDiameter);
     } else if (name == "Via Drill (mm)") {
         m_holeDiameter = value.toDouble();
+        ConfigManager::instance().setToolProperty("via_tool", "hole_diameter", m_holeDiameter);
     } else if (name == "Start Layer") {
         m_startLayer = value.toInt();
     } else if (name == "End Layer") {
@@ -130,6 +224,9 @@ void PCBViaTool::setToolProperty(const QString& name, const QVariant& value) {
         if (m_microviaMode) {
             m_viaDiameter = std::min(m_viaDiameter, 0.35);
             m_holeDiameter = std::min(m_holeDiameter, 0.15);
+            ConfigManager::instance().setToolProperty("via_tool", "via_diameter", m_viaDiameter);
+            ConfigManager::instance().setToolProperty("via_tool", "hole_diameter", m_holeDiameter);
         }
     }
+    updatePreview();
 }

@@ -184,3 +184,160 @@ bool MCADExporter::exportVRMLAssembly(QGraphicsScene* scene, const QString& file
     }
     return true;
 }
+
+namespace {
+void writeBoxSTL(QTextStream& out, const QPointF& minPt, const QPointF& maxPt, double zMin, double zMax) {
+    double x1 = minPt.x(), y1 = minPt.y();
+    double x2 = maxPt.x(), y2 = maxPt.y();
+    double z1 = zMin, z2 = zMax;
+
+    auto facet = [&](double nx, double ny, double nz, double ax, double ay, double az, double bx, double by, double bz, double cx, double cy, double cz) {
+        out << "facet normal " << f6(nx) << " " << f6(ny) << " " << f6(nz) << "\n";
+        out << "  outer loop\n";
+        out << "    vertex " << f6(ax) << " " << f6(ay) << " " << f6(az) << "\n";
+        out << "    vertex " << f6(bx) << " " << f6(by) << " " << f6(bz) << "\n";
+        out << "    vertex " << f6(cx) << " " << f6(cy) << " " << f6(cz) << "\n";
+        out << "  endloop\n";
+        out << "endfacet\n";
+    };
+
+    // Top (+Z)
+    facet(0, 0, 1, x1, y1, z2, x2, y1, z2, x2, y2, z2);
+    facet(0, 0, 1, x1, y1, z2, x2, y2, z2, x1, y2, z2);
+    // Bottom (-Z)
+    facet(0, 0, -1, x1, y1, z1, x2, y2, z1, x2, y1, z1);
+    facet(0, 0, -1, x1, y1, z1, x1, y2, z1, x2, y2, z1);
+    // Front (+Y)
+    facet(0, 1, 0, x1, y2, z1, x2, y2, z1, x2, y2, z2);
+    facet(0, 1, 0, x1, y2, z1, x2, y2, z2, x1, y2, z2);
+    // Back (-Y)
+    facet(0, -1, 0, x1, y1, z1, x1, y1, z2, x2, y1, z2);
+    facet(0, -1, 0, x1, y1, z1, x2, y1, z2, x2, y1, z1);
+    // Right (+X)
+    facet(1, 0, 0, x2, y1, z1, x2, y1, z2, x2, y2, z2);
+    facet(1, 0, 0, x2, y1, z1, x2, y2, z2, x2, y2, z1);
+    // Left (-X)
+    facet(-1, 0, 0, x1, y1, z1, x1, y2, z1, x1, y2, z2);
+    facet(-1, 0, 0, x1, y1, z1, x1, y2, z2, x1, y1, z2);
+}
+} // namespace
+
+bool MCADExporter::exportSTL3D(QGraphicsScene* scene, const QString& filePath, QString* error) {
+    if (!scene) {
+        if (error) *error = "Invalid scene";
+        return false;
+    }
+    QFile file(filePath);
+    if (!file.open(QIODevice::WriteOnly | QIODevice::Text)) {
+        if (error) *error = "Unable to open file for writing";
+        return false;
+    }
+
+    QTextStream out(&file);
+    const QRectF bb = scene->itemsBoundingRect();
+    const double boardThick = 1.6;
+
+    out << "solid VioraEDA_3D_Board\n";
+    // Substrate
+    writeBoxSTL(out, bb.topLeft(), bb.bottomRight(), -boardThick * 0.5, boardThick * 0.5);
+
+    // Components
+    for (QGraphicsItem* g : scene->items()) {
+        PCBItem* item = dynamic_cast<PCBItem*>(g);
+        if (!item || item->parentItem()) continue;
+        QRectF r = item->sceneBoundingRect();
+        double h = (item->height() > 0.0) ? item->height() : 2.0;
+        writeBoxSTL(out, r.topLeft(), r.bottomRight(), boardThick * 0.5, boardThick * 0.5 + h);
+    }
+
+    out << "endsolid VioraEDA_3D_Board\n";
+    return true;
+}
+
+bool MCADExporter::exportOBJ3D(QGraphicsScene* scene, const QString& filePath, QString* error) {
+    if (!scene) {
+        if (error) *error = "Invalid scene";
+        return false;
+    }
+    QFile file(filePath);
+    if (!file.open(QIODevice::WriteOnly | QIODevice::Text)) {
+        if (error) *error = "Unable to open file for writing";
+        return false;
+    }
+
+    QTextStream out(&file);
+    const QRectF bb = scene->itemsBoundingRect();
+    const double boardThick = 1.6;
+
+    out << "# Viora EDA Wavefront OBJ 3D Exporter\n";
+    out << "o Board_Substrate\n";
+
+    // Board vertices
+    out << "v " << f6(bb.left()) << " " << f6(bb.top()) << " " << f6(-boardThick * 0.5) << "\n";
+    out << "v " << f6(bb.right()) << " " << f6(bb.top()) << " " << f6(-boardThick * 0.5) << "\n";
+    out << "v " << f6(bb.right()) << " " << f6(bb.bottom()) << " " << f6(-boardThick * 0.5) << "\n";
+    out << "v " << f6(bb.left()) << " " << f6(bb.bottom()) << " " << f6(-boardThick * 0.5) << "\n";
+
+    out << "v " << f6(bb.left()) << " " << f6(bb.top()) << " " << f6(boardThick * 0.5) << "\n";
+    out << "v " << f6(bb.right()) << " " << f6(bb.top()) << " " << f6(boardThick * 0.5) << "\n";
+    out << "v " << f6(bb.right()) << " " << f6(bb.bottom()) << " " << f6(boardThick * 0.5) << "\n";
+    out << "v " << f6(bb.left()) << " " << f6(bb.bottom()) << " " << f6(boardThick * 0.5) << "\n";
+
+    out << "f 1 2 3 4\n";
+    out << "f 5 6 7 8\n";
+    out << "f 1 2 6 5\n";
+    out << "f 2 3 7 6\n";
+    out << "f 3 4 8 7\n";
+    out << "f 4 1 5 8\n";
+
+    int vIdx = 9;
+    int cIdx = 0;
+    for (QGraphicsItem* g : scene->items()) {
+        PCBItem* item = dynamic_cast<PCBItem*>(g);
+        if (!item || item->parentItem()) continue;
+        QRectF r = item->sceneBoundingRect();
+        double h = (item->height() > 0.0) ? item->height() : 2.0;
+
+        out << "o Comp_" << ++cIdx << "\n";
+        out << "v " << f6(r.left()) << " " << f6(r.top()) << " " << f6(boardThick * 0.5) << "\n";
+        out << "v " << f6(r.right()) << " " << f6(r.top()) << " " << f6(boardThick * 0.5) << "\n";
+        out << "v " << f6(r.right()) << " " << f6(r.bottom()) << " " << f6(boardThick * 0.5) << "\n";
+        out << "v " << f6(r.left()) << " " << f6(r.bottom()) << " " << f6(boardThick * 0.5) << "\n";
+
+        out << "v " << f6(r.left()) << " " << f6(r.top()) << " " << f6(boardThick * 0.5 + h) << "\n";
+        out << "v " << f6(r.right()) << " " << f6(r.top()) << " " << f6(boardThick * 0.5 + h) << "\n";
+        out << "v " << f6(r.right()) << " " << f6(r.bottom()) << " " << f6(boardThick * 0.5 + h) << "\n";
+        out << "v " << f6(r.left()) << " " << f6(r.bottom()) << " " << f6(boardThick * 0.5 + h) << "\n";
+
+        out << "f " << vIdx << " " << (vIdx+1) << " " << (vIdx+2) << " " << (vIdx+3) << "\n";
+        out << "f " << (vIdx+4) << " " << (vIdx+5) << " " << (vIdx+6) << " " << (vIdx+7) << "\n";
+        out << "f " << vIdx << " " << (vIdx+1) << " " << (vIdx+5) << " " << (vIdx+4) << "\n";
+        out << "f " << (vIdx+1) << " " << (vIdx+2) << " " << (vIdx+6) << " " << (vIdx+5) << "\n";
+        out << "f " << (vIdx+2) << " " << (vIdx+3) << " " << (vIdx+7) << " " << (vIdx+6) << "\n";
+        out << "f " << (vIdx+3) << " " << vIdx << " " << (vIdx+4) << " " << (vIdx+7) << "\n";
+        vIdx += 8;
+    }
+
+    return true;
+}
+
+bool MCADExporter::exportGLTF3D(QGraphicsScene* scene, const QString& filePath, QString* error) {
+    if (!scene) {
+        if (error) *error = "Invalid scene";
+        return false;
+    }
+    // Minimal valid glTF 2.0 JSON representation for web and CAD viewers
+    QFile file(filePath);
+    if (!file.open(QIODevice::WriteOnly | QIODevice::Text)) {
+        if (error) *error = "Unable to open file for writing";
+        return false;
+    }
+
+    QTextStream out(&file);
+    out << "{\n";
+    out << "  \"asset\": { \"version\": \"2.0\", \"generator\": \"Viora EDA 3D GLTF Exporter\" },\n";
+    out << "  \"scenes\": [{ \"nodes\": [0] }],\n";
+    out << "  \"nodes\": [{ \"name\": \"PCB_Assembly\" }]\n";
+    out << "}\n";
+    return true;
+}

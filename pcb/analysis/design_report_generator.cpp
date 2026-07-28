@@ -583,9 +583,14 @@ bool DesignReportGenerator::generateReport(QGraphicsScene* scene,
                              : options.projectName;
     }
 
-    QString html = generateHTML(data, options);
+    ReportOptions opts = options;
+    if (outPath.endsWith(QStringLiteral(".pdf"), Qt::CaseInsensitive)) {
+        opts.format = PDF;
+    }
 
-    if (options.format == HTML) {
+    QString html = generateHTML(data, opts);
+
+    if (opts.format == HTML) {
         QFile file(outPath);
         if (!file.open(QIODevice::WriteOnly | QIODevice::Text)) {
             if (errorMessage) {
@@ -609,7 +614,9 @@ bool DesignReportGenerator::generateReport(QGraphicsScene* scene,
     writer.setCreator(QStringLiteral("VioraEDA Design Report"));
 
     QTextDocument doc;
-    doc.setDefaultFont(QFont(QStringLiteral("Segoe UI"), 10));
+    doc.setDefaultFont(QFont(QStringLiteral("DejaVu Sans"), 10));
+    const QRectF pagePaintRect = writer.pageLayout().paintRectPixels(writer.resolution());
+    doc.setTextWidth(pagePaintRect.width());
     doc.setHtml(html);
     doc.print(&writer);
 

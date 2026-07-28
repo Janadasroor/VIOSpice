@@ -56,6 +56,12 @@ public:
     int currentLayer() const { return m_currentLayer; }
     void setCurrentLayer(int layer);
 
+    // Differential Pair Routing
+    bool isDiffPairMode() const { return m_diffPairMode; }
+    void setDiffPairMode(bool enable) { m_diffPairMode = enable; }
+    double diffPairGap() const { return m_diffPairGap; }
+    void setDiffPairGap(double gap) { m_diffPairGap = gap; }
+
     // PCBTool interface
     QMap<QString, QVariant> toolProperties() const override;
     void setToolProperty(const QString& name, const QVariant& value) override;
@@ -133,6 +139,14 @@ protected:
     QSet<class PCBItem*> m_shovedItems;
     QMap<class PCBItem*, QPair<QPointF, QPointF>> m_originalGeometries; // For traces
     QMap<class PCBItem*, QPointF> m_originalPositions; // For vias/pads
+
+    // Differential Pair State
+    bool m_diffPairMode = false;
+    double m_diffPairGap = 0.25;
+    QString m_diffPairNetP;
+    QString m_diffPairNetN;
+    QGraphicsLineItem* m_previewLineP = nullptr;
+    QGraphicsLineItem* m_previewLineN = nullptr;
 };
 
 #endif // PCBTRACETOOL_H

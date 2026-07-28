@@ -14,6 +14,7 @@ class QWidget;
 class PCBViaStitcher {
 public:
     static void performViaStitching(QGraphicsScene* scene, QUndoStack* undoStack, QStatusBar* statusBar, QWidget* parent);
+    static void performViaFencing(QGraphicsScene* scene, QUndoStack* undoStack, QStatusBar* statusBar, QWidget* parent);
 };
 
 #endif // PCB_VIA_STITCHER_H

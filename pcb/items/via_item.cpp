@@ -17,8 +17,9 @@ using namespace Flux::Model;
 namespace {
 int copperLayerOrderIndex(int layerId) {
     if (layerId == PCBLayerManager::TopCopper) return 0;
-    if (layerId >= 100) return 1 + (layerId - 100);
     if (layerId == PCBLayerManager::BottomCopper) return 1000;
+    if (layerId >= 2 && layerId <= 31) return layerId - 1; // 2->1 (In1), 3->2 (In2)...
+    if (layerId >= 100) return 1 + (layerId - 100);
     return layerId;
 }
 }

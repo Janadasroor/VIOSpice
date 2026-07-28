@@ -15,6 +15,9 @@ public:
     static bool exportSTEPWireframe(QGraphicsScene* scene, const QString& filePath, QString* error = nullptr);
     static bool exportIGESWireframe(QGraphicsScene* scene, const QString& filePath, QString* error = nullptr);
     static bool exportVRMLAssembly(QGraphicsScene* scene, const QString& filePath, QString* error = nullptr);
+    static bool exportSTL3D(QGraphicsScene* scene, const QString& filePath, QString* error = nullptr);
+    static bool exportOBJ3D(QGraphicsScene* scene, const QString& filePath, QString* error = nullptr);
+    static bool exportGLTF3D(QGraphicsScene* scene, const QString& filePath, QString* error = nullptr);
 };
 
 #endif // MCAD_EXPORTER_H

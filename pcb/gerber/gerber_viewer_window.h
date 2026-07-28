@@ -31,6 +31,7 @@ private slots:
     void onLayerToggled(QListWidgetItem* item);
     void onSelectBackgroundColor();
     void onTabChanged(int index);
+    void onInspectApertures();
 
 private:
     void setupUI();

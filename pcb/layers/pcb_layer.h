@@ -24,6 +24,11 @@ public:
         Fabrication,
         EdgeCuts,
         Drill,
+        Adhesive,
+        UserDrawings,
+        UserComments,
+        UserEco,
+        Margin,
         UserDefined
     };
 
@@ -106,16 +111,32 @@ public:
     static const int BottomSoldermask = 21;
     static const int TopPaste = 30;
     static const int BottomPaste = 31;
+    static const int TopAdhesive = 35;
+    static const int BottomAdhesive = 36;
     static const int TopCourtyard = 40;
     static const int BottomCourtyard = 41;
     static const int TopFabrication = 45;
     static const int BottomFabrication = 46;
     static const int EdgeCuts = 50;
+    static const int UserDrawings = 51;
+    static const int UserComments = 52;
+    static const int UserEco1 = 53;
+    static const int UserEco2 = 54;
+    static const int Margin = 55;
     static const int Drills = 60;
+    static const int User1 = 70;
+    static const int User2 = 71;
+    static const int User3 = 72;
+    static const int User4 = 73;
+    static const int User5 = 74;
+    static const int User6 = 75;
+    static const int User7 = 76;
+    static const int User8 = 77;
+    static const int User9 = 78;
 
     // Layer colors (default scheme)
-    static QColor copperTopColor() { return QColor(220, 40, 40, 240); }      // Professional Red
-    static QColor copperBottomColor() { return QColor(59, 130, 246, 230); }  // Tech Blue
+    static QColor copperTopColor() { return QColor(220, 40, 40); }      // Professional Red
+    static QColor copperBottomColor() { return QColor(59, 130, 246); }  // Tech Blue
     static QColor silkscreenColor() { return QColor(0, 255, 0, 240); }       // Neon Green
     static QColor soldermaskColor() { return QColor(20, 150, 50, 80); }      // Translucent Green
     static QColor edgeCutsColor() { return QColor(255, 255, 0); }            // Yellow

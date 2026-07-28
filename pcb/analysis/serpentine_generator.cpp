@@ -124,6 +124,33 @@ SerpentineGenerator::SerpentineResult SerpentineGenerator::generateSerpentine(co
         return result;
     }
 
+    // Split and update the original trace segment to remove the straight middle section
+    if (longestSeg.traceItem) {
+        QPointF serpEnd = result.newTraces.last()->endPoint();
+        m_scene->removeItem(longestSeg.traceItem);
+        delete longestSeg.traceItem;
+
+        // Add lead-in trace if serpStart is not at longestSeg.start
+        if (QLineF(longestSeg.start, serpStart).length() > 0.05) {
+            TraceItem* leadIn = new TraceItem(longestSeg.start, serpStart);
+            leadIn->setLayer(targetLayer);
+            leadIn->setWidth(config.traceWidth);
+            leadIn->setNetName(config.netName);
+            m_scene->addItem(leadIn);
+            result.newTraces.append(leadIn);
+        }
+
+        // Add lead-out trace if serpEnd is not at longestSeg.end
+        if (QLineF(serpEnd, longestSeg.end).length() > 0.05) {
+            TraceItem* leadOut = new TraceItem(serpEnd, longestSeg.end);
+            leadOut->setLayer(targetLayer);
+            leadOut->setWidth(config.traceWidth);
+            leadOut->setNetName(config.netName);
+            m_scene->addItem(leadOut);
+            result.newTraces.append(leadOut);
+        }
+    }
+
     result.success = true;
     result.segmentsCreated = result.newTraces.size();
     result.actualAddedLength = bumpCount * lengthPerBump(config.amplitude, config.spacing);
@@ -152,6 +179,7 @@ SerpentineGenerator::TraceSegmentInfo SerpentineGenerator::findLongestSegment(co
                 longest.length = len;
                 longest.layer = trace->layer();
                 longest.angle = QLineF(trace->startPoint(), trace->endPoint()).angle();
+                longest.traceItem = trace;
             }
         }
     }
@@ -281,6 +309,16 @@ QList<TraceItem*> SerpentineGenerator::createSerpentineChain(QPointF start, QPoi
         t3->setNetName(netName);
         m_scene->addItem(t3);
         traces.append(t3);
+        currentPos = nextPos;
+
+        // Advance baseline along trace direction to ensure adjacent bumps never touch
+        nextPos = currentPos + direction * (spacing + width);
+        TraceItem* t4 = new TraceItem(currentPos, nextPos);
+        t4->setLayer(layer);
+        t4->setWidth(width);
+        t4->setNetName(netName);
+        m_scene->addItem(t4);
+        traces.append(t4);
         currentPos = nextPos;
 
         goingOut = !goingOut; // Alternate direction for accordion pattern
