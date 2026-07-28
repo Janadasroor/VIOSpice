@@ -165,18 +165,25 @@ MainWindow::MainWindow(QWidget *parent)
         }
         
         if (!found && !netName.isEmpty()) {
-            // Highlight net
+            // Highlight all items on net
             m_netHighlightEnabled = true;
+            m_scene->clearSelection();
+            bool netFound = false;
+            QList<QGraphicsItem*> netItems;
             for (auto* item : m_scene->items()) {
                 if (auto* pi = dynamic_cast<PCBItem*>(item)) {
                     if (pi->netName() == netName) {
-                        m_scene->clearSelection();
                         pi->setSelected(true);
-                        if (autoFocus) m_view->centerOn(pi);
-                        statusBar()->showMessage("Cross-probed net: " + netName, 2000);
-                        break;
+                        netItems.append(pi);
+                        netFound = true;
                     }
                 }
+            }
+            if (netFound) {
+                if (autoFocus && !netItems.isEmpty()) {
+                    m_view->centerOn(netItems.first());
+                }
+                statusBar()->showMessage("Cross-probed net: " + netName, 2500);
             }
         }
     });
