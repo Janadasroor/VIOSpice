@@ -6,6 +6,7 @@
 #include "manufacturing_exporter.h"
 
 #include "../gerber/gerber_exporter.h"
+#include "../gerber/nc_drill_exporter.h"
 #include "../items/component_item.h"
 #include "../items/pad_item.h"
 #include "../items/pcb_item.h"
@@ -18,6 +19,8 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QGraphicsScene>
+#include <QProcess>
+#include <QTemporaryDir>
 #include <QTextStream>
 
 bool ManufacturingExporter::exportIPC2581(QGraphicsScene* scene, const QString& filePath, QString* error) {
@@ -307,10 +310,214 @@ QString ManufacturingExporter::generatePickPlaceContent(QGraphicsScene* scene,
         else if (isBottom) bottomCount++;
     }
 
-    // Summary footer
-    lines << "";
-    lines << QString("# Total components: %1 (Top: %2, Bottom: %3)")
-               .arg(topCount + bottomCount).arg(topCount).arg(bottomCount);
-
     return lines.join("\n") + "\n";
+}
+
+QString ManufacturingExporter::generateBOMCSV(QGraphicsScene* scene) {
+    if (!scene) return QString();
+
+    struct GroupedComp {
+        QString comment;
+        QString footprint;
+        QStringList designators;
+        QString lcscPartNumber;
+    };
+    QMap<QString, GroupedComp> groups;
+
+    for (QGraphicsItem* item : scene->items()) {
+        if (auto* comp = dynamic_cast<ComponentItem*>(item)) {
+            QString ref = comp->name();
+            if (ref.startsWith("FID", Qt::CaseInsensitive) || ref.startsWith("TP", Qt::CaseInsensitive)) continue;
+
+            QString val = comp->value().isEmpty() ? "10k" : comp->value();
+            QString fp = comp->componentType().isEmpty() ? "SMD" : comp->componentType();
+            QString key = val + "___" + fp;
+
+            if (!groups.contains(key)) {
+                groups[key] = {val, fp, {ref}, ""};
+            } else {
+                groups[key].designators.append(ref);
+            }
+        }
+    }
+
+    QStringList csvLines;
+    csvLines << "Comment/Value,Designator,Footprint,Quantity,LCSC Part #";
+
+    for (auto it = groups.begin(); it != groups.end(); ++it) {
+        it.value().designators.sort(Qt::CaseInsensitive);
+        QString desList = "\"" + it.value().designators.join(",") + "\"";
+        csvLines << QString("\"%1\",%2,\"%3\",%4,\"\"")
+                       .arg(it.value().comment)
+                       .arg(desList)
+                       .arg(it.value().footprint)
+                       .arg(it.value().designators.size());
+    }
+
+    return csvLines.join("\n") + "\n";
+}
+
+QString ManufacturingExporter::generateCPLCSV(QGraphicsScene* scene, FabricatorPreset preset) {
+    if (!scene) return QString();
+
+    QStringList csvLines;
+
+    if (preset == PCBWay) {
+        csvLines << "Designator,Footprint,Mid X,Mid Y,Layer,Rotation,Comment";
+    } else if (preset == Eurocircuits) {
+        csvLines << "Designator,Center X(mm),Center Y(mm),Layer,Rotation,Package,Value";
+    } else {
+        // Default JLCPCB Format
+        csvLines << "Designator,Val,Package,Mid X,Mid Y,Rotation,Layer";
+    }
+
+    for (QGraphicsItem* item : scene->items()) {
+        if (auto* comp = dynamic_cast<ComponentItem*>(item)) {
+            QString ref = comp->name();
+            if (ref.isEmpty() || ref.startsWith("FID", Qt::CaseInsensitive) || ref.startsWith("TP", Qt::CaseInsensitive)) continue;
+
+            const PCBLayer* layer = PCBLayerManager::instance().layer(comp->layer());
+            bool isTop = (!layer || layer->side() != PCBLayer::Bottom);
+            QString sideStr = isTop ? "Top" : "Bottom";
+
+            double x = comp->pos().x();
+            double y = comp->pos().y();
+            double rot = comp->rotation();
+
+            if (!isTop) {
+                x = -x;
+                rot = std::fmod(360.0 - rot, 360.0);
+            }
+
+            QString val = comp->value().isEmpty() ? "10k" : comp->value();
+            QString pkg = comp->componentType().isEmpty() ? "Component" : comp->componentType();
+
+            if (preset == PCBWay) {
+                csvLines << QString("%1,\"%2\",%3,%4,%5,%6,\"%7\"")
+                               .arg(ref).arg(pkg)
+                               .arg(x, 0, 'f', 4).arg(y, 0, 'f', 4)
+                               .arg(sideStr).arg(rot, 0, 'f', 2).arg(val);
+            } else if (preset == Eurocircuits) {
+                csvLines << QString("%1,%2,%3,%4,%5,\"%6\",\"%7\"")
+                               .arg(ref)
+                               .arg(x, 0, 'f', 4).arg(y, 0, 'f', 4)
+                               .arg(sideStr).arg(rot, 0, 'f', 2).arg(pkg).arg(val);
+            } else {
+                // JLCPCB Standard
+                csvLines << QString("%1,\"%2\",\"%3\",%4,%5,%6,%7")
+                               .arg(ref).arg(val).arg(pkg)
+                               .arg(x, 0, 'f', 4).arg(y, 0, 'f', 4)
+                               .arg(rot, 0, 'f', 2).arg(sideStr);
+            }
+        }
+    }
+
+    return csvLines.join("\n") + "\n";
+}
+
+bool ManufacturingExporter::exportManufacturingPackage(QGraphicsScene* scene,
+                                                       const QString& outputPath,
+                                                       const ManufacturingPackageOptions& options,
+                                                       QString* error) {
+    if (!scene) {
+        if (error) *error = "Invalid PCB scene pointer.";
+        return false;
+    }
+
+    QTemporaryDir tempDir;
+    if (!tempDir.isValid()) {
+        if (error) *error = "Failed to create temporary export directory.";
+        return false;
+    }
+
+    QDir tempDirHandle(tempDir.path());
+
+    // 1. Export Gerber Layers
+    if (options.includeGerbers) {
+        QList<int> exportLayers = {
+            PCBLayerManager::TopCopper,
+            PCBLayerManager::BottomCopper,
+            PCBLayerManager::TopSilkscreen,
+            PCBLayerManager::BottomSilkscreen,
+            PCBLayerManager::TopSoldermask,
+            PCBLayerManager::BottomSoldermask,
+            PCBLayerManager::TopPaste,
+            PCBLayerManager::BottomPaste,
+            PCBLayerManager::EdgeCuts
+        };
+
+        for (int layerId : exportLayers) {
+            PCBLayer* layer = PCBLayerManager::instance().layer(layerId);
+            if (!layer) continue;
+
+            QString ext = ".gbr";
+            if (options.preset == PCBWay) {
+                if (layerId == PCBLayerManager::TopCopper) ext = ".gtl";
+                else if (layerId == PCBLayerManager::BottomCopper) ext = ".gbl";
+                else if (layerId == PCBLayerManager::TopSilkscreen) ext = ".gto";
+                else if (layerId == PCBLayerManager::BottomSilkscreen) ext = ".gbo";
+                else if (layerId == PCBLayerManager::TopSoldermask) ext = ".gts";
+                else if (layerId == PCBLayerManager::BottomSoldermask) ext = ".gbs";
+                else if (layerId == PCBLayerManager::TopPaste) ext = ".gtp";
+                else if (layerId == PCBLayerManager::BottomPaste) ext = ".gbp";
+                else if (layerId == PCBLayerManager::EdgeCuts) ext = ".gm1";
+            }
+
+            QString fileName = layer->name().replace(" ", "_") + ext;
+            QString gbrPath = tempDirHandle.filePath(fileName);
+            GerberExporter::exportLayer(scene, layerId, gbrPath, GerberExportSettings());
+        }
+    }
+
+    // 2. Export NC Drill Files
+    if (options.includeDrill) {
+        NCDrillExporter::DrillOptions drillOpts;
+        NCDrillExporter::exportDrills(scene, tempDir.path(), drillOpts);
+    }
+
+    // 3. Export BOM & CPL CSVs
+    if (options.includeBOM) {
+        QString bomContent = generateBOMCSV(scene);
+        QFile bomFile(tempDirHandle.filePath("BOM_JLCPCB.csv"));
+        if (bomFile.open(QIODevice::WriteOnly | QIODevice::Text)) {
+            QTextStream out(&bomFile);
+            out << bomContent;
+            bomFile.close();
+        }
+    }
+
+    if (options.includeCPL) {
+        QString cplContent = generateCPLCSV(scene, options.preset);
+        QFile cplFile(tempDirHandle.filePath("CPL_JLCPCB.csv"));
+        if (cplFile.open(QIODevice::WriteOnly | QIODevice::Text)) {
+            QTextStream out(&cplFile);
+            out << cplContent;
+            cplFile.close();
+        }
+    }
+
+    // 4. Compress output into ZIP file or Copy to Target Dir
+    if (options.zipPackage || outputPath.endsWith(".zip", Qt::CaseInsensitive)) {
+        QFileInfo outFi(outputPath);
+        QDir().mkpath(outFi.absolutePath());
+
+        // Use zip command
+        QProcess zipProc;
+        zipProc.setWorkingDirectory(tempDir.path());
+        zipProc.start("zip", QStringList() << "-r" << outputPath << ".");
+        zipProc.waitForFinished(10000);
+
+        if (zipProc.exitCode() != 0 || !QFile::exists(outputPath)) {
+            if (error) *error = "Failed to execute zip command. Ensure zip is installed.";
+            return false;
+        }
+    } else {
+        QDir targetDir(outputPath);
+        QDir().mkpath(outputPath);
+        for (const QString& file : tempDirHandle.entryList(QDir::Files)) {
+            QFile::copy(tempDirHandle.filePath(file), targetDir.filePath(file));
+        }
+    }
+
+    return true;
 }

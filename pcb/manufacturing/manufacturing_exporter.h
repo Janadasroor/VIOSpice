@@ -36,10 +36,34 @@ public:
                                 const PickPlaceOptions& options,
                                 QString* error = nullptr);
 
-    // Generate CSV/TSV content without writing to file
     static QString generatePickPlaceContent(QGraphicsScene* scene,
                                             const PickPlaceOptions& options,
                                             QString* error = nullptr);
+
+    // One-Click Manufacturing Package Generator
+    enum FabricatorPreset {
+        JLCPCB,
+        PCBWay,
+        Eurocircuits,
+        GenericGerber
+    };
+
+    struct ManufacturingPackageOptions {
+        FabricatorPreset preset = JLCPCB;
+        bool includeBOM = true;
+        bool includeCPL = true;
+        bool includeGerbers = true;
+        bool includeDrill = true;
+        bool zipPackage = true;
+    };
+
+    static bool exportManufacturingPackage(QGraphicsScene* scene,
+                                         const QString& outputPath,
+                                         const ManufacturingPackageOptions& options,
+                                         QString* error = nullptr);
+
+    static QString generateBOMCSV(QGraphicsScene* scene);
+    static QString generateCPLCSV(QGraphicsScene* scene, FabricatorPreset preset = JLCPCB);
 };
 
 #endif // MANUFACTURING_EXPORTER_H
