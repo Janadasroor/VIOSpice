@@ -86,6 +86,8 @@ private slots:
     void onSettings();
     void onImportNetlist();
     void onImportImage();
+    void onImportKiCadPCB();
+    void onExportKiCadPCB();
     void onPropertyChanged(const QString& name, const QVariant& value);
     void onFilterChanged();
     void onOpenCommandPalette();

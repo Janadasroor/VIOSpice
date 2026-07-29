@@ -169,11 +169,14 @@ void MainWindow::createMenuBar() {
     fileMenu->addAction("Save &As...", QKeySequence::SaveAs, this, &MainWindow::onSaveProjectAs);
 
     fileMenu->addSeparator();
-    fileMenu->addAction("📥 Import Netlist...", QKeySequence("Ctrl+I"), this, &MainWindow::onImportNetlist);
+    fileMenu->addAction("Import Netlist...", QKeySequence("Ctrl+I"), this, &MainWindow::onImportNetlist);
     fileMenu->addAction("Import Image...", QKeySequence("Ctrl+Shift+I"), this, &MainWindow::onImportImage);
+    fileMenu->addAction("Import KiCad PCB...", QKeySequence("Ctrl+K"), this, &MainWindow::onImportKiCadPCB);
 
     fileMenu->addSeparator();
     QMenu* exportMenu = fileMenu->addMenu("Export");
+    exportMenu->addAction("Export KiCad PCB (.kicad_pcb)...", QKeySequence("Ctrl+Shift+K"), this, &MainWindow::onExportKiCadPCB);
+    exportMenu->addSeparator();
     exportMenu->addAction("Export as Image...", QKeySequence(), this, &MainWindow::onExportImage);
     exportMenu->addAction("Export as PDF...", QKeySequence(), this, &MainWindow::onExportPDF);
     exportMenu->addAction("Export as SVG...", QKeySequence(), this, &MainWindow::onExportSVG);
