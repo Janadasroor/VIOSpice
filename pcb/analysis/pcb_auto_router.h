@@ -192,6 +192,7 @@ private:
         double fCost() const { return gCost + hCost; }
         int parentX = -1, parentY = -1;  // Parent node
         int parentLayer = -1;
+        int parentIdx = -1;              // Index of parent node in nodes vector
         bool isVia = false;              // True if this node transitions layers
         double extraCost = 0.0;          // Extra via proximity clearance penalty
     };

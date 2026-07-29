@@ -273,7 +273,12 @@ void PCBDRC::checkClearances(QGraphicsScene* scene) {
     }
 
     double globalMinClearance = m_rules.minClearance();
-    QSet<QString> checkedPairs;
+
+    // Build Spatial Hash Grid once in O(N)
+    SpatialHashGrid<PCBItem*> spatialGrid(5.0);
+    for (PCBItem* item : copperItems) {
+        spatialGrid.insertBox(item->sceneBoundingRect(), item);
+    }
 
     for (int i = 0; i < copperItems.size(); ++i) {
         PCBItem* item1 = copperItems[i];
@@ -284,13 +289,12 @@ void PCBDRC::checkClearances(QGraphicsScene* scene) {
             itemClearance = NetClassManager::instance().getClassForNet(item1->netName()).clearance;
         }
         
-        // Spatial search for optimal performance
+        // Spatial search via fast hash grid
         QRectF searchRect = item1->sceneBoundingRect().adjusted(-itemClearance, -itemClearance, itemClearance, itemClearance);
-        QList<QGraphicsItem*> neighbors = scene->items(searchRect);
+        QList<PCBItem*> neighbors = spatialGrid.queryBox(searchRect);
 
-        for (auto* neighbor : neighbors) {
-            PCBItem* item2 = dynamic_cast<PCBItem*>(neighbor);
-            if (!item2 || item1 == item2) continue;
+        for (PCBItem* item2 : neighbors) {
+            if (item1 >= item2) continue; // Symmetric check only once with 0 string overhead
             
             // Only primitives
             PCBItem::ItemType type2 = item2->itemType();
@@ -311,13 +315,6 @@ void PCBDRC::checkClearances(QGraphicsScene* scene) {
             if (customMatched) {
                 requiredClearance = custom;
             }
-
-            // Ensure symmetric check only once using IDs as keys
-            QString id1 = item1->idString();
-            QString id2 = item2->idString();
-            QString pairKey = (id1 < id2) ? (id1 + "|" + id2) : (id2 + "|" + id1);
-            if (checkedPairs.contains(pairKey)) continue;
-            checkedPairs.insert(pairKey);
 
             QPointF violationPos;
             if (checkItemClearance(item1, item2, requiredClearance, violationPos)) {
