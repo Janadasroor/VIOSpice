@@ -297,22 +297,22 @@ void MainWindow::createMenuBar() {
         if (m_view) m_view->setCurrentTool("Measure");
     });
     toolsMenu->addAction("Board Setup", this, &MainWindow::onBoardSetup);
-    toolsMenu->addAction("📚 Board Layer Stackup & Impedance...", this, &MainWindow::onLayerStackup);
+    toolsMenu->addAction("Board Layer Stackup & Impedance...", this, &MainWindow::onLayerStackup);
     toolsMenu->addAction("Via Stitching...", this, &MainWindow::onViaStitching);
     toolsMenu->addSeparator();
-    QAction* autoRouteAction = toolsMenu->addAction("🚀 Auto-Router...");
+    QAction* autoRouteAction = toolsMenu->addAction("Auto-Router...");
     autoRouteAction->setShortcut(QKeySequence("Ctrl+Shift+R"));
     connect(autoRouteAction, &QAction::triggered, this, &MainWindow::onAutoRoute);
 
-    QAction* lengthMatchAction = toolsMenu->addAction("📏 Length Matching...");
+    QAction* lengthMatchAction = toolsMenu->addAction("Length Matching...");
     lengthMatchAction->setShortcut(QKeySequence("Ctrl+Shift+L"));
     connect(lengthMatchAction, &QAction::triggered, this, &MainWindow::onLengthMatching);
 
-    QAction* compareBoardAction = toolsMenu->addAction("🔍 Compare Board...");
+    QAction* compareBoardAction = toolsMenu->addAction("Compare Board...");
     compareBoardAction->setShortcut(QKeySequence("Ctrl+Shift+D"));
     connect(compareBoardAction, &QAction::triggered, this, &MainWindow::onCompareBoard);
 
-    QAction* reportAction = toolsMenu->addAction("📋 Generate Design Report...");
+    QAction* reportAction = toolsMenu->addAction("Generate Design Report...");
     reportAction->setShortcut(QKeySequence("Ctrl+Shift+P"));
     connect(reportAction, &QAction::triggered, this, &MainWindow::onGenerateDesignReport);
 
@@ -870,7 +870,7 @@ void MainWindow::createDockWidgets() {
     connect(m_propertyEditor, &Flux::PCBPropertyEditor::propertyChanged, this, &MainWindow::onPropertyChanged);
 
     // === Gemini Assistant Dock (Lazy-initialized on visibility) ===
-    m_geminiDock = new QDockWidget("✨ Gemini Assistant", this);
+    m_geminiDock = new QDockWidget("Gemini Assistant", this);
     m_geminiDock->setObjectName("GeminiDock");
     m_geminiDock->setFeatures(QDockWidget::DockWidgetMovable | QDockWidget::DockWidgetFloatable | QDockWidget::DockWidgetClosable);
 
@@ -964,7 +964,7 @@ void MainWindow::createDockWidgets() {
 }
 
 void MainWindow::createStatusBar() {
-    m_coordLabel = new QLabel("📍 X: 0.0mm  Y: 0.0mm");
+    m_coordLabel = new QLabel("X: 0.0mm  Y: 0.0mm");
     m_coordLabel->setMinimumWidth(180);
     m_coordLabel->setStyleSheet("QLabel { padding: 4px 12px; font-weight: 500; }");
     
@@ -1011,7 +1011,7 @@ void MainWindow::createStatusBar() {
         if (m_layerPanel) m_layerPanel->selectLayer(layerId);
     });
 
-    m_layerLabel = new QLabel("⚡");
+    m_layerLabel = new QLabel("Layer:");
     m_layerLabel->setStyleSheet("QLabel { padding: 0 0 0 12px; }");
 
     m_selectionInfoLabel = new QLabel("Selection: none");
@@ -1064,7 +1064,7 @@ void MainWindow::createStatusBar() {
     statusBar()->addPermanentWidget(m_selectionInfoLabel, 1);
     statusBar()->addWidget(createStatusSeparator());
 
-    QPushButton* themeBtn = new QPushButton("🎨 Theme");
+    QPushButton* themeBtn = new QPushButton("Theme");
     themeBtn->setFlat(true);
     themeBtn->setCursor(Qt::PointingHandCursor);
     themeBtn->setStyleSheet("QPushButton { color: #a1a1aa; font-weight: bold; border: none; padding: 0 5px; } QPushButton:hover { color: white; }");

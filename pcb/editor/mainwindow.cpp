@@ -218,11 +218,25 @@ MainWindow::MainWindow(QWidget *parent)
 }
 
 MainWindow::~MainWindow() {
+    this->disconnect();
+    SyncManager::instance().disconnect(this);
+    if (m_scene) {
+        m_scene->blockSignals(true);
+        m_scene->disconnect(this);
+    }
+    if (m_view) {
+        m_view->blockSignals(true);
+        m_view->disconnect(this);
+    }
+    if (m_propertyEditor) {
+        m_propertyEditor->blockSignals(true);
+        m_propertyEditor->disconnect(this);
+    }
 }
 
 void MainWindow::updateCoordinates(QPointF pos) {
     if (m_coordLabel)
-        m_coordLabel->setText(QString("📍 X: %1mm  Y: %2mm").arg(pos.x(), 0, 'f', 2).arg(pos.y(), 0, 'f', 2));
+        m_coordLabel->setText(QString("X: %1mm  Y: %2mm").arg(pos.x(), 0, 'f', 2).arg(pos.y(), 0, 'f', 2));
 }
 
 void MainWindow::handleIncomingECO() {
