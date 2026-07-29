@@ -98,6 +98,7 @@
 #include <cmath>
 
 #include "../import/kicad_pcb_importer.h"
+#include "../export/kicad_pcb_exporter.h"
 
 void MainWindow::onNewProject() {
     if (!m_scene) return;
@@ -221,6 +222,21 @@ void MainWindow::onSaveProject() {
         return;
     }
     
+    if (m_currentFilePath.endsWith(".kicad_pcb", Qt::CaseInsensitive)) {
+        auto stats = KiCadPCBExporter::exportKiCadPCB(m_currentFilePath, m_scene);
+        if (stats.success) {
+            setWindowTitle("Viora EDA - PCB Editor [" + QFileInfo(m_currentFilePath).fileName() + "]");
+            statusBar()->showMessage(QString("Exported KiCad PCB: %1 (%2 traces, %3 vias, %4 footprints)")
+                .arg(m_currentFilePath)
+                .arg(stats.tracesCount)
+                .arg(stats.viasCount)
+                .arg(stats.footprintsCount), 5000);
+        } else {
+            statusBar()->showMessage("Error exporting KiCad PCB: " + stats.error, 5000);
+        }
+        return;
+    }
+
     if (PCBFileIO::savePCB(m_scene, m_currentFilePath)) {
         setWindowTitle("Viora EDA - PCB Editor [" + QFileInfo(m_currentFilePath).fileName() + "]");
         statusBar()->showMessage("Saved PCB: " + m_currentFilePath, 5000);

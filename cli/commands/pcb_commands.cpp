@@ -31,6 +31,7 @@
 #include "pcb/drc/pcb_drc.h"
 #include "pcb/models/drc_types.h"
 #include "pcb/import/kicad_pcb_importer.h"
+#include "pcb/export/kicad_pcb_exporter.h"
 #include "pcb/gerber/gerber_exporter.h"
 #include "pcb/mcad/mcad_exporter.h"
 #include "pcb/manufacturing/manufacturing_exporter.h"
@@ -1083,6 +1084,16 @@ public:
             ManufacturingExporter::PickPlaceOptions opts;
             ok = ManufacturingExporter::exportPickPlace(&scene, outputPath, opts, &errorMsg);
             if (ok) generatedFiles.append(outputPath);
+        } else if (format == "kicad" || format == "kicad_pcb") {
+            QFileInfo fi(outputPath);
+            if (fi.isDir() || !outputPath.endsWith(".kicad_pcb", Qt::CaseInsensitive)) {
+                QDir().mkpath(outputPath);
+                outputPath = QDir(outputPath).filePath(QFileInfo(pcbPath).baseName() + ".kicad_pcb");
+            }
+            auto stats = KiCadPCBExporter::exportKiCadPCB(outputPath, &scene);
+            ok = stats.success;
+            if (!ok) errorMsg = stats.error;
+            else generatedFiles.append(outputPath);
         } else {
             std::cerr << "Unsupported export format: " << format.toStdString() << std::endl;
             return 1;
