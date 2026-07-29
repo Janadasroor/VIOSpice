@@ -133,11 +133,13 @@ set(PCB_SOURCES
     drc/pcb_design_rules_editor.cpp
     drc/pcb_design_rules_editor.h
 
-    # Import
+    # Import & Export
     import/netlist_importer.cpp
     import/netlist_importer.h
     import/kicad_pcb_importer.cpp
     import/kicad_pcb_importer.h
+    export/kicad_pcb_exporter.cpp
+    export/kicad_pcb_exporter.h
 
     # Layers
     layers/pcb_layer.cpp
