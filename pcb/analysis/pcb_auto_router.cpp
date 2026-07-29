@@ -615,6 +615,12 @@ bool PCBAutoRouter::findPath(const UnroutedConnection& conn, QVector<AStarNode>&
         openQueue.push({startNode.fCost(), startNode.x, startNode.y, startNode.layer});
     }
 
+    int marginCells = std::max(15, static_cast<int>(20.0 / m_config.gridSpacing));
+    int bMinX = std::max(0, std::min(gStart.x(), gEnd.x()) - marginCells);
+    int bMaxX = std::min(m_gridWidth - 1, std::max(gStart.x(), gEnd.x()) + marginCells);
+    int bMinY = std::max(0, std::min(gStart.y(), gEnd.y()) - marginCells);
+    int bMaxY = std::min(m_gridHeight - 1, std::max(gStart.y(), gEnd.y()) + marginCells);
+
     int iterations = 0;
     int goalNodeIdx = -1;
 
@@ -647,6 +653,8 @@ bool PCBAutoRouter::findPath(const UnroutedConnection& conn, QVector<AStarNode>&
         // Explore neighbors
         auto neighbors = getNeighbors(current, conn.netName);
         for (const AStarNode& neighbor : neighbors) {
+            if (neighbor.x < bMinX || neighbor.x > bMaxX || neighbor.y < bMinY || neighbor.y > bMaxY) continue;
+
             int nKey = flatIndex(neighbor.x, neighbor.y, neighbor.layer);
             if (nKey < 0 || closedSet[nKey]) continue;
 
