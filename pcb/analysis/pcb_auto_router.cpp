@@ -559,14 +559,17 @@ bool PCBAutoRouter::findPath(const UnroutedConnection& conn, QVector<AStarNode>&
         }
     }
 
-    // A* structures
-    QHash<QString, int> closedSet;  // Key: "x,y,layer" -> index
-    QHash<QString, int> openMap;    // Key: "x,y,layer" -> index in open vector
+    // A* structures with 0 heap string allocations (O(1) flat grid indexing)
+    const int totalCells = m_gridWidth * m_gridHeight * m_gridLayers;
+    std::vector<int> openMap(totalCells, -1);
+    std::vector<uint8_t> closedSet(totalCells, 0);
     QVector<AStarNode> nodes;
     std::priority_queue<AStarOpenEntry, QVector<AStarOpenEntry>, std::greater<AStarOpenEntry>> openQueue;
 
-    auto makeKey = [](int x, int y, int layer) -> QString {
-        return QString("%1,%2,%3").arg(x).arg(y).arg(layer);
+    auto flatIndex = [this, totalCells](int x, int y, int layer) -> int {
+        if (x < 0 || x >= m_gridWidth || y < 0 || y >= m_gridHeight || layer < 0 || layer >= m_gridLayers) return -1;
+        int idx = (layer * m_gridHeight + y) * m_gridWidth + x;
+        return (idx >= 0 && idx < totalCells) ? idx : -1;
     };
 
     // Check if start pad is through-hole
@@ -597,7 +600,8 @@ bool PCBAutoRouter::findPath(const UnroutedConnection& conn, QVector<AStarNode>&
             startNode.hCost = heuristic(gStart.x(), gStart.y(), gEnd.x(), gEnd.y());
             int nodeIdx = nodes.size();
             nodes.append(startNode);
-            openMap.insert(makeKey(startNode.x, startNode.y, startNode.layer), nodeIdx);
+            int idxKey = flatIndex(startNode.x, startNode.y, startNode.layer);
+            if (idxKey >= 0) openMap[idxKey] = nodeIdx;
             openQueue.push({startNode.fCost(), startNode.x, startNode.y, startNode.layer});
         }
     } else {
@@ -606,11 +610,10 @@ bool PCBAutoRouter::findPath(const UnroutedConnection& conn, QVector<AStarNode>&
         startNode.gCost = 0;
         startNode.hCost = heuristic(gStart.x(), gStart.y(), gEnd.x(), gEnd.y());
         nodes.append(startNode);
-        openMap.insert(makeKey(startNode.x, startNode.y, startNode.layer), 0);
+        int idxKey = flatIndex(startNode.x, startNode.y, startNode.layer);
+        if (idxKey >= 0) openMap[idxKey] = 0;
         openQueue.push({startNode.fCost(), startNode.x, startNode.y, startNode.layer});
     }
-
-
 
     int iterations = 0;
     int goalNodeIdx = -1;
@@ -623,10 +626,10 @@ bool PCBAutoRouter::findPath(const UnroutedConnection& conn, QVector<AStarNode>&
         AStarOpenEntry currentEntry = openQueue.top();
         openQueue.pop();
 
-        QString currentKey = makeKey(currentEntry.x, currentEntry.y, currentEntry.layer);
-        if (closedSet.contains(currentKey)) continue; // Already processed
+        int cKey = flatIndex(currentEntry.x, currentEntry.y, currentEntry.layer);
+        if (cKey < 0 || closedSet[cKey]) continue; // Already processed
 
-        int currentIdx = openMap.value(currentKey, -1);
+        int currentIdx = openMap[cKey];
         if (currentIdx < 0 || currentIdx >= nodes.size()) continue;
 
         const AStarNode& current = nodes[currentIdx];
@@ -639,13 +642,13 @@ bool PCBAutoRouter::findPath(const UnroutedConnection& conn, QVector<AStarNode>&
             }
         }
 
-        closedSet.insert(currentKey, currentIdx);
+        closedSet[cKey] = 1;
 
         // Explore neighbors
         auto neighbors = getNeighbors(current, conn.netName);
         for (const AStarNode& neighbor : neighbors) {
-            QString neighborKey = makeKey(neighbor.x, neighbor.y, neighbor.layer);
-            if (closedSet.contains(neighborKey)) continue;
+            int nKey = flatIndex(neighbor.x, neighbor.y, neighbor.layer);
+            if (nKey < 0 || closedSet[nKey]) continue;
 
             if (!isCellPassable(neighbor.x, neighbor.y, neighbor.layer, conn.netName)) {
                 const GridCell* cell = cellAt(neighbor.x, neighbor.y, neighbor.layer);
@@ -703,7 +706,7 @@ bool PCBAutoRouter::findPath(const UnroutedConnection& conn, QVector<AStarNode>&
 
             double tentativeG = current.gCost + moveCost;
 
-            int existingIdx = openMap.value(neighborKey, -1);
+            int existingIdx = openMap[nKey];
             if (existingIdx < 0 || tentativeG < nodes[existingIdx].gCost) {
                 AStarNode newNode = neighbor;
                 newNode.gCost = tentativeG;
@@ -711,40 +714,25 @@ bool PCBAutoRouter::findPath(const UnroutedConnection& conn, QVector<AStarNode>&
                 newNode.parentX = current.x;
                 newNode.parentY = current.y;
                 newNode.parentLayer = current.layer;
+                newNode.parentIdx = currentIdx;
 
                 int nodeIdx = nodes.size();
                 nodes.append(newNode);
-                openMap.insert(neighborKey, nodeIdx);
+                openMap[nKey] = nodeIdx;
                 openQueue.push({newNode.fCost(), newNode.x, newNode.y, newNode.layer});
             }
         }
     }
 
-    // Reconstruct path
+    // Reconstruct path in O(1) time
     if (goalNodeIdx < 0) return false;
 
     outPath.clear();
     int idx = goalNodeIdx;
-    while (idx >= 0) {
+    while (idx >= 0 && idx < nodes.size()) {
         outPath.prepend(nodes[idx]);
-        const AStarNode& node = nodes[idx];
-        // Find parent
-        QString parentKey = makeKey(node.parentX, node.parentY, node.parentLayer);
-        if (node.parentX < 0) break;
-        idx = closedSet.value(parentKey, -1);
-        if (idx < 0) {
-            // Check if parent is in nodes
-            bool found = false;
-            for (int i = 0; i < nodes.size(); ++i) {
-                if (nodes[i].x == node.parentX && nodes[i].y == node.parentY &&
-                    nodes[i].layer == node.parentLayer) {
-                    idx = i;
-                    found = true;
-                    break;
-                }
-            }
-            if (!found) break;
-        }
+        if (nodes[idx].parentIdx == idx) break; // Root guard
+        idx = nodes[idx].parentIdx;
     }
 
     return !outPath.isEmpty();
