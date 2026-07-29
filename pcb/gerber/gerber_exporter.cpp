@@ -470,18 +470,16 @@ bool GerberExporter::exportLayer(QGraphicsScene* scene, int layerId, const QStri
         }
 
         if (shape == "rect") {
-            if (drill > 0.001) return false; // Avoid non-standard flash for pads with holes
             const bool swapAxes = std::abs(std::fmod(std::abs(sceneRotation), 180.0) - 90.0) < 1e-4;
-            const int ap = getFlashAperture("R", swapAxes ? h : w, swapAxes ? w : h, 0.0);
+            const int ap = getFlashAperture("R", swapAxes ? h : w, swapAxes ? w : h, drill);
             out << QString("D%1*\n").arg(ap);
             writeFlash(out, pad->scenePos().x(), pad->scenePos().y(), decimals);
             return true;
         }
 
         if (shape == "oblong") {
-            if (drill > 0.001) return false; // Avoid non-standard flash for pads with holes
             const bool swapAxes = std::abs(std::fmod(std::abs(sceneRotation), 180.0) - 90.0) < 1e-4;
-            const int ap = getFlashAperture("O", swapAxes ? h : w, swapAxes ? w : h, 0.0);
+            const int ap = getFlashAperture("O", swapAxes ? h : w, swapAxes ? w : h, drill);
             out << QString("D%1*\n").arg(ap);
             writeFlash(out, pad->scenePos().x(), pad->scenePos().y(), decimals);
             return true;
