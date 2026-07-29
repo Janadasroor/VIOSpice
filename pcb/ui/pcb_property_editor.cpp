@@ -12,6 +12,7 @@
 #include "../items/copper_pour_item.h"
 #include "../items/shape_item.h"
 #include "../items/image_item.h"
+#include "../layers/pcb_layer.h"
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QPushButton>
@@ -373,10 +374,50 @@ void PCBPropertyEditor::populateProperties() {
 
     m_blockSignals = true;
 
+    auto createLayerCombo = [&](int currentLayer, const QString& name) {
+        auto* combo = new QComboBox();
+        QStringList layerNames;
+        QList<int> layerIds;
+
+        auto addL = [&](int id, const QString& label) {
+            layerNames.append(label);
+            layerIds.append(id);
+        };
+
+        addL(PCBLayerManager::TopCopper, "F.Cu (Top Copper)");
+        addL(PCBLayerManager::BottomCopper, "B.Cu (Bottom Copper)");
+        for (int i = 1; i <= 4; ++i) {
+            addL(1 + i, QString("In%1.Cu (Inner %1)").arg(i));
+        }
+        addL(PCBLayerManager::TopSilkscreen, "F.SilkS (Top Silk)");
+        addL(PCBLayerManager::BottomSilkscreen, "B.SilkS (Bottom Silk)");
+        addL(PCBLayerManager::TopSoldermask, "F.Mask (Top Mask)");
+        addL(PCBLayerManager::BottomSoldermask, "B.Mask (Bottom Mask)");
+        addL(PCBLayerManager::EdgeCuts, "Edge.Cuts (Board Outline)");
+
+        combo->addItems(layerNames);
+
+        int selectedIdx = layerIds.indexOf(currentLayer);
+        if (selectedIdx >= 0) combo->setCurrentIndex(selectedIdx);
+
+        combo->setStyleSheet(
+            "QComboBox {"
+            "   background: #18181b; color: #fff; border: 1px solid #27272a;"
+            "   border-radius: 4px; padding: 2px 8px; font-size: 12px;"
+            "}"
+        );
+        connect(combo, QOverload<int>::of(&QComboBox::currentIndexChanged), [this, name, layerIds](int idx) {
+            if (!m_blockSignals && idx >= 0 && idx < layerIds.size()) {
+                emit propertyChanged(name, layerIds[idx]);
+            }
+        });
+        return combo;
+    };
+
     // Identification
     auto* idSection = addSection("Identification");
     idSection->addRow(new PropertyRow("Name", createEdit(item->name(), "Name")));
-    idSection->addRow(new PropertyRow("Layer", createDoubleSpin(item->layer(), "Layer"))); // Could be combo later
+    idSection->addRow(new PropertyRow("Layer", createLayerCombo(item->layer(), "Layer")));
     idSection->addRow(new PropertyRow("Locked", createBoolCheckBox(item->isLocked(), "Locked")));
 
     // Geometry
@@ -403,19 +444,23 @@ void PCBPropertyEditor::populateProperties() {
             viaSection->addRow(new PropertyRow("Diameter (mm)", createDoubleSpin(via->diameter(), "Diameter (mm)")));
             viaSection->addRow(new PropertyRow("Drill (mm)", createDoubleSpin(via->drillSize(), "Drill Size (mm)")));
             viaSection->addRow(new PropertyRow("Microvia", createBoolCheckBox(via->isMicrovia(), "Microvia")));
-            viaSection->addRow(new PropertyRow("Start Layer", createDoubleSpin(via->startLayer(), "Via Start Layer")));
-            viaSection->addRow(new PropertyRow("End Layer", createDoubleSpin(via->endLayer(), "Via End Layer")));
+            viaSection->addRow(new PropertyRow("Start Layer", createLayerCombo(via->startLayer(), "Via Start Layer")));
+            viaSection->addRow(new PropertyRow("End Layer", createLayerCombo(via->endLayer(), "Via End Layer")));
         } else if (auto* pad = dynamic_cast<PadItem*>(item)) {
             auto* padElectricalSection = addSection("Electrical Properties");
             padElectricalSection->addRow(new PropertyRow("Net", createNetCombo(pad->netName())));
 
             auto* padSection = addSection("Pad Parameters");
+            QString padNum = (pad->model() && !pad->model()->number().isEmpty()) ? pad->model()->number() : "1";
+            padSection->addRow(new PropertyRow("Pad Number", createEdit(padNum, "Pad Number")));
             padSection->addRow(new PropertyRow("Shape", createEnumCombo({"Round", "Rect", "Oblong"}, pad->padShape(), "Pad Shape")));
             padSection->addRow(new PropertyRow("Size X (mm)", createDoubleSpin(pad->size().width(), "Size X (mm)")));
             padSection->addRow(new PropertyRow("Size Y (mm)", createDoubleSpin(pad->size().height(), "Size Y (mm)")));
             padSection->addRow(new PropertyRow("Drill (mm)", createDoubleSpin(pad->drillSize(), "Drill Size (mm)")));
         } else if (auto* comp = dynamic_cast<ComponentItem*>(item)) {
             auto* compSection = addSection("Component Info");
+            compSection->addRow(new PropertyRow("Footprint", createEdit(comp->componentType(), "Component Type")));
+            compSection->addRow(new PropertyRow("Value", createEdit(comp->value(), "Value")));
             compSection->addRow(new PropertyRow("Height (mm)", createDoubleSpin(comp->height(), "Height (mm)")));
             compSection->addRow(new PropertyRow("3D Model", createEdit(comp->modelPath(), "3D Model Path")));
             compSection->addRow(new PropertyRow("3D Scale", createDoubleSpin(comp->modelScale(), "3D Model Scale")));
@@ -468,6 +513,31 @@ void PCBPropertyEditor::populateProperties() {
             thermalSection->addRow(new PropertyRow("Spoke Width (mm)", createDoubleSpin(pour->thermalSpokeWidth(), "Thermal Spoke Width (mm)")));
             thermalSection->addRow(new PropertyRow("Spoke Count", createDoubleSpin(pour->thermalSpokeCount(), "Thermal Spoke Count")));
             thermalSection->addRow(new PropertyRow("Spoke Angle (deg)", createDoubleSpin(pour->thermalSpokeAngleDeg(), "Thermal Angle (deg)")));
+        }
+    } else {
+        // Multi-selection Batch Editing
+        bool allTraces = std::all_of(m_items.begin(), m_items.end(), [](PCBItem* i){ return dynamic_cast<TraceItem*>(i) != nullptr; });
+        bool allVias = std::all_of(m_items.begin(), m_items.end(), [](PCBItem* i){ return dynamic_cast<ViaItem*>(i) != nullptr; });
+        bool allPads = std::all_of(m_items.begin(), m_items.end(), [](PCBItem* i){ return dynamic_cast<PadItem*>(i) != nullptr; });
+
+        if (allTraces) {
+            auto* batchSection = addSection(QString("Batch Trace Parameters (%1 items)").arg(m_items.size()));
+            TraceItem* firstTrace = dynamic_cast<TraceItem*>(item);
+            batchSection->addRow(new PropertyRow("Net", createNetCombo(firstTrace->netName())));
+            batchSection->addRow(new PropertyRow("Width (mm)", createDoubleSpin(firstTrace->width(), "Width (mm)")));
+        } else if (allVias) {
+            auto* batchSection = addSection(QString("Batch Via Parameters (%1 items)").arg(m_items.size()));
+            ViaItem* firstVia = dynamic_cast<ViaItem*>(item);
+            batchSection->addRow(new PropertyRow("Net", createNetCombo(firstVia->netName())));
+            batchSection->addRow(new PropertyRow("Diameter (mm)", createDoubleSpin(firstVia->diameter(), "Diameter (mm)")));
+            batchSection->addRow(new PropertyRow("Drill (mm)", createDoubleSpin(firstVia->drillSize(), "Drill Size (mm)")));
+        } else if (allPads) {
+            auto* batchSection = addSection(QString("Batch Pad Parameters (%1 items)").arg(m_items.size()));
+            PadItem* firstPad = dynamic_cast<PadItem*>(item);
+            batchSection->addRow(new PropertyRow("Net", createNetCombo(firstPad->netName())));
+            batchSection->addRow(new PropertyRow("Size X (mm)", createDoubleSpin(firstPad->size().width(), "Size X (mm)")));
+            batchSection->addRow(new PropertyRow("Size Y (mm)", createDoubleSpin(firstPad->size().height(), "Size Y (mm)")));
+            batchSection->addRow(new PropertyRow("Drill (mm)", createDoubleSpin(firstPad->drillSize(), "Drill Size (mm)")));
         }
     }
 
