@@ -172,6 +172,8 @@ set(PCB_SOURCES
     dialogs/netlist_import_dialog.h
     dialogs/pick_place_export_dialog.cpp
     dialogs/pick_place_export_dialog.h
+    dialogs/manufacturing_package_dialog.cpp
+    dialogs/manufacturing_package_dialog.h
     dialogs/auto_router_dialog.cpp
     dialogs/auto_router_dialog.h
     dialogs/length_matching_dialog.cpp

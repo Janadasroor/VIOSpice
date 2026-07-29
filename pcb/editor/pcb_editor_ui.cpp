@@ -175,6 +175,8 @@ void MainWindow::createMenuBar() {
 
     fileMenu->addSeparator();
     QMenu* exportMenu = fileMenu->addMenu("Export");
+    exportMenu->addAction("Generate One-Click Manufacturing Package (ZIP)...", QKeySequence("Ctrl+Shift+M"), this, &MainWindow::onExportManufacturingPackage);
+    exportMenu->addSeparator();
     exportMenu->addAction("Export KiCad PCB (.kicad_pcb)...", QKeySequence("Ctrl+Shift+K"), this, &MainWindow::onExportKiCadPCB);
     exportMenu->addSeparator();
     exportMenu->addAction("Export as Image...", QKeySequence(), this, &MainWindow::onExportImage);
@@ -198,15 +200,15 @@ void MainWindow::createMenuBar() {
     QMenu *editMenu = menuBar->addMenu("&Edit");
     m_undoAction = m_undoStack->createUndoAction(this, "&Undo");
     m_undoAction->setShortcut(QKeySequence::Undo);
-    m_undoAction->setIcon(getThemeIcon(":/icons/undo.svg"));
     editMenu->addAction(m_undoAction);
-    addAction(m_undoAction); // Register globally
+    addAction(m_undoAction);
 
     m_redoAction = m_undoStack->createRedoAction(this, "&Redo");
     m_redoAction->setShortcut(QKeySequence::Redo);
-    m_redoAction->setIcon(getThemeIcon(":/icons/redo.svg"));
     editMenu->addAction(m_redoAction);
-    addAction(m_redoAction); // Register globally
+    addAction(m_redoAction);
+    editMenu->addSeparator();
+
     QAction* cutAct = editMenu->addAction("Cu&t", QKeySequence::Cut, this, &MainWindow::onCut);
     addAction(cutAct);
     QAction* copyAct = editMenu->addAction("&Copy", QKeySequence::Copy, this, &MainWindow::onCopy);
@@ -223,20 +225,16 @@ void MainWindow::createMenuBar() {
     QAction* sendToBackAct = editMenu->addAction("Send To Back");
     sendToBackAct->setShortcut(QKeySequence("Ctrl+["));
     connect(sendToBackAct, &QAction::triggered, this, &MainWindow::onSendToBack);
+    editMenu->addSeparator();
+
     QAction* selectAllAct = editMenu->addAction("Select &All");
     selectAllAct->setShortcut(QKeySequence::SelectAll);
     connect(selectAllAct, &QAction::triggered, this, [this]() {
         if (!m_scene) return;
-        m_scene->clearSelection();
-
         int count = 0;
         for (QGraphicsItem* item : m_scene->items()) {
-            auto* pcbItem = dynamic_cast<PCBItem*>(item);
+            PCBItem* pcbItem = dynamic_cast<PCBItem*>(item);
             if (!pcbItem) continue;
-
-            // Select only top-level selectable PCB items to avoid selecting child pads twice.
-            if (dynamic_cast<PCBItem*>(pcbItem->parentItem()) != nullptr) continue;
-            if (!(pcbItem->flags() & QGraphicsItem::ItemIsSelectable)) continue;
             if (!pcbItem->isVisible()) continue;
 
             pcbItem->setSelected(true);
@@ -278,6 +276,40 @@ void MainWindow::createMenuBar() {
         statusBar()->showMessage("Workspace layout reset to default tabs", 3000);
     });
     
+    QMenu *routeMenu = menuBar->addMenu("&Route");
+    QAction* singleRouteAct = routeMenu->addAction("Single Track");
+    singleRouteAct->setShortcut(QKeySequence("X"));
+    connect(singleRouteAct, &QAction::triggered, this, [this]() {
+        if (m_view) m_view->setCurrentTool("Trace");
+    });
+
+    QAction* diffPairAct = routeMenu->addAction("Differential Pair");
+    diffPairAct->setShortcut(QKeySequence("Alt+X"));
+    connect(diffPairAct, &QAction::triggered, this, [this]() {
+        if (m_view) m_view->setCurrentTool("Diff Pair");
+    });
+
+    QAction* lengthTuningAct = routeMenu->addAction("Interactive Length Tuning / Meander");
+    lengthTuningAct->setShortcut(QKeySequence("Shift+U"));
+    connect(lengthTuningAct, &QAction::triggered, this, [this]() {
+        if (m_view) m_view->setCurrentTool("Length Tuning");
+    });
+
+    QAction* viaAct = routeMenu->addAction("Via Placement");
+    viaAct->setShortcut(QKeySequence("V"));
+    connect(viaAct, &QAction::triggered, this, [this]() {
+        if (m_view) m_view->setCurrentTool("Via");
+    });
+
+    routeMenu->addSeparator();
+    QAction* routeLenMatchAct = routeMenu->addAction("Length Matching Manager...");
+    routeLenMatchAct->setShortcut(QKeySequence("Ctrl+Shift+L"));
+    connect(routeLenMatchAct, &QAction::triggered, this, &MainWindow::onLengthMatching);
+
+    QAction* routeAutoRouteAct = routeMenu->addAction("Auto-Router...");
+    routeAutoRouteAct->setShortcut(QKeySequence("Ctrl+Shift+R"));
+    connect(routeAutoRouteAct, &QAction::triggered, this, &MainWindow::onAutoRoute);
+
     QMenu *toolsMenu = menuBar->addMenu("&Tools");
     QAction* drcAction = toolsMenu->addAction("Design Rule Check");
     drcAction->setShortcut(QKeySequence("Shift+D"));

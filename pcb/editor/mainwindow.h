@@ -80,6 +80,7 @@ private slots:
     void onExportAssemblyDrawing();
     void onExportIPC2581();
     void onExportODBpp();
+    void onExportManufacturingPackage();
     void onExportPickPlace();
     void onExportSTEP();
     void onExportIGES();

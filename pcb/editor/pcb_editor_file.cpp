@@ -25,6 +25,7 @@
 #include "../dialogs/gerber_export_dialog.h"
 #include "../dialogs/netlist_import_dialog.h"
 #include "../dialogs/pick_place_export_dialog.h"
+#include "../dialogs/manufacturing_package_dialog.h"
 #include "../dialogs/auto_router_dialog.h"
 #include "../dialogs/length_matching_dialog.h"
 #include "../dialogs/pcb_diff_viewer.h"
@@ -442,4 +443,24 @@ void MainWindow::onExportKiCadPCB() {
 
     statusBar()->showMessage(QString("Exported KiCad PCB: %1 footprints, %2 traces, %3 vias")
         .arg(stats.footprintsCount).arg(stats.tracesCount).arg(stats.viasCount), 5000);
+}
+
+void MainWindow::onExportManufacturingPackage() {
+    if (!m_scene) return;
+
+    ManufacturingPackageDialog dlg(this);
+    if (dlg.exec() != QDialog::Accepted) return;
+
+    QString path = dlg.outputPath();
+    if (path.isEmpty()) return;
+
+    auto opts = dlg.options();
+    QString err;
+    bool ok = ManufacturingExporter::exportManufacturingPackage(m_scene, path, opts, &err);
+    if (!ok) {
+        QMessageBox::warning(this, "Package Export Failed", err.isEmpty() ? "Unknown export failure." : err);
+        return;
+    }
+
+    statusBar()->showMessage("One-Click Manufacturing Package exported to " + path, 5000);
 }
