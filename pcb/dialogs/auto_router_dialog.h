@@ -56,6 +56,8 @@ private:
     QSpinBox* m_maxRipUpRoundsSpin;
     QCheckBox* m_topLayerCheck;
     QCheckBox* m_bottomLayerCheck;
+    QMap<int, QCheckBox*> m_layerChecks;
+    QCheckBox* m_directionalBiasCheck;
     QCheckBox* m_diagonalCheck;
     QCheckBox* m_optimizeLengthCheck;
     QPushButton* m_startBtn;
