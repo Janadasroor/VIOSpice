@@ -284,6 +284,24 @@ void MainWindow::onPropertyChanged(const QString& name, const QVariant& value) {
 
         if (name == "ID") { /* Read-only */ }
         else if (name == "Name") { oldValue = item->name(); found = true; }
+        else if (name == "Value") {
+            if (ComponentItem* comp = dynamic_cast<ComponentItem*>(item)) {
+                oldValue = comp->value();
+                found = true;
+            }
+        }
+        else if (name == "Component Type") {
+            if (ComponentItem* comp = dynamic_cast<ComponentItem*>(item)) {
+                oldValue = comp->componentType();
+                found = true;
+            }
+        }
+        else if (name == "Pad Number") {
+            if (PadItem* pad = dynamic_cast<PadItem*>(item)) {
+                oldValue = pad->model() ? pad->model()->number() : "";
+                found = true;
+            }
+        }
         else if (name == "Net") { oldValue = item->netName(); found = true; }
         else if (name == "Component Net") {
             if (ComponentItem* comp = dynamic_cast<ComponentItem*>(item)) {
