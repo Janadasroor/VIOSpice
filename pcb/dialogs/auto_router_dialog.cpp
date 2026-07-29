@@ -4,6 +4,7 @@
  */
 
 #include "auto_router_dialog.h"
+#include "../layers/pcb_layer.h"
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QGridLayout>
@@ -72,23 +73,32 @@ void AutoRouterDialog::setupOptionsTab() {
     layout->addWidget(routeGroup);
 
     // Layer selection
-    QGroupBox* layerGroup = new QGroupBox("Layer Usage");
-    QHBoxLayout* layerLayout = new QHBoxLayout(layerGroup);
-    m_topLayerCheck = new QCheckBox("Top Layer");
-    m_bottomLayerCheck = new QCheckBox("Bottom Layer");
-    m_topLayerCheck->setChecked(true);
-    m_bottomLayerCheck->setChecked(true);
-    layerLayout->addWidget(m_topLayerCheck);
-    layerLayout->addWidget(m_bottomLayerCheck);
+    QGroupBox* layerGroup = new QGroupBox("Stackup Routing Layers");
+    QVBoxLayout* layerMainLayout = new QVBoxLayout(layerGroup);
+    QHBoxLayout* layerLayout = new QHBoxLayout();
+    
+    m_layerChecks.clear();
+    const auto copperLayers = PCBLayerManager::instance().copperLayers();
+    for (const PCBLayer* layer : copperLayers) {
+        if (!layer) continue;
+        QCheckBox* chk = new QCheckBox(layer->name(), this);
+        chk->setChecked(true);
+        m_layerChecks[layer->id()] = chk;
+        layerLayout->addWidget(chk);
+    }
     layerLayout->addStretch();
+    layerMainLayout->addLayout(layerLayout);
     layout->addWidget(layerGroup);
 
     // Advanced options
-    QGroupBox* advGroup = new QGroupBox("Advanced");
+    QGroupBox* advGroup = new QGroupBox("Advanced & Multi-Layer Topology");
     QVBoxLayout* advLayout = new QVBoxLayout(advGroup);
+    m_directionalBiasCheck = new QCheckBox("Enforce orthogonal Manhattan layer direction bias (H/V alternating)");
+    m_directionalBiasCheck->setChecked(true);
     m_diagonalCheck = new QCheckBox("Allow 45° diagonal moves (faster but less clean)");
     m_optimizeLengthCheck = new QCheckBox("Optimize for shortest trace length (Euclidean heuristic)");
     m_optimizeLengthCheck->setChecked(true);
+    advLayout->addWidget(m_directionalBiasCheck);
     advLayout->addWidget(m_diagonalCheck);
     advLayout->addWidget(m_optimizeLengthCheck);
     layout->addWidget(advGroup);
@@ -169,8 +179,16 @@ PCBAutoRouter::RouterConfig AutoRouterDialog::collectConfig() {
     config.viaClearance = m_clearanceSpin->value() * 1.5;
     config.maxIterations = m_maxIterSpin->value();
     config.maxRipUpRounds = m_maxRipUpRoundsSpin->value();
-    config.preferTopLayer = m_topLayerCheck->isChecked();
-    config.preferBottomLayer = m_bottomLayerCheck->isChecked();
+    
+    config.enabledLayerIds.clear();
+    for (auto it = m_layerChecks.begin(); it != m_layerChecks.end(); ++it) {
+        if (it.value()->isChecked()) {
+            config.enabledLayerIds.insert(it.key());
+        }
+    }
+    config.preferTopLayer = config.enabledLayerIds.contains(PCBLayerManager::TopCopper);
+    config.preferBottomLayer = config.enabledLayerIds.contains(PCBLayerManager::BottomCopper);
+    config.enableDirectionalBias = m_directionalBiasCheck ? m_directionalBiasCheck->isChecked() : true;
     config.allowDiagonals = m_diagonalCheck->isChecked();
     config.optimizeTraceLength = m_optimizeLengthCheck->isChecked();
     config.reportProgress = true;

@@ -88,6 +88,9 @@ public:
         int maxViasPerNet = 10;           // Maximum vias per connection
         bool preferTopLayer = true;       // Prefer routing on top layer
         bool preferBottomLayer = true;    // Also use bottom layer
+        QSet<int> enabledLayerIds;        // Active stackup copper layers (F.Cu, B.Cu, In1.Cu..In30.Cu)
+        bool enableDirectionalBias = true; // Apply orthogonal Manhattan direction preference per layer
+        double directionalBiasPenalty = 1.6; // Penalty multiplier for off-direction moves on a layer
         bool allowDiagonals = false;      // Allow 45-degree diagonal moves
         bool optimizeTraceLength = true;  // Prioritize shorter traces
 
