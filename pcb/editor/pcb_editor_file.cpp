@@ -6,6 +6,8 @@
 #include "mainwindow.h"
 #include "pcb_panelizer.h"
 #include "pcb_export_manager.h"
+#include "../import/kicad_pcb_importer.h"
+#include "../export/kicad_pcb_exporter.h"
 #include "pcb_api.h"
 #include "pcb_eco_resolver.h"
 #include "pcb_via_stitcher.h"
@@ -400,4 +402,44 @@ void MainWindow::onGenerateDesignReport() {
 
     DesignReportDialog dlg(m_scene, this);
     dlg.exec();
+}
+
+void MainWindow::onImportKiCadPCB() {
+    QString fileName = QFileDialog::getOpenFileName(this,
+        "Import KiCad PCB", "", "KiCad PCB (*.kicad_pcb);;All Files (*)");
+    if (fileName.isEmpty()) return;
+
+    KiCadPCBImporter::ImportStats stats = KiCadPCBImporter::importKiCadPCB(fileName, m_scene);
+    if (!stats.success) {
+        QMessageBox::critical(this, "Import Failed", "Failed to import KiCad PCB file:\n" + stats.error);
+        return;
+    }
+
+    m_currentFilePath = fileName;
+    statusBar()->showMessage(QString("Imported KiCad PCB: %1 footprints, %2 traces, %3 vias")
+        .arg(stats.footprintsCount).arg(stats.tracesCount).arg(stats.viasCount), 5000);
+}
+
+void MainWindow::onExportKiCadPCB() {
+    if (!m_scene) return;
+
+    QString defaultPath = m_currentFilePath;
+    if (defaultPath.endsWith(".pcb", Qt::CaseInsensitive)) {
+        defaultPath.replace(defaultPath.length() - 4, 4, ".kicad_pcb");
+    } else if (!defaultPath.endsWith(".kicad_pcb", Qt::CaseInsensitive)) {
+        defaultPath += ".kicad_pcb";
+    }
+
+    QString fileName = QFileDialog::getSaveFileName(this,
+        "Export KiCad PCB", defaultPath, "KiCad PCB (*.kicad_pcb);;All Files (*)");
+    if (fileName.isEmpty()) return;
+
+    KiCadPCBExporter::ExportStats stats = KiCadPCBExporter::exportKiCadPCB(fileName, m_scene);
+    if (!stats.success) {
+        QMessageBox::critical(this, "Export Failed", "Failed to export KiCad PCB file:\n" + stats.error);
+        return;
+    }
+
+    statusBar()->showMessage(QString("Exported KiCad PCB: %1 footprints, %2 traces, %3 vias")
+        .arg(stats.footprintsCount).arg(stats.tracesCount).arg(stats.viasCount), 5000);
 }
