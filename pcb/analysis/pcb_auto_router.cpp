@@ -234,11 +234,18 @@ void PCBAutoRouter::buildGrid() {
     m_gridWidth = qMin(static_cast<int>((maxX - minX) / m_config.gridSpacing) + 2, m_config.maxGridWidth);
     m_gridHeight = qMin(static_cast<int>((maxY - minY) / m_config.gridSpacing) + 2, m_config.maxGridHeight);
     m_activeLayers.clear();
-    if (m_config.preferTopLayer) {
-        m_activeLayers.append(PCBLayerManager::TopCopper);
-    }
-    if (m_config.preferBottomLayer) {
-        m_activeLayers.append(PCBLayerManager::BottomCopper);
+    const auto copperLayers = PCBLayerManager::instance().copperLayers();
+    for (const PCBLayer* layer : copperLayers) {
+        if (!layer) continue;
+        if (!m_config.enabledLayerIds.isEmpty()) {
+            if (m_config.enabledLayerIds.contains(layer->id())) {
+                m_activeLayers.append(layer->id());
+            }
+        } else {
+            if (layer->id() == PCBLayerManager::TopCopper && !m_config.preferTopLayer) continue;
+            if (layer->id() == PCBLayerManager::BottomCopper && !m_config.preferBottomLayer) continue;
+            m_activeLayers.append(layer->id());
+        }
     }
     if (m_activeLayers.isEmpty()) {
         m_activeLayers.append(PCBLayerManager::TopCopper);
@@ -654,6 +661,23 @@ bool PCBAutoRouter::findPath(const UnroutedConnection& conn, QVector<AStarNode>&
             }
             if (neighbor.isVia) {
                 moveCost = neighbor.extraCost;
+            } else if (m_config.enableDirectionalBias) {
+                int layerId = (neighbor.layer >= 0 && neighbor.layer < m_activeLayers.size()) ? m_activeLayers[neighbor.layer] : -1;
+                bool isHorizontalMove = (neighbor.x != current.x);
+                bool isVerticalMove = (neighbor.y != current.y);
+
+                bool preferHorizontal = false;
+                if (layerId == PCBLayerManager::TopCopper) {
+                    preferHorizontal = true;
+                } else if (layerId == PCBLayerManager::BottomCopper) {
+                    preferHorizontal = false;
+                } else {
+                    preferHorizontal = (neighbor.layer % 2 == 0);
+                }
+
+                if ((preferHorizontal && isVerticalMove) || (!preferHorizontal && isHorizontalMove)) {
+                    moveCost *= m_config.directionalBiasPenalty;
+                }
             }
 
             // Turn penalty: discourage unnecessary bends and zig-zags

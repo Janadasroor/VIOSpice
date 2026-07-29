@@ -1047,6 +1047,15 @@ public:
             if (GerberExporter::generateDrillFile(&scene, drillPath)) {
                 generatedFiles.append(drillPath);
             }
+        } else if (format == "manufacturing" || format == "jlcpcb" || format == "pkg") {
+            ManufacturingExporter::ManufacturingPackageOptions opts;
+            opts.preset = ManufacturingExporter::JLCPCB;
+            opts.zipPackage = true;
+            if (outputPath.isEmpty() || outputPath == "./output") {
+                outputPath = "./jlcpcb_package.zip";
+            }
+            ok = ManufacturingExporter::exportManufacturingPackage(&scene, outputPath, opts, &errorMsg);
+            if (ok) generatedFiles.append(outputPath);
         } else if (format == "step") {
             QFileInfo fi(outputPath);
             if (fi.isDir() || !outputPath.endsWith(".step", Qt::CaseInsensitive)) {
