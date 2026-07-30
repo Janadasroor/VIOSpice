@@ -14,10 +14,12 @@
 #include <QCoreApplication>
 #include <QSocketNotifier>
 #include <QDebug>
+#ifndef _WIN32
 #include <unistd.h>
 #include <sys/wait.h>
 #include <signal.h>
 #include <fcntl.h>
+#endif
 
 namespace IDE {
 
