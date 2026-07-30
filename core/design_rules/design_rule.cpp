@@ -8,6 +8,7 @@
 
 #include "design_rule.h"
 #include <QJsonArray>
+#include <QJsonDocument>
 #include <QFile>
 #include <QDir>
 #include <QStandardPaths>
