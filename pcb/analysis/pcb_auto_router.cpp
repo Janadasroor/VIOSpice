@@ -459,6 +459,14 @@ QMultiMap<QString, QPointF> PCBAutoRouter::groupPadsByNet() {
             if (!net.isEmpty()) {
                 netPads.insert(net, pad->scenePos());
             }
+        } else if (auto* comp = dynamic_cast<ComponentItem*>(item)) {
+            for (auto* child : comp->childItems()) {
+                if (auto* pad = dynamic_cast<PadItem*>(child)) {
+                    if (!pad->netName().isEmpty()) {
+                        netPads.insert(pad->netName(), pad->scenePos());
+                    }
+                }
+            }
         }
     }
 

@@ -732,6 +732,11 @@ void MainWindow::createToolBar() {
     top3DAct->setToolTip("Open PCB 3D Preview (Alt+3)");
     connect(top3DAct, &QAction::triggered, this, &MainWindow::onToggle3DView);
 
+    QAction* topAutoRouterAct = topToolbar->addAction(getThemeIcon(":/icons/tool_route.svg"), "Auto-Router");
+    topAutoRouterAct->setToolTip("Open Multi-Layer Auto-Router (Ctrl+Shift+R)");
+    topAutoRouterAct->setShortcut(QKeySequence("Ctrl+Shift+R"));
+    connect(topAutoRouterAct, &QAction::triggered, this, &MainWindow::onAutoRoute);
+
     // --- PANEL TOGGLES (VS CODE STYLE) ---
     QWidget* spacer = new QWidget();
     spacer->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
