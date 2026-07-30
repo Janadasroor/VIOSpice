@@ -75,10 +75,9 @@ if(VIOSPICE_ENABLE_SLANG)
 endif()
 # -----------------------------
 
-find_package(Qt6 6.2.0 REQUIRED COMPONENTS Widgets PrintSupport Sql OpenGLWidgets Charts Svg Network Multimedia Concurrent Test Qml Quick QuickWidgets)
+find_package(Qt6 6.2.0 REQUIRED COMPONENTS Widgets PrintSupport Sql OpenGLWidgets Svg Network Concurrent Test Qml Quick QuickWidgets)
 set(QT_VERSION_MAJOR 6)
-find_package(Qt6 QUIET COMPONENTS Pdf PdfWidgets)
-find_package(Qt6 QUIET COMPONENTS WebSockets)
+find_package(Qt6 QUIET COMPONENTS Charts Multimedia Pdf PdfWidgets WebSockets)
 if(TARGET Qt${QT_VERSION_MAJOR}::WebSockets)
     add_compile_definitions(VIOSPICE_HAS_QT_WEBSOCKETS=1)
 else()
