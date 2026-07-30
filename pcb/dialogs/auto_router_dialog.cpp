@@ -7,6 +7,7 @@
 #include "../layers/pcb_layer.h"
 #include "../items/trace_item.h"
 #include "../items/via_item.h"
+#include "../../core/visuals/theme_manager.h"
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QGridLayout>
@@ -17,89 +18,30 @@
 #include <QGraphicsScene>
 #include <QSet>
 #include <QDateTime>
+#include <QScrollArea>
+#include <QGuiApplication>
+#include <QScreen>
 
 AutoRouterDialog::AutoRouterDialog(QGraphicsScene* scene, QWidget* parent)
     : QDialog(parent), m_scene(scene)
 {
     setWindowTitle("Multi-Layer PCB Auto-Router");
-    resize(640, 560);
-    setStyleSheet(
-        "QDialog {"
-        "  background-color: #1e1e24;"
-        "  color: #e0e0e0;"
-        "}"
-        "QTabWidget::pane {"
-        "  border: 1px solid #33333d;"
-        "  background: #1e1e24;"
-        "  border-radius: 4px;"
-        "}"
-        "QTabBar::tab {"
-        "  background: #252530;"
-        "  color: #aaa;"
-        "  padding: 8px 16px;"
-        "  border: 1px solid #33333d;"
-        "  border-top-left-radius: 4px;"
-        "  border-top-right-radius: 4px;"
-        "  margin-right: 2px;"
-        "}"
-        "QTabBar::tab:selected {"
-        "  background: #094771;"
-        "  color: #ffffff;"
-        "  font-weight: bold;"
-        "}"
-        "QGroupBox {"
-        "  font-weight: bold;"
-        "  border: 1px solid #33333d;"
-        "  border-radius: 6px;"
-        "  margin-top: 10px;"
-        "  padding-top: 12px;"
-        "  background-color: #252530;"
-        "  color: #4daafc;"
-        "}"
-        "QGroupBox::title {"
-        "  subcontrol-origin: margin;"
-        "  subcontrol-position: top left;"
-        "  padding: 2px 8px;"
-        "  background-color: #1e1e24;"
-        "  border-radius: 3px;"
-        "}"
-        "QLabel, QCheckBox {"
-        "  color: #d0d0d0;"
-        "}"
-        "QLineEdit, QSpinBox, QDoubleSpinBox, QComboBox {"
-        "  background-color: #16161a;"
-        "  color: #ffffff;"
-        "  border: 1px solid #444452;"
-        "  border-radius: 3px;"
-        "  padding: 4px;"
-        "}"
-        "QPushButton {"
-        "  background-color: #094771;"
-        "  color: #ffffff;"
-        "  border: none;"
-        "  border-radius: 4px;"
-        "  padding: 6px 16px;"
-        "  font-weight: bold;"
-        "}"
-        "QPushButton:hover {"
-        "  background-color: #0c598d;"
-        "}"
-        "QPushButton:disabled {"
-        "  background-color: #33333d;"
-        "  color: #666;"
-        "}"
-        "QProgressBar {"
-        "  border: 1px solid #444452;"
-        "  border-radius: 4px;"
-        "  text-align: center;"
-        "  background-color: #16161a;"
-        "  color: #fff;"
-        "}"
-        "QProgressBar::chunk {"
-        "  background-color: #094771;"
-        "  border-radius: 3px;"
-        "}"
-    );
+
+    // Constrain max size to screen boundaries so dialog never overflows screen width
+    if (QScreen* screen = QGuiApplication::primaryScreen()) {
+        QRect avail = screen->availableGeometry();
+        int maxW = qMin(620, avail.width() - 40);
+        int maxH = qMin(540, avail.height() - 40);
+        resize(maxW, maxH);
+        setMaximumSize(avail.size());
+    } else {
+        resize(580, 500);
+    }
+
+    // Inherit active VioSpice application theme stylesheet
+    if (PCBTheme* theme = ThemeManager::theme()) {
+        setStyleSheet(theme->widgetStylesheet());
+    }
 
     setupUI();
 }
@@ -108,7 +50,7 @@ AutoRouterDialog::~AutoRouterDialog() = default;
 
 void AutoRouterDialog::setupUI() {
     QVBoxLayout* mainLayout = new QVBoxLayout(this);
-    mainLayout->setContentsMargins(12, 12, 12, 12);
+    mainLayout->setContentsMargins(10, 10, 10, 10);
 
     m_tabs = new QTabWidget();
     setupOptionsTab();
@@ -121,6 +63,7 @@ void AutoRouterDialog::setupOptionsTab() {
     QWidget* page = new QWidget();
     QVBoxLayout* layout = new QVBoxLayout(page);
     layout->setSpacing(10);
+    layout->setContentsMargins(8, 8, 8, 8);
 
     // 1. Execution & Rip-Up Card
     QGroupBox* execGroup = new QGroupBox("Execution & Net Scope");
@@ -152,7 +95,7 @@ void AutoRouterDialog::setupOptionsTab() {
     // Preset buttons
     auto addPreset = [&](const QString& label, double val) {
         QPushButton* btn = new QPushButton(label, this);
-        btn->setStyleSheet("padding: 2px 8px; font-size: 11px; background-color: #2b2b36;");
+        btn->setStyleSheet("padding: 2px 6px; font-size: 11px;");
         connect(btn, &QPushButton::clicked, this, [this, val]() {
             m_gridSpacingSpin->setValue(val);
         });
@@ -204,14 +147,14 @@ void AutoRouterDialog::setupOptionsTab() {
 
     QHBoxLayout* layerBtnLayout = new QHBoxLayout();
     m_selectAllLayersBtn = new QPushButton("Select All Layers", this);
-    m_selectAllLayersBtn->setStyleSheet("padding: 2px 8px; font-size: 11px; background-color: #2b2b36;");
+    m_selectAllLayersBtn->setStyleSheet("padding: 2px 6px; font-size: 11px;");
     connect(m_selectAllLayersBtn, &QPushButton::clicked, this, [this]() {
         for (auto* chk : m_layerChecks.values()) chk->setChecked(true);
     });
     layerBtnLayout->addWidget(m_selectAllLayersBtn);
 
     m_topBottomOnlyBtn = new QPushButton("Top & Bottom Only", this);
-    m_topBottomOnlyBtn->setStyleSheet("padding: 2px 8px; font-size: 11px; background-color: #2b2b36;");
+    m_topBottomOnlyBtn->setStyleSheet("padding: 2px 6px; font-size: 11px;");
     connect(m_topBottomOnlyBtn, &QPushButton::clicked, this, [this]() {
         for (auto it = m_layerChecks.begin(); it != m_layerChecks.end(); ++it) {
             bool isTopOrBottom = (it.key() == PCBLayerManager::TopCopper || it.key() == PCBLayerManager::BottomCopper);
@@ -254,18 +197,23 @@ void AutoRouterDialog::setupOptionsTab() {
     QHBoxLayout* btnLayout = new QHBoxLayout();
     btnLayout->addStretch();
     m_startBtn = new QPushButton("🚀 Start Auto-Routing");
-    m_startBtn->setMinimumWidth(200);
-    m_startBtn->setFixedHeight(36);
+    m_startBtn->setMinimumWidth(180);
+    m_startBtn->setFixedHeight(34);
     connect(m_startBtn, &QPushButton::clicked, this, &AutoRouterDialog::onStartRouting);
     btnLayout->addWidget(m_startBtn);
     layout->addLayout(btnLayout);
 
-    m_tabs->addTab(page, "Routing Options");
+    QScrollArea* scrollArea = new QScrollArea(this);
+    scrollArea->setWidget(page);
+    scrollArea->setWidgetResizable(true);
+    scrollArea->setFrameShape(QFrame::NoFrame);
+    m_tabs->addTab(scrollArea, "Routing Options");
 }
 
 void AutoRouterDialog::setupProgressTab() {
     QWidget* page = new QWidget();
     QVBoxLayout* layout = new QVBoxLayout(page);
+    layout->setContentsMargins(8, 8, 8, 8);
 
     m_statusLabel = new QLabel("Ready to start auto-routing.");
     m_statusLabel->setStyleSheet("font-weight: bold; font-size: 13px; color: #4daafc;");
@@ -277,12 +225,12 @@ void AutoRouterDialog::setupProgressTab() {
     m_progressBar = new QProgressBar();
     m_progressBar->setRange(0, 100);
     m_progressBar->setValue(0);
-    m_progressBar->setFixedHeight(24);
+    m_progressBar->setFixedHeight(22);
     layout->addWidget(m_progressBar);
 
     m_logEdit = new QTextEdit();
     m_logEdit->setReadOnly(true);
-    m_logEdit->setStyleSheet("font-family: monospace; background-color: #121215; color: #e0e0e0;");
+    m_logEdit->setStyleSheet("font-family: monospace;");
     layout->addWidget(m_logEdit);
 
     QHBoxLayout* btnLayout = new QHBoxLayout();
@@ -294,16 +242,21 @@ void AutoRouterDialog::setupProgressTab() {
     btnLayout->addWidget(m_stopBtn);
     layout->addLayout(btnLayout);
 
-    m_tabs->addTab(page, "Progress & Logs");
+    QScrollArea* scrollArea = new QScrollArea(this);
+    scrollArea->setWidget(page);
+    scrollArea->setWidgetResizable(true);
+    scrollArea->setFrameShape(QFrame::NoFrame);
+    m_tabs->addTab(scrollArea, "Progress & Logs");
 }
 
 void AutoRouterDialog::setupResultsTab() {
     QWidget* page = new QWidget();
     QVBoxLayout* layout = new QVBoxLayout(page);
+    layout->setContentsMargins(8, 8, 8, 8);
 
     m_resultsEdit = new QTextEdit();
     m_resultsEdit->setReadOnly(true);
-    m_resultsEdit->setStyleSheet("font-family: monospace; background-color: #121215; color: #e0e0e0;");
+    m_resultsEdit->setStyleSheet("font-family: monospace;");
     layout->addWidget(m_resultsEdit);
 
     QHBoxLayout* btnLayout = new QHBoxLayout();
@@ -313,7 +266,11 @@ void AutoRouterDialog::setupResultsTab() {
     btnLayout->addWidget(m_closeBtn);
     layout->addLayout(btnLayout);
 
-    m_tabs->addTab(page, "Results");
+    QScrollArea* scrollArea = new QScrollArea(this);
+    scrollArea->setWidget(page);
+    scrollArea->setWidgetResizable(true);
+    scrollArea->setFrameShape(QFrame::NoFrame);
+    m_tabs->addTab(scrollArea, "Results");
 }
 
 PCBAutoRouter::RouterConfig AutoRouterDialog::collectConfig() {
