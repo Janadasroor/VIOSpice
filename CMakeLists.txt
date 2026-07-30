@@ -75,7 +75,7 @@ if(VIOSPICE_ENABLE_SLANG)
 endif()
 # -----------------------------
 
-find_package(Qt6 6.10.0 REQUIRED COMPONENTS Widgets PrintSupport Sql OpenGLWidgets Charts Svg Network Multimedia Concurrent Test Qml Quick QuickWidgets)
+find_package(Qt6 6.2.0 REQUIRED COMPONENTS Widgets PrintSupport Sql OpenGLWidgets Charts Svg Network Multimedia Concurrent Test Qml Quick QuickWidgets)
 set(QT_VERSION_MAJOR 6)
 find_package(Qt6 QUIET COMPONENTS Pdf PdfWidgets)
 find_package(Qt6 QUIET COMPONENTS WebSockets)
