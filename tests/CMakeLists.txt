@@ -16,6 +16,10 @@ if(VIOSPICE_ENABLE_TESTS)
         SOURCES test_pcb_system.cpp test_pcb_system.h
         LINK_LIBS VioraPCBCore VioFootprints VioCore VioUI VioVioraIDE VioSchematic VioSymbols VioSimulator FluxScriptManager FluxScript
     )
+    vioraeda_add_test(test_viora_libs_simulation
+        SOURCES test_viora_libs_simulation.cpp test_viora_libs_simulation.h
+        LINK_LIBS VioSimulator VioSymbols VioFootprints VioCore VioSchematic VioVioraIDE VioUI FluxScriptManager FluxScript
+    )
 endif()
 
 # CLI-based regression tests (no Python needed)
