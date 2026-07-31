@@ -516,15 +516,6 @@ else()
         endif()
         unset(_fs_libxml2)
         unset(_fs_libcurl)
-
-        # Ensure llvm/Config/llvm-config.h header stub exists for prebuilt FluxScript
-        if(NOT EXISTS "${_fs_dir}/include/llvm/Config/llvm-config.h")
-            file(MAKE_DIRECTORY "${_fs_dir}/include/llvm/Config")
-            file(WRITE "${_fs_dir}/include/llvm/Config/llvm-config.h"
-                "#ifndef LLVM_CONFIG_H\n#define LLVM_CONFIG_H\n#define LLVM_VERSION_MAJOR 21\n#define LLVM_VERSION_MINOR 0\n#define LLVM_VERSION_PATCH 0\n#endif\n"
-            )
-            message(STATUS "Created LLVM header stub at ${_fs_dir}/include/llvm/Config/llvm-config.h")
-        endif()
     else()
         message(FATAL_ERROR "Failed to download FluxScript from ${FLUXSCRIPT_DOWNLOAD_URL}")
     endif()
