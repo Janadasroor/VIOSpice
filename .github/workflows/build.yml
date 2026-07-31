@@ -71,6 +71,7 @@ jobs:
           sudo apt install -y \
             build-essential cmake \
             libcurl4-openssl-dev \
+            libnghttp2-dev \
             libgl1-mesa-dev \
             libpulse-dev \
             llvm-21-dev \
@@ -259,7 +260,7 @@ jobs:
         if: runner.os == 'Windows'
         shell: msys2 {0}
         run: |
-          export PATH="/mingw64/bin:$PATH"
+          export PATH="/mingw64/bin:$PWD/build:$PATH"
           echo "=== PATH ==="
           echo "$PATH"
           echo "=== ldd check on test exe ==="
