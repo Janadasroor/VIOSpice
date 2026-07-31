@@ -8,6 +8,9 @@
 
 #include "schematic_editor.h"
 #include "schematic_file_io.h"
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QJsonArray>
 #include "../analysis/schematic_erc.h"
 #include "theme_manager.h"
 #include "../../python/cpp/gemini/gemini_panel.h"
