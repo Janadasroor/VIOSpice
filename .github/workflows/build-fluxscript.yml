@@ -13,6 +13,8 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          repository: Janadasroor/fluxscript
 
       - name: Install deps
         run: |
@@ -41,7 +43,7 @@ jobs:
         run: |
           mkdir -p install/include install/lib
           cp -r include/flux install/include/
-          cp build/libFluxScript.a install/lib/
+          cp build/libFluxScript.so install/lib/
           # Record LLVM version needed at link time
           echo "LLVM 21 required" > install/REQUIRES.txt
           tar czf fluxscript-linux-x86_64.tar.gz -C install .

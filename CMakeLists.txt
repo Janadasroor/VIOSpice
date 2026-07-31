@@ -9,7 +9,6 @@ endif()
 project(viospice VERSION 0.1 LANGUAGES CXX)
 
 # Disable third-party (Eigen) unit testing & Fortran BLAS/LAPACK generation globally
-set(BUILD_TESTING OFF CACHE BOOL "" FORCE)
 set(EIGEN_BUILD_TESTING OFF CACHE BOOL "" FORCE)
 set(EIGEN_BUILD_BLAS OFF CACHE BOOL "" FORCE)
 set(EIGEN_BUILD_LAPACK OFF CACHE BOOL "" FORCE)
@@ -445,6 +444,11 @@ if(APPLE)
     set(FLUXSCRIPT_DOWNLOAD_BASE "https://github.com/Janadasroor/fluxscript/releases/download/v1.2.0")
     set(FLUXSCRIPT_ARCHIVE "fluxscript-macos-arm64.tar.gz")
     set(FLUXSCRIPT_LIB_NAME "libFluxScript.dylib")
+elseif(WIN32)
+    # Windows: v1.2.0 provides x86_64 prebuilt (DLL + import lib)
+    set(FLUXSCRIPT_DOWNLOAD_BASE "https://github.com/Janadasroor/fluxscript/releases/download/v1.2.0")
+    set(FLUXSCRIPT_ARCHIVE "fluxscript-windows-x86_64.zip")
+    set(FLUXSCRIPT_LIB_NAME "FluxScript.dll")
 else()
     # Linux: only v0.1.0 provides x86_64 prebuilt
     set(FLUXSCRIPT_DOWNLOAD_BASE "https://github.com/Janadasroor/fluxscript/releases/download/v0.1.0")
@@ -530,7 +534,6 @@ else()
         set(EIGEN_BUILD_TESTING OFF CACHE BOOL "" FORCE)
         set(EIGEN_BUILD_BLAS OFF CACHE BOOL "" FORCE)
         set(EIGEN_BUILD_LAPACK OFF CACHE BOOL "" FORCE)
-        set(BUILD_TESTING OFF CACHE BOOL "" FORCE)
         FetchContent_Declare(
             Eigen3
             GIT_REPOSITORY https://gitlab.com/libeigen/eigen.git
