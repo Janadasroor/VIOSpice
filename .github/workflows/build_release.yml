@@ -68,7 +68,7 @@ jobs:
           cmake -B build -G Ninja \
             -DCMAKE_BUILD_TYPE=Release \
             -DVIOSPICE_ENABLE_TESTS=ON \
-            -DVIOSPICE_DEV_MODE=ON
+            -DVIOSPICE_DEV_MODE=OFF
 
       - name: Configure CMake (Windows)
         if: runner.os == 'Windows'
