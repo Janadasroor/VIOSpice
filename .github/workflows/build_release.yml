@@ -47,7 +47,7 @@ jobs:
             libxcb-keysyms1-dev libxcb-image0-dev libxcb-shm0-dev \
             libxcb-icccm4-dev libxcb-sync-dev libxcb-xfixes0-dev \
             libxcb-shape0-dev libxcb-randr0-dev libxcb-render-util0-dev \
-            ngspice libngspice0-dev
+            ngspice libngspice0-dev llvm-dev
 
       - name: Install System Dependencies (macOS)
         if: runner.os == 'macOS'
@@ -55,6 +55,10 @@ jobs:
           brew install cmake ninja ccache ngspice llvm autoconf automake libtool bison flex
           echo "CPATH=$(brew --prefix llvm)/include" >> $GITHUB_ENV
           echo "LIBRARY_PATH=$(brew --prefix llvm)/lib" >> $GITHUB_ENV
+
+      - name: Install System Dependencies (Windows)
+        if: runner.os == 'Windows'
+        run: choco install -y llvm
 
       - name: Setup MSVC Environment (Windows)
         if: runner.os == 'Windows'
