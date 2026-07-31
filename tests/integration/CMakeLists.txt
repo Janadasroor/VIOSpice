@@ -8,8 +8,9 @@ add_executable(test_integration_ngspice_shared
 target_link_libraries(test_integration_ngspice_shared PRIVATE Qt${QT_VERSION_MAJOR}::Test)
 vioraeda_configure_cli_target(test_integration_ngspice_shared)
 # Ensure circular static lib deps resolve (Gemini/Python symbols).
+# --start-group/--end-group is GNU ld only; Apple ld64/MSVC resolve circular deps differently.
 target_link_libraries(test_integration_ngspice_shared PRIVATE
-    -Wl,--start-group
+    ${VIOSPICE_LINKER_GROUP_BEGIN}
     VioCore
     VioSymbols
     VioSchematic
@@ -17,7 +18,7 @@ target_link_libraries(test_integration_ngspice_shared PRIVATE
     VioSimulator
     FluxScript
     FluxScriptManager
-    -Wl,--end-group
+    ${VIOSPICE_LINKER_GROUP_END}
 )
 
 add_test(
