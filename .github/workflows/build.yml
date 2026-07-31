@@ -252,6 +252,7 @@ jobs:
         env:
           QT_QPA_PLATFORM: offscreen
           DYLD_LIBRARY_PATH: ${{ github.workspace }}/build/viomatrixc-prebuilt/lib:${{ github.workspace }}/build/fluxscript-prebuilt/lib
+          LD_LIBRARY_PATH: ${{ github.workspace }}/build/viomatrixc-prebuilt/lib:${{ github.workspace }}/build/fluxscript-prebuilt/lib
         run: ctest --preset unit -R "^(schematic|core|simulator|rpi|unit_|regression|integration)\."
 
       - name: Unit tests (Windows)
@@ -290,6 +291,7 @@ jobs:
           sudo apt install -y \
             build-essential cmake \
             libcurl4-openssl-dev \
+            libnghttp2-dev \
             libgl1-mesa-dev \
             libpulse-dev \
             llvm-21-dev \
@@ -346,6 +348,7 @@ jobs:
             build-essential cmake \
             clang-21 \
             libcurl4-openssl-dev \
+            libnghttp2-dev \
             libgl1-mesa-dev \
             libpulse-dev \
             llvm-21-dev \
