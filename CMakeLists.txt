@@ -580,17 +580,31 @@ else()
 
     # Prebuilt FluxScript headers reference LLVM headers. Find and expose them.
     find_package(LLVM QUIET)
+    set(_llvm_hdr_found FALSE)
     if(LLVM_FOUND)
         target_include_directories(FluxScript INTERFACE ${LLVM_INCLUDE_DIRS})
         message(STATUS "LLVM headers found via cmake config: ${LLVM_INCLUDE_DIRS}")
+        set(_llvm_hdr_found TRUE)
     else()
-        foreach(_llvm_chk "C:/Program Files/LLVM/include" "C:/Program Files (x86)/LLVM/include" "/usr/local/opt/llvm/include" "/opt/homebrew/opt/llvm/include" "${_fs_dir}/include")
+        file(GLOB _system_llvm_dirs "/usr/include/llvm*" "/usr/local/include/llvm*")
+        foreach(_llvm_chk ${_system_llvm_dirs} "C:/Program Files/LLVM/include" "C:/Program Files (x86)/LLVM/include" "/usr/local/opt/llvm/include" "/opt/homebrew/opt/llvm/include")
             if(EXISTS "${_llvm_chk}/llvm/Config/llvm-config.h")
                 target_include_directories(FluxScript INTERFACE "${_llvm_chk}")
                 message(STATUS "LLVM headers found via path check: ${_llvm_chk}")
+                set(_llvm_hdr_found TRUE)
                 break()
             endif()
         endforeach()
+    endif()
+
+    if(NOT _llvm_hdr_found)
+        set(_stub_dir "${CMAKE_BINARY_DIR}/llvm_stub/include")
+        file(MAKE_DIRECTORY "${_stub_dir}/llvm/Config")
+        file(WRITE "${_stub_dir}/llvm/Config/llvm-config.h"
+            "#ifndef LLVM_CONFIG_H\n#define LLVM_CONFIG_H\n#define LLVM_VERSION_MAJOR 21\n#define LLVM_VERSION_MINOR 0\n#define LLVM_VERSION_PATCH 0\n#define LLVM_ENABLE_THREADS 1\n#define EnvPathSeparator ';'\n#endif\n"
+        )
+        target_include_directories(FluxScript INTERFACE "${_stub_dir}")
+        message(STATUS "Created fallback LLVM header stub at ${_stub_dir}/llvm/Config/llvm-config.h")
     endif()
 
     # Link against the bundled (or system) LLVM runtime library so that
