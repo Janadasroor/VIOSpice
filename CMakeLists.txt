@@ -589,25 +589,40 @@ else()
 
     # Link against the bundled (or system) LLVM runtime library so that
     # targets referencing LLVM symbols (e.g. VioCore JIT code) resolve them.
-    file(GLOB _fs_llvm "${_fs_dir}/lib/libLLVM*")
+    file(GLOB_RECURSE _fs_llvm "${_fs_dir}/*LLVM*")
     if(_fs_llvm)
         list(GET _fs_llvm 0 _fs_llvm_path)
-        add_library(FluxScript::LLVM SHARED IMPORTED GLOBAL)
-        set_target_properties(FluxScript::LLVM PROPERTIES
-            IMPORTED_LOCATION "${_fs_llvm_path}"
-        )
-        target_link_libraries(FluxScript INTERFACE FluxScript::LLVM)
-        message(STATUS "Bundled LLVM library: ${_fs_llvm_path}")
+        if(NOT TARGET FluxScript::LLVM)
+            add_library(FluxScript::LLVM SHARED IMPORTED GLOBAL)
+            set_target_properties(FluxScript::LLVM PROPERTIES
+                IMPORTED_LOCATION "${_fs_llvm_path}"
+            )
+            if(WIN32)
+                set_target_properties(FluxScript::LLVM PROPERTIES
+                    IMPORTED_IMPLIB "${_fs_llvm_path}"
+                )
+            endif()
+            target_link_libraries(FluxScript INTERFACE FluxScript::LLVM)
+            message(STATUS "Bundled LLVM library: ${_fs_llvm_path}")
+        endif()
     elseif(LLVM_FOUND)
         find_library(LLVM_LIB LLVM HINTS ${LLVM_LIBRARY_DIRS} ${LLVM_DIR})
-        if(LLVM_LIB)
+        if(LLVM_LIB AND NOT TARGET FluxScript::LLVM)
             add_library(FluxScript::LLVM SHARED IMPORTED GLOBAL)
             set_target_properties(FluxScript::LLVM PROPERTIES
                 IMPORTED_LOCATION "${LLVM_LIB}"
             )
+            if(WIN32)
+                set_target_properties(FluxScript::LLVM PROPERTIES
+                    IMPORTED_IMPLIB "${LLVM_LIB}"
+                )
+            endif()
             target_link_libraries(FluxScript INTERFACE FluxScript::LLVM)
             message(STATUS "System LLVM library: ${LLVM_LIB}")
         endif()
+    endif()
+    if(NOT TARGET FluxScript::LLVM)
+        add_library(FluxScript::LLVM INTERFACE IMPORTED GLOBAL)
     endif()
     unset(_fs_llvm)
 
