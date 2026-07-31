@@ -17,7 +17,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: ubuntu-24.04
+          - os: ubuntu-22.04
             platform_name: linux-x86_64
             qt_arch: gcc_64
           - os: windows-2022
@@ -42,7 +42,7 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential cmake ninja-build ccache mold \
+          sudo apt-get install -y build-essential cmake ninja-build ccache mold autoconf automake libtool bison flex \
             libgl1-mesa-dev libglu1-mesa-dev libx11-xcb-dev libxcb-glx0-dev \
             libxcb-keysyms1-dev libxcb-image0-dev libxcb-shm0-dev \
             libxcb-icccm4-dev libxcb-sync-dev libxcb-xfixes0-dev \
@@ -52,7 +52,7 @@ jobs:
       - name: Install System Dependencies (macOS)
         if: runner.os == 'macOS'
         run: |
-          brew install cmake ninja ccache ngspice llvm
+          brew install cmake ninja ccache ngspice llvm autoconf automake libtool bison flex
 
       - name: Setup Qt 6
         uses: jurplel/install-qt-action@v3
@@ -68,7 +68,7 @@ jobs:
           cmake -B build -G Ninja \
             -DCMAKE_BUILD_TYPE=Release \
             -DVIOSPICE_ENABLE_TESTS=ON \
-            -DVIOSPICE_DEV_MODE=OFF
+            -DVIOSPICE_DEV_MODE=ON
 
       - name: Configure CMake (Windows)
         if: runner.os == 'Windows'
