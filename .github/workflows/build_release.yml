@@ -17,7 +17,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: ubuntu-22.04
+          - os: ubuntu-24.04
             platform_name: linux-x86_64
             qt_arch: gcc_64
           - os: windows-2022
@@ -53,6 +53,8 @@ jobs:
         if: runner.os == 'macOS'
         run: |
           brew install cmake ninja ccache ngspice llvm autoconf automake libtool bison flex
+          echo "CPATH=$(brew --prefix llvm)/include" >> $GITHUB_ENV
+          echo "LIBRARY_PATH=$(brew --prefix llvm)/lib" >> $GITHUB_ENV
 
       - name: Setup Qt 6
         uses: jurplel/install-qt-action@v3
@@ -68,7 +70,10 @@ jobs:
           cmake -B build -G Ninja \
             -DCMAKE_BUILD_TYPE=Release \
             -DVIOSPICE_ENABLE_TESTS=ON \
-            -DVIOSPICE_DEV_MODE=OFF
+            -DVIOSPICE_DEV_MODE=OFF \
+            -DBUILD_TESTING=OFF \
+            -DEIGEN_BUILD_TESTING=OFF \
+            -DEIGEN_BUILD_DOC=OFF
 
       - name: Configure CMake (Windows)
         if: runner.os == 'Windows'
@@ -78,7 +83,10 @@ jobs:
           cmake -B build -G Ninja ^
             -DCMAKE_BUILD_TYPE=Release ^
             -DVIOSPICE_ENABLE_TESTS=ON ^
-            -DVIOSPICE_DEV_MODE=OFF
+            -DVIOSPICE_DEV_MODE=OFF ^
+            -DBUILD_TESTING=OFF ^
+            -DEIGEN_BUILD_TESTING=OFF ^
+            -DEIGEN_BUILD_DOC=OFF
 
       - name: Build Application & Test Suite
         run: |
