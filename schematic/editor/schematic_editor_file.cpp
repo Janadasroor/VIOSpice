@@ -13,6 +13,8 @@
 #include "schematic_page_item.h"
 #include "../items/schematic_sheet_item.h"
 #include "schematic_erc.h"
+#include <QJsonDocument>
+#include <QJsonObject>
 #include "../dialogs/visual_pin_pad_mapper_dialog.h"
 // Forward declaration
 class MainWindow;
