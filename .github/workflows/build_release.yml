@@ -17,7 +17,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: ubuntu-22.04
+          - os: ubuntu-24.04
             platform_name: linux-x86_64
             qt_arch: gcc_64
           - os: windows-2022
@@ -52,7 +52,7 @@ jobs:
       - name: Install System Dependencies (macOS)
         if: runner.os == 'macOS'
         run: |
-          brew install cmake ninja ccache ngspice
+          brew install cmake ninja ccache ngspice llvm
 
       - name: Setup Qt 6
         uses: jurplel/install-qt-action@v3
