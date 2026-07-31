@@ -509,6 +509,10 @@ else()
     if(NOT Eigen3_FOUND)
         message(STATUS "Eigen3 not found, downloading bundled Eigen...")
         include(FetchContent)
+        set(EIGEN_BUILD_TESTING OFF CACHE BOOL "" FORCE)
+        set(EIGEN_BUILD_BLAS OFF CACHE BOOL "" FORCE)
+        set(EIGEN_BUILD_LAPACK OFF CACHE BOOL "" FORCE)
+        set(BUILD_TESTING OFF CACHE BOOL "" FORCE)
         FetchContent_Declare(
             Eigen3
             GIT_REPOSITORY https://gitlab.com/libeigen/eigen.git
