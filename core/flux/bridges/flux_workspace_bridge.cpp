@@ -16,6 +16,8 @@
 #include "../extensions/extension_events.h"
 #include <flux/jit_engine.h>
 #include <QDebug>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QApplication>
 #include <QEventLoop>
 #include <iostream>

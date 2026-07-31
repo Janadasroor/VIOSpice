@@ -27,6 +27,8 @@ endif()
 
 enable_testing()
 include(CTest)
+set(EIGEN_BUILD_TESTING OFF CACHE BOOL "Disable Eigen unit testing" FORCE)
+set(EIGEN_BUILD_DOC OFF CACHE BOOL "Disable Eigen documentation build" FORCE)
 
 set(CMAKE_AUTOUIC ON)
 set(CMAKE_AUTOMOC ON)
