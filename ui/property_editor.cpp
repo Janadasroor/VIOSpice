@@ -257,8 +257,8 @@ void PropertyEditor::addProperty(const QString &name, const QVariant &value, con
             "QCheckBox::indicator:hover { border-color: #71717a; }"
             "QCheckBox::indicator:checked { background-color: #52525b; border-color: #636363; image: url(:/icons/check.svg); }"
         );
-        connect(check, &QCheckBox::checkStateChanged, this, [this, name](Qt::CheckState state) {
-            if (!m_blockSignals) Q_EMIT propertyChanged(name, state == Qt::Checked);
+        connect(check, &QCheckBox::toggled, this, [this, name](bool checked) {
+            if (!m_blockSignals) Q_EMIT propertyChanged(name, checked);
         });
         m_table->setCellWidget(row, 1, check);
     } else {
