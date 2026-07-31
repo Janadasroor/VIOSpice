@@ -527,7 +527,17 @@ else()
             GIT_TAG        3.4.0
             GIT_SHALLOW    TRUE
         )
-        FetchContent_MakeAvailable(Eigen3)
+        FetchContent_GetProperties(Eigen3)
+        if(NOT eigen3_POPULATED)
+            FetchContent_Populate(Eigen3)
+            if(EXISTS "${eigen3_SOURCE_DIR}/blas/CMakeLists.txt")
+                file(WRITE "${eigen3_SOURCE_DIR}/blas/CMakeLists.txt" "# Disabled Fortran BLAS for VioSpice\n")
+            endif()
+            if(EXISTS "${eigen3_SOURCE_DIR}/lapack/CMakeLists.txt")
+                file(WRITE "${eigen3_SOURCE_DIR}/lapack/CMakeLists.txt" "# Disabled Fortran LAPACK for VioSpice\n")
+            endif()
+            add_subdirectory(${eigen3_SOURCE_DIR} ${eigen3_BINARY_DIR} EXCLUDE_FROM_ALL)
+        endif()
         set(EIGEN3_INCLUDE_DIR "${eigen3_SOURCE_DIR}")
     endif()
 
