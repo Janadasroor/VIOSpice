@@ -547,10 +547,13 @@ QPair<QVector<double>, QVector<double>> SimulationManager::getVectorHistory(cons
 #ifdef HAVE_NGSPICE
     if (!m_isInitialized) return {time, values};
     ngSpice_LockRealloc();
-    pvector_info timeInfo = ngGet_Vec_Info("time");
-    pvector_info sigInfo = ngGet_Vec_Info(name.toLatin1().data());
+    QByteArray timeName("time");
+    pvector_info timeInfo = ngGet_Vec_Info(timeName.data());
+    QByteArray sigName = name.toLatin1();
+    pvector_info sigInfo = ngGet_Vec_Info(sigName.data());
     if (sigInfo == nullptr) {
-        sigInfo = ngGet_Vec_Info(name.toLower().toLatin1().data());
+        QByteArray lowerName = name.toLower().toLatin1();
+        sigInfo = ngGet_Vec_Info(lowerName.data());
     }
     if (timeInfo && timeInfo->v_realdata && timeInfo->v_length > 0 &&
         sigInfo && sigInfo->v_realdata && sigInfo->v_length > 0) {
