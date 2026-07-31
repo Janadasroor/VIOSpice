@@ -84,6 +84,13 @@ jobs:
             wget -qO /tmp/pkg.deb "$pkg" && sudo dpkg -i /tmp/pkg.deb || true
           done
           sudo apt-get install -f -y
+          # GitHub runner image ships a libcurl that references the nghttp2 1.61 API
+          # (nghttp2_option_set_no_rfc9113_leading_and_trailing_ws_validation), but noble's
+          # libnghttp2-14 is only 1.59. Force-upgrade nghttp2 so tests link successfully.
+          wget -qO /tmp/libnghttp2-14.deb \
+            http://archive.ubuntu.com/ubuntu/pool/main/n/nghttp2/libnghttp2-14_1.64.0-1ubuntu1_amd64.deb
+          sudo dpkg -i /tmp/libnghttp2-14.deb
+          apt-cache policy libnghttp2-14
 
       - name: Install system deps (macOS)
         if: runner.os == 'macOS'
@@ -304,6 +311,13 @@ jobs:
             wget -qO /tmp/pkg.deb "$pkg" && sudo dpkg -i /tmp/pkg.deb || true
           done
           sudo apt-get install -f -y
+          # GitHub runner image ships a libcurl that references the nghttp2 1.61 API
+          # (nghttp2_option_set_no_rfc9113_leading_and_trailing_ws_validation), but noble's
+          # libnghttp2-14 is only 1.59. Force-upgrade nghttp2 so tests link successfully.
+          wget -qO /tmp/libnghttp2-14.deb \
+            http://archive.ubuntu.com/ubuntu/pool/main/n/nghttp2/libnghttp2-14_1.64.0-1ubuntu1_amd64.deb
+          sudo dpkg -i /tmp/libnghttp2-14.deb
+          apt-cache policy libnghttp2-14
 
       - name: Setup ccache
         uses: hendrikmuhs/ccache-action@v1.2
@@ -361,6 +375,13 @@ jobs:
             wget -qO /tmp/pkg.deb "$pkg" && sudo dpkg -i /tmp/pkg.deb || true
           done
           sudo apt-get install -f -y
+          # GitHub runner image ships a libcurl that references the nghttp2 1.61 API
+          # (nghttp2_option_set_no_rfc9113_leading_and_trailing_ws_validation), but noble's
+          # libnghttp2-14 is only 1.59. Force-upgrade nghttp2 so tests link successfully.
+          wget -qO /tmp/libnghttp2-14.deb \
+            http://archive.ubuntu.com/ubuntu/pool/main/n/nghttp2/libnghttp2-14_1.64.0-1ubuntu1_amd64.deb
+          sudo dpkg -i /tmp/libnghttp2-14.deb
+          apt-cache policy libnghttp2-14
 
       - name: Setup ccache
         uses: hendrikmuhs/ccache-action@v1.2
