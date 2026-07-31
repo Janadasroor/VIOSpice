@@ -58,7 +58,17 @@ jobs:
 
       - name: Install System Dependencies (Windows)
         if: runner.os == 'Windows'
-        run: choco install -y llvm
+        run: |
+          curl -L -o llvm.tar.xz https://github.com/llvm/llvm-project/releases/download/llvmorg-21.1.0/clang+llvm-21.1.0-x86_64-pc-windows-msvc.tar.xz
+          & "C:\Program Files\7-Zip\7z.exe" x llvm.tar.xz -y | Out-Null
+          & "C:\Program Files\7-Zip\7z.exe" x llvm.tar -ollvm-windows -y | Out-Null
+
+      - name: Set LLVM_DIR (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $cfg = Get-ChildItem -Path llvm-windows -Recurse -Filter "LLVMConfig.cmake" | Select-Object -First 1
+          echo "LLVM_DIR=$($cfg.DirectoryName)" | Out-File -FilePath $env:GITHUB_ENV -Append
 
       - name: Setup MSVC Environment (Windows)
         if: runner.os == 'Windows'
@@ -74,6 +84,8 @@ jobs:
 
       - name: Configure CMake
         run: cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DVIOSPICE_ENABLE_TESTS=ON -DVIOSPICE_DEV_MODE=OFF -DBUILD_TESTING=OFF -DEIGEN_BUILD_TESTING=OFF -DEIGEN_BUILD_DOC=OFF
+        env:
+          LLVM_DIR: ${{ env.LLVM_DIR }}
 
       - name: Build Application & Test Suite
         run: |
