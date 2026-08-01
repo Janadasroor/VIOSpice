@@ -142,3 +142,11 @@ output/
 *.step
 *.stp
 *.igs
+
+# Generated export/scratch files
+flasher_ipc2581.xml
+flasher_odbpp/
+flasher_pos.csv
+jlcpcb_package.zip
+scratch_flasher_board3d.obj
+scratch_flasher_board3d.stl
