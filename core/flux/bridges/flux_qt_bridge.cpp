@@ -369,9 +369,7 @@ void registerQtBridgeJitSymbols(Flux::FluxJIT& jit) {
 
 void register_flux_qt_jit_symbols() {
     auto& jit = Flux::JITEngine::instance();
-    fprintf(stderr, "[Bridge] register_flux_qt_jit_symbols called, initialized=%d\n", jit.isInitialized());
     if (!jit.isInitialized()) {
-        fprintf(stderr, "[Bridge] JIT not initialized, skipping registration\n");
         return;
     }
 
@@ -443,17 +441,13 @@ void register_flux_qt_jit_symbols() {
     jit.registerFunction("flux_qt_set_value", (void*)&flux_qt_set_value);
     jit.registerFunction("flux_qt_set_range", (void*)&flux_qt_set_range);
     jit.registerFunction("flux_qt_set_stylesheet", (void*)&flux_qt_set_stylesheet);
-    fprintf(stderr, "[Bridge] After set_stylesheet\n");
     jit.registerFunction("flux_qt_connect", (void*)&flux_qt_connect);
-    fprintf(stderr, "[Bridge] Before add_widget_smart\n");
     jit.registerFunction("flux_qt_add_widget_smart", (void*)&flux_qt_add_widget_smart);
     jit.registerFunction("flux_qt_create_scope", (void*)&flux_qt_create_scope);
     jit.registerFunction("flux_qt_create_waveform_viewer", (void*)&flux_qt_create_waveform_viewer);
     jit.registerFunction("flux_qt_create_scope_dock", (void*)&flux_qt_create_scope_dock);
     jit.registerFunction("flux_qt_create_oscilloscope", (void*)&flux_qt_create_oscilloscope);
 
-    fprintf(stderr, "[Bridge] About to register adoption functions, add_widget_smart=%p adopt=%p\n",
-            (void*)&flux_qt_add_widget_smart, (void*)&flux_qt_adopt);
 
     // Widget adoption
     jit.registerFunction("flux_qt_adopt", (void*)&flux_qt_adopt);
@@ -461,11 +455,6 @@ void register_flux_qt_jit_symbols() {
     jit.registerFunction("flux_qt_embed", (void*)&flux_qt_embed);
     jit.registerFunction("flux_qt_get_widget_info", (void*)&flux_qt_get_widget_info);
 
-    fprintf(stderr, "[Bridge] Adopt functions registered\n");
-    qDebug() << "[Bridge] Registered adopt=" << (void*)&flux_qt_adopt
-             << "list=" << (void*)&flux_qt_list_widgets
-             << "embed=" << (void*)&flux_qt_embed
-             << "info=" << (void*)&flux_qt_get_widget_info;
 
     // Smart defaults & shorthand
     jit.registerFunction("flux_qt_create_panel", (void*)&flux_qt_create_panel);
@@ -525,5 +514,4 @@ void register_flux_qt_jit_symbols() {
     jit.registerFunction("flux_state_load_str", (void*)&flux_state_load_str);
     jit.registerFunction("flux_state_clear", (void*)&flux_state_clear);
 
-    fprintf(stderr, "[Bridge] Registered all functions including sandbox, events, and state\n");
 }
