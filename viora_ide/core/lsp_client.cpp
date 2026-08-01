@@ -75,7 +75,7 @@ bool LspClient::startServer(const QString& serverPath) {
         return false;
     }
 
-    qInfo() << "LspClient: Started" << server << "PID" << m_process->processId();
+    qDebug() << "LspClient: Started" << server << "PID" << m_process->processId();
 
     sendInitialize();
     return true;
@@ -155,7 +155,7 @@ void LspClient::sendMessage(int id, const QString& method, const QString& params
     QByteArray body = QJsonDocument(msg).toJson(QJsonDocument::Compact);
     QByteArray frame = "Content-Length: " + QByteArray::number(body.size()) + "\r\n\r\n" + body;
 
-    qInfo() << "LspClient SEND:" << method << "id=" << id << "body=" << body;
+    qDebug() << "LspClient SEND:" << method << "id=" << id << "body=" << body;
     m_process->write(frame);
 }
 
@@ -168,7 +168,7 @@ void LspClient::sendNotification(const QString& method, const QString& params) {
 // ============================================================================
 
 void LspClient::processMessage(const QByteArray& json) {
-    qInfo() << "LspClient RECV:" << json;
+    qDebug() << "LspClient RECV:" << json;
     QJsonParseError parseError;
     QJsonDocument doc = QJsonDocument::fromJson(json, &parseError);
     if (parseError.error != QJsonParseError::NoError) {

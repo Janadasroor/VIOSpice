@@ -707,7 +707,7 @@ void VioraIdeWindow::setupConnections() {
     // ── LSP wiring ──────────────────────────────────────────
     if (m_lspClient) {
         connect(m_lspClient, &LspClient::serverStarted, this, []() {
-            qInfo() << "LSP server started";
+            qDebug() << "LSP server started";
         });
 
         connect(m_lspClient, &LspClient::diagnosticsReceived, this,
