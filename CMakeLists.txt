@@ -42,6 +42,12 @@ set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 
 set(CMAKE_CXX_STANDARD 20)
+
+# Suppress verbose qDebug()/qInfo() output in Release builds
+if(CMAKE_BUILD_TYPE STREQUAL "Release" OR CMAKE_BUILD_TYPE STREQUAL "RelWithDebInfo")
+    add_compile_definitions(QT_NO_DEBUG_OUTPUT QT_NO_INFO_OUTPUT)
+endif()
+
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # Treat missing return statements as compilation errors to prevent undefined behaviors/CPU traps
