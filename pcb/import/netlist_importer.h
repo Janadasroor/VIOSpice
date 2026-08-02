@@ -101,6 +101,14 @@ public:
     static void suggestFootprints(NetlistImportPackage& pkg, const QStringList& libraryFootprints);
 
     /**
+     * @brief Auto-suggest footprints for ECO components without one assigned.
+     * Mirrors suggestFootprints() but operates directly on the ECO package.
+     * @param pkg The ECO package (modified in place)
+     * @param libraryFootprints List of available footprint names from the library
+     */
+    static void suggestFootprints(ECOPackage& pkg, const QStringList& libraryFootprints);
+
+    /**
      * @brief Validate the import package for completeness.
      * @return List of validation warnings/errors
      */

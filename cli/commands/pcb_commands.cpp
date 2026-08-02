@@ -9,6 +9,8 @@
 
 #include "pcb/io/pcb_file_io.h"
 #include "pcb/editor/pcb_eco_resolver.h"
+#include "pcb/import/netlist_importer.h"
+#include "footprints/footprint_library.h"
 #include "pcb/drc/pcb_drc.h"
 #include "pcb/items/pcb_item.h"
 #include "pcb/items/component_item.h"
@@ -602,6 +604,12 @@ public:
             }
 
             ECOPackage pkg = NetlistGenerator::generateECOPackage(&schematicScene, QFileInfo(sourceSchematic).absolutePath(), nullptr);
+            QStringList footprints;
+            auto& fpLibMgr = FootprintLibraryManager::instance();
+            for (auto* lib : fpLibMgr.libraries()) {
+                footprints.append(lib->getFootprintNames());
+            }
+            PCBNetlistImporter::suggestFootprints(pkg, footprints);
             PCBECOResolver::applyECO(pkg, &pcbScene, nullptr, nullptr);
             
             if (!g_quiet) {
@@ -1399,6 +1407,12 @@ public:
         }
 
         ECOPackage pkg = NetlistGenerator::generateECOPackage(&schematicScene, QFileInfo(schematicPath).absolutePath(), nullptr);
+        QStringList footprints;
+        auto& fpLibMgr = FootprintLibraryManager::instance();
+        for (auto* lib : fpLibMgr.libraries()) {
+            footprints.append(lib->getFootprintNames());
+        }
+        PCBNetlistImporter::suggestFootprints(pkg, footprints);
         PCBECOResolver::applyECO(pkg, &pcbScene, nullptr, nullptr);
 
         if (!PCBFileIO::savePCB(&pcbScene, pcbPath)) {
