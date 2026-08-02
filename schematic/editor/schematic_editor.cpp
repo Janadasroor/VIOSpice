@@ -888,6 +888,7 @@ void SchematicEditor::onTabChanged(int index) {
         updateBreadcrumbs();
         refreshHierarchyPanel();
         updateCoordinates(m_view->mapToScene(m_view->mapFromGlobal(QCursor::pos())));
+        updateUsedModels();
     } else if (QString(current->metaObject()->className()) == "SymbolEditor") {
         // Contextually disable schematic docks/toolbars if needed
         if (m_geminiPanel) {

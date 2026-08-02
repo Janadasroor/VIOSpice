@@ -840,6 +840,10 @@ void SchematicComponentsWidget::focusSearch() {
     m_searchBox->selectAll();
 }
 
+void SchematicComponentsWidget::setUsedModels(const QSet<QString>& used) {
+    if (m_modelTab) m_modelTab->setUsedModels(used);
+}
+
 // ─── Populate ───────────────────────────────────────────────────────────────
 void SchematicComponentsWidget::populate() {
     // Only reload if we have no libraries

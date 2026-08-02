@@ -287,6 +287,8 @@ private:
     void endMouseFollowPlacement(bool cancel);
     void ensureGeminiPanelInitialized();
     QList<SchematicItem*> selectedSchematicItems() const;
+    QSet<QString> collectUsedModels() const;
+    void updateUsedModels();
     bool handleTransformAction(SchematicTool::TransformAction action);
     bool applyMouseFollowTransformAction(SchematicTool::TransformAction action, QString* statusMessage = nullptr);
     bool applyCurrentToolTransformAction(SchematicTool::TransformAction action);

@@ -11,8 +11,11 @@
 #include <QLabel>
 #include <QPushButton>
 #include <QTreeView>
-#include <QSortFilterProxyModel>
-#include "../../ui/spice_model_list_model.h"
+#include "model_tree_model.h"
+
+class QTimer;
+class QComboBox;
+class QCheckBox;
 
 class ModelBrowserWidget : public QWidget {
     Q_OBJECT
@@ -24,21 +27,32 @@ Q_SIGNALS:
     void modelSelected(const SpiceModelInfo& info);
     void applyModelRequested(const SpiceModelInfo& info);
 
+public:
+    void setUsedModels(const QSet<QString>& used);
+
 private Q_SLOTS:
     void onSearchChanged(const QString& text);
     void onItemSelectionChanged(const QModelIndex& current);
     void onApplyClicked();
     void onReloadClicked();
     void onLibraryReloaded();
+    void applyTheme();
 
 private:
     void setupUI();
+    void updateCategoryCounts();
+    void expandToFit();
 
     QLineEdit* m_searchBox;
+    QComboBox* m_categoryCombo;
+    QCheckBox* m_favOnlyCheck;
     QTreeView* m_treeView;
-    SpiceModelListModel* m_model;
-    QSortFilterProxyModel* m_proxyModel;
-    
+    ModelTreeModel* m_model;
+    ModelTreeFilterProxy* m_proxyModel;
+
+    QTimer* m_searchDebounceTimer;
+    QString m_pendingSearchText;
+
     QLabel* m_detailLabel;
     QPushButton* m_applyBtn;
 };
