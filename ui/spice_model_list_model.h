@@ -61,6 +61,8 @@ public:
     Stats statistics() const;
 
 private:
+    void computeDuplicates(const QVector<SpiceModelInfo>& models);
+
     QVector<SpiceModelInfo> m_models;
     QSet<QString> m_favorites;
     QSet<QString> m_usedModels;
