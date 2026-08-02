@@ -27,6 +27,26 @@ add_test(
 )
 set_tests_properties(integration.ngspice_shared PROPERTIES LABELS "fast;integration;simulator;ngspice")
 
+add_executable(test_error_popup_path
+    test_error_popup_path.cpp
+    ${VIORAEDA_CLI_MODULE_OBJECTS}
+)
+
+target_link_libraries(test_error_popup_path PRIVATE Qt${QT_VERSION_MAJOR}::Test)
+vioraeda_configure_cli_target(test_error_popup_path)
+# Ensure circular static lib deps resolve (Gemini/Python symbols).
+target_link_libraries(test_error_popup_path PRIVATE
+    ${VIOSPICE_LINKER_GROUP_BEGIN}
+    VioCore
+    VioSymbols
+    VioSchematic
+    VioUI
+    VioSimulator
+    FluxScript
+    FluxScriptManager
+    ${VIOSPICE_LINKER_GROUP_END}
+)
+
 add_executable(test_benchmark
     test_benchmark.cpp
     ${VIORAEDA_CLI_MODULE_OBJECTS}
