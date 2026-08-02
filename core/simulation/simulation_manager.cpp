@@ -262,6 +262,13 @@ QString SimulationManager::lastErrorMessage() const {
     return m_lastErrorMessage;
 }
 
+void SimulationManager::reportError(const QString& error) {
+    if (!error.isEmpty()) {
+        qWarning() << "[Simulation] ERROR:" << error;
+    }
+    Q_EMIT errorOccurred(error);
+}
+
 #include <QStandardPaths>
 
 void SimulationManager::initialize() {
@@ -342,8 +349,8 @@ bool SimulationManager::recoverEngineIfNeeded() {
 }
 
 void SimulationManager::runSimulation(const QString& netlist, SimControl* control) {
-    if (!isAvailable()) { Q_EMIT errorOccurred("Simulation engine not installed."); return; }
-    if (!recoverEngineIfNeeded()) { Q_EMIT errorOccurred("Failed to recover simulation engine."); return; }
+    if (!isAvailable()) { reportError("Simulation engine not installed."); return; }
+    if (!recoverEngineIfNeeded()) { reportError("Failed to recover simulation engine."); return; }
     if (!m_isInitialized) initialize();
 
 #ifdef HAVE_NGSPICE
@@ -375,7 +382,7 @@ void SimulationManager::runSimulation(const QString& netlist, SimControl* contro
     QString error;
     if (!loadNetlistInternal(netlist, true, &error)) {
         QMetaObject::invokeMethod(m_bufferTimer, "stop", Qt::QueuedConnection);
-        if (!error.isEmpty()) Q_EMIT errorOccurred(error);
+        if (!error.isEmpty()) reportError(error);
         return;
     }
 
@@ -402,7 +409,7 @@ void SimulationManager::runSimulation(const QString& netlist, SimControl* contro
         setState(SimulationState::Error);
         QString finalErr;
         { std::lock_guard<std::mutex> lock(m_logMutex); finalErr = m_lastErrorMessage.isEmpty() ? "Ngspice failed to start simulation." : m_lastErrorMessage; }
-        Q_EMIT errorOccurred(finalErr);
+        reportError(finalErr);
         Q_EMIT simulationFinished();
         return;
     }
@@ -719,7 +726,8 @@ int SimulationManager::cbSendChar(char* output, int id, void* userData) {
         bool fatal = lower.contains("ngspice.dll cannot recover") || lower.contains("awaits to be reset");
         bool isErr = lower.contains("error") || lower.contains("unknown model") || fatal;
         bool isRunFail = lower.contains("singular matrix") || lower.contains("stepping failed") || lower.contains("step too small");
-        
+        bool isWarn = lower.startsWith("warning");
+
         if (isErr) self->m_lastLoadFailed = true;
         if (fatal) self->m_engineRecoveryRequired = true;
         if (isRunFail) self->m_lastRunFailed = true;
@@ -729,7 +737,17 @@ int SimulationManager::cbSendChar(char* output, int id, void* userData) {
         bool isNoise = lower.startsWith("reference value") || lower.startsWith("referencevalue");
         if (!isNoise) {
             self->m_logBuffer.push_back(msg);
-            qDebug() << "[Ngspice]" << msg.trimmed();
+            const QString trimmed = msg.trimmed();
+            // Route errors and warnings through qWarning() so they remain visible
+            // in the terminal even in Release builds (QT_NO_DEBUG_OUTPUT only
+            // silences qDebug()/qInfo()).
+            if (isErr || isRunFail || fatal) {
+                qWarning() << "[Ngspice] ERROR:" << trimmed;
+            } else if (isWarn) {
+                qWarning() << "[Ngspice] WARNING:" << trimmed;
+            } else {
+                qDebug() << "[Ngspice]" << trimmed;
+            }
         }
     }
     return 0;
@@ -977,7 +995,7 @@ void SimulationManager::handleSimulationFinished(const QString& rawPath) {
     }
     if (m_lastRunFailed) {
         std::lock_guard<std::mutex> lock(m_logMutex);
-        if (!m_lastErrorMessage.isEmpty()) Q_EMIT errorOccurred(m_lastErrorMessage);
+        if (!m_lastErrorMessage.isEmpty()) reportError(m_lastErrorMessage);
     }
 #endif
     Q_EMIT simulationFinished();
