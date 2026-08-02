@@ -6,6 +6,7 @@
 #include "pcb_eco_resolver.h"
 #include "component_item.h"
 #include "pad_item.h"
+#include "../layers/pcb_layer.h"
 #include "../analysis/pcb_ratsnest_manager.h"
 #include "../../footprints/footprint_library.h"
 #include <QGraphicsScene>
@@ -47,7 +48,35 @@ void PCBECOResolver::applyECO(const ECOPackage& package, QGraphicsScene* scene, 
     }
 
     int newCount = 0;
+    QRectF boardRect;
+    bool foundBoard = false;
+    for (auto* item : scene->items()) {
+        PCBItem* pcbItem = dynamic_cast<PCBItem*>(item);
+        if (pcbItem && pcbItem->layer() == PCBLayerManager::EdgeCuts) {
+            boardRect = boardRect.united(pcbItem->sceneTransform().map(pcbItem->shape()).boundingRect());
+            foundBoard = true;
+        }
+    }
+    const double margin = 8.0;
+    const double defaultStep = 20.0;
+    double step = defaultStep;
+    double colsFit = 4.0;
     QPointF gridStart(0, 0);
+    const int compCount = package.components.size();
+    if (foundBoard) {
+        const double usableW = qMax(1.0, boardRect.width() - 2 * margin);
+        const double usableH = qMax(1.0, boardRect.height() - 2 * margin);
+        if (compCount > 0) {
+            int cols = (int)std::ceil(std::sqrt((double)compCount));
+            int rows = (int)std::ceil((double)compCount / cols);
+            cols = qMax(1, cols);
+            rows = qMax(1, rows);
+            step = qMin(defaultStep, qMin(usableW / cols, usableH / rows));
+            step = qMax(step, 5.0);
+        }
+        colsFit = qMax(1.0, std::floor(usableW / step));
+        gridStart = QPointF(boardRect.left() + margin, boardRect.top() + margin);
+    }
     int row = 0, col = 0;
     QList<ComponentItem*> newItems;
     QSet<QString> unresolvedFootprints;
@@ -71,7 +100,7 @@ void PCBECOResolver::applyECO(const ECOPackage& package, QGraphicsScene* scene, 
             existingComp->setValue(ecoComp.value);
         } else {
             // Space items by 20mm instead of 150mm
-            QPointF pos = gridStart + QPointF(col * 20, row * 20);
+            QPointF pos = gridStart + QPointF(col * step, row * step);
             const QString newFootprint = resolveFootprintName(ecoComp.footprint);
             if (!newFootprint.isEmpty() && !lib.hasFootprint(newFootprint)) {
                 unresolvedFootprints.insert(newFootprint);
@@ -84,7 +113,7 @@ void PCBECOResolver::applyECO(const ECOPackage& package, QGraphicsScene* scene, 
             newItems.append(newComp);
             newCount++;
             col++;
-            if (col > 5) { col = 0; row++; }
+            if (col >= colsFit) { col = 0; row++; }
         }
     }
     

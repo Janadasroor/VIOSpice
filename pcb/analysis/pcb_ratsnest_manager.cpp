@@ -58,7 +58,13 @@ PCBRatsnestManager::~PCBRatsnestManager() {
 void PCBRatsnestManager::setScene(QGraphicsScene* scene) {
     if (m_scene != scene) {
         clearRatsnest();
+        if (m_scene) {
+            disconnect(m_scene, &QObject::destroyed, this, &PCBRatsnestManager::onSceneDestroyed);
+        }
         m_scene = scene;
+        if (m_scene) {
+            connect(m_scene, &QObject::destroyed, this, &PCBRatsnestManager::onSceneDestroyed);
+        }
         update();
     }
 }

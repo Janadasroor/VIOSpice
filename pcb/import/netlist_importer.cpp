@@ -103,6 +103,20 @@ void PCBNetlistImporter::suggestFootprints(NetlistImportPackage& pkg, const QStr
     }
 }
 
+void PCBNetlistImporter::suggestFootprints(ECOPackage& pkg, const QStringList& libraryFootprints) {
+    for (auto& comp : pkg.components) {
+        if (comp.footprint.isEmpty() || comp.footprint.trimmed().isEmpty()) {
+            NetlistImportComponent tmp;
+            tmp.reference = comp.reference;
+            tmp.value = comp.value;
+            tmp.typeName = comp.typeName;
+            tmp.pinCount = comp.symbolPinCount;
+            tmp.pinPadMapping = comp.pinPadMapping;
+            comp.footprint = suggestFootprintForComponent(tmp, libraryFootprints);
+        }
+    }
+}
+
 QString PCBNetlistImporter::suggestFootprintForComponent(const NetlistImportComponent& comp, const QStringList& libraryFootprints) {
     // Strategy 1: Use package hint from netlist (e.g. "0603", "SOT-23", "DIP-8")
     if (!comp.packageHint.isEmpty()) {
@@ -131,7 +145,7 @@ QString PCBNetlistImporter::suggestFootprintForComponent(const NetlistImportComp
         if (match.hasMatch()) {
             QString sizeCode = match.captured(0);
             for (const QString& fp : libraryFootprints) {
-                if (fp.contains(sizeCode, Qt::CaseInsensitive)) {
+                if (fp.contains(sizeCode, Qt::CaseInsensitive) && fp.startsWith("R_", Qt::CaseInsensitive)) {
                     return fp;
                 }
             }
@@ -139,15 +153,19 @@ QString PCBNetlistImporter::suggestFootprintForComponent(const NetlistImportComp
         // Default: through-hole axial if THT, 0603 if SMD
         if (isTHT) {
             for (const QString& fp : libraryFootprints) {
-                if (fp.contains("axial", Qt::CaseInsensitive) || fp.contains("r_", Qt::CaseInsensitive)) {
-                    return fp;
-                }
+                if (fp.contains("axial", Qt::CaseInsensitive)) return fp;
+            }
+            for (const QString& fp : libraryFootprints) {
+                if (fp.startsWith("R_", Qt::CaseInsensitive)) return fp;
             }
         } else {
             for (const QString& fp : libraryFootprints) {
-                if (fp.contains("0603", Qt::CaseInsensitive) && fp.contains("r", Qt::CaseInsensitive)) {
+                if (fp.startsWith("R_", Qt::CaseInsensitive) && fp.contains("0603", Qt::CaseInsensitive)) {
                     return fp;
                 }
+            }
+            for (const QString& fp : libraryFootprints) {
+                if (fp.startsWith("R_", Qt::CaseInsensitive)) return fp;
             }
         }
     }
@@ -159,22 +177,26 @@ QString PCBNetlistImporter::suggestFootprintForComponent(const NetlistImportComp
         if (match.hasMatch()) {
             QString sizeCode = match.captured(0);
             for (const QString& fp : libraryFootprints) {
-                if (fp.contains(sizeCode, Qt::CaseInsensitive)) {
+                if (fp.contains(sizeCode, Qt::CaseInsensitive) && fp.startsWith("C_", Qt::CaseInsensitive)) {
                     return fp;
                 }
             }
         }
         if (isTHT) {
             for (const QString& fp : libraryFootprints) {
-                if (fp.contains("radial", Qt::CaseInsensitive) || fp.contains("c_", Qt::CaseInsensitive)) {
-                    return fp;
-                }
+                if (fp.contains("radial", Qt::CaseInsensitive)) return fp;
+            }
+            for (const QString& fp : libraryFootprints) {
+                if (fp.startsWith("C_", Qt::CaseInsensitive)) return fp;
             }
         } else {
             for (const QString& fp : libraryFootprints) {
-                if (fp.contains("0603", Qt::CaseInsensitive) && (fp.contains("c_") || fp.contains("cap"))) {
+                if (fp.startsWith("C_", Qt::CaseInsensitive) && fp.contains("0603", Qt::CaseInsensitive)) {
                     return fp;
                 }
+            }
+            for (const QString& fp : libraryFootprints) {
+                if (fp.startsWith("C_", Qt::CaseInsensitive)) return fp;
             }
         }
     }
