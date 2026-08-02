@@ -51,6 +51,12 @@ add_test(
 )
 set_tests_properties(integration.bridge_stop_restart PROPERTIES LABELS "fast;integration;simulator;ngspice;regression")
 
+add_test(
+    NAME integration.project_manager_launch
+    COMMAND test_project_manager_launch
+)
+set_tests_properties(integration.project_manager_launch PROPERTIES LABELS "fast;integration;ui;regression")
+
 add_executable(test_error_popup_path
     test_error_popup_path.cpp
     ${VIORAEDA_CLI_MODULE_OBJECTS}
@@ -127,6 +133,26 @@ target_link_libraries(test_bridge_stop_restart PRIVATE
     FluxScriptManager
     ${VIOSPICE_LINKER_GROUP_END}
 )
+
+add_executable(test_project_manager_launch
+    test_project_manager_launch.cpp
+    ${VIORAEDA_CLI_MODULE_OBJECTS}
+)
+
+target_link_libraries(test_project_manager_launch PRIVATE Qt${QT_VERSION_MAJOR}::Widgets)
+vioraeda_configure_cli_target(test_project_manager_launch)
+target_link_libraries(test_project_manager_launch PRIVATE
+    ${VIOSPICE_LINKER_GROUP_BEGIN}
+    VioCore
+    VioSymbols
+    VioSchematic
+    VioUI
+    VioSimulator
+    FluxScript
+    FluxScriptManager
+    ${VIOSPICE_LINKER_GROUP_END}
+)
+
 
 add_executable(test_benchmark
     test_benchmark.cpp
