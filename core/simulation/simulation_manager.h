@@ -149,6 +149,12 @@ private:
     
     bool recoverEngineIfNeeded();
 
+    // Verifies that the loaded digital.cm d_cosim codemodel was built from the
+    // same VioMATRIXC tree as the linked libngspice engine. A mismatched pair
+    // (dev vs release tree) crashes in CKTdump during simulation; detecting it
+    // up front turns a segfault into a clear error message.
+    bool verifyCosimAbiMatch(const QString& cmPath);
+
     // Logs an error to the terminal via qWarning() (always visible in Release
     // builds where QT_NO_DEBUG_OUTPUT suppresses qDebug()) and emits errorOccurred().
     void reportError(const QString& error);
@@ -157,6 +163,7 @@ private:
     std::atomic<SimulationState> m_state{SimulationState::Idle};
 
     bool m_isInitialized;
+    std::atomic<bool> m_abiMismatch{false};
     std::atomic<bool> m_lastLoadFailed{false};
     std::atomic<bool> m_lastRunFailed{false};
     QString m_lastErrorMessage;
