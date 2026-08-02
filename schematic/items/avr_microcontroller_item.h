@@ -75,7 +75,7 @@ private:
     QString m_mcuModel = "ATmega328P";
     QString m_firmwarePath;
     double m_clockFrequency = 16000000;
-    bool m_jitEnabled = true;
+    bool m_jitEnabled = false;
     double m_adcVoltage = 5.0;
     QString m_boardType;
     bool m_isArduinoMode = false;
