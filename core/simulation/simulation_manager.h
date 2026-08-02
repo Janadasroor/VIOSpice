@@ -149,6 +149,10 @@ private:
     
     bool recoverEngineIfNeeded();
 
+    // Logs an error to the terminal via qWarning() (always visible in Release
+    // builds where QT_NO_DEBUG_OUTPUT suppresses qDebug()) and emits errorOccurred().
+    void reportError(const QString& error);
+
     void setState(SimulationState newState);
     std::atomic<SimulationState> m_state{SimulationState::Idle};
 
