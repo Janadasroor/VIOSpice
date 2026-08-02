@@ -112,6 +112,8 @@ include(FetchContent)
 # Developer mode flag — OFF by default so new users download prebuilt binaries
 option(VIOSPICE_DEV_MODE "Enable local development mode (use local repos / build from source)" OFF)
 
+# v0.2.0 (latest tag) ships no prebuilt binary assets, so the download base must
+# stay at v0.1.0 for fresh users. Dev-mode source builds below pin GIT_TAG v0.2.0.
 set(VIOMATRIXC_DOWNLOAD_BASE "https://github.com/Janadasroor/VioMATRIXC/releases/download/v0.1.0"
     CACHE STRING "URL prefix for prebuilt VioMATRIXC archive")
 
@@ -141,7 +143,7 @@ if(VIOSPICE_DEV_MODE)
         FetchContent_Declare(
             viomatrixc
             GIT_REPOSITORY https://github.com/Janadasroor/VioMATRIXC.git
-            GIT_TAG        main
+            GIT_TAG        v0.2.0
         )
         FetchContent_GetProperties(viomatrixc)
         if(NOT viomatrixc_POPULATED)
@@ -254,17 +256,17 @@ endif()
 # --- VioAVR Co-Simulation Support ---
 option(VIOSPICE_ENABLE_VIOAVR "Enable AVR microcontroller co-simulation via VioAVR" ON)
 if(VIOSPICE_ENABLE_VIOAVR)
-    set(VIOAVR_DOWNLOAD_BASE "https://github.com/Janadasroor/VioAVR/releases/download/v0.1.0"
+    set(VIOAVR_DOWNLOAD_BASE "https://github.com/Janadasroor/VioAVR/releases/download/v0.2.5"
         CACHE STRING "URL prefix for prebuilt VioAVR archive")
 
     if(WIN32)
-        set(VIOAVR_ARCHIVE "vioavr-windows-x86_64.zip")
+        set(VIOAVR_ARCHIVE "vioavr-v0.2.5-windows-x64.zip")
         set(VIOAVR_COSIM_LIB_NAME "avr_cosim.dll")
     elseif(APPLE)
-        set(VIOAVR_ARCHIVE "vioavr-macos-arm64.tar.gz")
+        set(VIOAVR_ARCHIVE "vioavr-v0.2.5-macos-arm64.tar.gz")
         set(VIOAVR_COSIM_LIB_NAME "libavr_cosim.dylib")
     else()
-        set(VIOAVR_ARCHIVE "vioavr-linux-x86_64.tar.gz")
+        set(VIOAVR_ARCHIVE "vioavr-v0.2.5-linux-x86_64.tar.gz")
         set(VIOAVR_COSIM_LIB_NAME "libavr_cosim.so")
     endif()
     set(VIOAVR_DOWNLOAD_URL "${VIOAVR_DOWNLOAD_BASE}/${VIOAVR_ARCHIVE}")
@@ -278,7 +280,7 @@ if(VIOSPICE_ENABLE_VIOAVR)
             FetchContent_Declare(
                 vioavr
                 GIT_REPOSITORY https://github.com/Janadasroor/VioAVR.git
-                GIT_TAG        main
+                GIT_TAG        v0.2.5
             )
             FetchContent_GetProperties(vioavr)
             if(NOT vioavr_POPULATED)
@@ -462,8 +464,8 @@ elseif(WIN32)
     set(FLUXSCRIPT_ARCHIVE "fluxscript-windows-x86_64.zip")
     set(FLUXSCRIPT_LIB_NAME "FluxScript.dll")
 else()
-    # Linux: only v0.1.0 provides x86_64 prebuilt
-    set(FLUXSCRIPT_DOWNLOAD_BASE "https://github.com/Janadasroor/fluxscript/releases/download/v0.1.0")
+    # Linux: v1.2.0 provides x86_64 prebuilt
+    set(FLUXSCRIPT_DOWNLOAD_BASE "https://github.com/Janadasroor/fluxscript/releases/download/v1.2.0")
     set(FLUXSCRIPT_ARCHIVE "fluxscript-linux-x86_64.tar.gz")
     set(FLUXSCRIPT_LIB_NAME "libFluxScript.so")
 endif()
@@ -484,7 +486,7 @@ if(VIOSPICE_DEV_MODE OR VIOSPICE_BUILD_FLUXSCRIPT)
         FetchContent_Declare(
             FluxScript
             GIT_REPOSITORY https://github.com/Janadasroor/fluxscript.git
-            GIT_TAG        e33f0e32 # LLVM 21 compat + JIT fixes + eager compile cache
+            GIT_TAG        v1.2.0
         )
         FetchContent_Populate(FluxScript)
         # When using prebuilt VioMATRIXC, fix FluxScript's ngspice path computation
