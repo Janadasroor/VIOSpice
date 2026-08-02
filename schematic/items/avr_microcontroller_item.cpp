@@ -272,7 +272,7 @@ AvrMicrocontrollerItem::AvrMicrocontrollerItem(QGraphicsItem* parent)
     setName("AVR Microcontroller");
     setParamExpression("avrModel", m_mcuModel);
     setParamExpression("clockFrequency", QString::number(m_clockFrequency));
-    setParamExpression("jitEnabled", "1");
+    setParamExpression("jitEnabled", "0");
     setParamExpression("adcVoltage", "5.0");
 }
 
@@ -623,7 +623,7 @@ bool AvrMicrocontrollerItem::fromJson(const QJsonObject& json) {
     m_mcuModel = json.value("avrModel").toString("ATmega328P");
     m_firmwarePath = json.value("firmwarePath").toString();
     m_clockFrequency = json.value("clockFrequency").toDouble(16000000);
-    m_jitEnabled = json.value("jitEnabled").toBool(true);
+    m_jitEnabled = json.value("jitEnabled").toBool(false);
     m_adcVoltage = json.value("adcVoltage").toDouble(5.0);
     QString boardType = json.value("boardType").toString();
 

@@ -229,7 +229,7 @@ bool XSpiceBlockTranslator::translate(const ECOComponent& comp,
         const QString cosimPath = QCoreApplication::applicationDirPath() + "/" + libName;
 #endif
         const double clockFreq = comp.paramExpressions.value("clockFrequency", "16000000").toDouble();
-        const bool jitEnabled = comp.paramExpressions.value("jitEnabled", "1").toInt() != 0;
+        const bool jitEnabled = comp.paramExpressions.value("jitEnabled", "0").toInt() != 0;
         QString simArgsStr = QString("\"%1\",\"%2\"").arg(mcuModel.toLower(), absFirmware);
         simArgsStr += QString(",\"%1\"").arg(jitEnabled ? "1" : "0");
         if (qAbs(clockFreq - 16000000.0) > 1.0) {
