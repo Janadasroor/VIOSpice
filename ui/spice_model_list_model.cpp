@@ -83,10 +83,10 @@ QVariant SpiceModelListModel::headerData(int section, Qt::Orientation orientatio
 }
 
 void SpiceModelListModel::setModels(const QVector<SpiceModelInfo>& models) {
+    computeDuplicates(models);
     beginResetModel();
     m_models = models;
     endResetModel();
-    detectDuplicates();
 }
 
 const SpiceModelInfo& SpiceModelListModel::modelInfo(int row) const {
@@ -127,9 +127,14 @@ void SpiceModelListModel::setUsedModels(const QSet<QString>& used) {
 }
 
 void SpiceModelListModel::detectDuplicates() {
+    computeDuplicates(m_models);
+    Q_EMIT dataChanged(index(0, 0), index(m_models.size() - 1, 0), {IsDuplicateRole});
+}
+
+void SpiceModelListModel::computeDuplicates(const QVector<SpiceModelInfo>& models) {
     m_duplicates.clear();
     QMap<QString, int> nameCount;
-    for (const auto& m : m_models) {
+    for (const auto& m : models) {
         nameCount[m.name]++;
     }
     for (auto it = nameCount.begin(); it != nameCount.end(); ++it) {
@@ -137,7 +142,6 @@ void SpiceModelListModel::detectDuplicates() {
             m_duplicates.insert(it.key());
         }
     }
-    Q_EMIT dataChanged(index(0, 0), index(m_models.size() - 1, 0), {IsDuplicateRole});
 }
 
 SpiceModelListModel::Stats SpiceModelListModel::statistics() const {
