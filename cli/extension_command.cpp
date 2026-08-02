@@ -17,11 +17,18 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QDebug>
+#include <QStandardPaths>
 
 #include "../core/flux/engine/flux_script_engine.h"
 
 static QString configDir() {
+#ifdef Q_OS_WIN
+    return QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation) + "/extensions";
+#elif defined(Q_OS_MACOS)
+    return QDir::homePath() + "/Library/Application Support/VioraEDA/extensions";
+#else
     return QDir::homePath() + "/.config/VioraEDA/extensions";
+#endif
 }
 
 static QString scaffoldManifest(const QString& id, const QString& name,

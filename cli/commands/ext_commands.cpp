@@ -53,11 +53,23 @@ namespace ExtCli {
 // ============================================================================
 
 static QString extensionsDir() {
+#ifdef Q_OS_WIN
+    return QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation) + "/extensions";
+#elif defined(Q_OS_MACOS)
+    return QDir::homePath() + "/Library/Application Support/VioraEDA/extensions";
+#else
     return QDir::homePath() + "/.config/VioraEDA/extensions";
+#endif
 }
 
 static QString logDir() {
+#ifdef Q_OS_WIN
+    return QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation) + "/extension-logs";
+#elif defined(Q_OS_MACOS)
+    return QDir::homePath() + "/Library/Application Support/VioraEDA/extension-logs";
+#else
     return QDir::homePath() + "/.local/share/VioraEDA/extension-logs";
+#endif
 }
 
 static void printColor(const QString& text, const QString& color) {
