@@ -33,7 +33,92 @@
 #include <QDateTime>
 #include <QFileInfo>
 #include <QLineF>
+#include <QDir>
+#include <QSet>
 #include <QDebug>
+
+namespace {
+
+const QSet<QString>& schematicPathLeafKeys() {
+    static const QSet<QString> keys = {
+        "firmwarePath", "svFilePath", "osdiPath", "scriptFile", "scriptPath",
+        "pwlFile", "waveFile", "fileName", "modelPath"
+    };
+    return keys;
+}
+
+const QSet<QString>& schematicPathParamKeys() {
+    static const QSet<QString> keys = {
+        "firmwarePath", "systemVerilogFile", "osdi_path",
+        "file_name", "lut_file", "init_file", "state_file", "process_file", "simulation"
+    };
+    return keys;
+}
+
+QString normalizePortablePath(const QString& raw, const QString& baseDir, bool forStore) {
+    if (raw.isEmpty()) return raw;
+    QString p = QDir::cleanPath(raw.trimmed().replace('\\', '/'));
+    if (!forStore) return p;
+    if (!baseDir.isEmpty() && QFileInfo(p).isAbsolute()) {
+        const QString base = QDir::cleanPath(QFileInfo(baseDir).absoluteFilePath());
+        if (p == base) return p;
+        if (p.startsWith(base + "/")) {
+            const QString rel = QDir(base).relativeFilePath(p);
+            if (!rel.isEmpty()) return rel;
+        }
+    }
+    return p;
+}
+
+void normalizePathValue(QJsonValue& value, const QString& baseDir, bool forStore) {
+    if (value.isString()) {
+        value = QJsonValue(normalizePortablePath(value.toString(), baseDir, forStore));
+    }
+}
+
+void normalizeSchematicPaths(QJsonValue& value, const QString& baseDir, bool forStore) {
+    if (value.isArray()) {
+        QJsonArray arr = value.toArray();
+        for (int i = 0; i < arr.size(); ++i) {
+            QJsonValue elem = arr.at(i);
+            normalizeSchematicPaths(elem, baseDir, forStore);
+            arr[i] = elem;
+        }
+        value = arr;
+    } else if (value.isObject()) {
+        QJsonObject obj = value.toObject();
+        const QStringList keys = obj.keys();
+        for (const QString& k : keys) {
+            QJsonValue v = obj.value(k);
+            if (schematicPathLeafKeys().contains(k)) {
+                normalizePathValue(v, baseDir, forStore);
+            } else if (k == "paramExpressions" || k == "xspiceParams") {
+                if (v.isObject()) {
+                    QJsonObject m = v.toObject();
+                    const QStringList mKeys = m.keys();
+                    for (const QString& mk : mKeys) {
+                        if (schematicPathParamKeys().contains(mk)) {
+                            QJsonValue mv = m.value(mk);
+                            normalizePathValue(mv, baseDir, forStore);
+                            m[mk] = mv;
+                        }
+                    }
+                    v = m;
+                }
+            } else if (k == "symbolDef" || k == "symbol") {
+                if (v.isObject()) {
+                    QJsonValue sub = v;
+                    normalizeSchematicPaths(sub, baseDir, forStore);
+                    v = sub;
+                }
+            }
+            obj[k] = v;
+        }
+        value = obj;
+    }
+}
+
+} // namespace
 
 QString SchematicFileIO::s_lastError;
 
@@ -89,6 +174,9 @@ bool SchematicFileIO::saveSchematic(QGraphicsScene* scene, const QString& filePa
     
     // Serialize all items
     root["items"] = serializeItems(scene);
+    QJsonValue itemsVal = root["items"];
+    normalizeSchematicPaths(itemsVal, QFileInfo(filePath).absolutePath(), true);
+    root["items"] = itemsVal;
     
     // Write to file
     QJsonDocument doc(root);
@@ -159,6 +247,11 @@ bool SchematicFileIO::saveSchematicAI(QGraphicsScene* scene, const QString& file
     }
 
     root["items"] = serializeItems(scene);
+    {
+        QJsonValue itemsVal = root["items"];
+        normalizeSchematicPaths(itemsVal, QFileInfo(filePath).absolutePath(), true);
+        root["items"] = itemsVal;
+    }
 
     QJsonDocument doc(root);
     QFile file(filePath);
@@ -290,6 +383,11 @@ bool SchematicFileIO::loadSchematic(QGraphicsScene* scene, const QString& filePa
     // Clear scene and load items
     scene->clear();
     
+    {
+        QJsonValue itemsVal = root["items"];
+        normalizeSchematicPaths(itemsVal, QString(), false);
+        root["items"] = itemsVal;
+    }
     if (!deserializeItems(scene, root["items"].toArray())) {
         return false;
     }
@@ -307,7 +405,9 @@ bool SchematicFileIO::loadSchematicFromJson(QGraphicsScene* scene, const QJsonOb
         return false;
     }
     scene->clear();
-    if (!deserializeItems(scene, root.value("items").toArray())) {
+    QJsonValue itemsVal = root.value("items").toArray();
+    normalizeSchematicPaths(itemsVal, QString(), false);
+    if (!deserializeItems(scene, itemsVal.toArray())) {
         if (errorOut) *errorOut = s_lastError;
         return false;
     }
