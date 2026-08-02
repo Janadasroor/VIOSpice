@@ -43,7 +43,7 @@ public:
         return "Preview extension GUI and capture screenshots.";
     }
     void setupParser(QCommandLineParser& parser) override {
-        parser.addOption(QCommandLineOption("output", "Output directory for screenshots", "output", "/tmp/ext-preview"));
+        parser.addOption(QCommandLineOption("output", "Output directory for screenshots", "output", QDir::tempPath() + "/ext-preview"));
         parser.addOption(QCommandLineOption("delay", "Delay before capture (ms)", "delay", "500"));
         parser.addOption(QCommandLineOption("json", "Output results as JSON"));
     }

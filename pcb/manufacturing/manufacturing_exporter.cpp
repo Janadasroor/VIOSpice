@@ -501,14 +501,53 @@ bool ManufacturingExporter::exportManufacturingPackage(QGraphicsScene* scene,
         QFileInfo outFi(outputPath);
         QDir().mkpath(outFi.absolutePath());
 
-        // Use zip command
+        bool zipped = false;
+#ifdef Q_OS_WIN
+        // Prefer a real zip tool if present (Git for Windows, 7-Zip), then fall
+        // back to the built-in Windows tar.exe (Win10 1803+) and finally
+        // PowerShell Compress-Archive.
+        const QStringList tools = { "zip", "7z" };
+        for (const QString& tool : tools) {
+            QProcess zipProc;
+            zipProc.setWorkingDirectory(tempDir.path());
+            if (tool == "7z") {
+                zipProc.start(tool, QStringList() << "a" << "-tzip" << outputPath << ".");
+            } else {
+                zipProc.start(tool, QStringList() << "-r" << outputPath << ".");
+            }
+            zipProc.waitForFinished(10000);
+            if (zipProc.exitCode() == 0 && QFile::exists(outputPath)) { zipped = true; break; }
+        }
+
+        if (!zipped) {
+            QProcess tarProc;
+            tarProc.setWorkingDirectory(tempDir.path());
+            tarProc.start("tar", QStringList() << "-a" << "-c" << "-f" << outputPath << ".");
+            tarProc.waitForFinished(15000);
+            zipped = (tarProc.exitCode() == 0 && QFile::exists(outputPath));
+        }
+
+        if (!zipped) {
+            QString psPath = outputPath;
+            psPath.replace("'", "''");
+            QProcess psProc;
+            psProc.setWorkingDirectory(tempDir.path());
+            psProc.start("powershell.exe", QStringList()
+                << "-NoProfile" << "-NonInteractive" << "-Command"
+                << QString("Compress-Archive -Path * -DestinationPath '%1' -Force").arg(psPath));
+            psProc.waitForFinished(30000);
+            zipped = (psProc.exitCode() == 0 && QFile::exists(outputPath));
+        }
+#else
         QProcess zipProc;
         zipProc.setWorkingDirectory(tempDir.path());
         zipProc.start("zip", QStringList() << "-r" << outputPath << ".");
         zipProc.waitForFinished(10000);
+        zipped = (zipProc.exitCode() == 0 && QFile::exists(outputPath));
+#endif
 
-        if (zipProc.exitCode() != 0 || !QFile::exists(outputPath)) {
-            if (error) *error = "Failed to execute zip command. Ensure zip is installed.";
+        if (!zipped) {
+            if (error) *error = "Failed to create ZIP package. Ensure a zip tool is installed.";
             return false;
         }
     } else {

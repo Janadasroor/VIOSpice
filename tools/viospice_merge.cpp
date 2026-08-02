@@ -32,6 +32,14 @@
  *   2 - Error (invalid JSON, file not found, etc.)
  */
 
+static inline QString argToStr(const char* s) {
+#ifdef Q_OS_WIN
+    return QString::fromLocal8Bit(s);
+#else
+    return QString::fromUtf8(s);
+#endif
+}
+
 int main(int argc, char* argv[]) {
     QCoreApplication app(argc, argv);
     
@@ -40,11 +48,11 @@ int main(int argc, char* argv[]) {
         return 2;
     }
     
-    QString basePath = QString::fromLocal8Bit(argv[1]);
-    QString oursPath = QString::fromLocal8Bit(argv[2]);
-    QString theirsPath = QString::fromLocal8Bit(argv[3]);
-    QString outputPath = QString::fromLocal8Bit(argv[4]);
-    bool autoResolve = (argc > 5 && QString::fromLocal8Bit(argv[5]) == "--auto");
+    QString basePath = argToStr(argv[1]);
+    QString oursPath = argToStr(argv[2]);
+    QString theirsPath = argToStr(argv[3]);
+    QString outputPath = argToStr(argv[4]);
+    bool autoResolve = (argc > 5 && argToStr(argv[5]) == "--auto");
     
     // Load JSON files
     auto loadJson = [](const QString& path, QString* error) -> QJsonObject {

@@ -12,6 +12,14 @@
 #include <QProcess>
 #include <QDir>
 
+#ifdef Q_OS_WIN
+#include <windows.h>
+#include <psapi.h>
+#ifdef _MSC_VER
+#pragma comment(lib, "psapi.lib")
+#endif
+#endif
+
 ProjectAuditDialog::ProjectAuditDialog(QWidget *parent)
     : QDialog(parent)
 {
@@ -83,13 +91,6 @@ void ProjectAuditDialog::refreshStats() {
     m_statusLabel->setText("Last updated: " + QDateTime::currentDateTime().toString("hh:mm:ss"));
 }
 
-#ifdef Q_OS_WIN
-#include <windows.h>
-#include <psapi.h>
-#endif
-
-// ... (existing includes)
-
 void ProjectAuditDialog::updateMemoryStats() {
     double mb = 0.0;
     bool ok = false;
@@ -100,7 +101,7 @@ void ProjectAuditDialog::updateMemoryStats() {
         mb = pmc.WorkingSetSize / 1024.0 / 1024.0;
         ok = true;
     }
-#elif defined(Q_OS_LINUX)
+#elif defined(Q_OS_LINUX) || defined(Q_OS_MACOS)
     QProcess proc;
     proc.start("ps", {"-o", "rss", "-p", QString::number(qApp->applicationPid())});
     if (proc.waitForFinished()) {

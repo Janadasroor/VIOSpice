@@ -23,6 +23,7 @@
 #include <QLabel>
 #include <QFileDialog>
 #include <QProcess>
+#include <QStandardPaths>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QProgressDialog>
@@ -355,11 +356,11 @@ void SpiceModelArchitect::onSaveToLibraryClicked() {
     else if (typeStr.contains("BJT")) filename = "bjt.lib";
     else if (typeStr.contains("MOSFET") || typeStr.contains("NMOS") || typeStr.contains("PMOS")) filename = "mosfet.lib";
 
-    // Setup library path (ensure directory exists)
-    QDir libDir(QApplication::applicationDirPath() + "/library/models");
-    if (!libDir.exists()) {
-        libDir.mkpath(".");
-    }
+    // Setup library path in the platform user-data location (ensure directory exists)
+    const QString libDirPath = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation)
+                             + "/library/models";
+    QDir().mkpath(libDirPath);
+    QDir libDir(libDirPath);
     
     QString filePath = libDir.absoluteFilePath(filename);
     QFile file(filePath);

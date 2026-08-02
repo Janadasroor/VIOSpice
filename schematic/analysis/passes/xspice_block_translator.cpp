@@ -11,6 +11,7 @@
 #include <QJsonObject>
 #include <QFileInfo>
 #include <QDir>
+#include <QCoreApplication>
 #include <cmath>
 
 bool XSpiceBlockTranslator::translate(const ECOComponent& comp,
@@ -218,7 +219,14 @@ bool XSpiceBlockTranslator::translate(const ECOComponent& comp,
 #ifdef VIOAVR_COSIM_PATH
         const QString cosimPath = VIOAVR_COSIM_PATH;
 #else
-        const QString cosimPath = "libavr_cosim.so";
+#ifdef Q_OS_WIN
+        const QString libName = "avr_cosim.dll";
+#elif defined(Q_OS_MACOS)
+        const QString libName = "libavr_cosim.dylib";
+#else
+        const QString libName = "libavr_cosim.so";
+#endif
+        const QString cosimPath = QCoreApplication::applicationDirPath() + "/" + libName;
 #endif
         const double clockFreq = comp.paramExpressions.value("clockFrequency", "16000000").toDouble();
         const bool jitEnabled = comp.paramExpressions.value("jitEnabled", "1").toInt() != 0;
