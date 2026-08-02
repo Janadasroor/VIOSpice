@@ -806,7 +806,7 @@ bool SchematicEditor::openFile(const QString& filePath) {
         updateBreadcrumbs();
         statusBar()->showMessage(QString("Loaded: %1").arg(filePath), 5000);
         updateUsedModels();
-        ConfigManager::triggerSessionSave();
+        if (!m_isConstructing) ConfigManager::triggerSessionSave();
         return true;
     }
 

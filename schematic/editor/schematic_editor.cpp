@@ -318,6 +318,7 @@ SchematicEditor::SchematicEditor(QWidget *parent)
             m_workspaceTabs->setCurrentIndex(activeIdx);
         }
     }
+    m_isConstructing = false;
 }
 
 SchematicEditor::~SchematicEditor() {
@@ -901,7 +902,7 @@ void SchematicEditor::onTabChanged(int index) {
     if (m_showDetailedLogAction) {
         m_showDetailedLogAction->setEnabled(current == m_simulationPanel);
     }
-    ConfigManager::triggerSessionSave();
+    if (!m_isConstructing) ConfigManager::triggerSessionSave();
 }
 
 void SchematicEditor::closeTab(int index) {
