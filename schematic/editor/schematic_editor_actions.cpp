@@ -27,6 +27,9 @@
 #include "../items/switch_item.h"
 #include "../items/led_item.h"
 #include "../items/smart_signal_item.h"
+#include "../items/transistor_item.h"
+#include "../items/diode_item.h"
+#include "../items/voltage_controlled_switch_item.h"
 #ifdef HAVE_PYTHON
 #include "../ui/logic_editor_panel.h"
 #endif
@@ -587,6 +590,44 @@ void SchematicEditor::onUndoStackIndexChanged() {
         }
         updatePropertyBar();
     }
+
+    updateUsedModels();
+}
+
+QSet<QString> SchematicEditor::collectUsedModels() const {
+    QSet<QString> result;
+    if (!m_scene) return result;
+
+    for (QGraphicsItem* rawItem : m_scene->items()) {
+        if (auto* si = dynamic_cast<SchematicItem*>(rawItem)) {
+            const QString model = si->spiceModel().trimmed();
+            if (!model.isEmpty()) {
+                result.insert(model);
+                continue;
+            }
+        }
+        // Components whose model reference lives in their value/name rather
+        // than the generic spiceModel property.
+        if (auto* tr = dynamic_cast<TransistorItem*>(rawItem)) {
+            const QString model = tr->value().trimmed();
+            if (!model.isEmpty()) result.insert(model);
+        } else if (auto* d = dynamic_cast<DiodeItem*>(rawItem)) {
+            const QString model = d->value().trimmed();
+            if (!model.isEmpty()) result.insert(model);
+        } else if (auto* sw = dynamic_cast<VoltageControlledSwitchItem*>(rawItem)) {
+            const QString model = sw->modelName().trimmed();
+            if (!model.isEmpty()) result.insert(model);
+        } else if (auto* sw = dynamic_cast<SwitchItem*>(rawItem)) {
+            const QString model = sw->modelName().trimmed();
+            if (!model.isEmpty()) result.insert(model);
+        }
+    }
+    return result;
+}
+
+void SchematicEditor::updateUsedModels() {
+    if (!m_componentsPanel) return;
+    m_componentsPanel->setUsedModels(collectUsedModels());
 }
 
 void SchematicEditor::onDelete() {

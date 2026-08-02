@@ -554,6 +554,7 @@ void SchematicEditor::setProjectContext(const QString& projectName, const QStrin
 
 void SchematicEditor::onNewSchematic() {
     addSchematicTab("New Schematic");
+    updateUsedModels();
 }
 
 void SchematicEditor::onOpenSchematic() {
@@ -804,6 +805,7 @@ bool SchematicEditor::openFile(const QString& filePath) {
         setWindowTitle(QString("viospice - Schematic Editor [%1]").arg(fileInfo.fileName()));
         updateBreadcrumbs();
         statusBar()->showMessage(QString("Loaded: %1").arg(filePath), 5000);
+        updateUsedModels();
         ConfigManager::triggerSessionSave();
         return true;
     }
