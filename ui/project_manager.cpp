@@ -2677,7 +2677,7 @@ void ProjectManager::launchSchematicEditor(const QString& projectPath) {
             pDir = fi.absolutePath();
             pName = fi.completeBaseName();
         } else if (!m_workspaceFolders.isEmpty()) {
-            pDir = m_workspaceFolders.first();
+            pDir = currentProjectDirectory();
             QDir dir(pDir);
             pName = dir.dirName();
         }
@@ -2690,6 +2690,20 @@ void ProjectManager::launchSchematicEditor(const QString& projectPath) {
         editor->show();
         QCoreApplication::processEvents();
     });
+}
+
+QString ProjectManager::currentProjectDirectory() const {
+    if (m_workspaceFolders.isEmpty()) return QString();
+    // Prefer the most recently added folder that actually contains a project
+    // (.flux / .flxsch) over the first workspace folder, so launching the
+    // schematic editor opens the current project instead of an arbitrary root.
+    for (auto it = m_workspaceFolders.crbegin(); it != m_workspaceFolders.crend(); ++it) {
+        QDir d(*it);
+        if (!d.entryList(QStringList() << "*.flux" << "*.flxsch", QDir::Files).isEmpty()) {
+            return *it;
+        }
+    }
+    return m_workspaceFolders.last();
 }
 
 QString ProjectManager::resolveProjectPath(const QString& inputPath, const QString& extension) {

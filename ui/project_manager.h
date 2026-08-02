@@ -96,6 +96,7 @@ private:
     void refreshFeatureDependentUi();
 
     void launchSchematicEditor(const QString& projectPath = QString());
+    QString currentProjectDirectory() const;
     void populateProjectTree(const QString& projectPath);
     void addLauncherTile(QGridLayout* grid, int row, int col,
                          const QString& title, const QString& desc,
