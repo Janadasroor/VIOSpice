@@ -1913,6 +1913,22 @@ void ProjectManager::openSchematicEditor() {
     launchSchematicEditor();
 }
 
+void ProjectManager::restoreSchematicEditorWindow() {
+    const bool schOpen = ConfigManager::instance().toolProperty("SchematicEditor", "windowOpen", false).toBool();
+    if (!schOpen) return;
+
+    SchematicEditor* sch = new SchematicEditor();
+    sch->setAttribute(Qt::WA_DeleteOnClose);
+
+    // Give the restored editor the current project context so its project
+    // explorer does not default to the home directory.
+    const QString pDir = currentProjectDirectory();
+    const QString pName = pDir.isEmpty() ? QString() : QDir(pDir).dirName();
+    sch->setProjectContext(pName, pDir, m_workspaceFolders);
+
+    sch->show();
+}
+
 void ProjectManager::openSchematicFromTemplate(const QString& filePath) {
     if (m_workspaceFolders.isEmpty()) {
         int ret = QMessageBox::question(this, "No Folders in Workspace", 

@@ -45,6 +45,7 @@ class ProjectManager : public QMainWindow {
 public:
     ProjectManager(QWidget* parent = nullptr);
     ~ProjectManager();
+    void restoreSchematicEditorWindow();
 
 private Q_SLOTS:
     void createNewProject();
