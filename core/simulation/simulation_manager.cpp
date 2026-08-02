@@ -778,7 +778,8 @@ int SimulationManager::cbSendChar(char* output, int id, void* userData) {
         if (isErr) self->m_lastLoadFailed = true;
         if (fatal) self->m_engineRecoveryRequired = true;
         if (isRunFail) self->m_lastRunFailed = true;
-        if (self->m_lastErrorMessage.isEmpty() && (isErr || isRunFail)) self->m_lastErrorMessage = msg.trimmed();
+        if (fatal) self->m_lastErrorMessage = msg.trimmed();
+        else if (self->m_lastErrorMessage.isEmpty() && (isErr || isRunFail)) self->m_lastErrorMessage = msg.trimmed();
 
         // Skip verbose per-step noise in real-time/interactive mode
         bool isNoise = lower.startsWith("reference value") || lower.startsWith("referencevalue");
@@ -1040,7 +1041,7 @@ void SimulationManager::handleSimulationFinished(const QString& rawPath) {
         });
         return;
     }
-    if (m_lastRunFailed) {
+    if (m_lastRunFailed || m_lastLoadFailed) {
         std::lock_guard<std::mutex> lock(m_logMutex);
         if (!m_lastErrorMessage.isEmpty()) reportError(m_lastErrorMessage);
     }
