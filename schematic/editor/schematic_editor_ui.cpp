@@ -1982,6 +1982,17 @@ void SchematicEditor::connectSimulationSignals() {
         m_simulationRunning = true;
         updateSimulationUiState(true, "Simulation running...");
         
+        // Clear stale simulation issues from the previous run so an old error
+        // does not linger after a new (valid) simulation starts.
+        if (m_ercList) {
+            for (int i = m_ercList->count() - 1; i >= 0; --i) {
+                QListWidgetItem* item = m_ercList->item(i);
+                if (item && item->data(Qt::UserRole + 1).toString() == "simulation") {
+                    delete m_ercList->takeItem(i);
+                }
+            }
+        }
+
         // Find and switch to Simulation Tab (if enabled in settings)
         if (ConfigManager::instance().autoShowSimulationTab()) {
             for (int i = 0; i < m_workspaceTabs->count(); ++i) {
