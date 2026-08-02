@@ -102,6 +102,27 @@ int main(int argc, char** argv) {
         settle(50);
     }
 
+    // Scenario C: startup restore path — main.cpp calls restoreSchematicEditorWindow().
+    {
+        for (auto* w : QApplication::topLevelWidgets())
+            if (auto* pm2 = qobject_cast<ProjectManager*>(w)) { pm2->close(); }
+        settle(50);
+
+        ConfigManager::instance().setToolProperty("SchematicEditor", "windowOpen", true);
+        ConfigManager::instance().setWorkspaceFolders(QStringList() << homeDir << projDir);
+        ProjectManager pm;
+        settle(50);
+        pm.restoreSchematicEditorWindow();
+        settle();
+        SchematicEditor* e = lastEditor();
+        QString title = e ? e->windowTitle() : "none";
+        bool ok = title.contains("MyProject") && !title.contains("home");
+        fprintf(stderr, "C title=%s ok=%d\n", title.toUtf8().constData(), ok ? 1 : 0);
+        if (!ok) ++failures;
+        if (e) e->close();
+        settle(50);
+    }
+
     fprintf(stderr, "RESULT ok=%d\n", failures == 0 ? 1 : 0);
     return failures == 0 ? 0 : 2;
 }
