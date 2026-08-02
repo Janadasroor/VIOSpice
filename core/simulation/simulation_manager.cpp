@@ -21,6 +21,7 @@
 #include <QRegularExpression>
 #include <QElapsedTimer>
 #include <utility>
+#include <dlfcn.h>
 
 using namespace Flux;
 
@@ -269,6 +270,37 @@ void SimulationManager::reportError(const QString& error) {
     Q_EMIT errorOccurred(error);
 }
 
+// Must stay in sync with the return value of vio_cosim_abi_tag() in
+// VioMATRIXC/src/xspice/icm/digital/d_cosim/cfunc.mod.
+static const char* kExpectedCosimAbiTag = "viospice-cm-abi-v1";
+
+bool SimulationManager::verifyCosimAbiMatch(const QString& cmPath) {
+    void* handle = dlopen(cmPath.toUtf8().constData(), RTLD_NOW | RTLD_NOLOAD);
+    if (!handle) {
+        reportError(QString("ABI check failed: could not inspect %1 (%2). "
+                            "The simulation engine may be mismatched; refusing to run.")
+                        .arg(cmPath, QString::fromLocal8Bit(dlerror())));
+        return false;
+    }
+    auto* tag = reinterpret_cast<const char* (*)(void)>(dlsym(handle, "vio_cosim_abi_tag"));
+    if (!tag) {
+        reportError(QString("%1 is missing the d_cosim ABI tag symbol. It was likely built from a "
+                            "different VioMATRIXC tree than the linked libngspice engine, which causes "
+                            "a crash during simulation. Rebuild digital.cm from the matching tree.")
+                        .arg(cmPath));
+        return false;
+    }
+    const char* actual = tag();
+    if (strcmp(actual, kExpectedCosimAbiTag) != 0) {
+        reportError(QString("%1 d_cosim ABI tag mismatch: expected \"%2\", found \"%3\". Rebuild digital.cm "
+                            "from the same VioMATRIXC tree as the libngspice engine.")
+                        .arg(cmPath, QString::fromLatin1(kExpectedCosimAbiTag), QString::fromLatin1(actual)));
+        return false;
+    }
+    qDebug() << "[XSPICE] d_cosim ABI verified:" << actual;
+    return true;
+}
+
 #include <QStandardPaths>
 
 void SimulationManager::initialize() {
@@ -317,6 +349,16 @@ void SimulationManager::initialize() {
 
         SpiceBackend::instance().execute("set ngbehavior=ltps");
         SpiceBackend::instance().execute("set filetype=binary");
+
+        // Guard against the crash seen when digital.cm and libngspice are built
+        // from different VioMATRIXC trees (dev vs release). Verify the d_cosim
+        // codemodel ABI tag before running; report a clear error instead of a
+        // segfault inside CKTdump.
+        QString digitalCm = cmDir + "/digital.cm";
+        if (!QFile::exists(digitalCm)) digitalCm = QCoreApplication::applicationDirPath() + "/../cm/digital.cm";
+        if (!verifyCosimAbiMatch(digitalCm)) {
+            m_abiMismatch = true;
+        }
     }
 #endif
 }
@@ -350,6 +392,11 @@ bool SimulationManager::recoverEngineIfNeeded() {
 
 void SimulationManager::runSimulation(const QString& netlist, SimControl* control) {
     if (!isAvailable()) { reportError("Simulation engine not installed."); return; }
+    if (m_abiMismatch) {
+        reportError("Simulation aborted: the d_cosim codemodel does not match the ngspice engine "
+                    "(ABI mismatch). Rebuild digital.cm from the same VioMATRIXC tree as libngspice.");
+        return;
+    }
     if (!recoverEngineIfNeeded()) { reportError("Failed to recover simulation engine."); return; }
     if (!m_isInitialized) initialize();
 
