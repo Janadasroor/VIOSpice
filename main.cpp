@@ -105,6 +105,18 @@ static void saveCurrentSession(void* excluding) {
         }
     }
 
+    // If no other schematic editor is open, fall back to the one being closed so
+    // its session (open tabs) is still restored on the next launch.
+    if (!lastSch && excludingWidget) {
+        if (auto* sch = qobject_cast<SchematicEditor*>(excludingWidget)) {
+            lastSch = sch;
+            for (int i = 0; i < sch->tabCount(); ++i) {
+                QString path = sch->tabFilePath(i);
+                if (!path.isEmpty()) openFiles.append(path);
+            }
+        }
+    }
+
     ConfigManager::instance().setToolProperty("SchematicEditor", "openFiles", openFiles);
     ConfigManager::instance().setToolProperty("SchematicEditor", "windowOpen", lastSch != nullptr);
     if (lastSch) {
