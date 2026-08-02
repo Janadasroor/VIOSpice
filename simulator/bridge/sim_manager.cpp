@@ -1616,10 +1616,10 @@ void SimManager::runWithNetlist(const SimNetlist& netlist) {
      Q_EMIT errorOccurred("Direct SimNetlist execution not supported with Ngspice backend yet. Use UI.");
 }
 bool SimManager::isRunning() const {
-    if (m_stopRequested) return false;
     if (m_control != nullptr) return true;
     if (m_ngspiceProcess && m_ngspiceProcess->state() != QProcess::NotRunning) return true;
     if (m_resultsPending) return true;
+    if (m_stopRequested) return false;
     
     // Final check: Ask the core shared library engine directly
     return SimulationManager::instance().isRunning();
