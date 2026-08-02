@@ -268,13 +268,8 @@ int main(int argc, char *argv[])
             pm->setAttribute(Qt::WA_DeleteOnClose);
             pm->show();
 
-            // Restore previously open schematic tabs
-            bool schOpen = ConfigManager::instance().toolProperty("SchematicEditor", "windowOpen", false).toBool();
-            if (schOpen) {
-                SchematicEditor* sch = new SchematicEditor();
-                sch->setAttribute(Qt::WA_DeleteOnClose);
-                sch->show();
-            }
+            // Restore previously open schematic editor (sets project context too)
+            pm->restoreSchematicEditorWindow();
 
             // Restore previously open PCB editor
             bool pcbOpen = ConfigManager::instance().toolProperty("PCBEditor", "windowOpen", false).toBool();
