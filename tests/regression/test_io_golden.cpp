@@ -26,6 +26,9 @@
 #endif
 #include "flux/schematic/factories/schematic_item_registry.h"
 #include "flux/schematic/io/schematic_file_io.h"
+#include "../../schematic/items/avr_microcontroller_item.h"
+#include "../../schematic/items/voltage_source_item.h"
+#include "../../schematic/items/generic_component_item.h"
 
 namespace {
 
@@ -221,6 +224,160 @@ bool verifySchematicRoundTrip(const QString& fixturesDir, QString& err) {
     return true;
 }
 
+// External file references (AVR firmware, PWL files, symbol model paths, ...)
+// must be stored portably: forward slashes, and relative to the schematic
+// directory when the target lives under it. On load, Windows-style backslash
+// paths must be converted to forward slashes so files round-trip across
+// macOS / Windows / Linux.
+bool verifyPortablePathSave(QString& err) {
+    QTemporaryDir tempDir;
+    if (!tempDir.isValid()) {
+        err = "failed to create temporary directory for path portability";
+        return false;
+    }
+
+    const QString projDir = QDir(tempDir.path()).filePath("proj");
+    QDir().mkpath(QDir(projDir).filePath("fw"));
+
+    QFile fw(QDir(projDir).filePath("fw/blink.hex"));
+    if (!fw.open(QIODevice::WriteOnly)) {
+        err = "failed to create firmware fixture";
+        return false;
+    }
+    fw.write(":00000001FF\n");
+    fw.close();
+
+    QGraphicsScene scene;
+    auto* avr = new AvrMicrocontrollerItem();
+    avr->setPos(10, 10);
+    avr->setFirmwarePath(QDir(projDir).filePath("fw/blink.hex"));
+    scene.addItem(avr);
+
+    auto* vs = new VoltageSourceItem(QPointF(100, 100), "V1", VoltageSourceItem::DC);
+    vs->setPwlFile(QDir(projDir).filePath("data/pwl.txt"));
+    scene.addItem(vs);
+
+    const QString schPath = QDir(projDir).filePath("circuit.flxsch");
+    if (!SchematicFileIO::saveSchematic(&scene, schPath)) {
+        err = QString("schematic save failed: %1").arg(SchematicFileIO::lastError());
+        return false;
+    }
+
+    QFile f(schPath);
+    if (!f.open(QIODevice::ReadOnly)) {
+        err = "failed to reopen saved schematic";
+        return false;
+    }
+    QJsonObject root = QJsonDocument::fromJson(f.readAll()).object();
+    f.close();
+
+    QString fwStored, fwParamStored, pwlStored;
+    const QJsonArray items = root["items"].toArray();
+    for (const QJsonValue& v : items) {
+        const QJsonObject o = v.toObject();
+        if (o.contains("firmwarePath")) {
+            fwStored = o["firmwarePath"].toString();
+            fwParamStored = o["paramExpressions"].toObject()["firmwarePath"].toString();
+        }
+        if (o.contains("pwlFile")) {
+            pwlStored = o["pwlFile"].toString();
+        }
+    }
+
+    if (fwStored != "fw/blink.hex") {
+        err = "firmwarePath was not stored relative to schematic dir: " + fwStored;
+        return false;
+    }
+    if (fwParamStored != "fw/blink.hex") {
+        err = "paramExpressions firmwarePath was not stored relative: " + fwParamStored;
+        return false;
+    }
+    if (pwlStored != "data/pwl.txt") {
+        err = "pwlFile was not stored relative to schematic dir: " + pwlStored;
+        return false;
+    }
+
+    QGraphicsScene sceneB;
+    QString pageSize;
+    TitleBlockData titleBlock;
+    if (!SchematicFileIO::loadSchematic(&sceneB, schPath, pageSize, titleBlock)) {
+        err = QString("schematic reload failed: %1").arg(SchematicFileIO::lastError());
+        return false;
+    }
+    bool avrReloaded = false;
+    for (QGraphicsItem* item : sceneB.items()) {
+        if (auto* a = dynamic_cast<AvrMicrocontrollerItem*>(item)) {
+            avrReloaded = true;
+            if (a->firmwarePath() != "fw/blink.hex") {
+                err = "reloaded firmwarePath mismatch: " + a->firmwarePath();
+                return false;
+            }
+        }
+    }
+    if (!avrReloaded) {
+        err = "AVR item missing after reload";
+        return false;
+    }
+
+    return true;
+}
+
+bool verifyLoadSeparatorNormalization(QString& err) {
+    QJsonObject root;
+    QJsonArray items;
+
+    QJsonObject avr;
+    avr["type"] = "AvrMicrocontroller";
+    avr["x"] = 0;
+    avr["y"] = 0;
+    avr["firmwarePath"] = "C:\\Users\\me\\fw\\blink.hex";
+    QJsonObject pe;
+    pe["firmwarePath"] = "C:\\Users\\me\\fw\\blink.hex";
+    avr["paramExpressions"] = pe;
+    items.append(avr);
+
+    QJsonObject gci;
+    gci["type"] = "GenericComponent";
+    gci["x"] = 50;
+    gci["y"] = 50;
+    QJsonObject sym;
+    sym["name"] = "LM317";
+    sym["modelPath"] = "sub\\models\\LM317.lib";
+    gci["symbolDef"] = sym;
+    items.append(gci);
+
+    root["items"] = items;
+
+    QGraphicsScene scene;
+    if (!SchematicFileIO::loadSchematicFromJson(&scene, root)) {
+        err = QString("loadSchematicFromJson failed: %1").arg(SchematicFileIO::lastError());
+        return false;
+    }
+
+    bool avrOk = false, gciOk = false;
+    for (QGraphicsItem* it : scene.items()) {
+        if (auto* a = dynamic_cast<AvrMicrocontrollerItem*>(it)) {
+            avrOk = true;
+            if (a->firmwarePath() != "C:/Users/me/fw/blink.hex") {
+                err = "AVR firmwarePath not normalized on load: " + a->firmwarePath();
+                return false;
+            }
+        } else if (auto* g = dynamic_cast<GenericComponentItem*>(it)) {
+            gciOk = true;
+            if (g->symbol().modelPath() != "sub/models/LM317.lib") {
+                err = "symbol modelPath not normalized on load: " + g->symbol().modelPath();
+                return false;
+            }
+        }
+    }
+    if (!avrOk || !gciOk) {
+        err = "expected items not found after loadSchematicFromJson";
+        return false;
+    }
+
+    return true;
+}
+
 } // namespace
 
 int main(int argc, char** argv) {
@@ -243,6 +400,16 @@ int main(int argc, char** argv) {
 
     if (!verifySchematicRoundTrip(fixturesDir, err)) {
         std::cerr << "[FAIL] Schematic regression: " << err.toStdString() << std::endl;
+        return 1;
+    }
+
+    if (!verifyPortablePathSave(err)) {
+        std::cerr << "[FAIL] Path portability (save): " << err.toStdString() << std::endl;
+        return 1;
+    }
+
+    if (!verifyLoadSeparatorNormalization(err)) {
+        std::cerr << "[FAIL] Path portability (load): " << err.toStdString() << std::endl;
         return 1;
     }
 

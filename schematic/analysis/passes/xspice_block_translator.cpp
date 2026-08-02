@@ -143,9 +143,12 @@ bool XSpiceBlockTranslator::translate(const ECOComponent& comp,
 
         QString absFirmware = firmwarePath;
         if (!firmwarePath.isEmpty()) {
-            QFileInfo fi(firmwarePath);
+            const QString nativeFirmware = firmwarePath.trimmed().replace('\\', '/');
+            QFileInfo fi(nativeFirmware);
             if (!fi.isAbsolute() && !projectDir.isEmpty()) {
-                absFirmware = QDir(projectDir).absoluteFilePath(firmwarePath);
+                absFirmware = QDir(projectDir).absoluteFilePath(nativeFirmware);
+            } else {
+                absFirmware = nativeFirmware;
             }
         }
 
