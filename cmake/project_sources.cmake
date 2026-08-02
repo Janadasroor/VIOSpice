@@ -516,6 +516,8 @@ list(APPEND SCHEMATIC_SOURCES
     schematic/ui/mini_scope_widget.h
     schematic/ui/model_browser_widget.cpp
     schematic/ui/model_browser_widget.h
+    schematic/ui/model_tree_model.cpp
+    schematic/ui/model_tree_model.h
     schematic/ui/visual_pin_mapper.cpp
     schematic/ui/visual_pin_mapper.h
     schematic/ui/schematic_hierarchy_panel.cpp

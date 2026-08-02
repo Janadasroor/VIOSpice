@@ -31,6 +31,7 @@ public:
 
     void populate();
     void focusSearch();
+    void setUsedModels(const QSet<QString>& used);
 
 Q_SIGNALS:
     void toolSelected(const QString &toolName);
