@@ -270,7 +270,11 @@ void SimulationManager::initialize() {
 #ifdef HAVE_NGSPICE
     QString scriptsPath = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
     if (scriptsPath.isEmpty()) {
+#if defined(Q_OS_WIN) || defined(Q_OS_MACOS)
+        scriptsPath = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
+#else
         scriptsPath = QDir::homePath() + "/.viospice";
+#endif
     }
     QDir().mkpath(scriptsPath);
 
@@ -361,8 +365,8 @@ void SimulationManager::runSimulation(const QString& netlist, SimControl* contro
     m_streamingCounter = 0;
     m_skipFactor = 1; // High resolution for real-time interaction
     
-    // Cleanup stale raw file
-    QFile::remove("/tmp/viospice.raw");
+    // Cleanup stale raw file (same location used for default temp netlists)
+    QFile::remove(QDir::tempPath() + "/viospice.raw");
     // If already running, stop first (with wait)
     if (m_state == SimulationState::Running || m_state == SimulationState::Halted) {
         stopSimulation();

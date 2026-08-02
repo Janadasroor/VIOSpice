@@ -43,16 +43,35 @@ LspClient::~LspClient() {
 bool LspClient::startServer(const QString& serverPath) {
     if (m_process && m_process->state() == QProcess::Running) return true;
 
-    // Use the build-dir binary which has the updated server
-    QString server = serverPath.isEmpty()
-        ? QString("/home/jnd/qt_projects/fluxscript/build/flux-lsp")
-        : serverPath;
+    QString server = serverPath;
+    if (server.isEmpty()) {
+        server = QStandardPaths::findExecutable("flux-lsp");
+        if (server.isEmpty()) {
+            server = QStandardPaths::findExecutable("fluxscript-lsp");
+        }
+    }
+    if (server.isEmpty()) {
+#ifdef Q_OS_WIN
+        server = QCoreApplication::applicationDirPath() + "/flux-lsp.exe";
+#else
+        server = QCoreApplication::applicationDirPath() + "/flux-lsp";
+#endif
+    }
 
     m_process = new QProcess(this);
 
     QProcessEnvironment env = QProcessEnvironment::systemEnvironment();
     env.insert("FLUX_HOME", QDir::homePath() + "/.flux");
-    env.insert("LD_LIBRARY_PATH", QDir::homePath() + "/qt_projects/fluxscript/build");
+    const QString serverDir = QFileInfo(server).absolutePath();
+    if (QDir(serverDir).exists()) {
+#ifdef Q_OS_WIN
+        env.insert("PATH", serverDir + QDir::listSeparator() + env.value("PATH"));
+#elif defined(Q_OS_MACOS)
+        env.insert("DYLD_LIBRARY_PATH", serverDir);
+#else
+        env.insert("LD_LIBRARY_PATH", serverDir);
+#endif
+    }
     m_process->setProcessEnvironment(env);
 
     connect(m_process, &QProcess::readyReadStandardOutput, this, &LspClient::onReadReady);

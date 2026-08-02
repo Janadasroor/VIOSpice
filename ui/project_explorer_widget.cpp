@@ -190,17 +190,29 @@ protected:
         // Determine if path belongs to designated workspace branches
         bool isWorkspaceChain = false;
         if (!m_workspaceFolders.isEmpty()) {
-            const QString pathWithSlash = (path == "/") ? "/" : (path + "/");
+            const Qt::CaseSensitivity cs =
+#ifdef Q_OS_WIN
+                Qt::CaseInsensitive;
+#else
+                Qt::CaseSensitive;
+#endif
+            const QString normalizedPath = QDir::fromNativeSeparators(QDir::cleanPath(path));
             for (const QString& wf : m_workspaceFolders) {
-                if (path == wf || path.startsWith(wf + "/")) {
+                const QString normalizedWf = QDir::fromNativeSeparators(QDir::cleanPath(wf));
+                if (normalizedPath.compare(normalizedWf, cs) == 0 ||
+                    normalizedPath.startsWith(normalizedWf + "/", cs)) {
                     isWorkspaceChain = true; break; // Path is inside a workspace folder
                 }
-                if (wf.startsWith(pathWithSlash) || path == "/") {
+                if (normalizedWf.startsWith(normalizedPath + "/", cs) ||
+                    normalizedPath == "/") {
                     isWorkspaceChain = true; break; // Path is an ancestor leading to a workspace folder
                 }
             }
-            const QString rootWithSlash = (path == "/") ? "/" : (path + "/");
-            if (!isWorkspaceChain && path != m_rootPath && !m_rootPath.startsWith(rootWithSlash)) {
+            const QString normalizedRoot = QDir::fromNativeSeparators(QDir::cleanPath(m_rootPath));
+            if (!isWorkspaceChain &&
+                normalizedPath.compare(normalizedRoot, cs) != 0 &&
+                normalizedPath != "/" &&
+                !normalizedRoot.startsWith(normalizedPath + "/", cs)) {
                 return false;
             }
         }
@@ -556,9 +568,17 @@ void ProjectExplorerWidget::onContextMenuRequested(const QPoint& pos) {
                     // Remove stale output so we can detect fresh creation
                     QFile::remove(outPath);
 
+#ifdef Q_OS_WIN
+                    QString cliPath = QCoreApplication::applicationDirPath() + "/viora.exe";
+#else
                     QString cliPath = QCoreApplication::applicationDirPath() + "/viora";
+#endif
                     if (!QFile::exists(cliPath)) {
+#ifdef Q_OS_WIN
+                        cliPath = "viora.exe";
+#else
                         cliPath = "viora";
+#endif
                     }
 
                     QProcess proc;

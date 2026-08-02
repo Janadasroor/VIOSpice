@@ -579,6 +579,12 @@ bool PCB3DView::setSpaceMouseEnabled(bool enabled) {
                 m_spaceMouseLib.setFileName("siapp");
                 m_spaceMouseLib.load();
             }
+#elif defined(Q_OS_MACOS)
+            m_spaceMouseLib.setFileName("libspnav.dylib");
+            if (!m_spaceMouseLib.load()) {
+                m_spaceMouseLib.setFileName("libspnav");
+                m_spaceMouseLib.load();
+            }
 #else
             m_spaceMouseLib.setFileName("libspnav.so.0");
             if (!m_spaceMouseLib.load()) {

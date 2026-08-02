@@ -28,6 +28,8 @@ ConfigManager& ConfigManager::instance() {
 QString ConfigManager::defaultLibraryPath() {
 #ifdef Q_OS_WIN
     return QStandardPaths::writableLocation(QStandardPaths::AppDataLocation) + "/ViospiceLib";
+#elif defined(Q_OS_MACOS)
+    return QStandardPaths::writableLocation(QStandardPaths::AppDataLocation) + "/ViospiceLib";
 #else
     return QDir::homePath() + "/ViospiceLib";
 #endif

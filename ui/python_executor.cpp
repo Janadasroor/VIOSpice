@@ -20,6 +20,10 @@
 #include <cstring>
 #include <cctype>
 
+#ifdef _WIN32
+#define strdup _strdup
+#endif
+
 #ifdef HAVE_PYTHON
 
 extern "C" {

@@ -2015,7 +2015,7 @@ void ProjectManager::openSpiceModelManager() {
 }
 
 void ProjectManager::importLtspiceBatch() {
-    const QString defaultSrc = QDir::homePath() + "/Documents/ltspice/sym";
+    const QString defaultSrc = QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation) + "/ltspice/sym";
     QString srcDir = QFileDialog::getExistingDirectory(this, "Select LTspice Symbol Folder", defaultSrc);
     if (srcDir.isEmpty()) return;
 
@@ -2144,7 +2144,7 @@ void ProjectManager::importLtspiceBatch() {
 }
 
 void ProjectManager::importLtspiceDiodeModels() {
-    const QString defaultSrc = QDir::homePath() + "/Documents/ltspice/cmp";
+    const QString defaultSrc = QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation) + "/ltspice/cmp";
     QString srcFile = QFileDialog::getOpenFileName(this, "Select LTspice Diode/JFET Model File", defaultSrc, "LTspice Model Files (*.dio *.jft *.lib);;All Files (*)");
     if (srcFile.isEmpty()) return;
 
@@ -2266,7 +2266,7 @@ void ProjectManager::importLtspiceDiodeModels() {
 }
 
 void ProjectManager::importLtspiceJfetModels() {
-    const QString defaultSrc = QDir::homePath() + "/Documents/ltspice/cmp";
+    const QString defaultSrc = QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation) + "/ltspice/cmp";
     QString srcFile = QFileDialog::getOpenFileName(this, "Select LTspice JFET Model File", defaultSrc, "LTspice Model Files (*.jft *.lib);;All Files (*)");
     if (srcFile.isEmpty()) return;
 
@@ -2363,7 +2363,7 @@ void ProjectManager::importLtspiceJfetModels() {
 }
 
 void ProjectManager::importLtspiceBjtModels() {
-    const QString defaultSrc = QDir::homePath() + "/Documents/ltspice/cmp";
+    const QString defaultSrc = QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation) + "/ltspice/cmp";
     QString srcFile = QFileDialog::getOpenFileName(this, "Select LTspice BJT Model File", defaultSrc, "LTspice Model Files (*.bjt *.lib);;All Files (*)");
     if (srcFile.isEmpty()) return;
 
@@ -2459,7 +2459,7 @@ void ProjectManager::importLtspiceBjtModels() {
 }
 
 void ProjectManager::importLtspiceMosModels() {
-    const QString defaultSrc = QDir::homePath() + "/Documents/ltspice/cmp";
+    const QString defaultSrc = QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation) + "/ltspice/cmp";
     QString srcFile = QFileDialog::getOpenFileName(this, "Select LTspice MOS Model File", defaultSrc, "LTspice Model Files (*.mos *.lib);;All Files (*)");
     if (srcFile.isEmpty()) return;
 
@@ -2562,7 +2562,7 @@ void ProjectManager::importLtspiceMosModels() {
 }
 
 void ProjectManager::importLtspiceResistorModels() {
-    const QString defaultSrc = QDir::homePath() + "/Documents/ltspice/cmp";
+    const QString defaultSrc = QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation) + "/ltspice/cmp";
     const QString srcFile = QFileDialog::getOpenFileName(
         this,
         "Select LTspice Resistor Model File",
@@ -2579,7 +2579,7 @@ void ProjectManager::importLtspiceResistorModels() {
 }
 
 void ProjectManager::importLtspiceCapacitorModels() {
-    const QString defaultSrc = QDir::homePath() + "/Documents/ltspice/cmp";
+    const QString defaultSrc = QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation) + "/ltspice/cmp";
     const QString srcFile = QFileDialog::getOpenFileName(
         this,
         "Select LTspice Capacitor Model File",
@@ -2596,7 +2596,7 @@ void ProjectManager::importLtspiceCapacitorModels() {
 }
 
 void ProjectManager::importLtspiceInductorModels() {
-    const QString defaultSrc = QDir::homePath() + "/Documents/ltspice/cmp";
+    const QString defaultSrc = QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation) + "/ltspice/cmp";
     const QString srcFile = QFileDialog::getOpenFileName(
         this,
         "Select LTspice Inductor Model File",

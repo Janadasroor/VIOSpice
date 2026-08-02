@@ -28,6 +28,10 @@
 #include <vector>
 #include <mutex>
 
+#ifdef _WIN32
+#define strdup _strdup
+#endif
+
 #ifdef HAVE_PYTHON
 
 struct HookRegistry {

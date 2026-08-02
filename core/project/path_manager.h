@@ -14,6 +14,8 @@ public:
     static QString baseLibraryPath() {
 #ifdef Q_OS_WIN
         return QStandardPaths::writableLocation(QStandardPaths::AppDataLocation) + "/Viospice";
+#elif defined(Q_OS_MACOS)
+        return QStandardPaths::writableLocation(QStandardPaths::AppDataLocation) + "/Viospice";
 #else
         return QDir::homePath() + "/.local/share/viospice";
 #endif

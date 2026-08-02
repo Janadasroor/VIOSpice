@@ -131,7 +131,14 @@ static QMap<QString, ArduinoBoardDef> queryVioAVRBoards() {
 
     QLibrary lib("avr_cosim");
     if (!lib.load()) {
-        lib.setFileName(QCoreApplication::applicationDirPath() + "/../build/libavr_cosim");
+#ifdef Q_OS_WIN
+        QString libName = "avr_cosim.dll";
+#elif defined(Q_OS_MACOS)
+        QString libName = "libavr_cosim.dylib";
+#else
+        QString libName = "libavr_cosim.so";
+#endif
+        lib.setFileName(QCoreApplication::applicationDirPath() + "/" + libName);
         if (!lib.load()) return buildFallbackDB();
     }
 
