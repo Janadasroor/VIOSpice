@@ -37,6 +37,9 @@ public:
 
     QStringList netNames() const { return m_netItems.keys(); }
 
+private slots:
+    void onSceneDestroyed() { m_scene = nullptr; }
+
 private:
     explicit PCBRatsnestManager(QObject* parent = nullptr);
     ~PCBRatsnestManager();

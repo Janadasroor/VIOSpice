@@ -62,6 +62,10 @@ private slots:
     // 10. Differential Pair & Length Tuning Tool Tests
     void testDifferentialPairRoutingGap();
     void testLengthTuningMeanderGenerator();
+
+    // 11. ECO Footprint Suggestion & On-Board Placement Tests
+    void testECOSuggestFootprints();
+    void testECOPlacementInsideBoard();
 };
 
 #endif // TEST_PCB_SYSTEM_H

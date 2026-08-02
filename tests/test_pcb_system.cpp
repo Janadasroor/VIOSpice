@@ -12,6 +12,9 @@
 #include "../pcb/items/copper_pour_item.h"
 #include "../pcb/items/ratsnest_item.h"
 #include "../pcb/import/kicad_pcb_importer.h"
+#include "../pcb/import/netlist_importer.h"
+#include "../pcb/editor/pcb_eco_resolver.h"
+#include "../footprints/footprint_library.h"
 #include "../pcb/drc/pcb_drc.h"
 #include "../pcb/analysis/design_report_generator.h"
 #include "../pcb/manufacturing/manufacturing_exporter.h"
@@ -520,6 +523,89 @@ void TestPCBSystem::testLengthTuningMeanderGenerator() {
 
     QCOMPARE(tool.targetLength(), 45.0);
     QCOMPARE(tool.amplitude(), 1.2);
+}
+
+void TestPCBSystem::testECOSuggestFootprints() {
+    ECOPackage pkg;
+    ECOComponent r;
+    r.reference = "R1";
+    r.value = "1k";
+    r.typeName = "Resistor";
+    pkg.components.append(r);
+
+    ECOComponent c;
+    c.reference = "C1";
+    c.value = "1u";
+    c.typeName = "Capacitor";
+    pkg.components.append(c);
+
+    ECOComponent v;
+    v.reference = "V1";
+    v.value = "5";
+    v.typeName = "Voltage_Source_DC";
+    pkg.components.append(v);
+
+    QStringList footprints;
+    auto& fpLibMgr = FootprintLibraryManager::instance();
+    for (auto* lib : fpLibMgr.libraries()) {
+        footprints.append(lib->getFootprintNames());
+    }
+    QVERIFY(!footprints.isEmpty());
+
+    PCBNetlistImporter::suggestFootprints(pkg, footprints);
+
+    QVERIFY(!pkg.components[0].footprint.isEmpty());
+    QVERIFY(!pkg.components[1].footprint.isEmpty());
+}
+
+void TestPCBSystem::testECOPlacementInsideBoard() {
+    QGraphicsScene scene;
+    PCBLayerManager::instance().setCopperLayerCount(2);
+
+    TraceItem* top = new TraceItem(QPointF(0, 0), QPointF(50, 0));
+    top->setLayer(PCBLayerManager::EdgeCuts);
+    TraceItem* bottom = new TraceItem(QPointF(50, 30), QPointF(0, 30));
+    bottom->setLayer(PCBLayerManager::EdgeCuts);
+    TraceItem* left = new TraceItem(QPointF(0, 30), QPointF(0, 0));
+    left->setLayer(PCBLayerManager::EdgeCuts);
+    TraceItem* right = new TraceItem(QPointF(50, 0), QPointF(50, 30));
+    right->setLayer(PCBLayerManager::EdgeCuts);
+    scene.addItem(top);
+    scene.addItem(bottom);
+    scene.addItem(left);
+    scene.addItem(right);
+
+    ECOPackage pkg;
+    QStringList libs;
+    auto& fpLibMgr = FootprintLibraryManager::instance();
+    for (auto* lib : fpLibMgr.libraries()) {
+        libs.append(lib->getFootprintNames());
+    }
+    for (int i = 0; i < 4; ++i) {
+        ECOComponent c;
+        c.reference = QString("R%1").arg(i + 1);
+        c.value = "1k";
+        c.typeName = "Resistor";
+        pkg.components.append(c);
+    }
+    PCBNetlistImporter::suggestFootprints(pkg, libs);
+    PCBECOResolver::applyECO(pkg, &scene, nullptr, nullptr);
+
+    const QRectF board(0, 0, 50, 30);
+    int found = 0;
+    for (auto* item : scene.items()) {
+        if (ComponentItem* comp = dynamic_cast<ComponentItem*>(item)) {
+            QPointF pos = comp->scenePos();
+            QVERIFY2(pos.x() >= 0.0 && pos.x() <= 50.0,
+                     qPrintable(QString("Component %1 x=%2 outside board").arg(comp->name()).arg(pos.x())));
+            QVERIFY2(pos.y() >= 0.0 && pos.y() <= 30.0,
+                     qPrintable(QString("Component %1 y=%2 outside board").arg(comp->name()).arg(pos.y())));
+            QVERIFY2(!comp->componentType().isEmpty(),
+                     qPrintable(QString("Component %1 has no footprint assigned").arg(comp->name())));
+            found++;
+        }
+    }
+    QCOMPARE(found, 4);
 }
 
 QTEST_MAIN(TestPCBSystem)
