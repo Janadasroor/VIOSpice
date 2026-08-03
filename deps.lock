@@ -1,0 +1,30 @@
+# VioraEDA dependency lockfile
+#
+# Pins every external engine/toolchain tag and the sha256 of every prebuilt
+# binary asset. Fresh builds MUST use exactly these versions/artifacts; a
+# changed asset (or a tag that loses its binaries) is a release-blocker.
+#
+# Format of the [prebuilt] section (whitespace separated):
+#   <name> <tag> <platform> <asset> <sha256> <url>
+# Platforms: linux | windows | macos
+#
+# The [git] section lists FetchContent / source-build refs for reference and
+# CI verification (git tags are content-addressed, so no hash is needed).
+
+[prebuilt]
+VioMATRIXC v0.1.0 linux   viomatrixc-linux-x86_64.tar.gz   7313accda47cc6cda4cbfbd0f4fba24cd291cc59f6f037e87b5e1f11524dfc86 https://github.com/Janadasroor/VioMATRIXC/releases/download/v0.1.0/viomatrixc-linux-x86_64.tar.gz
+VioMATRIXC v0.1.0 windows viomatrixc-windows-x86_64.zip    b5fe544d92cad0c7d700585232760f0929346034586648a34aa0262b230880bc https://github.com/Janadasroor/VioMATRIXC/releases/download/v0.1.0/viomatrixc-windows-x86_64.zip
+VioMATRIXC v0.1.0 macos   viomatrixc-macos-arm64.tar.gz    9ba34d19a9975b8182a49d5115ae3a98ed2f8d905a2464bdca00b5d7587b1799 https://github.com/Janadasroor/VioMATRIXC/releases/download/v0.1.0/viomatrixc-macos-arm64.tar.gz
+VioAVR     v0.2.5 linux   vioavr-v0.2.5-linux-x86_64.tar.gz   a1c862b132035bedfba2d74f381f83078ed85ff7288e3a2cd0ecf1a8a3b5d400 https://github.com/Janadasroor/VioAVR/releases/download/v0.2.5/vioavr-v0.2.5-linux-x86_64.tar.gz
+VioAVR     v0.2.5 windows vioavr-v0.2.5-windows-x64.zip     b370ad578466f6229663c55422728ed83799e2cb2e155db4ed9a6129f8256d43 https://github.com/Janadasroor/VioAVR/releases/download/v0.2.5/vioavr-v0.2.5-windows-x64.zip
+VioAVR     v0.2.5 macos   vioavr-v0.2.5-macos-arm64.tar.gz   2f79a0afac03187553d25bf8508e4b27d514a1df5e87c14ef3d33f24b64b6d8c https://github.com/Janadasroor/VioAVR/releases/download/v0.2.5/vioavr-v0.2.5-macos-arm64.tar.gz
+FluxScript v1.2.0 linux   fluxscript-linux-x86_64.tar.gz    35d5629afbbfc2e17437869a506eb1afd45e654034f101ec9a5d3e0bf40e9cca https://github.com/Janadasroor/fluxscript/releases/download/v1.2.0/fluxscript-linux-x86_64.tar.gz
+FluxScript v1.2.0 windows fluxscript-windows-x86_64.zip     deb5d098e0fa7419da0d032aaf337f5c1dd629713f435f187866610d8d86d41f https://github.com/Janadasroor/fluxscript/releases/download/v1.2.0/fluxscript-windows-x86_64.zip
+FluxScript v1.2.0 macos   fluxscript-macos-arm64.tar.gz     6754b5fcf8a380530beb0512815218334e3ed48bf820310ea2a774c3801a1f5f https://github.com/Janadasroor/fluxscript/releases/download/v1.2.0/fluxscript-macos-arm64.tar.gz
+
+[git]
+VioMATRIXC v0.2.0 https://github.com/Janadasroor/VioMATRIXC.git
+VioAVR     v0.2.5 https://github.com/Janadasroor/VioAVR.git
+FluxScript v1.2.0 https://github.com/Janadasroor/fluxscript.git
+Eigen      3.4.0  https://gitlab.com/libeigen/eigen.git
+slang      d9c9603ca6908d5b2e55e9b535fcdf28099789ad https://github.com/MikePopoloski/slang.git
