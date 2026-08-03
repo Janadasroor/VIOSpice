@@ -184,6 +184,13 @@ jobs:
         if: runner.os == 'Windows'
         shell: msys2 {0}
         run: |
+          # aclocal fatals on any missing *.m4 in /usr/share/aclocal; the cached
+          # MSYS2 image ships a broken gettext progtest.m4 symlink. Materialize.
+          for f in /usr/share/aclocal/*.m4; do
+            if [ -e "$f" ]; then continue; fi
+            rm -f "$f"
+            : > "$f"
+          done
           export WANT_AUTOCONF=2.71
           export WANT_AUTOMAKE=1.16
           PYPATH=$(cygpath -w /mingw64/bin/python.exe)
