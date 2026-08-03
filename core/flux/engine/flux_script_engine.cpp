@@ -6,7 +6,6 @@
 #include "flux_script_engine.h"
 #include "../bridges/flux_qt_bridge.h"
 #include <flux/jit_engine.h>
-#include <flux/flux_eigen.h>
 #include <QDebug>
 #include <string>
 

@@ -580,42 +580,12 @@ else()
     endif()
 
     find_package(CURL QUIET)
-    find_package(Eigen3 QUIET)
-
-    # Eigen is needed by prebuilt FluxScript headers — bundle if not found
-    if(NOT Eigen3_FOUND)
-        message(STATUS "Eigen3 not found, downloading bundled Eigen...")
-        include(FetchContent)
-        set(EIGEN_BUILD_TESTING OFF CACHE BOOL "" FORCE)
-        set(EIGEN_BUILD_BLAS OFF CACHE BOOL "" FORCE)
-        set(EIGEN_BUILD_LAPACK OFF CACHE BOOL "" FORCE)
-        FetchContent_Declare(
-            Eigen3
-            GIT_REPOSITORY https://gitlab.com/libeigen/eigen.git
-            GIT_TAG        3.4.0
-            GIT_SHALLOW    TRUE
-        )
-        FetchContent_GetProperties(Eigen3)
-        if(NOT eigen3_POPULATED)
-            FetchContent_Populate(Eigen3)
-            if(EXISTS "${eigen3_SOURCE_DIR}/blas/CMakeLists.txt")
-                file(WRITE "${eigen3_SOURCE_DIR}/blas/CMakeLists.txt" "# Disabled Fortran BLAS for VioSpice\n")
-            endif()
-            if(EXISTS "${eigen3_SOURCE_DIR}/lapack/CMakeLists.txt")
-                file(WRITE "${eigen3_SOURCE_DIR}/lapack/CMakeLists.txt" "# Disabled Fortran LAPACK for VioSpice\n")
-            endif()
-            add_subdirectory(${eigen3_SOURCE_DIR} ${eigen3_BINARY_DIR} EXCLUDE_FROM_ALL)
-        endif()
-        set(EIGEN3_INCLUDE_DIR "${eigen3_SOURCE_DIR}")
-    endif()
-
-    include_directories(${EIGEN3_INCLUDE_DIR})
 
     # Create an imported shared library target (LLVM is bundled in the .so)
     add_library(FluxScript SHARED IMPORTED GLOBAL)
     set_target_properties(FluxScript PROPERTIES
         IMPORTED_LOCATION "${_fs_dir}/lib/${FLUXSCRIPT_LIB_NAME}"
-        INTERFACE_INCLUDE_DIRECTORIES "${_fs_dir}/include;${EIGEN3_INCLUDE_DIR}"
+        INTERFACE_INCLUDE_DIRECTORIES "${_fs_dir}/include"
     )
     if(WIN32)
         if(MINGW)
