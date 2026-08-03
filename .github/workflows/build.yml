@@ -104,7 +104,7 @@ jobs:
       - name: Install system deps (macOS)
         if: runner.os == 'macOS'
         run: |
-          brew install cmake curl python@3.12 ccache
+          brew install cmake curl python@3.12 ccache libedit
 
       - name: Setup ccache
         if: runner.os != 'Windows'
@@ -136,7 +136,7 @@ jobs:
             mingw-w64-x86_64-qt6-svg
             mingw-w64-x86_64-qt6-declarative
             mingw-w64-x86_64-llvm
-            eigen3
+            mingw-w64-x86_64-eigen3
             zip
 
       - name: Set Qt6_DIR (Windows)
