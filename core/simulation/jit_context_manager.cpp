@@ -14,6 +14,9 @@
 #include "jit_context_manager.h"
 #include "simulation_manager.h"
 #include "../../simulator/core/sim_results.h"
+// FluxScript's bundled headers are not self-contained (compiler_instance.h uses
+// std::unordered_set without including it); declare it before parsing flux headers.
+#include <unordered_set>
 #include <flux/compiler/compiler_instance.h>
 #include <flux/runtime/flux_runtime.h>
 #include <QDebug>

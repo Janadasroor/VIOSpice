@@ -6,6 +6,9 @@
 #include "flux_command.h"
 
 #ifdef HAVE_FLUXSCRIPT
+// FluxScript's bundled headers are not self-contained (compiler_instance.h uses
+// std::unordered_set without including it); declare it before parsing flux headers.
+#include <unordered_set>
 #include <flux/jit_engine.h>
 #include <flux/compiler/compiler_instance.h>
 #include <flux/compiler/netlist_generator.h>
