@@ -182,15 +182,17 @@ if(VIOSPICE_DEV_MODE OR VIOSPICE_BUILD_VIOMATRIXC)
     if(NOT EXISTS "${viomatrixc_SOURCE_DIR}/src/.libs/${NGSPICE_LIB_NAME}")
         message(STATUS "Building VioMATRIXC engine from source...")
         if(WIN32)
-            # The cached MSYS2 image ships gnome aclocal system-dir entries whose
-            # paths get mangled to '/a/_temp/msys64/usr/share/aclocal/...', so
-            # aclocal reports even real files as "does not exist". VioMATRIXC is
-            # self-contained (libtool + ax macros live in its own m4/, passed via
-            # -I m4), so point --system-acdir at an empty dir to make aclocal skip
-            # the broken system dir entirely. autogen.sh honors $ACLOCAL_FLAGS.
+            # The cached MSYS2 image mangles aclocal's system path to
+            # '/a/_temp/msys64/usr/share/aclocal/...', so aclocal reports even
+            # real files (progtest.m4) as "does not exist". VioMATRIXC is
+            # self-contained (libtool + ax macros in its own m4/, passed via
+            # -I m4), so point --system-acdir at an empty dir to skip the broken
+            # system dir. Autoconf also re-injects the default dir via the
+            # ACLOCAL_PATH env var (see aclocal parse_ACLOCAL_PATH), so clear it.
+            # autogen.sh honors $ACLOCAL_FLAGS.
             file(MAKE_DIRECTORY "${CMAKE_BINARY_DIR}/empty_aclocal")
             execute_process(
-                COMMAND sh -c "ACLOCAL_FLAGS='--system-acdir=${CMAKE_BINARY_DIR}/empty_aclocal' ./autogen.sh"
+                COMMAND sh -c "ACLOCAL_PATH='' ACLOCAL_FLAGS='--system-acdir=${CMAKE_BINARY_DIR}/empty_aclocal' ./autogen.sh"
                 WORKING_DIRECTORY ${viomatrixc_SOURCE_DIR}
                 RESULT_VARIABLE res
             )
