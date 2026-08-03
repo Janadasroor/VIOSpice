@@ -79,7 +79,7 @@ jobs:
           sudo apt update
           sudo apt install -y \
             build-essential cmake \
-            libcurl4-openssl-dev \
+            autoconf automake libtool bison flex \
             libnghttp2-dev \
             libgl1-mesa-dev \
             libpulse-dev \
@@ -104,7 +104,7 @@ jobs:
       - name: Install system deps (macOS)
         if: runner.os == 'macOS'
         run: |
-          brew install cmake curl python@3.12 ccache libedit
+          brew install cmake curl python@3.12 ccache libedit autoconf automake libtool bison flex
 
       - name: Setup ccache
         if: runner.os != 'Windows'
@@ -137,6 +137,8 @@ jobs:
             mingw-w64-x86_64-qt6-declarative
             mingw-w64-x86_64-llvm
             mingw-w64-x86_64-eigen3
+            flex
+            bison
             zip
 
       - name: Set Qt6_DIR (Windows)
@@ -155,6 +157,10 @@ jobs:
           cmake --preset release \
             -DLLVM_DIR="$(brew --prefix llvm)/lib/cmake/llvm" \
             -DFETCHCONTENT_TRY_FIND_PACKAGE_MODE=NEVER
+        env:
+          # brew's bison/flex are keg-only; expose them so ngspice's autotools
+          # configure (run at cmake-configure time) can find AC_PROG_LEX/YACC.
+          PATH: /opt/homebrew/opt/bison/bin:/opt/homebrew/opt/flex/bin:$PATH
 
       - name: Install and link dependencies (macOS)
         if: runner.os == 'macOS'
@@ -308,7 +314,7 @@ jobs:
           sudo apt update
           sudo apt install -y \
             build-essential cmake \
-            libcurl4-openssl-dev \
+            autoconf automake libtool bison flex \
             libnghttp2-dev \
             libgl1-mesa-dev \
             libpulse-dev \
@@ -371,6 +377,7 @@ jobs:
           sudo apt update
           sudo apt install -y \
             build-essential cmake \
+            autoconf automake libtool bison flex \
             clang-21 \
             libcurl4-openssl-dev \
             libnghttp2-dev \

@@ -111,6 +111,9 @@ include(FetchContent)
 
 # Developer mode flag — OFF by default so new users download prebuilt binaries
 option(VIOSPICE_DEV_MODE "Enable local development mode (use local repos / build from source)" OFF)
+# Build only the VioMATRIXC engine from source (CI uses this so the d_cosim
+# code model carries the vio_cosim_abi_tag; the v0.1.0 prebuilt predates it).
+option(VIOSPICE_BUILD_VIOMATRIXC "Build the VioMATRIXC ngspice engine from source" OFF)
 
 # v0.2.0 (latest tag) ships no prebuilt binary assets, so the download base must
 # stay at v0.1.0 for fresh users. Dev-mode source builds below pin GIT_TAG v0.2.0.
@@ -142,7 +145,7 @@ else()
     set(VIOMATRIXC_DOWNLOAD_HASH "")
 endif()
 
-if(VIOSPICE_DEV_MODE)
+if(VIOSPICE_DEV_MODE OR VIOSPICE_BUILD_VIOMATRIXC)
     # --- Build VioMATRIXC from source (local repo or FetchContent) ---
     if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/../VioMATRIXC/configure.ac")
         message(STATUS "VioMATRIXC: using local ../VioMATRIXC")
