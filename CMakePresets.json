@@ -16,7 +16,8 @@
                 "CMAKE_BUILD_TYPE": "Release",
                 "CMAKE_C_COMPILER_LAUNCHER": "ccache",
                 "CMAKE_CXX_COMPILER_LAUNCHER": "ccache",
-                "MI_OVERRIDE": "OFF"
+                "MI_OVERRIDE": "OFF",
+                "VIOSPICE_BUILD_VIOMATRIXC": "ON"
             }
         },
         {
