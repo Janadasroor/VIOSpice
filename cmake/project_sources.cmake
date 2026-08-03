@@ -142,6 +142,8 @@ set(SCHEMATIC_SOURCES
     schematic/editor/schematic_editor_tabs.cpp
     schematic/editor/schematic_autosave.cpp
     schematic/editor/schematic_autosave.h
+    schematic/io/schematic_migrations.cpp
+    schematic/io/schematic_migrations.h
     schematic/editor/spice_directive_classifier.cpp
     schematic/editor/spice_directive_classifier.h
     schematic/editor/schematic_editor.h
