@@ -270,6 +270,10 @@ QString SimulationManager::lastErrorMessage() const {
 void SimulationManager::reportError(const QString& error) {
     if (!error.isEmpty()) {
         qWarning() << "[Simulation] ERROR:" << error;
+        // Qt's qWarning on Windows may route to the debugger only (OutputDebugString)
+        // when stderr is not a console; duplicate to stderr so CI logs always capture it.
+        fprintf(stderr, "[Simulation] ERROR: %s\n", error.toUtf8().constData());
+        fflush(stderr);
     }
     Q_EMIT errorOccurred(error);
 }
