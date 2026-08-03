@@ -11,6 +11,15 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  verify-deps:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check pinned dependency URLs and refs
+        run: |
+          bash scripts/verify_deps.sh
+
   build:
     strategy:
       fail-fast: false
