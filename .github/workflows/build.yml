@@ -180,9 +180,16 @@ jobs:
         if: runner.os == 'Windows'
         shell: msys2 {0}
         run: |
+          # The cached MSYS2 image ships broken/incomplete gettext aclocal m4
+          # symlinks (e.g. progtest.m4). aclocal scans every *.m4 in
+          # /usr/share/aclocal and fatals on any missing file, even though
+          # VioMATRIXC does not use gettext. Materialize them as real files.
+          for f in /usr/share/aclocal/*.m4; do
+            if [ -e "$f" ]; then continue; fi
+            rm -f "$f"
+            : > "$f"
+          done
           # Pin the MSYS2 wrapper to the known-good combo (Ubuntu 24.04).
-          # automake 1.18's aclocal hard-fails on the missing (unneeded)
-          # progtest.m4 from gettext; 1.16 tolerates it.
           export WANT_AUTOCONF=2.71
           export WANT_AUTOMAKE=1.16
           cmake --preset msys2-mingw64
