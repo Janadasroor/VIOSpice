@@ -515,7 +515,11 @@ if(VIOSPICE_DEV_MODE OR VIOSPICE_BUILD_FLUXSCRIPT)
         FetchContent_Declare(
             FluxScript
             GIT_REPOSITORY https://github.com/Janadasroor/fluxscript.git
-            GIT_TAG        v1.2.0
+            # v1.2.0 ships a legacy src/compiler/codegen.cpp that still calls the
+            # removed llvm::Intrinsic::getDeclaration, breaking the MSYS2 (LLVM 21+)
+            # source build on Windows. Pin to flux main, which already uses
+            # getOrInsertDeclaration and compiles against LLVM 21/22.
+            GIT_TAG        b88317c8c84f4c4ba59f29e17f71c92b444c1bbe
         )
         FetchContent_Populate(FluxScript)
         # When using prebuilt VioMATRIXC, fix FluxScript's ngspice path computation
