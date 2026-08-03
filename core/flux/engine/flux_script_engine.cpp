@@ -5,6 +5,11 @@
 
 #include "flux_script_engine.h"
 #include "../bridges/flux_qt_bridge.h"
+// FluxScript's bundled headers are not self-contained (e.g. compiler_instance.h
+// uses std::unordered_set without including it), so declare the containers we
+// rely on before any flux header is parsed.
+#include <unordered_map>
+#include <unordered_set>
 #include <flux/jit_engine.h>
 #include <QDebug>
 #include <string>
