@@ -26,6 +26,7 @@
 #endif
 #include "flux/schematic/factories/schematic_item_registry.h"
 #include "flux/schematic/io/schematic_file_io.h"
+#include "flux/schematic/io/schematic_migrations.h"
 #include "flux/schematic/editor/schematic_autosave.h"
 #include "../../schematic/items/avr_microcontroller_item.h"
 #include "../../schematic/items/voltage_source_item.h"
@@ -479,6 +480,107 @@ bool verifyAutosaveSnapshot(QString& err) {
     return true;
 }
 
+// Older on-disk formats must be upgraded to the current version before
+// deserialization. A file whose metadata.version is newer than what this
+// build understands must be rejected instead of misread.
+bool verifyMigrations(QString& err) {
+    SchematicMigrations::clearForTesting();
+    QTemporaryDir tempDir;
+    if (!tempDir.isValid()) {
+        err = "failed to create temporary directory for migrations";
+        return false;
+    }
+
+    QJsonObject item;
+    item["type"] = "GenericComponent";
+    item["x"] = 50;
+    item["y"] = 50;
+    QJsonObject sym;
+    sym["name"] = "LM317";
+    item["symbolDef"] = sym;
+
+    const auto writeDoc = [&](const QString& path, int version) {
+        QJsonObject root;
+        QJsonObject metadata;
+        metadata["version"] = version;
+        root["metadata"] = metadata;
+        QJsonObject pageSettings;
+        pageSettings["size"] = "A4";
+        pageSettings["orientation"] = "landscape";
+        root["pageSettings"] = pageSettings;
+        QJsonArray items;
+        items.append(item);
+        root["items"] = items;
+
+        QFile f(path);
+        if (!f.open(QIODevice::WriteOnly | QIODevice::Text)) return false;
+        f.write(QJsonDocument(root).toJson(QJsonDocument::Indented));
+        return true;
+    };
+
+    // (a) Identity migration: with no migrations registered, a legacy file
+    // still loads (version is bumped, content untouched).
+    const QString legacyPath = QDir(tempDir.path()).filePath("legacy.flxsch");
+    if (!writeDoc(legacyPath, 0)) {
+        err = "failed to write legacy fixture";
+        return false;
+    }
+    {
+        QGraphicsScene scene;
+        QString pageSize;
+        TitleBlockData titleBlock;
+        if (!SchematicFileIO::loadSchematic(&scene, legacyPath, pageSize, titleBlock)) {
+            err = QString("identity migration load failed: %1").arg(SchematicFileIO::lastError());
+            return false;
+        }
+        if (pageSize != "A4") {
+            err = "identity migration altered page size: " + pageSize;
+            return false;
+        }
+    }
+
+    // (b) Registered migration runs before deserialization.
+    SchematicMigrations::registerMigration(0, [](QJsonObject& root, QString& err) {
+        QJsonObject ps = root["pageSettings"].toObject();
+        ps["size"] = "Custom";
+        root["pageSettings"] = ps;
+        err.clear();
+        return true;
+    });
+    {
+        QGraphicsScene scene;
+        QString pageSize;
+        TitleBlockData titleBlock;
+        if (!SchematicFileIO::loadSchematic(&scene, legacyPath, pageSize, titleBlock)) {
+            err = QString("registered migration load failed: %1").arg(SchematicFileIO::lastError());
+            return false;
+        }
+        if (pageSize != "Custom") {
+            err = "registered migration did not run: page size " + pageSize;
+            return false;
+        }
+    }
+
+    // (c) Files from a future build must be rejected.
+    const QString futurePath = QDir(tempDir.path()).filePath("future.flxsch");
+    if (!writeDoc(futurePath, SchematicFileIO::FILE_FORMAT_VERSION + 1)) {
+        err = "failed to write future fixture";
+        return false;
+    }
+    {
+        QGraphicsScene scene;
+        QString pageSize;
+        TitleBlockData titleBlock;
+        if (SchematicFileIO::loadSchematic(&scene, futurePath, pageSize, titleBlock)) {
+            err = "future-version file was accepted";
+            return false;
+        }
+    }
+
+    SchematicMigrations::clearForTesting();
+    return true;
+}
+
 } // namespace
 
 int main(int argc, char** argv) {
@@ -516,6 +618,11 @@ int main(int argc, char** argv) {
 
     if (!verifyAutosaveSnapshot(err)) {
         std::cerr << "[FAIL] Autosave snapshot: " << err.toStdString() << std::endl;
+        return 1;
+    }
+
+    if (!verifyMigrations(err)) {
+        std::cerr << "[FAIL] File-format migration: " << err.toStdString() << std::endl;
         return 1;
     }
 
