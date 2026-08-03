@@ -22,6 +22,7 @@
 #include "../ui/source_control_panel.h"
 #include "../ui/source_control_manager.h"
 #include "../core/project/config_manager.h"
+#include "../core/settings_dialog.h"
 #include <QToolBar>
 #include <QDockWidget>
 #include <QStatusBar>
@@ -1158,7 +1159,8 @@ void VioraIdeWindow::onShowFindReplace() {
 }
 
 void VioraIdeWindow::onSettings() {
-    // TODO: Settings dialog
+    SettingsDialog dlg(this);
+    dlg.exec();
 }
 
 // ============================================================================
