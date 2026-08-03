@@ -6,7 +6,7 @@ if(POLICY CMP0111)
     cmake_policy(SET CMP0111 OLD)
 endif()
 
-project(viospice VERSION 0.1 LANGUAGES CXX)
+project(viospice VERSION 0.1 LANGUAGES C CXX)
 
 # Disable third-party (Eigen) unit testing & Fortran BLAS/LAPACK generation globally
 set(EIGEN_BUILD_TESTING OFF CACHE BOOL "" FORCE)
@@ -216,6 +216,26 @@ if(VIOSPICE_DEV_MODE OR VIOSPICE_BUILD_VIOMATRIXC)
     endforeach()
 
     message(STATUS "VIOSPICE ENGINE (dev build): ${VIOSPICE_PREFERRED_ENGINE_LIB}")
+
+    # Stage the freshly built engine into the same layout the prebuilt download
+    # produces (build/viomatrixc-prebuilt/<bin|lib>), so the runtime library
+    # paths baked into the CI workflows (LD_LIBRARY_PATH / DYLD_LIBRARY_PATH at
+    # viomatrixc-prebuilt/lib, and the Windows DLL copy at viomatrixc-prebuilt/bin)
+    # keep resolving libngspice for test binaries that link it directly.
+    if(WIN32)
+        set(_engine_stage_dir "${CMAKE_BINARY_DIR}/viomatrixc-prebuilt/bin")
+    else()
+        set(_engine_stage_dir "${CMAKE_BINARY_DIR}/viomatrixc-prebuilt/lib")
+    endif()
+    file(MAKE_DIRECTORY "${_engine_stage_dir}")
+    file(GLOB _engine_libs
+         "${viomatrixc_SOURCE_DIR}/src/.libs/libngspice*.so*"
+         "${viomatrixc_SOURCE_DIR}/src/.libs/libngspice*.dylib"
+         "${viomatrixc_SOURCE_DIR}/src/.libs/libngspice*.dll")
+    foreach(_engine_lib ${_engine_libs})
+        file(COPY "${_engine_lib}" DESTINATION "${_engine_stage_dir}")
+    endforeach()
+    message(STATUS "VIOSPICE ENGINE staged: ${_engine_stage_dir}")
 else()
     # --- Download prebuilt VioMATRIXC ---
     message(STATUS "Downloading prebuilt VioMATRIXC engine...")
