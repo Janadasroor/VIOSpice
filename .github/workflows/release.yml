@@ -184,12 +184,14 @@ jobs:
         if: runner.os == 'Windows'
         shell: msys2 {0}
         run: |
-          # aclocal fatals on any missing *.m4 in /usr/share/aclocal; the cached
-          # MSYS2 image ships a broken gettext progtest.m4 symlink. Materialize.
-          for f in /usr/share/aclocal/*.m4; do
-            if [ -e "$f" ]; then continue; fi
-            rm -f "$f"
-            : > "$f"
+          # aclocal hard-fails on any unreadable *.m4 in /usr/share/aclocal even
+          # when unused. The cached MSYS2 image ships a broken gettext progtest.m4
+          # entry. Materialize it (and other gettext m4 names) as real files.
+          find /usr/share/aclocal -maxdepth 1 -type l 2>/dev/null | while read -r f; do
+            [ -e "$f" ] || { rm -f "$f"; : > "$f"; }
+          done
+          for base in progtest gettext nls po iconv lib-ld lib-link lib-prefix intlmacosx; do
+            [ -e "/usr/share/aclocal/$base.m4" ] || { rm -f "/usr/share/aclocal/$base.m4"; : > "/usr/share/aclocal/$base.m4"; }
           done
           export WANT_AUTOCONF=2.71
           export WANT_AUTOMAKE=1.16
