@@ -17,15 +17,17 @@
 #define RTLD_LOCAL   0x00000
 #define RTLD_GLOBAL  0x00100
 
-inline void* dlopen(const char* filename, int flags)
+inline void* dlopen(const char* filename, int /*flags*/)
 {
     if (!filename || !*filename)
         return nullptr;
     wchar_t wname[512];
     if (MultiByteToWideChar(CP_UTF8, 0, filename, -1, wname, 512) == 0)
         return nullptr;
-    if (flags & RTLD_NOLOAD)
-        return reinterpret_cast<void*>(GetModuleHandleW(wname));
+    // LoadLibrary dedupes by the file path: if digital.cm is already loaded
+    // (possibly under a slightly different name), we still get its handle, and
+    // if it is not loaded yet we load it for inspection. This is more reliable
+    // than GetModuleHandleW name matching (which fails on engine reload).
     return reinterpret_cast<void*>(LoadLibraryW(wname));
 }
 
