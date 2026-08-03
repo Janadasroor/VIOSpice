@@ -26,6 +26,7 @@
 #endif
 #include "flux/schematic/factories/schematic_item_registry.h"
 #include "flux/schematic/io/schematic_file_io.h"
+#include "flux/schematic/editor/schematic_autosave.h"
 #include "../../schematic/items/avr_microcontroller_item.h"
 #include "../../schematic/items/voltage_source_item.h"
 #include "../../schematic/items/generic_component_item.h"
@@ -378,6 +379,106 @@ bool verifyLoadSeparatorNormalization(QString& err) {
     return true;
 }
 
+// Autosave snapshots are sidecar "<file>.flxsch~" files next to the original,
+// created only after a save, and detected again on the next launch by
+// findRecoveryCandidates. A clean save/close clears the sidecar so it is never
+// offered for recovery. Untitled snapshots land in the per-app autosave dir
+// and are reported with an empty original path.
+bool verifyAutosaveSnapshot(QString& err) {
+    QTemporaryDir tempDir;
+    if (!tempDir.isValid()) {
+        err = "failed to create temporary directory for autosave";
+        return false;
+    }
+
+    const QString projDir = tempDir.path();
+    const QString schPath = QDir(projDir).filePath("circuit.flxsch");
+
+    QGraphicsScene scene;
+    auto* vs = new VoltageSourceItem(QPointF(50, 50), "V1", VoltageSourceItem::DC);
+    scene.addItem(vs);
+
+    const auto baseline = SchematicAutosaveManager::findRecoveryCandidates(projDir);
+    const auto baselineSnaps = [&baseline]() {
+        QSet<QString> s;
+        for (const auto& c : baseline) s.insert(c.snapshotPath);
+        return s;
+    }();
+
+    QString pageSize;
+    TitleBlockData titleBlock;
+    QMap<QString, QList<QString>> busAliases;
+    QSet<QString> ercExclusions;
+
+    if (!SchematicFileIO::saveSchematic(&scene, schPath, pageSize, QString(), titleBlock, busAliases, ercExclusions)) {
+        err = QString("schematic save failed: %1").arg(SchematicFileIO::lastError());
+        return false;
+    }
+
+    // Simulate a crash: edit after saving, then autosave to the sidecar.
+    scene.addItem(new VoltageSourceItem(QPointF(200, 200), "V2", VoltageSourceItem::Sine));
+    if (!SchematicAutosaveManager::writeSnapshot(&scene, schPath, pageSize, titleBlock, busAliases, ercExclusions, nullptr)) {
+        err = "writeSnapshot failed for named file";
+        return false;
+    }
+    if (!QFile::exists(SchematicAutosaveManager::snapshotPathFor(schPath))) {
+        err = "sidecar snapshot not created";
+        return false;
+    }
+
+    auto after = SchematicAutosaveManager::findRecoveryCandidates(projDir);
+    QList<QString> newSnaps;
+    for (const auto& c : after) {
+        if (!baselineSnaps.contains(c.snapshotPath)) newSnaps.append(c.snapshotPath);
+    }
+    if (newSnaps.size() != 1 || newSnaps.first() != schPath + "~") {
+        err = "expected exactly one new recovery candidate (the sidecar), got " +
+              QString::number(newSnaps.size());
+        return false;
+    }
+
+    // Clean save must remove the sidecar so nothing is offered next launch.
+    SchematicAutosaveManager::clearSnapshot(schPath);
+    if (QFile::exists(SchematicAutosaveManager::snapshotPathFor(schPath))) {
+        err = "sidecar snapshot not cleared after save";
+        return false;
+    }
+    after = SchematicAutosaveManager::findRecoveryCandidates(projDir);
+    for (const auto& c : after) {
+        if (!baselineSnaps.contains(c.snapshotPath)) {
+            err = "sidecar still reported after clearSnapshot";
+            return false;
+        }
+    }
+
+    // Unsaved (untitled) schematics snapshot into the per-app autosave dir and
+    // are reported with an empty original path. Clean up exactly what we wrote.
+    if (!SchematicAutosaveManager::writeSnapshot(&scene, QString(), pageSize, titleBlock, busAliases, ercExclusions, nullptr)) {
+        err = "writeSnapshot failed for untitled schematic";
+        return false;
+    }
+    after = SchematicAutosaveManager::findRecoveryCandidates(projDir);
+    bool sawUntitled = false;
+    QList<QString> untitledToRemove;
+    for (const auto& c : after) {
+        if (baselineSnaps.contains(c.snapshotPath)) continue;
+        // An untitled snapshot has no on-disk original backing it.
+        if (c.originalPath.isEmpty() || !QFileInfo::exists(c.originalPath)) {
+            sawUntitled = true;
+            untitledToRemove.append(c.snapshotPath);
+        }
+    }
+    if (!sawUntitled) {
+        err = "untitled snapshot not reported as a recovery candidate";
+        return false;
+    }
+    for (const QString& p : untitledToRemove) {
+        if (QFile::exists(p)) QFile::remove(p);
+    }
+
+    return true;
+}
+
 } // namespace
 
 int main(int argc, char** argv) {
@@ -410,6 +511,11 @@ int main(int argc, char** argv) {
 
     if (!verifyLoadSeparatorNormalization(err)) {
         std::cerr << "[FAIL] Path portability (load): " << err.toStdString() << std::endl;
+        return 1;
+    }
+
+    if (!verifyAutosaveSnapshot(err)) {
+        std::cerr << "[FAIL] Autosave snapshot: " << err.toStdString() << std::endl;
         return 1;
     }
 

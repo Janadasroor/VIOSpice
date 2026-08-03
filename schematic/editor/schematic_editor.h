@@ -37,6 +37,7 @@
 #include "../ui/virtual_terminal_window.h"
 #include "../items/oscilloscope_item.h"
 #include "../items/virtual_terminal_item.h"
+#include "schematic_autosave.h"
 class SchematicView;
 class SchematicPageItem;
 class SimResults;
@@ -231,6 +232,10 @@ private Q_SLOTS:
     void onToggleBottomPanel();
     void onToggleRightSidebar();
 
+    // Autosave / crash recovery
+    void writeAutosaveSnapshot();
+    void checkForRecovery();
+
 protected:
     void closeEvent(QCloseEvent* event) override;
     void showEvent(QShowEvent* event) override;
@@ -409,6 +414,8 @@ private:
     bool m_simPaused = false;
     bool m_showVoltageOverlays;
     bool m_showCurrentOverlays;
+    QTimer* m_autosaveTimer = nullptr;
+    QStringList m_recoveredFilesToOpen;
 
     // Project context
     QString m_projectName;
