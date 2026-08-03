@@ -136,6 +136,7 @@ jobs:
             mingw-w64-x86_64-qt6-svg
             mingw-w64-x86_64-qt6-declarative
             mingw-w64-x86_64-llvm
+            eigen3
             zip
 
       - name: Set Qt6_DIR (Windows)

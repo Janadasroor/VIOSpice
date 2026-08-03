@@ -34,6 +34,9 @@
 #include "../core/flux/extensions/extension_manager.h"
 #include "../core/flux/extensions/extension_sandbox.h"
 #include "../core/flux/extensions/extension_config.h"
+// FluxScript's bundled headers are not self-contained (compiler_instance.h uses
+// std::unordered_set without including it); declare it before parsing flux headers.
+#include <unordered_set>
 #include <flux/jit_engine.h>
 
 class ExtPreviewCommand : public CLICommand {
