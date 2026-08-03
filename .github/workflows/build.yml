@@ -180,15 +180,28 @@ jobs:
         if: runner.os == 'Windows'
         shell: msys2 {0}
         run: |
-          # The cached MSYS2 image ships broken/incomplete gettext aclocal m4
-          # symlinks (e.g. progtest.m4). aclocal scans every *.m4 in
-          # /usr/share/aclocal and fatals on any missing file, even though
-          # VioMATRIXC does not use gettext. Materialize them as real files.
-          for f in /usr/share/aclocal/*.m4; do
-            if [ -e "$f" ]; then continue; fi
-            rm -f "$f"
-            : > "$f"
+          echo "=== /usr/share/aclocal before ==="
+          ls -la /usr/share/aclocal/ 2>&1 | grep -iE 'progtest|gettext|nls|po|iconv' || true
+          # aclocal scans every *.m4 in the system acdir and hard-fails on any
+          # entry that is not a readable file, even if VioMATRIXC never uses the
+          # macro. The cached MSYS2 image ships broken gettext m4 entries; turn
+          # every dangling symlink / non-file into a real (empty) m4 file.
+          find /usr/share/aclocal -maxdepth 1 -type l 2>/dev/null | while read -r f; do
+            if [ ! -e "$f" ]; then
+              echo "materializing broken m4: $f"
+              rm -f "$f"
+              : > "$f"
+            fi
           done
+          # Fallback: ensure the common gettext m4 names exist as real files.
+          for base in progtest gettext nls po iconv lib-ld lib-link lib-prefix intlmacosx; do
+            if [ ! -e "/usr/share/aclocal/$base.m4" ]; then
+              echo "creating placeholder /usr/share/aclocal/$base.m4"
+              : > "/usr/share/aclocal/$base.m4"
+            fi
+          done
+          echo "=== /usr/share/aclocal after ==="
+          ls -la /usr/share/aclocal/ 2>&1 | grep -iE 'progtest|gettext|nls|po|iconv' || true
           # Pin the MSYS2 wrapper to the known-good combo (Ubuntu 24.04).
           export WANT_AUTOCONF=2.71
           export WANT_AUTOMAKE=1.16

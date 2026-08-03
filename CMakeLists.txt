@@ -181,6 +181,18 @@ if(VIOSPICE_DEV_MODE OR VIOSPICE_BUILD_VIOMATRIXC)
 
     if(NOT EXISTS "${viomatrixc_SOURCE_DIR}/src/.libs/${NGSPICE_LIB_NAME}")
         message(STATUS "Building VioMATRIXC engine from source...")
+        if(WIN32)
+            # aclocal scans every *.m4 in the system acdir and hard-fails on any
+            # unreadable entry even when the macro is unused. The cached MSYS2
+            # image ships a broken gettext progtest.m4 (and may miss others), so
+            # materialize the common gettext m4 names as real files. Runs through
+            # the same `sh` that invokes autogen to guarantee the same path root.
+            execute_process(
+                COMMAND sh -c "for base in progtest gettext nls po iconv lib-ld lib-link lib-prefix intlmacosx; do if test -e /usr/share/aclocal/$base.m4; then continue; fi; rm -f /usr/share/aclocal/$base.m4; : > /usr/share/aclocal/$base.m4; done"
+                WORKING_DIRECTORY ${viomatrixc_SOURCE_DIR}
+                RESULT_VARIABLE res
+            )
+        endif()
         execute_process(
             COMMAND sh ./autogen.sh
             WORKING_DIRECTORY ${viomatrixc_SOURCE_DIR}
