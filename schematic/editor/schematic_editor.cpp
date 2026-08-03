@@ -296,11 +296,11 @@ SchematicEditor::SchematicEditor(QWidget *parent)
     // ECO / Netlist Synchronization from PCB or Reverse Engineering
     connect(&SyncManager::instance(), &SyncManager::ecoAvailable, this, &SchematicEditor::handleIncomingECO);
 
-    // Auto-Save Setup
+    // Auto-Save: periodic recovery snapshots that never clobber the original file.
+    m_autosaveTimer = new QTimer(this);
+    connect(m_autosaveTimer, &QTimer::timeout, this, &SchematicEditor::writeAutosaveSnapshot);
     if (ConfigManager::instance().autoSaveEnabled()) {
-        QTimer* timer = new QTimer(this);
-        connect(timer, &QTimer::timeout, this, &SchematicEditor::onSaveSchematic);
-        timer->start(ConfigManager::instance().autoSaveInterval() * 60000);
+        m_autosaveTimer->start(ConfigManager::instance().autoSaveInterval() * 60000);
     }
 
     // Load simulation overlay settings
@@ -319,6 +319,9 @@ SchematicEditor::SchematicEditor(QWidget *parent)
         }
     }
     m_isConstructing = false;
+
+    // Offer crash recovery for leftover autosave snapshots from a previous session.
+    QTimer::singleShot(0, this, &SchematicEditor::checkForRecovery);
 }
 
 SchematicEditor::~SchematicEditor() {
@@ -340,14 +343,23 @@ void SchematicEditor::closeEvent(QCloseEvent* event) {
 
         if (reply == QMessageBox::Save) {
             onSaveSchematic();
+            if (m_isModified) {
+                event->ignore();
+                return;
+            }
+            SchematicAutosaveManager::clearSnapshot(m_currentFilePath);
             event->accept();
         } else if (reply == QMessageBox::Discard) {
+            SchematicAutosaveManager::clearSnapshot(m_currentFilePath);
             event->accept();
         } else {
             event->ignore();
             return; // Don't save window state if we're not closing
         }
     }
+
+    // Clean close: a saved-and-clean file must not leave a recoverable snapshot behind.
+    SchematicAutosaveManager::clearSnapshot(m_currentFilePath);
 
     // Save UI State
     ConfigManager::instance().saveWindowState("SchematicEditor", saveGeometry(), saveState());
@@ -382,6 +394,9 @@ bool SchematicEditor::event(QEvent* event) {
     }
     if (event->type() == QEvent::WindowActivate || event->type() == QEvent::ApplicationActivate) {
         SourceControlManager::instance().scheduleRefresh();
+    }
+    if (event->type() == QEvent::WindowDeactivate || event->type() == QEvent::ApplicationDeactivate) {
+        writeAutosaveSnapshot();
     }
     return QMainWindow::event(event);
 }

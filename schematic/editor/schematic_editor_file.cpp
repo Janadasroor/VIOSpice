@@ -60,6 +60,12 @@ class MainWindow;
 #include <QSet>
 #include <QDate>
 #include <QTextStream>
+#include <QDialog>
+#include <QVBoxLayout>
+#include <QHBoxLayout>
+#include <QLabel>
+#include <QPushButton>
+#include <QListWidget>
 #include <cmath>
 #include <algorithm>
 
@@ -895,6 +901,7 @@ void SchematicEditor::onSaveSchematic() {
         m_isModified = false;
         syncWsState();
         if (m_undoStack) m_undoStack->setClean();
+        SchematicAutosaveManager::clearSnapshot(m_currentFilePath);
         QFileInfo fileInfo(m_currentFilePath);
         setWindowTitle(QString("viospice - Schematic Editor [%1]").arg(fileInfo.fileName()));
         statusBar()->showMessage(QString("Saved: %1").arg(m_currentFilePath), 3000);
@@ -1029,11 +1036,16 @@ void SchematicEditor::onSaveSchematicAs() {
             setProjectContext(newProjectName, newProjectDir);
         }
 
+        const QString previousPath = m_currentFilePath;
         m_currentFilePath = filePath;
         if (m_api) m_api->setFilePath(filePath);
         updateGeminiProjectEffect();
         m_isModified = false;
         if (m_undoStack) m_undoStack->setClean();
+        SchematicAutosaveManager::clearSnapshot(filePath);
+        if (!previousPath.isEmpty() && previousPath != filePath) {
+            SchematicAutosaveManager::clearSnapshot(previousPath);
+        }
         QFileInfo fileInfo(filePath);
         setWindowTitle(QString("viospice - Schematic Editor [%1]").arg(fileInfo.fileName()));
         statusBar()->showMessage(QString("Saved: %1").arg(filePath), 3000);
@@ -1044,6 +1056,127 @@ void SchematicEditor::onSaveSchematicAs() {
         QMessageBox::critical(this, "Save Error",
             QString("Failed to save schematic:\n%1").arg(SchematicFileIO::lastError()));
     }
+}
+
+void SchematicEditor::writeAutosaveSnapshot() {
+    if (m_isSaving || m_isConstructing || m_isDestroying) return;
+
+    // Only the schematic canvas is snapshotted; script/text tabs manage their own files.
+    QWidget* current = m_workspaceTabs ? m_workspaceTabs->currentWidget() : nullptr;
+    if (current && qobject_cast<QPlainTextEdit*>(current)) return;
+
+    const bool modified = m_isModified || (m_undoStack && !m_undoStack->isClean());
+    if (!modified) return;
+
+    const QJsonObject simSetup = m_simConfig.toJson();
+    if (SchematicAutosaveManager::writeSnapshot(m_scene, m_currentFilePath, m_currentPageSize,
+                                                m_titleBlock, m_busAliases, m_ercExclusions, &simSetup)) {
+        statusBar()->showMessage("Autosaved recovery snapshot", 2000);
+    }
+}
+
+void SchematicEditor::checkForRecovery() {
+    if (m_isDestroying) return;
+
+    const QList<SchematicAutosaveManager::RecoveryCandidate> candidates =
+        SchematicAutosaveManager::findRecoveryCandidates(m_projectDir);
+    if (candidates.isEmpty()) return;
+
+    QDialog dlg(this);
+    dlg.setWindowTitle("Recover Unsaved Changes");
+    dlg.setMinimumWidth(620);
+
+    auto* layout = new QVBoxLayout(&dlg);
+    auto* hint = new QLabel(
+        "VioraEDA did not shut down cleanly. Autosave snapshots newer than the "
+        "saved files were found. Recover a snapshot to restore your work, or "
+        "discard it. Your original files are never overwritten without confirmation.",
+        &dlg);
+    hint->setWordWrap(true);
+    layout->addWidget(hint);
+
+    auto* list = new QListWidget(&dlg);
+    list->setSelectionMode(QAbstractItemView::ExtendedSelection);
+    for (const auto& c : candidates) {
+        const QFileInfo snapInfo(c.snapshotPath);
+        const QDateTime when = snapInfo.lastModified().toLocalTime();
+        QString original = c.originalPath;
+        if (original.isEmpty()) {
+            original = "(unsaved schematic)";
+        } else {
+            const QFileInfo origInfo(original);
+            original = QFileInfo(original).exists() ? origInfo.absoluteFilePath()
+                                                    : origInfo.absoluteFilePath() + "  (original missing)";
+        }
+        auto* item = new QListWidgetItem(QString("%1\n    autosaved %2\n    original: %3")
+                                             .arg(snapInfo.fileName())
+                                             .arg(when.toString(Qt::ISODate))
+                                             .arg(original));
+        item->setData(Qt::UserRole, c.snapshotPath);
+        item->setData(Qt::UserRole + 1, c.originalPath);
+        item->setToolTip(c.snapshotPath);
+        list->addItem(item);
+    }
+    layout->addWidget(list);
+
+    auto* buttons = new QHBoxLayout;
+    auto* recoverBtn = new QPushButton("Recover Selected", &dlg);
+    auto* discardBtn = new QPushButton("Discard All", &dlg);
+    auto* cancelBtn = new QPushButton("Cancel", &dlg);
+    buttons->addWidget(recoverBtn);
+    buttons->addWidget(discardBtn);
+    buttons->addStretch();
+    buttons->addWidget(cancelBtn);
+    layout->addLayout(buttons);
+
+    QObject::connect(cancelBtn, &QPushButton::clicked, &dlg, &QDialog::reject);
+    QObject::connect(discardBtn, &QPushButton::clicked, &dlg, [&]() {
+        for (const auto& c : candidates) {
+            if (QFile::exists(c.snapshotPath)) QFile::remove(c.snapshotPath);
+        }
+        dlg.accept();
+    });
+    QObject::connect(recoverBtn, &QPushButton::clicked, &dlg, [&]() {
+        for (QListWidgetItem* item : list->selectedItems()) {
+            const QString snapshotPath = item->data(Qt::UserRole).toString();
+            QString targetPath = item->data(Qt::UserRole + 1).toString();
+            if (targetPath.isEmpty() || !QFileInfo(targetPath).exists()) {
+                // Unsaved or deleted original: place next to the project as recovered_<name>.
+                QString base = QFileInfo(snapshotPath).completeBaseName();
+                if (base.endsWith(".flxsch")) base.chop(7);
+                const QString dir = m_projectDir.isEmpty() ? QDir::homePath() : m_projectDir;
+                targetPath = dir + "/recovered_" + base + ".flxsch";
+                int n = 1;
+                while (QFile::exists(targetPath)) {
+                    targetPath = dir + "/recovered_" + base + "_" + QString::number(++n) + ".flxsch";
+                }
+            } else {
+                const QString snapQ = snapshotPath;
+                const QString origQ = targetPath;
+                const auto confirm = QMessageBox::question(
+                    &dlg, "Overwrite original?",
+                    QString("Replace '%1' with the autosaved snapshot from %2?")
+                        .arg(QFileInfo(origQ).fileName(),
+                             QFileInfo(snapQ).lastModified().toLocalTime().toString(Qt::ISODate)),
+                    QMessageBox::Yes | QMessageBox::No, QMessageBox::Yes);
+                if (confirm != QMessageBox::Yes) continue;
+            }
+            if (QFile::exists(targetPath)) QFile::remove(targetPath);
+            if (QFile::copy(snapshotPath, targetPath)) {
+                QFile::remove(snapshotPath);
+                m_recoveredFilesToOpen.append(targetPath);
+            }
+        }
+        dlg.accept();
+    });
+
+    dlg.exec();
+
+    // Open recovered files after the dialog closes so the editor is stable.
+    for (const QString& path : m_recoveredFilesToOpen) {
+        openFile(path);
+    }
+    m_recoveredFilesToOpen.clear();
 }
 
 void SchematicEditor::updateCurrentTabTitleFromFilePath(const QString& filePath) {
