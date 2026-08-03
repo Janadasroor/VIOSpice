@@ -503,7 +503,10 @@ if(VIOSPICE_DEV_MODE OR VIOSPICE_BUILD_FLUXSCRIPT)
     # --- Build FluxScript from source (local repo or FetchContent) ---
     if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/../fluxscript/CMakeLists.txt")
         message(STATUS "FluxScript: using local ../fluxscript")
-        add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../fluxscript FluxScript)
+        # EXCLUDE_FROM_ALL: only the FluxScript library (linked below) and any
+        # targets we explicitly depend on are built; the ~19 FluxScript CLI tools
+        # and validate_examples are skipped unless requested.
+        add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../fluxscript FluxScript EXCLUDE_FROM_ALL)
         set(FLUXSCRIPT_LIB_DIR "${CMAKE_BINARY_DIR}/FluxScript")
     else()
         message(STATUS "FluxScript: fetching from GitHub")
@@ -530,11 +533,16 @@ if(VIOSPICE_DEV_MODE OR VIOSPICE_BUILD_FLUXSCRIPT)
             file(WRITE "${fluxscript_SOURCE_DIR}/CMakeLists.txt" "${_fs_cmake}")
             unset(_fs_cmake)
         endif()
-        add_subdirectory(${fluxscript_SOURCE_DIR} ${fluxscript_BINARY_DIR})
+        add_subdirectory(${fluxscript_SOURCE_DIR} ${fluxscript_BINARY_DIR} EXCLUDE_FROM_ALL)
         set(FLUXSCRIPT_LIB_DIR "${fluxscript_BINARY_DIR}")
     endif()
     add_compile_definitions(HAVE_FLUXSCRIPT FLUXSCRIPT_EXAMPLES_DIR="${fluxscript_SOURCE_DIR}/examples")
     message(STATUS "FluxScript (dev build): ${fluxscript_SOURCE_DIR}")
+    # The IDE's FluxScript LSP client launches flux-lsp at runtime; keep it built
+    # even though EXCLUDE_FROM_ALL above skips the other FluxScript CLI tools.
+    if(TARGET flux-lsp)
+        set(VIOSPICE_FLUX_LSP_TARGET "flux-lsp")
+    endif()
 else()
     # --- Download prebuilt FluxScript ---
     message(STATUS "Downloading prebuilt FluxScript...")
@@ -885,6 +893,10 @@ if(BUILD_VIOSPICE_APP)
 
     if(QT_VERSION_MAJOR EQUAL 6)
         qt_finalize_executable(VioraEDA)
+    endif()
+
+    if(VIOSPICE_FLUX_LSP_TARGET)
+        add_dependencies(VioraEDA ${VIOSPICE_FLUX_LSP_TARGET})
     endif()
 
     # RPATH must be set after qt_finalize_executable to avoid being overridden
