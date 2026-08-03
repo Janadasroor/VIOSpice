@@ -72,7 +72,7 @@ sudo dnf install cmake gcc-c++ qt6-qtbase-devel qt6-qtcharts-devel \
 
 ### Installation
 
-The build automatically fetches ngspice (VioMATRIXC), FluxScript, Eigen, and other dependencies via CMake `FetchContent`. No manual install needed for these.
+The build automatically fetches ngspice (VioMATRIXC), FluxScript, and other dependencies via CMake `FetchContent`. No manual install needed for these.
 
 1. **Clone the repository**:
    ```bash

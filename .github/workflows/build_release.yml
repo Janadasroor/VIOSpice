@@ -83,7 +83,7 @@ jobs:
           cache: true
 
       - name: Configure CMake
-        run: cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DVIOSPICE_ENABLE_TESTS=ON -DVIOSPICE_DEV_MODE=OFF -DBUILD_TESTING=OFF -DEIGEN_BUILD_TESTING=OFF -DEIGEN_BUILD_DOC=OFF
+        run: cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DVIOSPICE_ENABLE_TESTS=ON -DVIOSPICE_DEV_MODE=OFF -DBUILD_TESTING=OFF
         env:
           LLVM_DIR: ${{ env.LLVM_DIR }}
 
