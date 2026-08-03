@@ -288,7 +288,7 @@ jobs:
           QT_QPA_PLATFORM: offscreen
           DYLD_LIBRARY_PATH: ${{ github.workspace }}/build/viomatrixc-prebuilt/lib:${{ github.workspace }}/build/fluxscript-prebuilt/lib
           LD_LIBRARY_PATH: ${{ github.workspace }}/build/viomatrixc-prebuilt/lib:${{ github.workspace }}/build/fluxscript-prebuilt/lib
-        run: bash scripts/ci_ctest.sh --preset unit -R "^(schematic|core|simulator|rpi|unit_|regression|integration)\."
+        run: bash scripts/ci_ctest.sh --output-on-failure --preset unit -R "^(schematic|core|simulator|rpi|unit_|regression|integration)\."
 
       - name: Unit tests (Windows)
         if: runner.os == 'Windows'
@@ -301,7 +301,7 @@ jobs:
           ldd build/test_sim_rf_math.exe 2>&1 | grep -i "not found" || echo "(no unresolved deps)"
           echo "=== launching ctest ==="
           export QT_QPA_PLATFORM=offscreen
-          bash scripts/ci_ctest.sh --preset unit -R "^(schematic|core|simulator|rpi|unit_|regression|integration)\."
+          bash scripts/ci_ctest.sh --output-on-failure --preset unit -R "^(schematic|core|simulator|rpi|unit_|regression|integration)\."
 
   sanitizer:
     runs-on: ubuntu-24.04
