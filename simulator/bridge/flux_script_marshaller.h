@@ -7,6 +7,7 @@
 #define FLUX_SCRIPT_MARSHALLER_BRIDGE_H
 
 #ifdef HAVE_FLUXSCRIPT
+#include <unordered_set>
 #include <flux/marshaller.h>
 #endif
 #include <map>

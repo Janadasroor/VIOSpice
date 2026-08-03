@@ -10,6 +10,8 @@
 #include <QString>
 #include <QMap>
 #include <memory>
+#include <unordered_map>
+#include <unordered_set>
 
 #ifdef HAVE_FLUXSCRIPT
 #pragma push_macro("emit")
