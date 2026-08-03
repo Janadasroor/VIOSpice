@@ -182,22 +182,25 @@ if(VIOSPICE_DEV_MODE OR VIOSPICE_BUILD_VIOMATRIXC)
     if(NOT EXISTS "${viomatrixc_SOURCE_DIR}/src/.libs/${NGSPICE_LIB_NAME}")
         message(STATUS "Building VioMATRIXC engine from source...")
         if(WIN32)
-            # aclocal scans every *.m4 in the system acdir and hard-fails on any
-            # unreadable entry even when the macro is unused. The cached MSYS2
-            # image ships a broken gettext progtest.m4 (and may miss others), so
-            # materialize the common gettext m4 names as real files. Runs through
-            # the same `sh` that invokes autogen to guarantee the same path root.
+            # The cached MSYS2 image ships gnome aclocal system-dir entries whose
+            # paths get mangled to '/a/_temp/msys64/usr/share/aclocal/...', so
+            # aclocal reports even real files as "does not exist". VioMATRIXC is
+            # self-contained (libtool + ax macros live in its own m4/, passed via
+            # -I m4), so point --system-acdir at an empty dir to make aclocal skip
+            # the broken system dir entirely. autogen.sh honors $ACLOCAL_FLAGS.
+            file(MAKE_DIRECTORY "${CMAKE_BINARY_DIR}/empty_aclocal")
             execute_process(
-                COMMAND sh -c "for base in progtest gettext nls po iconv lib-ld lib-link lib-prefix intlmacosx; do if test -e /usr/share/aclocal/$base.m4; then continue; fi; rm -f /usr/share/aclocal/$base.m4; : > /usr/share/aclocal/$base.m4; done"
+                COMMAND sh -c "ACLOCAL_FLAGS='--system-acdir=${CMAKE_BINARY_DIR}/empty_aclocal' ./autogen.sh"
+                WORKING_DIRECTORY ${viomatrixc_SOURCE_DIR}
+                RESULT_VARIABLE res
+            )
+        else()
+            execute_process(
+                COMMAND sh ./autogen.sh
                 WORKING_DIRECTORY ${viomatrixc_SOURCE_DIR}
                 RESULT_VARIABLE res
             )
         endif()
-        execute_process(
-            COMMAND sh ./autogen.sh
-            WORKING_DIRECTORY ${viomatrixc_SOURCE_DIR}
-            RESULT_VARIABLE res
-        )
         set(VIOMATRIXC_CONFIGURE_ARGS --with-ngshared --enable-cider --enable-vicompat --prefix=${CMAKE_BINARY_DIR}/viospice_engine)
         if(CMAKE_C_COMPILER_ID MATCHES "Clang")
             # ngspice's AC_OPENMP enables OpenMP for any compiler that accepts
