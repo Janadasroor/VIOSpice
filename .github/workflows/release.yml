@@ -96,6 +96,11 @@ jobs:
             mingw-w64-x86_64-qt6-svg
             mingw-w64-x86_64-qt6-declarative
             mingw-w64-x86_64-llvm
+            flex
+            bison
+            autoconf
+            automake
+            libtool
             zip
 
       - name: Set Qt6_DIR (Windows)
@@ -155,6 +160,9 @@ jobs:
       - name: Configure (macOS)
         if: runner.os == 'macOS'
         run: |
+          # brew's bison/flex are keg-only; expose them so ngspice's autotools
+          # configure (run at cmake-configure time) can find AC_PROG_LEX/YACC.
+          export PATH="/opt/homebrew/opt/bison/bin:/opt/homebrew/opt/flex/bin:$PATH"
           cmake --preset release \
             -DLLVM_DIR="$(brew --prefix llvm)/lib/cmake/llvm" \
             -DFETCHCONTENT_TRY_FIND_PACKAGE_MODE=NEVER

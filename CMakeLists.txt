@@ -116,7 +116,11 @@ option(VIOSPICE_DEV_MODE "Enable local development mode (use local repos / build
 option(VIOSPICE_BUILD_VIOMATRIXC "Build the VioMATRIXC ngspice engine from source" OFF)
 
 # v0.2.0 (latest tag) ships no prebuilt binary assets, so the download base must
-# stay at v0.1.0 for fresh users. Dev-mode source builds below pin GIT_TAG v0.2.0.
+# stay at v0.1.0 for fresh users. Source builds below pin GIT_TAG v0.2.1, a
+# GPL-free tag: it drops the GPL A-device codemodels (modulator/samplehold/
+# varistor) and fixes analog/modpath.lst so analog/cmextrn.h generates cleanly
+# (v0.2.0 predates both that fix and the vio_cosim_abi_tag export that the
+# d_cosim ABI guard checks for).
 set(VIOMATRIXC_DOWNLOAD_BASE "https://github.com/Janadasroor/VioMATRIXC/releases/download/v0.1.0"
     CACHE STRING "URL prefix for prebuilt VioMATRIXC archive")
 
@@ -154,7 +158,7 @@ if(VIOSPICE_DEV_MODE OR VIOSPICE_BUILD_VIOMATRIXC)
         FetchContent_Declare(
             viomatrixc
             GIT_REPOSITORY https://github.com/Janadasroor/VioMATRIXC.git
-            GIT_TAG        v0.2.0
+            GIT_TAG        v0.2.1
         )
         FetchContent_GetProperties(viomatrixc)
         if(NOT viomatrixc_POPULATED)
