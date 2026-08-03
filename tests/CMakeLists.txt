@@ -1,5 +1,14 @@
 # Root test aggregation entrypoint.
 if(VIOSPICE_ENABLE_TESTS)
+    # Stage the VioMATRIXC code models (.cm) where the integration tests can find
+    # them: the simulator resolves model files relative to the test binary's
+    # directory (build/tests/<sub>/, which walks up to build/tests/cm).
+    file(MAKE_DIRECTORY "${CMAKE_BINARY_DIR}/tests/cm")
+    file(GLOB _test_cm_files "${CMAKE_BINARY_DIR}/cm/*.cm")
+    if(_test_cm_files)
+        file(COPY ${_test_cm_files} DESTINATION "${CMAKE_BINARY_DIR}/tests/cm")
+    endif()
+    unset(_test_cm_files)
     vioraeda_add_test(test_design_rule
         SOURCES test_design_rule.cpp test_design_rule.h
         LINK_LIBS VioCore VioSymbols VioSimulator FluxScript FluxScriptManager VioUI
