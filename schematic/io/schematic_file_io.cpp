@@ -4,6 +4,7 @@
  */
 
 #include "schematic_file_io.h"
+#include "schematic_migrations.h"
 #include "ltspice_asc_importer.h"
 #include "net_manager.h"
 #include "diagnostics/runtime_diagnostics.h"
@@ -334,6 +335,17 @@ bool SchematicFileIO::loadSchematic(QGraphicsScene* scene, const QString& filePa
                         .arg(version)
                         .arg(FILE_FORMAT_VERSION);
         return false;
+    }
+
+    // Upgrade files written by older builds to the current format in place.
+    if (version < FILE_FORMAT_VERSION) {
+        QString migrationError;
+        if (!SchematicMigrations::applyMigrations(root, version, migrationError)) {
+            s_lastError = QString("Failed to migrate file from version %1: %2")
+                            .arg(version)
+                            .arg(migrationError);
+            return false;
+        }
     }
     
     // Load page settings
