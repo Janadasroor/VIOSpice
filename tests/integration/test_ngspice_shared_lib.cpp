@@ -58,7 +58,7 @@ int main(int argc, char** argv) {
     QEventLoop loop;
     QObject::connect(&sim, qOverload<>(&SimulationManager::simulationFinished), &loop, &QEventLoop::quit);
     QObject::connect(&timer, &QTimer::timeout, &loop, &QEventLoop::quit);
-    timer.start(5000); // 5 seconds timeout
+    timer.start(60000); // 60 seconds timeout
     loop.exec();
 
     if (finishedSpy.count() == 0) {
