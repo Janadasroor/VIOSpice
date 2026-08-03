@@ -21,7 +21,11 @@
 #include <QRegularExpression>
 #include <QElapsedTimer>
 #include <utility>
+#ifdef Q_OS_WIN
+#include "dlfcn_win.h"
+#else
 #include <dlfcn.h>
+#endif
 
 using namespace Flux;
 
