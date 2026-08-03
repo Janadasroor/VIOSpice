@@ -186,8 +186,15 @@ if(VIOSPICE_DEV_MODE OR VIOSPICE_BUILD_VIOMATRIXC)
             WORKING_DIRECTORY ${viomatrixc_SOURCE_DIR}
             RESULT_VARIABLE res
         )
+        set(VIOMATRIXC_CONFIGURE_ARGS --with-ngshared --enable-cider --enable-vicompat --prefix=${CMAKE_BINARY_DIR}/viospice_engine)
+        if(CMAKE_C_COMPILER_ID MATCHES "Clang")
+            # ngspice's AC_OPENMP enables OpenMP for any compiler that accepts
+            # -fopenmp. Clang without libomp (coverage job) fails to compile
+            # omp.h, and a dlopen'd OpenMP engine segfaults at runtime on macOS.
+            list(APPEND VIOMATRIXC_CONFIGURE_ARGS --enable-openmp=no)
+        endif()
         execute_process(
-            COMMAND sh ./configure --with-ngshared --enable-cider --enable-vicompat --prefix=${CMAKE_BINARY_DIR}/viospice_engine
+            COMMAND sh ./configure ${VIOMATRIXC_CONFIGURE_ARGS}
             WORKING_DIRECTORY ${viomatrixc_SOURCE_DIR}
             RESULT_VARIABLE res
         )

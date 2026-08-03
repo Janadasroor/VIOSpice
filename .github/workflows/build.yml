@@ -179,7 +179,13 @@ jobs:
       - name: Configure (Windows)
         if: runner.os == 'Windows'
         shell: msys2 {0}
-        run: cmake --preset msys2-mingw64
+        run: |
+          # Pin the MSYS2 wrapper to the known-good combo (Ubuntu 24.04).
+          # automake 1.18's aclocal hard-fails on the missing (unneeded)
+          # progtest.m4 from gettext; 1.16 tolerates it.
+          export WANT_AUTOCONF=2.71
+          export WANT_AUTOMAKE=1.16
+          cmake --preset msys2-mingw64
 
       - name: Build (Linux / macOS)
         if: runner.os != 'Windows'

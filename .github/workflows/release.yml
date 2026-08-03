@@ -184,6 +184,8 @@ jobs:
         if: runner.os == 'Windows'
         shell: msys2 {0}
         run: |
+          export WANT_AUTOCONF=2.71
+          export WANT_AUTOMAKE=1.16
           PYPATH=$(cygpath -w /mingw64/bin/python.exe)
           cmake --preset msys2-mingw64 \
             -DPython3_EXECUTABLE="$PYPATH" -DPython_EXECUTABLE="$PYPATH"
