@@ -44,6 +44,10 @@
 #include <QQuickWindow>
 #include <QSGRendererInterface>
 #include <QSocketNotifier>
+#include <QOpenGLContext>
+#include <QOpenGLFunctions>
+#include <QOffscreenSurface>
+#include <QSurfaceFormat>
 #include <csignal>
 
 #ifndef _WIN32
@@ -79,6 +83,45 @@ extern "C" {
 
 #include <iostream>
 #include <QStandardPaths>
+
+// Probe the actual OpenGL renderer. Under remote-desktop / headless sessions Qt
+// falls back to a software OpenGL implementation (e.g. "GDI Generic",
+// "llvmpipe", "Microsoft Basic Render Driver"). The QtQuick scene graph
+// (Gemini panel's QQuickWidget) crashes under that software GL, so it must be
+// switched to the software scene-graph backend instead of forcing OpenGL.
+static bool isSoftwareOpenGl() {
+    QOpenGLContext ctx;
+    QSurfaceFormat fmt;
+    fmt.setVersion(2, 1);
+    ctx.setFormat(fmt);
+    if (!ctx.create()) {
+        // No GL context at all -> treat as software so we fall back gracefully.
+        return true;
+    }
+    QOffscreenSurface surf;
+    surf.setFormat(fmt);
+    surf.create();
+    if (!ctx.makeCurrent(&surf)) {
+        return true;
+    }
+    const GLubyte* raw = ctx.functions()->glGetString(GL_RENDERER);
+    bool software = true;
+    if (raw) {
+        const QString renderer = QString::fromLatin1(reinterpret_cast<const char*>(raw));
+        const QString lower = renderer.toLower();
+        // Explicitly known software renderers (GDI Generic / llvmpipe /
+        // swiftshader / basic render driver / softpipe / virgl).
+        software = lower.contains("gdi generic") ||
+                   lower.contains("llvmpipe") ||
+                   lower.contains("swiftshader") ||
+                   lower.contains("basic render") ||
+                   lower.contains("softpipe") ||
+                   lower.contains("virgl") ||
+                   lower.contains("software");
+    }
+    ctx.doneCurrent();
+    return software;
+}
 
 static void saveCurrentSession(void* excluding) {
     QStringList openFiles;
@@ -162,12 +205,25 @@ int main(int argc, char *argv[])
 #if defined(_WIN32) || defined(_WIN64)
     // Force native desktop OpenGL composition to prevent DXGI/D3D11 composition conflicts with QOpenGLWidget (causing black lines and empty waveforms)
     qputenv("QT_OPENGL", "desktop");
-    qputenv("QT_RHI_BACKEND", "opengl");
-    qputenv("QSG_RHI_BACKEND", "opengl");
-    QQuickWindow::setGraphicsApi(QSGRendererInterface::OpenGL);
 #endif
 
     QApplication a(argc, argv);
+
+#if defined(_WIN32) || defined(_WIN64)
+    if (isSoftwareOpenGl()) {
+        // Remote-desktop/software GL (GDI Generic, llvmpipe, ...). The QtQuick
+        // scene graph crashes under forced OpenGL here, so route the Quick
+        // (QQuickWidget) backend through software rendering. QOpenGLWidget-based
+        // editors still work via the desktop OpenGL context above.
+        qputenv("QT_RHI_BACKEND", "software");
+        qputenv("QSG_RHI_BACKEND", "software");
+        QQuickWindow::setGraphicsApi(QSGRendererInterface::Software);
+    } else {
+        qputenv("QT_RHI_BACKEND", "opengl");
+        qputenv("QSG_RHI_BACKEND", "opengl");
+        QQuickWindow::setGraphicsApi(QSGRendererInterface::OpenGL);
+    }
+#endif
 
     // Register callback for dynamic session saving
     ConfigManager::setSessionSaveCallback(saveCurrentSession);
