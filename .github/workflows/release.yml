@@ -218,7 +218,11 @@ jobs:
         if: runner.os == 'macOS'
         env:
           DYLD_LIBRARY_PATH: ${{ github.workspace }}/build/viomatrixc-prebuilt/lib:${{ github.workspace }}/build/fluxscript-prebuilt/lib:/opt/homebrew/lib
+          # viora ignores --version/--help and launches the full GUI; redirect HOME so
+          # it writes app data (ViospiceLib) to a throwaway dir instead of the shared one.
+          HOME: /tmp/viora-smoke
         run: |
+          mkdir -p "$HOME"
           echo "=== viora --version ==="
           ./build/viora --version
           echo "=== viora --help ==="
@@ -388,6 +392,11 @@ jobs:
           DYLD_LIBRARY_PATH: ${{ github.workspace }}/build/viomatrixc-prebuilt/lib:${{ github.workspace }}/build/fluxscript-prebuilt/lib:/opt/homebrew/lib
           LD_LIBRARY_PATH: ${{ github.workspace }}/build/viomatrixc-prebuilt/lib:${{ github.workspace }}/build/fluxscript-prebuilt/lib
         run: |
+          # The viora smoke tests above launch the GUI (which ignores --version/--help
+          # and is SIGTERM'd), leaving a partially-written ViospiceLib that makes
+          # integration.project_manager_launch SIGBUS (SIGBUS) on re-read. Start tests
+          # from a clean app-data state.
+          rm -rf "$HOME/ViospiceLib"
           # ldconfig does not exist on macOS; only refresh the cache where present.
           if command -v ldconfig >/dev/null 2>&1; then sudo ldconfig; fi
           ctest --preset unit -R "^(schematic|core|simulator|rpi|unit_|regression|integration)\."
