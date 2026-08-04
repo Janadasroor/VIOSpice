@@ -144,7 +144,7 @@ jobs:
       - name: Install system deps (macOS)
         if: runner.os == 'macOS'
         run: |
-          brew install cmake curl python@3.12 ccache
+          brew install cmake curl python@3.12 ccache libedit autoconf automake libtool bison flex
 
       - name: Setup ccache (Linux)
         if: runner.os == 'Linux'
