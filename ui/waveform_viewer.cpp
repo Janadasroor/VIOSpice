@@ -31,6 +31,10 @@
 #include <QStatusBar>
 #include <QFileDialog>
 #include <QGraphicsLayout>
+#include <QOpenGLContext>
+#include <QOpenGLFunctions>
+#include <QOffscreenSurface>
+#include <QSurfaceFormat>
 #include <QApplication>
 #include <QToolButton>
 #include <QRegularExpression>
@@ -50,6 +54,42 @@
 
 namespace {
 constexpr double kDbFloor = 1e-15;
+
+} // namespace
+
+// One-time probe of the OpenGL renderer. Qt Charts' OpenGL series path calls
+// GL through a QOpenGLFunctions vtable; on software GL (RDP/headless: GDI
+// Generic, llvmpipe, Microsoft Basic Render, ...) some vtable entries resolve
+// to NULL, which crashes with an access violation on the first waveform
+// redraw (seen as a NULL `call *0x1f8(%rax)` in Qt6OpenGL.dll). When the
+// renderer is software, series are rendered via QPainter raster instead.
+bool isSoftwareOpenGlRenderer() {
+    static const bool software = []() {
+        QOpenGLContext ctx;
+        QSurfaceFormat fmt;
+        fmt.setVersion(2, 1);
+        ctx.setFormat(fmt);
+        if (!ctx.create()) return true;
+        QOffscreenSurface surf;
+        surf.setFormat(fmt);
+        surf.create();
+        if (!ctx.makeCurrent(&surf)) return true;
+        bool sw = true;
+        const GLubyte* raw = ctx.functions()->glGetString(GL_RENDERER);
+        if (raw) {
+            const QString renderer = QString::fromLatin1(reinterpret_cast<const char*>(raw)).toLower();
+            sw = renderer.contains("gdi generic") || renderer.contains("llvmpipe") ||
+                 renderer.contains("swiftshader") || renderer.contains("basic render") ||
+                 renderer.contains("softpipe") || renderer.contains("virgl") ||
+                 renderer.contains("software");
+        }
+        ctx.doneCurrent();
+        return sw;
+    }();
+    return software;
+}
+
+namespace {
 
 QStringList signalNameAliases(const QString& name) {
     const QString trimmed = name.trimmed();
@@ -918,6 +958,7 @@ void WaveformViewer::applyPlotQualityToViews() {
 }
 
 bool WaveformViewer::shouldUseOpenGL() const {
+    if (isSoftwareOpenGlRenderer()) return false;
     return m_plotQuality != PlotQuality::HighQuality;
 }
 

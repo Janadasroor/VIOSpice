@@ -23,6 +23,11 @@
 
 QT_USE_NAMESPACE
 
+// True when the Qt Charts OpenGL series renderer is backed by a software GL
+// implementation (RDP/headless: GDI Generic, llvmpipe, Microsoft Basic Render,
+// ...). Callers should disable per-series OpenGL rendering in that case.
+bool isSoftwareOpenGlRenderer();
+
 class VioChartView : public QChartView {
     Q_OBJECT
 public:

@@ -203,8 +203,20 @@ int main(int argc, char *argv[])
     qputenv("ASAN_OPTIONS", "detect_leaks=1");
 
 #if defined(_WIN32) || defined(_WIN64)
-    // Force native desktop OpenGL composition to prevent DXGI/D3D11 composition conflicts with QOpenGLWidget (causing black lines and empty waveforms)
-    qputenv("QT_OPENGL", "desktop");
+    // Prefer native desktop OpenGL composition to prevent DXGI/D3D11
+    // composition conflicts with QOpenGLWidget (black lines / empty waveforms).
+    // But remote-desktop / console sessions often expose only a partial OpenGL
+    // implementation (GDI Generic) whose QOpenGLFunctions vtable has NULL
+    // entries, which crashes Qt Charts' OpenGL series renderer on the first
+    // waveform redraw. Route those sessions through Qt's software GL backend
+    // (opengl32sw.dll) when available; individual widgets additionally gate
+    // their own GL use (see WaveformViewer::shouldUseOpenGL).
+    if (GetSystemMetrics(SM_REMOTESESSION) != 0) {
+        qputenv("QT_OPENGL", "software");
+        QCoreApplication::setAttribute(Qt::AA_UseSoftwareOpenGL);
+    } else {
+        qputenv("QT_OPENGL", "desktop");
+    }
 #endif
 
     QApplication a(argc, argv);
