@@ -99,7 +99,11 @@ void NetlistFormatter::format(const SpiceNetlistGenerator::SimulationParams& par
                         return QString::number(fallback, 'g', 12);
                     };
                     const QString tstep = safeNumber(params.step, 1e-6);
-                    const QString tstop = params.stop.isEmpty() ? "1m" : params.stop;
+                    QString tstop = params.stop.isEmpty() ? "1m" : params.stop;
+                    double tstopVal = 0.0;
+                    if (!SimValueParser::parseSpiceNumber(tstop, tstopVal) || tstopVal <= 0.0) {
+                        tstop = "1m";
+                    }
                     const QString tstart = (params.start.trimmed().isEmpty() || params.start.trimmed() == "0")
                         ? QString() : params.start.trimmed();
                     if (!params.transientMaxStep.trimmed().isEmpty()) {

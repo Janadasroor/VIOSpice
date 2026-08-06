@@ -2696,7 +2696,7 @@ void SimulationPanel::onRunSimulation() {
         } else if (idx == 1) { // Transient
             params.type = SpiceNetlistGenerator::Transient;
             params.start = "0";
-            params.stop = QString::number(tStop);
+            params.stop = QString::number((tStop > 0.0) ? tStop : 10e-3);
             params.step = QString::number(tStep);
             params.transientSteady = steadyEnabled;
             params.steadyStateTol = steadyTolText;
