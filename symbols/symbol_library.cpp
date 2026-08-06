@@ -112,6 +112,49 @@ bool normalizeExternalSymbolPinGrid(SymbolDefinition& sym) {
     return changed;
 }
 
+bool loadStubSymbol(SymbolDefinition& stub, const QString& libraryPath) {
+    const QString path = stub.libraryPath().isEmpty() ? libraryPath : stub.libraryPath();
+    SymbolDefinition loaded;
+
+    if (path.endsWith(".sclib", Qt::CaseInsensitive)) {
+        QFile file(path);
+        if (file.open(QIODevice::ReadOnly)) {
+            QJsonDocument doc = QJsonDocument::fromJson(file.readAll());
+            if (doc.isObject()) {
+                QJsonObject libObj = doc.object()["library"].toObject();
+                QJsonArray symbolsArr = libObj["symbols"].toArray();
+                for (const QJsonValue& val : symbolsArr) {
+                    SymbolDefinition sym = SymbolDefinition::fromJson(val.toObject());
+                    if (QString::compare(sym.name(), stub.name(), Qt::CaseInsensitive) == 0) {
+                        loaded = sym;
+                        break;
+                    }
+                }
+            }
+        }
+    } else if (path.endsWith(".viosym", Qt::CaseInsensitive)) {
+        QFile file(path);
+        if (file.open(QIODevice::ReadOnly)) {
+            QJsonDocument doc = QJsonDocument::fromJson(file.readAll());
+            if (doc.isObject()) {
+                QString originalCategory = stub.category();
+                loaded = SymbolDefinition::fromJson(doc.object());
+                if (loaded.category().isEmpty()) loaded.setCategory(originalCategory);
+            }
+        }
+    } else {
+        loaded = KicadSymbolImporter::importSymbol(path, stub.name());
+    }
+
+    if (!loaded.name().isEmpty()) {
+        stub = loaded;
+        stub.setStub(false);
+        normalizeExternalSymbolPinGrid(stub);
+        return true;
+    }
+    return false;
+}
+
 QString normalizeBuiltInSymbolKey(const QString& name) {
     QString key = name.trimmed().toLower();
     key.replace("(", "_");
@@ -388,28 +431,7 @@ SymbolDefinition* SymbolLibrary::findSymbol(const QString& name) {
     auto it = m_symbols.find(name);
     if (it != m_symbols.end()) {
         SymbolDefinition& sym = it.value();
-        if (sym.isStub()) {
-            SymbolDefinition loaded;
-            if (sym.libraryPath().endsWith(".viosym", Qt::CaseInsensitive)) {
-                QFile file(sym.libraryPath());
-                if (file.open(QIODevice::ReadOnly)) {
-                    QJsonDocument doc = QJsonDocument::fromJson(file.readAll());
-                    if (doc.isObject()) {
-                        QString originalCategory = sym.category();
-                        loaded = SymbolDefinition::fromJson(doc.object());
-                        if (loaded.category().isEmpty()) loaded.setCategory(originalCategory);
-                    }
-                }
-            } else {
-                loaded = KicadSymbolImporter::importSymbol(sym.libraryPath().isEmpty() ? m_path : sym.libraryPath(), name);
-            }
-
-            if (!loaded.name().isEmpty()) {
-                sym = loaded;
-                sym.setStub(false);
-                normalizeExternalSymbolPinGrid(sym);
-            }
-        }
+        if (sym.isStub()) loadStubSymbol(sym, m_path);
         return &sym;
     }
 
@@ -417,28 +439,7 @@ SymbolDefinition* SymbolLibrary::findSymbol(const QString& name) {
     for (auto jt = m_symbols.begin(); jt != m_symbols.end(); ++jt) {
         if (symbolMatchesLookupKey(jt.value(), name)) {
             SymbolDefinition& sym = jt.value();
-            if (sym.isStub()) {
-                SymbolDefinition loaded;
-                if (sym.libraryPath().endsWith(".viosym", Qt::CaseInsensitive)) {
-                    QFile file(sym.libraryPath());
-                    if (file.open(QIODevice::ReadOnly)) {
-                        QJsonDocument doc = QJsonDocument::fromJson(file.readAll());
-                        if (doc.isObject()) {
-                            QString originalCategory = sym.category();
-                            loaded = SymbolDefinition::fromJson(doc.object());
-                            if (loaded.category().isEmpty()) loaded.setCategory(originalCategory);
-                        }
-                    }
-                } else {
-                    loaded = KicadSymbolImporter::importSymbol(sym.libraryPath().isEmpty() ? m_path : sym.libraryPath(), sym.name());
-                }
-
-                if (!loaded.name().isEmpty()) {
-                    sym = loaded;
-                    sym.setStub(false);
-                    normalizeExternalSymbolPinGrid(sym);
-                }
-            }
+            if (sym.isStub()) loadStubSymbol(sym, m_path);
             return &sym;
         }
     }
@@ -451,27 +452,8 @@ const SymbolDefinition* SymbolLibrary::findSymbol(const QString& name) const {
     if (it != m_symbols.end()) {
         const SymbolDefinition& sym = it.value();
         if (sym.isStub()) {
-            SymbolDefinition loaded;
-            if (sym.libraryPath().endsWith(".viosym", Qt::CaseInsensitive)) {
-                QFile file(sym.libraryPath());
-                if (file.open(QIODevice::ReadOnly)) {
-                    QJsonDocument doc = QJsonDocument::fromJson(file.readAll());
-                    if (doc.isObject()) {
-                        QString originalCategory = sym.category();
-                        loaded = SymbolDefinition::fromJson(doc.object());
-                        if (loaded.category().isEmpty()) loaded.setCategory(originalCategory);
-                    }
-                }
-            } else {
-                loaded = KicadSymbolImporter::importSymbol(sym.libraryPath().isEmpty() ? m_path : sym.libraryPath(), name);
-            }
-
-            if (!loaded.name().isEmpty()) {
-                SymbolDefinition& mutableSym = const_cast<SymbolDefinition&>(sym);
-                mutableSym = loaded;
-                mutableSym.setStub(false);
-                normalizeExternalSymbolPinGrid(mutableSym);
-            }
+            SymbolDefinition& mutableSym = const_cast<SymbolDefinition&>(sym);
+            loadStubSymbol(mutableSym, m_path);
         }
         return &it.value();
     }
@@ -480,27 +462,8 @@ const SymbolDefinition* SymbolLibrary::findSymbol(const QString& name) const {
         if (symbolMatchesLookupKey(jt.value(), name)) {
             const SymbolDefinition& sym = jt.value();
             if (sym.isStub()) {
-                SymbolDefinition loaded;
-                if (sym.libraryPath().endsWith(".viosym", Qt::CaseInsensitive)) {
-                    QFile file(sym.libraryPath());
-                    if (file.open(QIODevice::ReadOnly)) {
-                        QJsonDocument doc = QJsonDocument::fromJson(file.readAll());
-                        if (doc.isObject()) {
-                            QString originalCategory = sym.category();
-                            loaded = SymbolDefinition::fromJson(doc.object());
-                            if (loaded.category().isEmpty()) loaded.setCategory(originalCategory);
-                        }
-                    }
-                } else {
-                    loaded = KicadSymbolImporter::importSymbol(sym.libraryPath().isEmpty() ? m_path : sym.libraryPath(), sym.name());
-                }
-
-                if (!loaded.name().isEmpty()) {
-                    SymbolDefinition& mutableSym = const_cast<SymbolDefinition&>(sym);
-                    mutableSym = loaded;
-                    mutableSym.setStub(false);
-                    normalizeExternalSymbolPinGrid(mutableSym);
-                }
+                SymbolDefinition& mutableSym = const_cast<SymbolDefinition&>(sym);
+                loadStubSymbol(mutableSym, m_path);
             }
             return &jt.value();
         }
