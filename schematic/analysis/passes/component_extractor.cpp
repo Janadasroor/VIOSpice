@@ -145,8 +145,10 @@ ComponentExtractor::ExtractionResult ComponentExtractor::extract(
         } else if (ModelLibraryManager::instance().findSubcircuit(modelName) || 
                    comp.reference.startsWith("X", Qt::CaseInsensitive) || 
                    typeLower.contains("amplifier") || typeLower.contains("opamp") || typeLower.contains("ic") ||
-                   (SymbolLibraryManager::instance().findSymbol(comp.typeName) && 
-                    !SymbolLibraryManager::instance().findSymbol(comp.typeName)->spiceNodeMapping().isEmpty()) ||
+                   ([&]() {
+                       const SymbolDefinition* sym = SymbolLibraryManager::instance().findSymbol(comp.typeName);
+                       return sym && !sym->spiceNodeMapping().isEmpty();
+                   }()) ||
                    // Standalone .viosym symbols with spiceNodeMapping (e.g. LT1221 from project)
                    (!modelName.isEmpty() && !isJfet && !isMos && !isBjt)) {
             // If it's a subcircuit, we MUST ensure we have its pin names/order from the model library
