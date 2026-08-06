@@ -3100,6 +3100,7 @@ WaveformViewer::PlotQuality SimulationPanel::selectedPlotQuality() const {
 }
 
 bool SimulationPanel::shouldUseOpenGLRendering() const {
+    if (isSoftwareOpenGlRenderer()) return false;
     return selectedPlotQuality() != WaveformViewer::PlotQuality::HighQuality;
 }
 
