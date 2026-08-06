@@ -527,14 +527,17 @@ bool SimulationManager::loadNetlistInternal(const QString& netlist, bool keepSto
     bool loaded = (rc == 0 && !m_lastLoadFailed);
 
     if (!loaded) {
-        // Fallback to source command
-        QTemporaryFile temp(QDir::tempPath() + "/viospice_XXXX.cir");
+        // Fallback to source command.
+        // Note: ngspice's cp_lexer keeps double quotes in command words
+        // (parser/lexical.c), so `source "path"` looks up a file whose name
+        // starts with '"' and fails. Single quotes are stripped, so use them.
+        QTemporaryFile temp(QDir::tempPath() + "/viospice_XXXXXX.cir");
         if (temp.open()) {
             QTextStream out(&temp);
             for (const auto& l : processResult.lines) out << l << "\n";
             out.flush(); temp.close();
             m_lastLoadFailed = false;
-            rc = SpiceBackend::instance().execute("source \"" + temp.fileName() + "\"");
+            rc = SpiceBackend::instance().execute("source '" + temp.fileName() + "'");
             loaded = (rc == 0 && !m_lastLoadFailed);
         }
     }
