@@ -36,6 +36,7 @@ public:
     
     const SimModel* findModel(const QString& name) const;
     const SimSubcircuit* findSubcircuit(const QString& name) const;
+    const SimSubcircuit* findSubcircuitInFile(const QString& filePath, const QString& name) const;
     QString findLibraryPath(const QString& name) const;
     void loadLibraryFile(const QString& path);
 

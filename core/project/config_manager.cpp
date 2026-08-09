@@ -134,6 +134,10 @@ QStringList ConfigManager::symbolPaths() const {
         if (root.trimmed().isEmpty()) continue;
         paths.append(QDir(root).filePath("sym"));
     }
+    const QString homeLib = QDir::homePath() + "/ViospiceLib";
+    if (QDir(homeLib).exists()) {
+        paths.append(QDir(homeLib).filePath("sym"));
+    }
     return uniquePaths(paths);
 }
 QStringList ConfigManager::rawSymbolPaths() const { return m_symbolPaths; }
@@ -148,6 +152,14 @@ QStringList ConfigManager::modelPaths() const {
         paths.append(QDir(root).filePath("lib"));
         paths.append(QDir(root).filePath("mod"));
         paths.append(QDir(root).filePath("models"));
+    }
+    const QString homeLib = QDir::homePath() + "/ViospiceLib";
+    if (QDir(homeLib).exists()) {
+        for (const QString& sub : {QStringLiteral("sub"), QStringLiteral("cmp"), QStringLiteral("lib"),
+                                   QStringLiteral("mod"), QStringLiteral("models")}) {
+            const QString p = QDir(homeLib).filePath(sub);
+            if (QDir(p).exists()) paths.append(p);
+        }
     }
     return uniquePaths(paths);
 }
