@@ -105,6 +105,7 @@ jobs:
             gettext
             gettext-devel
             zip
+            mingw-w64-x86_64-nsis
 
       - name: Set Qt6_DIR (Windows)
         if: runner.os == 'Windows'
@@ -181,6 +182,15 @@ jobs:
           mkdir -p build/fluxscript-prebuilt/lib
           cp -v $(brew --prefix zstd)/lib/libzstd*.dylib build/fluxscript-prebuilt/lib/ 2>/dev/null || true
 
+      - name: Fetch ViospiceLib for bundling (Windows)
+        if: runner.os == 'Windows'
+        shell: msys2 {0}
+        run: |
+          if [ ! -d "$HOME/viora-libs" ]; then
+            git clone --depth 1 https://github.com/Janadasroor/viora-libs.git "$HOME/viora-libs"
+          fi
+          echo "Library size: $(du -sh "$HOME/viora-libs" | cut -f1)"
+
       - name: Configure (Windows)
         if: runner.os == 'Windows'
         shell: msys2 {0}
@@ -189,8 +199,8 @@ jobs:
           export WANT_AUTOMAKE=1.16
           PYPATH=$(cygpath -w /mingw64/bin/python.exe)
           cmake --preset msys2-mingw64 \
-            -DPython3_EXECUTABLE="$PYPATH" -DPython_EXECUTABLE="$PYPATH"
-
+            -DPython3_EXECUTABLE="$PYPATH" -DPython_EXECUTABLE="$PYPATH" \
+            -DVIOSPICE_BUNDLED_LIB="$HOME/viora-libs"
       - name: Build (Linux)
         if: runner.os == 'Linux'
         run: cmake --build --preset release --parallel $(nproc)
@@ -584,7 +594,16 @@ jobs:
       - name: Package NSIS (Windows)
         if: runner.os == 'Windows'
         shell: msys2 {0}
-        run: cd build && cpack -G NSIS -B "${{ github.workspace }}/nsis-pkg" || echo "NSIS packaging skipped (makensis not available)"
+        run: |
+          set -e
+          export PATH="/mingw64/bin:$PATH"
+          # Bundle the fetched library and build the installer.
+          cmake --preset msys2-mingw64 -DVIOSPICE_BUNDLED_LIB="$HOME/viora-libs" >/dev/null
+          cd build
+          cpack -G NSIS -C Release -B "${{ github.workspace }}/nsis-pkg"
+          # Move the installer to the workspace root for the release upload.
+          mv "${{ github.workspace }}/nsis-pkg"/*.exe "${{ github.workspace }}/"
+          ls -lh "${{ github.workspace }}"/*.exe
 
       - name: Verify package contents (Windows)
         if: runner.os == 'Windows'
@@ -625,3 +644,4 @@ jobs:
             VioraEDA-*-macos-arm64.tar.gz
             dmg-pkg/*.dmg
             VioraEDA-*-windows-x86_64.zip
+            VioraEDA-*-windows-x86_64.exe
