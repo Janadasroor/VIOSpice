@@ -12,6 +12,8 @@
 #include "../../../core/project/config_manager.h"
 #include <QFileInfo>
 #include <QDir>
+#include <QDirIterator>
+#include <QHash>
 #include <QRegularExpression>
 
 using Flux::Model::SymbolDefinition;
@@ -154,6 +156,13 @@ ComponentExtractor::ExtractionResult ComponentExtractor::extract(
             // If it's a subcircuit, we MUST ensure we have its pin names/order from the model library
             const SimSubcircuit* sub = ModelLibraryManager::instance().findSubcircuit(modelName);
             QString subLib = ModelLibraryManager::instance().findLibraryPath(modelName);
+            const SymbolDefinition* sym2 = SymbolLibraryManager::instance().findSymbol(comp.typeName);
+            if (sym2 && !sym2->modelPath().isEmpty()) {
+                const QString symModelFile = resolveModelPath(sym2->modelPath(), projectDir);
+                if (!symModelFile.isEmpty() && QFileInfo::exists(symModelFile)) {
+                    subLib.clear();
+                }
+            }
             if (!subLib.isEmpty()) {
                 if (subLib.endsWith(".lib", Qt::CaseInsensitive)) {
                     result.libPaths.insert(subLib);
@@ -410,6 +419,38 @@ QString ComponentExtractor::resolveModelPath(const QString& modelPath, const QSt
             const QString altExt = fic.suffix().toLower() == "lib" ? ".sub" : ".lib";
             const QString altCandidate = fic.dir().filePath(fic.completeBaseName() + altExt);
             if (QFileInfo::exists(altCandidate)) return altCandidate;
+        }
+    }
+
+    // Fallback: resolve bare model filenames (e.g. "REG.LIB") against the
+    // models/ tree of every known library root. Files like REG.LIB live at
+    // <root>/models/<vendor>/<family>/REG.LIB, which none of the sub/ or
+    // spice/ heuristics above can reach.
+    {
+        static QHash<QString, QString> modelFileNameIndex;
+        static bool modelFileNameIndexBuilt = false;
+        if (!modelFileNameIndexBuilt) {
+            QStringList searchRoots = ConfigManager::instance().libraryRoots();
+            searchRoots.append(QDir::homePath() + "/ViospiceLib");
+            searchRoots.append(ConfigManager::defaultLibraryPath());
+            for (const QString& root : searchRoots) {
+                if (root.trimmed().isEmpty()) continue;
+                const QString modelsDir = QDir(root).filePath("models");
+                if (!QDir(modelsDir).exists()) continue;
+                QDirIterator itr(modelsDir, QDir::Files, QDirIterator::Subdirectories);
+                while (itr.hasNext()) {
+                    itr.next();
+                    const QString fn = itr.fileInfo().fileName().toLower();
+                    if (!fn.isEmpty() && !modelFileNameIndex.contains(fn)) {
+                        modelFileNameIndex.insert(fn, QDir::cleanPath(QDir::fromNativeSeparators(itr.filePath())));
+                    }
+                }
+            }
+            modelFileNameIndexBuilt = true;
+        }
+        const auto foundIt = modelFileNameIndex.constFind(QFileInfo(source).fileName().toLower());
+        if (foundIt != modelFileNameIndex.constEnd() && !foundIt.value().isEmpty()) {
+            return foundIt.value();
         }
     }
 

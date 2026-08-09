@@ -11,6 +11,7 @@
 #include <QTextStream>
 #include <QDirIterator>
 #include <QDebug>
+#include <QHash>
 #include <QVector>
 #include <QRegularExpression>
 #include <QCoreApplication>
@@ -206,6 +207,54 @@ const SimSubcircuit* ModelLibraryManager::findSubcircuit(const QString& name) co
         return m_masterNetlist.findSubcircuit(name.toStdString());
     }
     return nullptr;
+}
+
+const SimSubcircuit* ModelLibraryManager::findSubcircuitInFile(const QString& filePath, const QString& name) const {
+    static QHash<QString, SimNetlist> parseCache;
+    static QSet<QString> cachedPaths;
+    static QReadWriteLock cacheLock;
+
+    SimNetlist parsed;
+    bool haveCache = false;
+    {
+        QReadLocker rl(&cacheLock);
+        if (cachedPaths.contains(filePath)) {
+            parsed = parseCache.value(filePath);
+            haveCache = true;
+        }
+    }
+
+    if (!haveCache) {
+        QFile file(filePath);
+        if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) return nullptr;
+        const QString content = decodeSpiceTextInLibrary(file.readAll());
+        file.close();
+
+        const QString trimmed = content.trimmed();
+        if (trimmed.startsWith("CSI SCH LIB", Qt::CaseInsensitive) ||
+            trimmed.startsWith("V2.0", Qt::CaseInsensitive) ||
+            trimmed.startsWith("[")) {
+            return nullptr;
+        }
+
+        SimNetlist tmp;
+        SimModelParseOptions options;
+        options.sourceName = filePath.toStdString();
+        std::vector<SimParseDiagnostic> diagnostics;
+        if (!SimModelParser::parseLibrary(tmp, content.toStdString(), options, &diagnostics)) {
+            return nullptr;
+        }
+        {
+            QWriteLocker wl(&cacheLock);
+            if (!cachedPaths.contains(filePath)) {
+                parseCache.insert(filePath, tmp);
+                cachedPaths.insert(filePath);
+            }
+            parsed = tmp;
+        }
+    }
+
+    return parsed.findSubcircuit(name.toStdString());
 }
 
 QString ModelLibraryManager::findLibraryPath(const QString& name) const {

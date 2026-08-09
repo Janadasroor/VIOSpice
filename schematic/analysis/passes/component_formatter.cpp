@@ -878,6 +878,12 @@ void ComponentFormatter::format(const ECOComponent& comp,
                 if (!isPrefixOnly) {
                     const SimModel* mdl = ModelLibraryManager::instance().findModel(mn);
                     const SimSubcircuit* sub = ModelLibraryManager::instance().findSubcircuit(mn);
+                    const QString symModelFile = ComponentExtractor::resolveModelPath(sym->modelPath(), projectDir);
+                    if (!symModelFile.isEmpty() && QFileInfo::exists(symModelFile)) {
+                        if (const SimSubcircuit* fileSub = ModelLibraryManager::instance().findSubcircuitInFile(symModelFile, mn)) {
+                            sub = fileSub;
+                        }
+                    }
                     if (!mdl && !sub) {
                         netlist += QString("* Warning: Model '%1' not found for %2\n").arg(mn, ref);
                     } else if (sub) {
@@ -926,7 +932,13 @@ void ComponentFormatter::format(const ECOComponent& comp,
                 // If we know the active subckt signature, emit nodes in its formal pin order.
                 if (line.startsWith("X", Qt::CaseInsensitive)) {
                     if (!activeSub && !value.trimmed().isEmpty()) {
-                        activeSub = ModelLibraryManager::instance().findSubcircuit(value.trimmed());
+                        const QString symModelFile = ComponentExtractor::resolveModelPath(sym->modelPath(), projectDir);
+                        if (!symModelFile.isEmpty() && QFileInfo::exists(symModelFile)) {
+                            activeSub = ModelLibraryManager::instance().findSubcircuitInFile(symModelFile, value.trimmed());
+                        }
+                        if (!activeSub) {
+                            activeSub = ModelLibraryManager::instance().findSubcircuit(value.trimmed());
+                        }
                     }
 
                     if (activeSub) {
