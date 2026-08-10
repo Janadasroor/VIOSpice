@@ -297,13 +297,26 @@ QWidget* InstallerWindow::createLicensePage() {
         "   Subject to the terms and conditions of this License, each Contributor hereby grants to You a perpetual, worldwide, non-exclusive, no-charge, royalty-free, irrevocable copyright license to reproduce, prepare Derivative Works of, publicly display, publicly perform, sublicense, and distribute the Work and such Derivative Works in Source or Object form."
     );
 
+    m_licenseCheckBox = new QCheckBox("I accept the terms in the License Agreement", page);
+    connect(m_licenseCheckBox, &QCheckBox::toggled, this, &InstallerWindow::onLicenseCheckChanged);
+
     layout->addWidget(title);
     layout->addWidget(subTitle);
     layout->addSpacing(8);
     layout->addWidget(licenseText, 1);
+    layout->addSpacing(10);
+    layout->addWidget(m_licenseCheckBox);
 
     return page;
 }
+
+void InstallerWindow::onLicenseCheckChanged(bool checked) {
+    if (m_stackedWidget && m_stackedWidget->currentIndex() == 1 && m_nextBtn) {
+        m_nextBtn->setEnabled(checked);
+    }
+}
+
+
 
 QWidget* InstallerWindow::createDirectoryPage() {
     auto *page = new QWidget(this);
@@ -486,6 +499,7 @@ void InstallerWindow::nextPage() {
     int curr = m_stackedWidget->currentIndex();
     if (curr == 1) { // License -> Directory
         m_nextBtn->setText("Install");
+        m_nextBtn->setEnabled(true);
     } else if (curr == 2) { // Directory -> Progress
         startInstallation();
         return;
@@ -495,21 +509,35 @@ void InstallerWindow::nextPage() {
     }
 
     if (curr < m_stackedWidget->count() - 1) {
-        m_stackedWidget->setCurrentIndex(curr + 1);
-        m_backBtn->setEnabled(m_stackedWidget->currentIndex() > 0 && m_stackedWidget->currentIndex() != 3);
+        int newIdx = curr + 1;
+        m_stackedWidget->setCurrentIndex(newIdx);
+        m_backBtn->setEnabled(newIdx > 0 && newIdx != 3);
+
+        if (newIdx == 1 && m_licenseCheckBox) {
+            m_nextBtn->setEnabled(m_licenseCheckBox->isChecked());
+        }
     }
 }
 
 void InstallerWindow::prevPage() {
     int curr = m_stackedWidget->currentIndex();
     if (curr > 0 && curr != 3) {
-        m_stackedWidget->setCurrentIndex(curr - 1);
-        m_backBtn->setEnabled(m_stackedWidget->currentIndex() > 0);
-        if (m_stackedWidget->currentIndex() < 2) {
+        int newIdx = curr - 1;
+        m_stackedWidget->setCurrentIndex(newIdx);
+        m_backBtn->setEnabled(newIdx > 0);
+
+        if (newIdx < 2) {
             m_nextBtn->setText("Next >");
+        }
+
+        if (newIdx == 1 && m_licenseCheckBox) {
+            m_nextBtn->setEnabled(m_licenseCheckBox->isChecked());
+        } else {
+            m_nextBtn->setEnabled(true);
         }
     }
 }
+
 
 void InstallerWindow::startInstallation() {
     m_stackedWidget->setCurrentIndex(3);
