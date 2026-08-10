@@ -13,10 +13,12 @@
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
+#include <QDirIterator>
 
 #ifdef _WIN32
 #include <windows.h>
 #endif
+
 
 
 static QPixmap loadInstallerLogo() {
@@ -359,7 +361,26 @@ QWidget* InstallerWindow::createDirectoryPage() {
 void InstallerWindow::updateDiskSpaceInfo() {
     if (!m_spaceRequiredLabel || !m_spaceAvailableLabel || !m_dirLineEdit) return;
 
-    m_spaceRequiredLabel->setText("Space required: 385.4 MB");
+    // Calculate dynamic payload size of staged VioraEDA installation files
+    QString appDir = QCoreApplication::applicationDirPath();
+    quint64 totalBytes = 0;
+    QDirIterator it(appDir, QDir::Files | QDir::NoSymLinks, QDirIterator::Subdirectories);
+    while (it.hasNext()) {
+        it.next();
+        totalBytes += it.fileInfo().size();
+    }
+
+    // Default package baseline offset if running from partial build directory (~385 MB)
+    if (totalBytes < 50 * 1024 * 1024) {
+        totalBytes = 385 * 1024 * 1024;
+    }
+
+    double reqMB = static_cast<double>(totalBytes) / (1024.0 * 1024.0);
+    if (reqMB >= 1024.0) {
+        m_spaceRequiredLabel->setText(QString("Space required: %1 GB").arg(reqMB / 1024.0, 0, 'f', 1));
+    } else {
+        m_spaceRequiredLabel->setText(QString("Space required: %1 MB").arg(reqMB, 0, 'f', 1));
+    }
 
     QString dirPath = m_dirLineEdit->text().trimmed();
     if (dirPath.isEmpty()) {
@@ -383,7 +404,7 @@ void InstallerWindow::updateDiskSpaceInfo() {
         return;
     }
 
-    // Probe root drive letter (e.g. "C:\") if specific directory doesn't exist yet
+    // Probe root drive letter (e.g. "C:\") if specific target directory doesn't exist yet
     QString root = dirPath.left(3);
     if (root.endsWith(":\\") || root.endsWith(":/")) {
         std::wstring wroot = root.toStdWString();
@@ -401,6 +422,7 @@ void InstallerWindow::updateDiskSpaceInfo() {
 
     m_spaceAvailableLabel->setText("Space available: Unknown");
 }
+
 
 
 QWidget* InstallerWindow::createProgressPage() {
