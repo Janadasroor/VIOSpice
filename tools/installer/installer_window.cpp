@@ -394,17 +394,18 @@ void InstallerWindow::updateDiskSpaceInfo() {
         totalBytes += it.fileInfo().size();
     }
 
-    // Default package baseline offset if running from partial build directory (~385 MB)
-    if (totalBytes < 50 * 1024 * 1024) {
-        totalBytes = 385 * 1024 * 1024;
+    // Full uncompressed package payload baseline (~1.63 GB uncompressed including 49,558 offline components)
+    if (totalBytes < 500 * 1024 * 1024) {
+        totalBytes = static_cast<quint64>(1632) * 1024 * 1024;
     }
 
     double reqMB = static_cast<double>(totalBytes) / (1024.0 * 1024.0);
     if (reqMB >= 1024.0) {
-        m_spaceRequiredLabel->setText(QString("Space required: %1 GB").arg(reqMB / 1024.0, 0, 'f', 1));
+        m_spaceRequiredLabel->setText(QString("Space required: %1 GB").arg(reqMB / 1024.0, 0, 'f', 2));
     } else {
         m_spaceRequiredLabel->setText(QString("Space required: %1 MB").arg(reqMB, 0, 'f', 1));
     }
+
 
     QString dirPath = m_dirLineEdit->text().trimmed();
     if (dirPath.isEmpty()) {
