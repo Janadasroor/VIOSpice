@@ -106,6 +106,11 @@ InstallerWindow::InstallerWindow(QWidget *parent) : QWidget(parent) {
             background-color: #30363d;
             color: #ffffff;
         }
+        QPushButton:disabled {
+            background-color: #161b22;
+            color: #484f58;
+            border: 1px solid #21262d;
+        }
         QPushButton#primaryBtn {
             background-color: #007acc;
             color: #ffffff;
@@ -114,6 +119,12 @@ InstallerWindow::InstallerWindow(QWidget *parent) : QWidget(parent) {
         QPushButton#primaryBtn:hover {
             background-color: #0099ff;
         }
+        QPushButton#primaryBtn:disabled {
+            background-color: #161b22;
+            color: #484f58;
+            border: 1px solid #21262d;
+        }
+
         QProgressBar {
             background-color: #161b22;
             border: 1px solid #30363d;
