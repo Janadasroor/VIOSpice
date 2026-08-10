@@ -12,6 +12,12 @@
 #include <QGraphicsDropShadowEffect>
 #include <QDir>
 #include <QFile>
+#include <QFileInfo>
+
+#ifdef _WIN32
+#include <windows.h>
+#endif
+
 
 static QPixmap loadInstallerLogo() {
     QPixmap pix(":/icons/viora_eda_logo.png");
@@ -319,15 +325,83 @@ QWidget* InstallerWindow::createDirectoryPage() {
     dirLayout->addWidget(browseBtn);
 
     connect(browseBtn, &QPushButton::clicked, this, &InstallerWindow::browseDirectory);
+    connect(m_dirLineEdit, &QLineEdit::textChanged, this, &InstallerWindow::updateDiskSpaceInfo);
+
+    // Dark Card Info Box for Space Required & Space Available
+    auto *spaceCard = new QWidget(page);
+    spaceCard->setStyleSheet("background-color: #161b22; border: 1px solid #30363d; border-radius: 6px;");
+    auto *spaceLayout = new QVBoxLayout(spaceCard);
+    spaceLayout->setContentsMargins(12, 10, 12, 10);
+    spaceLayout->setSpacing(4);
+
+    m_spaceRequiredLabel = new QLabel("Space required: 385.4 MB", spaceCard);
+    m_spaceRequiredLabel->setStyleSheet("border: none; font-weight: 600; color: #ffffff;");
+
+    m_spaceAvailableLabel = new QLabel("Space available: Calculating...", spaceCard);
+    m_spaceAvailableLabel->setStyleSheet("border: none; font-weight: 600; color: #00d2ff;");
+
+    spaceLayout->addWidget(m_spaceRequiredLabel);
+    spaceLayout->addWidget(m_spaceAvailableLabel);
 
     layout->addWidget(title);
     layout->addWidget(subTitle);
     layout->addSpacing(16);
     layout->addWidget(dirBox);
+    layout->addSpacing(12);
+    layout->addWidget(spaceCard);
     layout->addStretch();
+
+    updateDiskSpaceInfo();
 
     return page;
 }
+
+void InstallerWindow::updateDiskSpaceInfo() {
+    if (!m_spaceRequiredLabel || !m_spaceAvailableLabel || !m_dirLineEdit) return;
+
+    m_spaceRequiredLabel->setText("Space required: 385.4 MB");
+
+    QString dirPath = m_dirLineEdit->text().trimmed();
+    if (dirPath.isEmpty()) {
+        m_spaceAvailableLabel->setText("Space available: N/A");
+        return;
+    }
+
+#ifdef _WIN32
+    ULARGE_INTEGER freeBytesAvailableToCaller;
+    ULARGE_INTEGER totalNumberOfBytes;
+    ULARGE_INTEGER totalNumberOfFreeBytes;
+
+    std::wstring wpath = dirPath.toStdWString();
+    if (GetDiskFreeSpaceExW(wpath.c_str(), &freeBytesAvailableToCaller, &totalNumberOfBytes, &totalNumberOfFreeBytes)) {
+        double freeMB = static_cast<double>(freeBytesAvailableToCaller.QuadPart) / (1024.0 * 1024.0);
+        if (freeMB >= 1024.0) {
+            m_spaceAvailableLabel->setText(QString("Space available: %1 GB").arg(freeMB / 1024.0, 0, 'f', 1));
+        } else {
+            m_spaceAvailableLabel->setText(QString("Space available: %1 MB").arg(freeMB, 0, 'f', 1));
+        }
+        return;
+    }
+
+    // Probe root drive letter (e.g. "C:\") if specific directory doesn't exist yet
+    QString root = dirPath.left(3);
+    if (root.endsWith(":\\") || root.endsWith(":/")) {
+        std::wstring wroot = root.toStdWString();
+        if (GetDiskFreeSpaceExW(wroot.c_str(), &freeBytesAvailableToCaller, &totalNumberOfBytes, &totalNumberOfFreeBytes)) {
+            double freeMB = static_cast<double>(freeBytesAvailableToCaller.QuadPart) / (1024.0 * 1024.0);
+            if (freeMB >= 1024.0) {
+                m_spaceAvailableLabel->setText(QString("Space available: %1 GB").arg(freeMB / 1024.0, 0, 'f', 1));
+            } else {
+                m_spaceAvailableLabel->setText(QString("Space available: %1 MB").arg(freeMB, 0, 'f', 1));
+            }
+            return;
+        }
+    }
+#endif
+
+    m_spaceAvailableLabel->setText("Space available: Unknown");
+}
+
 
 QWidget* InstallerWindow::createProgressPage() {
     auto *page = new QWidget(this);
