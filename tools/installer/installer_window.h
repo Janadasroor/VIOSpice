@@ -32,6 +32,8 @@ private Q_SLOTS:
     void finishInstallation();
     void browseDirectory();
     void updateDiskSpaceInfo();
+    void onLicenseCheckChanged(bool checked);
+
 
 private:
     void setupUi();
@@ -47,6 +49,7 @@ private:
     QPushButton *m_nextBtn{nullptr};
     QPushButton *m_cancelBtn{nullptr};
 
+    QCheckBox *m_licenseCheckBox{nullptr};
     QLineEdit *m_dirLineEdit{nullptr};
     QLabel *m_spaceRequiredLabel{nullptr};
     QLabel *m_spaceAvailableLabel{nullptr};
@@ -56,6 +59,7 @@ private:
     QTimer *m_progressTimer{nullptr};
     int m_progressValue{0};
 };
+
 
 
 #endif // DARK_INSTALLER_WINDOW_H
