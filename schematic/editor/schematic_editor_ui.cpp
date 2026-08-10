@@ -1779,44 +1779,48 @@ void SchematicEditor::createStatusBar() {
     QTimer::singleShot(0, this, &SchematicEditor::updateAgentStatus);
 #endif
 
-    // Separator
-    QFrame* sep1 = new QFrame();
-    sep1->setFrameShape(QFrame::VLine);
-    sep1->setFixedWidth(1);
-    sep1->setStyleSheet("QFrame { background: #d1d5db; margin: 3px 6px; }");
-    statusBar()->addWidget(sep1);
+    auto createStatusSep = []() {
+        QFrame* sep = new QFrame();
+        sep->setFrameShape(QFrame::NoFrame);
+        sep->setFixedWidth(1);
+        bool isDark = (ThemeManager::theme() && ThemeManager::theme()->type() != PCBTheme::Light);
+        QString sepColor = isDark ? "#3f3f46" : "#d1d5db";
+        sep->setStyleSheet(QString("QFrame { background-color: %1; margin: 4px 8px; border: none; }").arg(sepColor));
+        return sep;
+    };
+
+    if (ThemeManager::theme()) {
+        statusBar()->setStyleSheet(ThemeManager::theme()->statusBarStylesheet());
+    }
+
+    statusBar()->addWidget(createStatusSep());
 
     // Grid display
     m_gridLabel = new QLabel("Grid: 10mil");
     statusBar()->addPermanentWidget(m_gridLabel);
 
-    // Separator
-    QFrame* sep2 = new QFrame();
-    sep2->setFrameShape(QFrame::VLine);
-    sep2->setFixedWidth(1);
-    sep2->setStyleSheet("QFrame { background: #d1d5db; margin: 3px 6px; }");
-    statusBar()->addPermanentWidget(sep2);
+    statusBar()->addPermanentWidget(createStatusSep());
 
     // Page size indicator
     QLabel* pageLabel = new QLabel("Page: " + m_currentPageSize);
     statusBar()->addPermanentWidget(pageLabel);
 
-    // Separator
-    QFrame* sep3 = new QFrame();
-    sep3->setFrameShape(QFrame::VLine);
-    sep3->setFixedWidth(1);
-    sep3->setStyleSheet("QFrame { background: #d1d5db; margin: 3px 6px; }");
-    statusBar()->addPermanentWidget(sep3);
+    statusBar()->addPermanentWidget(createStatusSep());
 
     // Layer indicator
     m_layerLabel = new QLabel("Layer: Schematic");
     statusBar()->addPermanentWidget(m_layerLabel);
 
+    statusBar()->addPermanentWidget(createStatusSep());
+
     // Theme Switcher
     QPushButton* themeBtn = new QPushButton("Theme");
     themeBtn->setFlat(true);
     themeBtn->setCursor(Qt::PointingHandCursor);
-    themeBtn->setStyleSheet("QPushButton { color: #374151; font-weight: 600; border: none; padding: 0 6px; } QPushButton:hover { color: #111827; }");
+    themeBtn->setStyleSheet(
+        "QPushButton { color: #8b949e; font-weight: 600; border: none; padding: 2px 8px; border-radius: 4px; background: #21262d; }"
+        "QPushButton:hover { color: #ffffff; background: #30363d; }"
+    );
     connect(themeBtn, &QPushButton::clicked, this, []() {
         auto& tm = ThemeManager::instance();
         if (tm.currentTheme()->type() == PCBTheme::Engineering) tm.setTheme(PCBTheme::Dark);
@@ -1824,6 +1828,7 @@ void SchematicEditor::createStatusBar() {
         else tm.setTheme(PCBTheme::Engineering);
     });
     statusBar()->addPermanentWidget(themeBtn);
+
 
     // Ready message
     statusBar()->showMessage("Ready - Select a component or tool to begin", 5000);

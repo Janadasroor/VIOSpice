@@ -13,6 +13,9 @@
 #include <QStandardPaths>
 #include <QPainterPath>
 #include <QRegularExpression>
+#include <QCoreApplication>
+#include <QEventLoop>
+
 
 using Flux::Model::FootprintDefinition;
 
@@ -180,16 +183,28 @@ void FootprintLibraryManager::initialize() {
         it.next();
         libraryPaths.insert(it.fileInfo().absolutePath());
     }
-    for (const QString& libPath : libraryPaths) {
-        addLibrary(libPath);
-    }
 
     // 4. Scan for standalone .fplib libraries dropped into user footprint root.
     QDir userDir(baseDir);
     const QFileInfoList fplibFiles = userDir.entryInfoList(QStringList() << "*.fplib", QDir::Files);
+    
+    int fpCurrent = 0;
+    int fpTotal = libraryPaths.size() + fplibFiles.size();
+    for (const QString& libPath : libraryPaths) {
+        fpCurrent++;
+        QCoreApplication::processEvents(QEventLoop::AllEvents, 50);
+        Q_EMIT progressUpdated(QString("Loading Footprint Lib: %1 (%2/%3)").arg(QFileInfo(libPath).fileName()).arg(fpCurrent).arg(fpTotal), fpCurrent, fpTotal);
+        addLibrary(libPath);
+    }
+
     for (const QFileInfo& fileInfo : fplibFiles) {
+        fpCurrent++;
+        QCoreApplication::processEvents(QEventLoop::AllEvents, 50);
+        Q_EMIT progressUpdated(QString("Loading Footprint Lib: %1 (%2/%3)").arg(fileInfo.fileName()).arg(fpCurrent).arg(fpTotal), fpCurrent, fpTotal);
         addLibrary(fileInfo.absoluteFilePath());
     }
+
+
 
     LibraryIndex::instance().commitTransaction();
 }

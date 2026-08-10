@@ -27,6 +27,11 @@ public:
     void registerThemeCallback(void* key, std::function<void()> callback);
     void unregisterThemeCallback(void* key);
 
+    static void applyTitlebarTheme(QWidget* widget, bool isDark);
+
+protected:
+    bool eventFilter(QObject* watched, QEvent* event) override;
+
 Q_SIGNALS:
     void themeChanged();
 
@@ -36,5 +41,6 @@ private:
     PCBTheme* m_theme;
     QMap<void*, std::function<void()>> m_themeCallbacks;
 };
+
 
 #endif // THEME_MANAGER_H

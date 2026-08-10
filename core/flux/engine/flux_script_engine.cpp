@@ -69,6 +69,7 @@ bool FluxScriptEngine::isInitialized() const {
 }
 
 bool FluxScriptEngine::executeString(const QString& code, QString* error) {
+    if (!isInitialized()) initialize();
     std::string stdError;
     bool ok = Flux::JITEngine::instance().executeString(code.toStdString(), error ? &stdError : nullptr);
     if (error) *error = QString::fromStdString(stdError);
@@ -76,6 +77,7 @@ bool FluxScriptEngine::executeString(const QString& code, QString* error) {
 }
 
 bool FluxScriptEngine::validateScript(const QString& code, QString* error) {
+    if (!isInitialized()) initialize();
     std::string stdError;
     bool ok = Flux::JITEngine::instance().compileScript(code.toStdString(), error ? &stdError : nullptr);
     if (error) *error = QString::fromStdString(stdError);
@@ -83,8 +85,10 @@ bool FluxScriptEngine::validateScript(const QString& code, QString* error) {
 }
 
 FluxScriptEngine::FluxValue FluxScriptEngine::callFunction(const char* method, const std::vector<double>& args, QString* error) {
+    if (!isInitialized()) initialize();
     std::string stdError;
     auto result = Flux::JITEngine::instance().callFunction(std::string(method), args, error ? &stdError : nullptr);
+
 
     if (error) {
         *error = QString::fromStdString(stdError);

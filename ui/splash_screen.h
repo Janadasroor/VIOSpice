@@ -10,6 +10,7 @@
 #include <QLabel>
 #include <QProgressBar>
 #include <QVBoxLayout>
+#include <QPaintEvent>
 
 class SplashScreen : public QWidget {
     Q_OBJECT
@@ -19,6 +20,9 @@ public:
     void setStatus(const QString& status);
     void setProgress(int value, int total);
 
+protected:
+    void paintEvent(QPaintEvent* event) override;
+
 private:
     QLabel* m_logoLabel;
     QLabel* m_titleLabel;
@@ -27,3 +31,4 @@ private:
 };
 
 #endif // SPLASH_SCREEN_H
+
