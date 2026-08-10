@@ -150,3 +150,12 @@ flasher_pos.csv
 jlcpcb_package.zip
 scratch_flasher_board3d.obj
 scratch_flasher_board3d.stl
+
+# CPack & Installers
+_CPack_Packages/
+CPackConfig.cmake
+CPackSourceConfig.cmake
+*_Setup.exe
+*_Installer.exe
+VioraEDA-*-windows-x86_64.exe
+
