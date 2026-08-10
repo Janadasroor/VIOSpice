@@ -112,9 +112,27 @@ if(WIN32)
     set(CPACK_NSIS_DISPLAY_NAME "VioraEDA ${PROJECT_VERSION}")
     set(CPACK_PACKAGE_INSTALL_DIRECTORY "VioraEDA")
     set(CPACK_NSIS_INSTALL_ROOT "$PROGRAMFILES64")
-    set(CPACK_NSIS_MUI_ICON "${CMAKE_SOURCE_DIR}/resources/icons/viora_eda_logo.ico")
-    set(CPACK_NSIS_MUI_UNIICON "${CMAKE_SOURCE_DIR}/resources/icons/viora_eda_logo.ico")
+    # The app's viora_eda_logo.ico uses PNG compression, which NSIS cannot
+    # embed (it silently falls back to the default icon), so the installer
+    # uses a classic BMP-based ICO derived from the same logo.
+    set(CPACK_NSIS_MUI_ICON "${CMAKE_SOURCE_DIR}/resources/installer/viora_eda_logo.ico")
+    set(CPACK_NSIS_MUI_UNIICON "${CMAKE_SOURCE_DIR}/resources/installer/viora_eda_logo.ico")
     set(CPACK_NSIS_ENABLE_UNINSTALL_BEFORE_INSTALL ON)
+
+    # Installer theme: dark slate + accent (matches the app's visuals).
+    set(CPACK_NSIS_MUI_HEADERIMAGE "${CMAKE_SOURCE_DIR}/resources/installer/installer_header.bmp")
+    set(CPACK_NSIS_MUI_WELCOMEFINISHPAGE_BITMAP "${CMAKE_SOURCE_DIR}/resources/installer/installer_side.bmp")
+    set(CPACK_NSIS_BRANDING_TEXT "VioraEDA")
+    set(CPACK_NSIS_WELCOME_TITLE "Welcome to VioraEDA ${PROJECT_VERSION} Setup")
+    set(CPACK_NSIS_FINISH_TITLE "VioraEDA ${PROJECT_VERSION} installation complete")
+    # Overrides the generator's default MUI_ICON/MUI_UNICON defines, so both
+    # must be re-declared here alongside the color scheme.
+    set(CPACK_NSIS_INSTALLER_MUI_ICON_CODE "
+!define MUI_ICON ${CMAKE_SOURCE_DIR}/resources/installer/viora_eda_logo.ico
+!define MUI_UNICON ${CMAKE_SOURCE_DIR}/resources/installer/viora_eda_logo.ico
+!define MUI_BGCOLOR 141417
+!define MUI_TEXTCOLOR F4F4F5
+")
     set(CPACK_NSIS_MODIFY_PATH OFF)
     set(CPACK_NSIS_UNINSTALL_NAME "Uninstall VioraEDA")
     set(CPACK_NSIS_MENU_LINKS
