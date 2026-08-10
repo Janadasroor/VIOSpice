@@ -147,12 +147,13 @@ void ModelLibraryManager::scanDirectoryAsync(const QString& path) {
     // Index files, yielding to event loop periodically
     for (const QString& f : files) {
         current++;
-        if (current % 50 == 0 || current == total) {
-            QCoreApplication::processEvents();
-            Q_EMIT progressUpdated(QString("Indexing: %1 (%2/%3)").arg(QFileInfo(f).fileName()).arg(current).arg(total), current, total);
+        if (current % 5 == 0 || current == total) {
+            QCoreApplication::processEvents(QEventLoop::AllEvents, 50);
+            Q_EMIT progressUpdated(QString("Indexing SPICE Model: %1 (%2/%3)").arg(QFileInfo(f).fileName()).arg(current).arg(total), current, total);
         }
         indexLibraryFile(f);
     }
+
 }
 
 QVector<SpiceModelInfo> ModelLibraryManager::allModels() const {

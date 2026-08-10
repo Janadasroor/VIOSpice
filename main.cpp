@@ -32,7 +32,9 @@
 #include <QIcon>
 #include <QApplication>
 #include <QDebug>
+#include <QElapsedTimer>
 #include <QLocalServer>
+
 #include <QLocalSocket>
 #include <QFileInfo>
 #include <QFile>
@@ -203,39 +205,22 @@ int main(int argc, char *argv[])
     qputenv("ASAN_OPTIONS", "detect_leaks=1");
 
 #if defined(_WIN32) || defined(_WIN64)
-    // Prefer native desktop OpenGL composition to prevent DXGI/D3D11
-    // composition conflicts with QOpenGLWidget (black lines / empty waveforms).
-    // But remote-desktop / console sessions often expose only a partial OpenGL
-    // implementation (GDI Generic) whose QOpenGLFunctions vtable has NULL
-    // entries, which crashes Qt Charts' OpenGL series renderer on the first
-    // waveform redraw. Route those sessions through Qt's software GL backend
-    // (opengl32sw.dll) when available; individual widgets additionally gate
-    // their own GL use (see WaveformViewer::shouldUseOpenGL).
     if (GetSystemMetrics(SM_REMOTESESSION) != 0) {
         qputenv("QT_OPENGL", "software");
-        QCoreApplication::setAttribute(Qt::AA_UseSoftwareOpenGL);
-    } else {
-        qputenv("QT_OPENGL", "desktop");
-    }
-#endif
-
-    QApplication a(argc, argv);
-
-#if defined(_WIN32) || defined(_WIN64)
-    if (isSoftwareOpenGl()) {
-        // Remote-desktop/software GL (GDI Generic, llvmpipe, ...). The QtQuick
-        // scene graph crashes under forced OpenGL here, so route the Quick
-        // (QQuickWidget) backend through software rendering. QOpenGLWidget-based
-        // editors still work via the desktop OpenGL context above.
         qputenv("QT_RHI_BACKEND", "software");
         qputenv("QSG_RHI_BACKEND", "software");
+        QCoreApplication::setAttribute(Qt::AA_UseSoftwareOpenGL);
         QQuickWindow::setGraphicsApi(QSGRendererInterface::Software);
     } else {
+        qputenv("QT_OPENGL", "desktop");
         qputenv("QT_RHI_BACKEND", "opengl");
         qputenv("QSG_RHI_BACKEND", "opengl");
         QQuickWindow::setGraphicsApi(QSGRendererInterface::OpenGL);
     }
 #endif
+
+    QApplication a(argc, argv);
+
 
     // Register callback for dynamic session saving
     ConfigManager::setSessionSaveCallback(saveCurrentSession);
@@ -249,14 +234,30 @@ int main(int argc, char *argv[])
 
     qputenv("SPICE_SCRIPTS", appDataPath.toUtf8());
     qputenv("SPICE_LIB_DIR", appDataPath.toUtf8());
-    initEmbeddedPython();
-    ThemeManager::instance();
-    initializeFluxSimBridge();
-    FluxScriptEngine::instance().initialize();
 
     a.setApplicationName("VioraEDA");
     a.setOrganizationName("VIO");
     a.setWindowIcon(QIcon(":/icons/viora_eda_logo.png"));
+
+    SplashScreen* splash = new SplashScreen();
+    splash->show();
+    splash->setStatus("Initializing Embedded Python Environment...");
+    splash->setProgress(1, 100);
+    QCoreApplication::processEvents(QEventLoop::AllEvents, 50);
+
+    initEmbeddedPython();
+
+    splash->setStatus("Loading Theme Engine...");
+    splash->setProgress(4, 100);
+    ThemeManager::instance();
+
+    splash->setStatus("Initializing Flux Simulation Bridge...");
+    splash->setProgress(7, 100);
+    initializeFluxSimBridge();
+
+    splash->setStatus("Initializing FluxScript JIT Compiler...");
+    splash->setProgress(10, 100);
+    FluxScriptEngine::instance().initialize();
 
     QString serverName = "VioraEDA_instance_server";
     QString fileToOpen;
@@ -282,23 +283,48 @@ int main(int argc, char *argv[])
     QLocalServer::removeServer(serverName);
     server->listen(serverName);
 
-    SplashScreen* splash = new SplashScreen();
-    splash->show();
-    a.processEvents();
+    // Connect Library Progress Signals to Splash Screen
+    QObject::connect(&FootprintLibraryManager::instance(), &FootprintLibraryManager::progressUpdated,
+                     splash, [splash](const QString& status, int val, int total) {
+                         splash->setStatus(status);
+                         if (total > 0) splash->setProgress(20 + (val * 30 / total), 100);
+                     });
+
+    QObject::connect(&ModelLibraryManager::instance(), &ModelLibraryManager::progressUpdated,
+                     splash, [splash](const QString& status, int val, int total) {
+                         splash->setStatus(status);
+                         if (total > 0) splash->setProgress(50 + (val * 35 / total), 100);
+                     });
+
+    splash->setStatus("Registering Built-In Component Registries...");
+    splash->setProgress(15, 100);
 
     SchematicItemRegistry::registerBuiltInItems();
     SchematicToolRegistryBuiltIn::registerBuiltInTools();
     PCBItemRegistry::registerBuiltInItems();
     PCBToolRegistryBuiltIn::registerBuiltInTools();
 
+    splash->setStatus("Loading Footprint Libraries...");
+    splash->setProgress(20, 100);
     FootprintLibraryManager::instance();
+
+    splash->setStatus("Indexing SPICE Models & Subcircuits...");
+    splash->setProgress(50, 100);
     ModelLibraryManager::instance();
 
-    // Start UI Command Server for Python interaction
+    splash->setStatus("Starting UI Services...");
+    splash->setProgress(85, 100);
     if (ConfigManager::instance().isFeatureEnabled("ui_command_server", true)) {
         int port = ConfigManager::instance().toolProperty("Connectivity", "Port", 18790).toInt();
         UICommandServer::instance().start(port);
     }
+
+    splash->setStatus("Restoring Workspace Session...");
+    splash->setProgress(95, 100);
+
+
+
+
 
     QMetaObject::invokeMethod(qApp, [splash, fileToOpen, openVioraIde, projectPath, extensionPath]() {
         if (openVioraIde) {

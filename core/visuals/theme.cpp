@@ -496,8 +496,12 @@ QString PCBTheme::statusBarStylesheet() const {
         "   border-top: 1px solid %3;"
         "   padding: 2px 8px;"
         "}"
+        "QStatusBar::item {"
+        "   border: none;"
+        "}"
     ).arg(bg).arg(m_textSecondary.name()).arg(m_panelBorder.name());
 }
+
 
 void PCBTheme::applyToWidget(QWidget* widget) const {
     if (!widget) return;

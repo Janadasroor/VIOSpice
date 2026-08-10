@@ -947,5 +947,20 @@ set_target_properties(viospice-merge PROPERTIES
     CXX_STANDARD 17
 )
 
+# Standalone Official Qt Setup Installer Framework
+add_executable(VioraEDA_Setup WIN32
+    tools/installer/main.cpp
+    tools/installer/installer_window.h
+    tools/installer/installer_window.cpp
+    ${RESOURCES_RCC}
+)
+target_link_libraries(VioraEDA_Setup PRIVATE
+    Qt${QT_VERSION_MAJOR}::Widgets
+    Qt${QT_VERSION_MAJOR}::Gui
+    Qt${QT_VERSION_MAJOR}::Core
+)
+
+
 # --- CPack Packaging ---
 include(cmake/packaging.cmake)
+

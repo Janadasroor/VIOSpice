@@ -7,6 +7,34 @@
 #include "config_manager.h"
 #include <QApplication>
 #include <QWidget>
+#include <QEvent>
+
+#if defined(_WIN32) || defined(_WIN64)
+#include <windows.h>
+
+static void applyDarkTitlebarNative(HWND hwnd, bool isDark) {
+    if (!hwnd) return;
+    typedef HRESULT (WINAPI *DwmSetWindowAttributeFunc)(HWND, DWORD, LPCVOID, DWORD);
+    static DwmSetWindowAttributeFunc pDwmSetWindowAttribute = nullptr;
+    static bool resolved = false;
+
+    if (!resolved) {
+        HMODULE hModule = LoadLibraryA("dwmapi.dll");
+        if (hModule) {
+            pDwmSetWindowAttribute = reinterpret_cast<DwmSetWindowAttributeFunc>(
+                GetProcAddress(hModule, "DwmSetWindowAttribute"));
+        }
+        resolved = true;
+    }
+
+    if (pDwmSetWindowAttribute) {
+        BOOL useDarkMode = isDark ? TRUE : FALSE;
+        // DWMWA_USE_IMMERSIVE_DARK_MODE = 20 (Win 11 & Win 10 2004+), 19 for Win 10 1809-1909
+        pDwmSetWindowAttribute(hwnd, 20, &useDarkMode, sizeof(useDarkMode));
+        pDwmSetWindowAttribute(hwnd, 19, &useDarkMode, sizeof(useDarkMode));
+    }
+}
+#endif
 
 namespace {
 PCBTheme::ThemeType themeTypeFromName(const QString& name) {
@@ -27,6 +55,17 @@ QString themeNameFromType(PCBTheme::ThemeType type) {
 }
 }
 
+void ThemeManager::applyTitlebarTheme(QWidget* widget, bool isDark) {
+#if defined(_WIN32) || defined(_WIN64)
+    if (widget && widget->isWindow()) {
+        applyDarkTitlebarNative(reinterpret_cast<HWND>(widget->winId()), isDark);
+    }
+#else
+    Q_UNUSED(widget);
+    Q_UNUSED(isDark);
+#endif
+}
+
 ThemeManager& ThemeManager::instance() {
     static ThemeManager instance;
     static bool firstCall = true;
@@ -43,10 +82,25 @@ PCBTheme* ThemeManager::theme() {
 
 ThemeManager::ThemeManager()
     : m_theme(new PCBTheme(themeTypeFromName(ConfigManager::instance().currentTheme()))) {
+    if (qApp) {
+        qApp->installEventFilter(this);
+    }
 }
 
 ThemeManager::~ThemeManager() {
     delete m_theme;
+}
+
+bool ThemeManager::eventFilter(QObject* watched, QEvent* event) {
+    if (event->type() == QEvent::Show || event->type() == QEvent::WinIdChange) {
+        if (auto* w = qobject_cast<QWidget*>(watched)) {
+            if (w->isWindow()) {
+                bool isDark = m_theme ? (m_theme->type() != PCBTheme::Light) : true;
+                applyTitlebarTheme(w, isDark);
+            }
+        }
+    }
+    return QObject::eventFilter(watched, event);
 }
 
 void ThemeManager::setTheme(PCBTheme::ThemeType type) {
@@ -59,19 +113,21 @@ void ThemeManager::setTheme(PCBTheme::ThemeType type) {
     m_theme->applyToApplication();
     Q_EMIT themeChanged();
 
-    // Invoke all registered theme-change callbacks
     for (auto it = m_themeCallbacks.begin(); it != m_themeCallbacks.end(); ++it) {
         if (it.value()) it.value();
     }
 
-    // Force palette on every widget + repaint top-level windows
     if (qApp) {
         QPalette pal = qApp->palette();
+        bool isDark = (type != PCBTheme::Light);
         for (QWidget* w : qApp->allWidgets()) {
             if (w) w->setPalette(pal);
         }
         for (QWidget* w : qApp->topLevelWidgets()) {
-            if (w) w->repaint();
+            if (w) {
+                w->repaint();
+                applyTitlebarTheme(w, isDark);
+            }
         }
     }
 }
@@ -95,11 +151,15 @@ void ThemeManager::setTheme(PCBTheme* theme) {
 
     if (qApp) {
         QPalette pal = qApp->palette();
+        bool isDark = m_theme ? (m_theme->type() != PCBTheme::Light) : true;
         for (QWidget* w : qApp->allWidgets()) {
             if (w) w->setPalette(pal);
         }
         for (QWidget* w : qApp->topLevelWidgets()) {
-            if (w) w->repaint();
+            if (w) {
+                w->repaint();
+                applyTitlebarTheme(w, isDark);
+            }
         }
     }
 }

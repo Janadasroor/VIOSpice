@@ -1238,11 +1238,14 @@ QString MainWindow::selectionQuickInfoText(PCBItem* item) const {
 
 QWidget* MainWindow::createStatusSeparator() {
     QFrame* separator = new QFrame();
-    separator->setFrameShape(QFrame::VLine);
-    separator->setFrameShadow(QFrame::Plain);
-    separator->setStyleSheet("QFrame { color: #3f3f46; margin: 4px 0px; }");
+    separator->setFrameShape(QFrame::NoFrame);
+    separator->setFixedWidth(1);
+    bool isDark = (ThemeManager::theme() && ThemeManager::theme()->type() != PCBTheme::Light);
+    QString sepColor = isDark ? "#3f3f46" : "#d1d5db";
+    separator->setStyleSheet(QString("QFrame { background-color: %1; margin: 4px 8px; border: none; }").arg(sepColor));
     return separator;
 }
+
 
 QIcon MainWindow::getThemeIcon(const QString& path) {
     QIcon icon(path);
