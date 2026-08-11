@@ -1067,7 +1067,10 @@ class FluxCommandWrapper : public CLICommand {
 public:
     QString name() const override { return "flux"; }
     QString description() const override { return "Run FluxScript integration commands."; }
-    void setupParser(QCommandLineParser& parser) override {}
+    void setupParser(QCommandLineParser& parser) override {
+        parser.addOption(QCommandLineOption("time", "Time value for template execution", "value"));
+        parser.addOption(QCommandLineOption("inputs", "Input values for template (comma separated)", "values"));
+    }
     QJsonObject inputSchema() const override {
         return QJsonObject{};
     }

@@ -47,6 +47,7 @@ private:
                    const QString& outputFile,
                    bool quiet);
     int cmdEval(const QCommandLineParser& parser,
+                const QCommandLineParser& globalParser,
                 const QStringList& positional,
                 bool quiet);
     int cmdRepl(const QCommandLineParser& parser,

@@ -102,7 +102,7 @@ int FluxCommand::run(const QStringList& args, const QCommandLineParser& globalPa
     } else if (subcommand == "compile") {
         return cmdCompile(parser, positional, outputFile, quiet);
     } else if (subcommand == "eval") {
-        return cmdEval(parser, positional, quiet);
+        return cmdEval(parser, globalParser, positional, quiet);
     } else if (subcommand == "repl") {
         return cmdRepl(parser, positional, quiet);
     } else if (subcommand == "template-list") {
@@ -233,19 +233,16 @@ int FluxCommand::cmdTemplateRun(const QCommandLineParser& parser,
     while (inputs.size() < 10) inputs.push_back(0.0);
 
     Flux::FluxValue result = 0.0;
+    // MinGW emits a call to the CRT `__main` symbol in any function literally
+    // named `main`, which the JIT cannot resolve. Templates are therefore always
+    // wrapped as update(t, inputs) — never call a `main` fallback here.
     void* addr = Flux::JITEngine::instance().getFunctionPointer("update");
     if (addr) {
         typedef double (*UpdateFn)(double, const double*);
         result = reinterpret_cast<UpdateFn>(addr)(tVal, inputs.data());
     } else {
-        addr = Flux::JITEngine::instance().getFunctionPointer("main");
-        if (addr) {
-            typedef double (*MainFn)();
-            result = reinterpret_cast<MainFn>(addr)();
-        } else {
-             std::cerr << "Execution Error: update() or main() function not found" << std::endl;
-             return 1;
-        }
+        std::cerr << "Execution Error: update() function not found in template" << std::endl;
+        return 1;
     }
 
     if (parser.isSet("json")) {
@@ -365,6 +362,7 @@ int FluxCommand::cmdCompile(const QCommandLineParser& parser,
 }
 
 int FluxCommand::cmdEval(const QCommandLineParser& parser,
+                         const QCommandLineParser& globalParser,
                          const QStringList& positional,
                          bool quiet) {
     (void)quiet;
@@ -380,13 +378,14 @@ int FluxCommand::cmdEval(const QCommandLineParser& parser,
     // Initialize JIT
     Flux::JITEngine::instance().initialize();
     
-    // Wrap expression
-    bool hasArgs = parser.isSet("time") || parser.isSet("inputs");
+    // Wrap expression. Never wrap in def main(): MinGW emits a call to the CRT
+    // `__main` symbol in any function named `main`, which the JIT cannot resolve.
+    bool hasArgs = globalParser.isSet("time") || globalParser.isSet("inputs");
     QString wrappedExpr;
     if (hasArgs) {
         wrappedExpr = QString("def update(t, inputs) {\n%1\n}").arg(expression);
     } else {
-        wrappedExpr = QString("def main() {\n%1\n}").arg(expression);
+        wrappedExpr = expression;
     }
 
     // Compile expression
@@ -399,27 +398,24 @@ int FluxCommand::cmdEval(const QCommandLineParser& parser,
     // Execute and get result
     Flux::FluxValue result = 0.0;
     if (hasArgs) {
-        void* addr = Flux::JITEngine::instance().getFunctionPointer("update");
-        if (addr) {
-            double tVal = parser.value("time").toDouble();
-            QStringList inputStrs = parser.value("inputs").split(",", Qt::SkipEmptyParts);
-            std::vector<double> inputs;
-            for (const QString& s : inputStrs) inputs.push_back(s.toDouble());
-            while (inputs.size() < 10) inputs.push_back(0.0);
+        double tVal = globalParser.value("time").toDouble();
+        QStringList inputStrs = globalParser.value("inputs").split(",", Qt::SkipEmptyParts);
+        std::vector<double> inputs;
+        for (const QString& s : inputStrs) inputs.push_back(s.toDouble());
+        while (inputs.size() < 10) inputs.push_back(0.0);
 
-            typedef double (*UpdateFn)(double, const double*);
-            result = reinterpret_cast<UpdateFn>(addr)(tVal, inputs.data());
-        } else {
+        void* addr = Flux::JITEngine::instance().getFunctionPointer("update");
+        if (!addr) {
             std::cerr << "Execution Error: update() function not found" << std::endl;
             return 1;
         }
+        typedef double (*UpdateFn)(double, const double*);
+        result = reinterpret_cast<UpdateFn>(addr)(tVal, inputs.data());
     } else {
-        void* addr = Flux::JITEngine::instance().getFunctionPointer("main");
-        if (addr) {
-            typedef double (*MainFn)();
-            result = reinterpret_cast<MainFn>(addr)();
-        } else {
-            std::cerr << "Execution Error: main() function not found" << std::endl;
+        std::string execErr;
+        result = Flux::JITEngine::instance().callFunction("__anon_expr", {}, &execErr);
+        if (!execErr.empty()) {
+            std::cerr << "Execution Error: " << execErr << std::endl;
             return 1;
         }
     }
