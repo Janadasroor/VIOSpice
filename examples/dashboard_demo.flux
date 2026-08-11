@@ -29,8 +29,8 @@ flux_set_var("V_LCD", v_lcd)
 # 2. Logic: Define interaction handlers using 'def'
 def update_resistor() {
     # Retrieve our handles from the global bridge
-    slider = flux_get_var("R_SLIDER")
-    val = slider.value
+    slider_handle = flux_get_var("R_SLIDER")
+    val = slider_handle.value
     
     # Update the schematic property
     flux_set_prop("R1", "value", val)
