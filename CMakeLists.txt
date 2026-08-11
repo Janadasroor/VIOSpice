@@ -560,6 +560,15 @@ if(VIOSPICE_DEV_MODE OR VIOSPICE_BUILD_FLUXSCRIPT)
         # EXCLUDE_FROM_ALL: only the FluxScript library (linked below) and any
         # targets we explicitly depend on are built; the ~19 FluxScript CLI tools
         # and validate_examples are skipped unless requested.
+        # Point FluxScript at the ngspice shipped with VioMATRIXC (mirrors the
+        # CMakeLists patch applied in the FetchContent branch below). Clearing
+        # FLUX_VIO_MATRIXC_LIB_DIR lets FluxScript fall through to find_path/
+        # find_library, which honor the pre-seeded cache vars.
+        if(NOT VIOSPICE_DEV_MODE)
+            set(FLUX_VIO_MATRIXC_LIB_DIR "" CACHE STRING "Path to VioMATRIXC libngspice directory" FORCE)
+            set(NGSPICE_INCLUDE_DIR "${VIOSPICE_ENGINE_INCLUDE_DIRS}" CACHE PATH "VioMATRIXC ngspice include dir" FORCE)
+            set(NGSPICE_LIBRARY "${VIOSPICE_PREFERRED_ENGINE_LIB}" CACHE FILEPATH "VioMATRIXC ngspice library" FORCE)
+        endif()
         add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../fluxscript FluxScript EXCLUDE_FROM_ALL)
         set(FLUXSCRIPT_LIB_DIR "${CMAKE_BINARY_DIR}/FluxScript")
     else()
@@ -572,8 +581,10 @@ if(VIOSPICE_DEV_MODE OR VIOSPICE_BUILD_FLUXSCRIPT)
             # v1.2.0 ships a legacy src/compiler/codegen.cpp that still calls the
             # removed llvm::Intrinsic::getDeclaration, breaking the MSYS2 (LLVM 21+)
             # source build on Windows. Pin to flux main, which already uses
-            # getOrInsertDeclaration and compiles against LLVM 21/22.
-            GIT_TAG        b88317c8c84f4c4ba59f29e17f71c92b444c1bbe
+            # getOrInsertDeclaration and compiles against LLVM 21/22. d545072 also
+            # merges all top-level statements into a single anon_expr scope so
+            # variables declared before def/struct/enum stay visible after them.
+            GIT_TAG        d545072daff36daf17cbf0c89d02bec6f4248964
         )
         FetchContent_Populate(FluxScript)
         # When using prebuilt VioMATRIXC, fix FluxScript's ngspice path computation
