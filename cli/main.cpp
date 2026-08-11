@@ -91,7 +91,12 @@ int main(int argc, char *argv[]) {
     }
 #elif defined(Q_OS_WIN)
     if (!isView) {
-        qputenv("QT_QPA_PLATFORM", "windows");
+        QString appDir = QCoreApplication::applicationDirPath();
+        if (QFile::exists(appDir + "/platforms/qoffscreen.dll")) {
+            qputenv("QT_QPA_PLATFORM", "offscreen");
+        } else {
+            qputenv("QT_QPA_PLATFORM", "windows");
+        }
     }
 #else
     if (!isView) {
@@ -99,10 +104,17 @@ int main(int argc, char *argv[]) {
     }
 #endif
 
-    // 3. Initialize QApplication
-    QApplication app(argc, argv);
-    QApplication::setApplicationName("viora");
+
+    // 3. Initialize Qt Application
+    QScopedPointer<QCoreApplication> app;
+    if (isView) {
+        app.reset(new QApplication(argc, argv));
+    } else {
+        app.reset(new QCoreApplication(argc, argv));
+    }
+    QCoreApplication::setApplicationName("viora");
     QCoreApplication::setApplicationVersion("1.0");
+
 
     registerAllCommands();
 
@@ -155,7 +167,7 @@ int main(int argc, char *argv[]) {
     cmd->setupParser(parser);
 
     // Parse options
-    parser.process(app);
+    parser.process(*app);
 
     // Handle global state variables
     g_debug = parser.isSet(debugOption);
@@ -225,9 +237,10 @@ int main(int argc, char *argv[]) {
     // Otherwise, we exit cleanly.
     if (command == "view" || command == "simulate") {
         if (exitCode == 0) {
-            return app.exec();
+            return app->exec();
         }
     }
 
     return exitCode;
 }
+

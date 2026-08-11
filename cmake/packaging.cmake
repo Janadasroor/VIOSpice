@@ -94,7 +94,21 @@ if(WIN32)
     else()
         message(WARNING "windeployqt not found; Qt DLLs will NOT be bundled")
     endif()
+
+    # Bundle C++ / MinGW runtime, Python, libcurl, multimedia codecs, and simulation engine DLLs into bin/
+    file(GLOB VIO_RUNTIME_DLLS
+        "C:/msys64/mingw64/bin/*.dll"
+        "C:/Python314/python314.dll"
+        "C:/Python314/libpython3.14.dll"
+        "${CMAKE_BINARY_DIR}/libngspice-0.dll"
+        "${CMAKE_BINARY_DIR}/_deps/viomatrixc-src/src/.libs/libngspice-0.dll"
+        "${CMAKE_BINARY_DIR}/vioavr-prebuilt/lib/avr_cosim.dll"
+    )
+    install(FILES ${VIO_RUNTIME_DLLS} DESTINATION bin OPTIONAL)
 endif()
+
+
+
 
 # ---------------------------------------------------------------------------
 # CPack / NSIS configuration

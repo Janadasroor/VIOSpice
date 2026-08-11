@@ -831,6 +831,10 @@ if(BUILD_VIOSPICE_CLI)
         cli/commands/misc_commands.cpp
         resources/resources.qrc
     )
+    set_target_properties(viora PROPERTIES
+        WIN32_EXECUTABLE FALSE
+    )
+
 
     # Guardrail:
     # These static module libraries reference each other cyclically (for example
