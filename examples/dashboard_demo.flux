@@ -4,29 +4,12 @@
 # test_fluxqt_dashboard.flux
 # A demonstration of FluxQt integration with VioSpice simulation.
 # Corrected for FluxScript syntax and handle scoping.
+#
+# NOTE: All setup code lives inside a single function. FluxScript splits
+# top-level statements into separate scopes around `def` declarations, so
+# variables created before a `def` are NOT visible in statements after it.
 
-# 1. Setup UI
-dash = flux_qt_create_window("VioSpice Dashboard")
-flux_qt_add_widget(dash, flux_qt_create_label("Interactive Simulation Control"))
-
-# Create and store the slider handle
-flux_qt_add_widget(dash, flux_qt_create_label("Adjust R1 Value (Ohms):"))
-r_slider = flux_qt_create_slider(0.0) # Horizontal
-r_slider.minimum = 100
-r_slider.maximum = 10000
-r_slider.value = 1000
-flux_qt_add_widget(dash, r_slider)
-
-# Create and store the LCD handle
-flux_qt_add_widget(dash, flux_qt_create_label("Measured Voltage (V):"))
-v_lcd = flux_qt_create_lcd()
-flux_qt_add_widget(dash, v_lcd)
-
-# Share handles globally so top-level functions can access them
-flux_set_var("R_SLIDER", r_slider)
-flux_set_var("V_LCD", v_lcd)
-
-# 2. Logic: Define interaction handlers using 'def'
+# 1. Logic: Define interaction handlers using 'def'
 def update_resistor() {
     # Retrieve our handles from the global bridge
     slider_handle = flux_get_var("R_SLIDER")
@@ -57,11 +40,35 @@ def run_dashboard_sim() {
     }
 }
 
-# 3. Bind events
-flux_qt_on_value_changed(r_slider, update_resistor)
+# 2. Setup UI and bind events (string-based binding — passing a function
+# reference as a numeric argument is rejected by the FluxScript codegen)
+def build_dashboard() {
+    dash = flux_qt_create_window("VioSpice Dashboard")
+    flux_qt_add_widget(dash, flux_qt_create_label("Interactive Simulation Control"))
 
-run_btn = flux_qt_create_button("Run Simulation")
-flux_qt_on_click(run_btn, run_dashboard_sim)
-flux_qt_add_widget(dash, run_btn)
+    # Create and store the slider handle
+    flux_qt_add_widget(dash, flux_qt_create_label("Adjust R1 Value (Ohms):"))
+    r_slider = flux_qt_create_slider(0.0) # Horizontal
+    r_slider.minimum = 100
+    r_slider.maximum = 10000
+    r_slider.value = 1000
+    flux_qt_add_widget(dash, r_slider)
 
+    # Create and store the LCD handle
+    flux_qt_add_widget(dash, flux_qt_create_label("Measured Voltage (V):"))
+    v_lcd = flux_qt_create_lcd()
+    flux_qt_add_widget(dash, v_lcd)
+
+    # Share handles globally so top-level functions can access them
+    flux_set_var("R_SLIDER", r_slider)
+    flux_set_var("V_LCD", v_lcd)
+
+    flux_qt_on_value_changed_by_name(r_slider, "update_resistor")
+
+    run_btn = flux_qt_create_button("Run Simulation")
+    flux_qt_on_click_by_name(run_btn, "run_dashboard_sim")
+    flux_qt_add_widget(dash, run_btn)
+}
+
+build_dashboard()
 viora_flux_print("FluxQt Dashboard Initialized.")
