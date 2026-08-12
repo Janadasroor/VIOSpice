@@ -1,4 +1,4 @@
-/*
+﻿/*
  * Copyright 2026 Janada Sroor
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -220,7 +220,6 @@ public:
     void setupParser(QCommandLineParser& parser) override {
         parser.addOption(QCommandLineOption("scale", "Render scale (default 4.0)", "scale", "4"));
         parser.addOption(QCommandLineOption("transparent", "Render PNG with transparent background"));
-        parser.addOption(QCommandLineOption("json", "Output results in JSON format"));
     }
     QJsonObject inputSchema() const override {
         return QJsonObject{{"args", QJsonArray{"file.flxsch", "out.png"}}, {"options", QJsonObject{{"transparent", "bool"}, {"json", "bool"}, {"scale", "number"}}}};
@@ -681,7 +680,6 @@ public:
         parser.addOption(QCommandLineOption("list", "List available signals (schematic-probe)"));
         parser.addOption(QCommandLineOption("add", "Add probe (repeatable): V(net) or I(device)", "signal"));
         parser.addOption(QCommandLineOption("auto", "Auto-probe all nets (schematic-probe)"));
-        parser.addOption(QCommandLineOption("json", "Output results in JSON format"));
     }
     QJsonObject inputSchema() const override {
         return QJsonObject{{"args", QJsonArray{"file.flxsch"}}, {"options", QJsonObject{{"list", "bool"}, {"add", "signal (repeatable)"}, {"auto", "bool"}}}};
@@ -792,7 +790,6 @@ public:
         parser.addOption(QCommandLineOption("max-points", "Limit exported samples (raw-export, netlist-run --export-raw)", "pointcount"));
         parser.addOption(QCommandLineOption("raw-file", "Raw simulation data file to include", "file"));
         parser.addOption(QCommandLineOption("schematic-png", "Rendered schematic image file to include", "file"));
-        parser.addOption(QCommandLineOption("json", "Output results in JSON format"));
     }
     QJsonObject inputSchema() const override {
         return QJsonObject{};
@@ -875,7 +872,6 @@ public:
         parser.addOption(QCommandLineOption("upload", "Upload schematic to share server"));
         parser.addOption(QCommandLineOption("copy", "Copy share URL to clipboard"));
         parser.addOption(QCommandLineOption("server", "Share server URL", "url", "http://localhost:8765"));
-        parser.addOption(QCommandLineOption("json", "Output response in JSON format"));
     }
     QJsonObject inputSchema() const override {
         return QJsonObject{};

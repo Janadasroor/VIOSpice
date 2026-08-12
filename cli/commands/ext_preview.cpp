@@ -1,9 +1,9 @@
-/*
+﻿/*
  * Copyright 2026 Janada Sroor
  * SPDX-License-Identifier: Apache-2.0
  */
 
-// ext_preview.cpp — Preview extension GUI with screenshot capture
+// ext_preview.cpp â€” Preview extension GUI with screenshot capture
 // Usage: viora ext-preview <extension-dir> [--output DIR] [--delay MS]
 
 #include "ext_preview.h"
@@ -48,7 +48,6 @@ public:
     void setupParser(QCommandLineParser& parser) override {
         parser.addOption(QCommandLineOption("output", "Output directory for screenshots", "output", QDir::tempPath() + "/ext-preview"));
         parser.addOption(QCommandLineOption("delay", "Delay before capture (ms)", "delay", "500"));
-        parser.addOption(QCommandLineOption("json", "Output results as JSON"));
     }
     QJsonObject inputSchema() const override { return {}; }
     QJsonObject outputSchema() const override { return {}; }

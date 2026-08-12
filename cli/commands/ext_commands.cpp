@@ -1,9 +1,9 @@
-/*
+﻿/*
  * Copyright 2026 Janada Sroor
  * SPDX-License-Identifier: Apache-2.0
  */
 
-// ext_commands.cpp — Comprehensive CLI toolkit for VioraIDE extension development
+// ext_commands.cpp â€” Comprehensive CLI toolkit for VioraIDE extension development
 // Usage:
 //   viora ext create <id> [--name NAME] [--author AUTHOR] [--template TYPE]
 //   viora ext list [--installed] [--available]
@@ -46,8 +46,8 @@
 
 namespace ExtCli {
     static void info(const QString& text) { std::cout << "  " << text.toStdString() << std::endl; }
-    static void success(const QString& text) { std::cout << "✓ " << text.toStdString() << std::endl; }
-    static void error(const QString& text) { std::cout << "✗ " << text.toStdString() << std::endl; }
+    static void success(const QString& text) { std::cout << "âœ“ " << text.toStdString() << std::endl; }
+    static void error(const QString& text) { std::cout << "âœ— " << text.toStdString() << std::endl; }
     static void header(const QString& text) { std::cout << text.toStdString() << std::endl; }
 }
 
@@ -83,10 +83,10 @@ static void printColor(const QString& text, const QString& color) {
     }
 }
 
-static void printWarn(const QString& text) { printColor("⚠ " + text, "\033[93m"); }
+static void printWarn(const QString& text) { printColor("âš  " + text, "\033[93m"); }
 
 // ============================================================================
-// ext create — Create new extension
+// ext create â€” Create new extension
 // ============================================================================
 
 class ExtCreateCommand : public CLICommand {
@@ -301,7 +301,7 @@ def on_click() {
 };
 
 // ============================================================================
-// ext list — List extensions
+// ext list â€” List extensions
 // ============================================================================
 
 class ExtListCommand : public CLICommand {
@@ -309,7 +309,6 @@ public:
     QString name() const override { return "ext-list"; }
     QString description() const override { return "List installed extensions with status."; }
     void setupParser(QCommandLineParser& parser) override {
-        parser.addOption(QCommandLineOption("json", "Output as JSON"));
     }
     QJsonObject inputSchema() const override { return {}; }
     QJsonObject outputSchema() const override { return {}; }
@@ -360,7 +359,7 @@ public:
                 // Check if config exists
                 bool hasConfig = QFile::exists(dir.filePath(id) + "/config.json");
 
-                QString status = hasConfig ? "\033[92m●\033[0m" : "\033[90m○\033[0m";
+                QString status = hasConfig ? "\033[92mâ—\033[0m" : "\033[90mâ—‹\033[0m";
                 std::cout << "  " << status.toStdString() << " "
                           << name.toStdString() << " (" << id.toStdString() << ") v"
                           << version.toStdString();
@@ -374,7 +373,7 @@ public:
 };
 
 // ============================================================================
-// ext run — Run extension from CLI
+// ext run â€” Run extension from CLI
 // ============================================================================
 
 class ExtRunCommand : public CLICommand {
@@ -382,7 +381,6 @@ public:
     QString name() const override { return "ext-run"; }
     QString description() const override { return "Run a FluxScript extension from CLI."; }
     void setupParser(QCommandLineParser& parser) override {
-        parser.addOption(QCommandLineOption("debug", "Enable verbose debug output"));
         parser.addOption(QCommandLineOption("args", "Arguments to pass", "args"));
     }
     QJsonObject inputSchema() const override { return {}; }
@@ -466,7 +464,7 @@ public:
 };
 
 // ============================================================================
-// ext validate — Validate extension
+// ext validate â€” Validate extension
 // ============================================================================
 
 class ExtValidateCommand : public CLICommand {
@@ -474,7 +472,6 @@ public:
     QString name() const override { return "ext-validate"; }
     QString description() const override { return "Validate extension manifest and compile check."; }
     void setupParser(QCommandLineParser& parser) override {
-        parser.addOption(QCommandLineOption("json", "Output as JSON"));
     }
     QJsonObject inputSchema() const override { return {}; }
     QJsonObject outputSchema() const override { return {}; }
@@ -568,7 +565,7 @@ public:
 };
 
 // ============================================================================
-// ext package — Package extension for distribution
+// ext package â€” Package extension for distribution
 // ============================================================================
 
 class ExtPackageCommand : public CLICommand {
@@ -643,7 +640,7 @@ public:
 };
 
 // ============================================================================
-// ext deps — Show dependency tree
+// ext deps â€” Show dependency tree
 // ============================================================================
 
 class ExtDepsCommand : public CLICommand {
@@ -651,7 +648,6 @@ public:
     QString name() const override { return "ext-deps"; }
     QString description() const override { return "Show extension dependency tree."; }
     void setupParser(QCommandLineParser& parser) override {
-        parser.addOption(QCommandLineOption("json", "Output as JSON"));
     }
     QJsonObject inputSchema() const override { return {}; }
     QJsonObject outputSchema() const override { return {}; }
@@ -704,7 +700,7 @@ public:
                     std::cout << std::endl;
                     for (auto dit = it.value().constBegin(); dit != it.value().constEnd(); ++dit) {
                         QString status = allVersions.contains(dit.key()) ? "\033[92minstalled\033[0m" : "\033[91mmissing\033[0m";
-                        std::cout << "    └─ " << dit.key().toStdString() << " " << dit.value().toStdString()
+                        std::cout << "    â””â”€ " << dit.key().toStdString() << " " << dit.value().toStdString()
                                   << " [" << status.toStdString() << "]" << std::endl;
                     }
                 }
@@ -715,7 +711,7 @@ public:
 };
 
 // ============================================================================
-// ext config — Manage extension configuration
+// ext config â€” Manage extension configuration
 // ============================================================================
 
 class ExtConfigCommand : public CLICommand {
@@ -723,7 +719,6 @@ public:
     QString name() const override { return "ext-config"; }
     QString description() const override { return "Read/write extension configuration."; }
     void setupParser(QCommandLineParser& parser) override {
-        parser.addOption(QCommandLineOption("json", "Output as JSON"));
         parser.addOption(QCommandLineOption("list", "List all config keys"));
         parser.addOption(QCommandLineOption("reset", "Reset config to defaults"));
     }
@@ -816,7 +811,7 @@ public:
 };
 
 // ============================================================================
-// ext logs — Show extension logs
+// ext logs â€” Show extension logs
 // ============================================================================
 
 class ExtLogsCommand : public CLICommand {

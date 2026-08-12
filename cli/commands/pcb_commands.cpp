@@ -1,4 +1,4 @@
-/*
+﻿/*
  * Copyright 2026 Janada Sroor
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -241,7 +241,6 @@ public:
     void setupParser(QCommandLineParser& parser) override {
         parser.addOption(QCommandLineOption("scale", "Render scale (default 4.0)", "scale", "4"));
         parser.addOption(QCommandLineOption("transparent", "Render PNG with transparent background"));
-        parser.addOption(QCommandLineOption("json", "Output results in JSON format"));
         parser.addOption(QCommandLineOption("layers", "Comma-separated list of layers to render", "layers"));
         parser.addOption(QCommandLineOption("mode", "Render mode: fab (default), assembly, copper", "mode", "fab"));
         parser.addOption(QCommandLineOption("grid", "Show grid overlay"));
@@ -514,7 +513,6 @@ public:
         parser.addOption(QCommandLineOption("width", "Board width in mm (default: 100)", "width", "100"));
         parser.addOption(QCommandLineOption("height", "Board height in mm (default: 80)", "height", "80"));
         parser.addOption(QCommandLineOption("layers", "Board copper layer count (default: 2)", "layers", "2"));
-        parser.addOption(QCommandLineOption("json", "Output results in JSON format"));
     }
     QJsonObject inputSchema() const override {
         return QJsonObject{
@@ -661,7 +659,6 @@ public:
         parser.addOption(QCommandLineOption("assign-net", "Assign net to a net class: net=...,class=...", "spec"));
         parser.addOption(QCommandLineOption("add-pour", "Inject copper pour: layer=...,net=...,clearance=...", "spec"));
         parser.addOption(QCommandLineOption("allow-diagonals", "Allow the auto-router to use 45-degree diagonal traces"));
-        parser.addOption(QCommandLineOption("json", "Output results in JSON format"));
     }
 
     QJsonObject inputSchema() const override {
@@ -1050,7 +1047,6 @@ public:
         parser.addOption(QCommandLineOption("pdf-drill-marks", "Drill marks: none | small | full (default: small)", "mode", "small"));
         parser.addOption(QCommandLineOption("pdf-no-title-block", "Omit drawing frame and title block (clean plot)"));
         parser.addOption(QCommandLineOption("pdf-monochrome", "Black and white vector plot"));
-        parser.addOption(QCommandLineOption("json", "Output results in JSON format"));
     }
 
     QJsonObject inputSchema() const override {
@@ -1290,7 +1286,6 @@ public:
 
     void setupParser(QCommandLineParser& parser) override {
         parser.addOption(QCommandLineOption("margin", "Clearance margin around components in mm (default: 5.0)", "value", "5.0"));
-        parser.addOption(QCommandLineOption("json", "Output results in JSON format"));
     }
 
     QJsonObject inputSchema() const override {
@@ -1361,7 +1356,6 @@ public:
 
     void setupParser(QCommandLineParser& parser) override {
         parser.addOption(QCommandLineOption("schematic", "Source schematic file to synchronize with", "file.flxsch"));
-        parser.addOption(QCommandLineOption("json", "Output results in JSON format"));
     }
 
     QJsonObject inputSchema() const override {
@@ -1446,7 +1440,6 @@ public:
     QString name() const override { return "pcb-netlist"; }
     QString description() const override { return "Dump detailed netlist and connectivity report of a PCB file."; }
     void setupParser(QCommandLineParser& parser) override {
-        parser.addOption(QCommandLineOption("json", "Output results in JSON format"));
     }
     QJsonObject inputSchema() const override {
         return QJsonObject{
@@ -2337,7 +2330,6 @@ public:
         parser.addOption(QCommandLineOption({"out", "o"}, "Output PCB file path.", "output"));
         parser.addOption(QCommandLineOption("ripup", "Rip up all existing traces and vias before routing"));
         parser.addOption(QCommandLineOption("grid", "Grid spacing in mm (default 0.5)", "grid", "0.5"));
-        parser.addOption(QCommandLineOption("json", "Output results in JSON format"));
     }
     QJsonObject inputSchema() const override { return QJsonObject(); }
     QJsonObject outputSchema() const override { return QJsonObject(); }

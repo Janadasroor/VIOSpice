@@ -1,4 +1,4 @@
-/*
+﻿/*
  * Copyright 2026 Janada Sroor
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -1655,7 +1655,6 @@ public:
     void setupParser(QCommandLineParser& parser) override {
         parser.addOption(QCommandLineOption("transparent", "Render PNG with transparent background"));
         parser.addOption(QCommandLineOption("scale", "Render scale (default 4.0)", "scale", "4"));
-        parser.addOption(QCommandLineOption("json", "Output results in JSON format"));
     }
     QJsonObject inputSchema() const override {
         return QJsonObject{{"args", QJsonArray{"file.viosym", "out.png"}}, {"options", QJsonObject{{"transparent", "bool"}, {"json", "bool"}, {"scale", "number"}}}};
@@ -2194,7 +2193,6 @@ public:
     void setupParser(QCommandLineParser& parser) override {
         parser.addOption(QCommandLineOption("name", "Name of specific subcircuit in library", "name"));
         parser.addOption(QCommandLineOption("symbol-type", "Type of symbol (triode|pentode|zener|schottky|varicap|inductor|njfet|pjfet|op|diode|led|triac|scr|diac|igbt|darlington_npn|tvs_bidir|varistor|oscillator_4pin|vref_series|current_source|antenna|battery|relay|fuse|bridge_rectifier|transformer|potentiometer|crystal|comparator|ic8_timer|vref_shunt|logic_vco|switch_v|switch_i|speaker|hall_sensor|gate_and|gate_nand|gate_or|gate_nor|gate_xor|gate_xnor|gate_not|gate_buf|logic_dff|logic_jkff|logic_mux|logic_gate_3pin|logic_gate_5pin|regulator|supervisor)", "type", "ic"));
-        parser.addOption(QCommandLineOption("json", "Output results in JSON format"));
     }
     QJsonObject inputSchema() const override {
         return QJsonObject{};
@@ -2232,7 +2230,6 @@ public:
     void setupParser(QCommandLineParser& parser) override {
         parser.addOption(QCommandLineOption("symbol-type", "Type of symbol to generate", "type", "ic"));
         parser.addOption(QCommandLineOption("recursive", "Search directory recursively"));
-        parser.addOption(QCommandLineOption("json", "Output results in JSON format"));
     }
     QJsonObject inputSchema() const override {
         return QJsonObject{};
@@ -2323,7 +2320,6 @@ public:
     void setupParser(QCommandLineParser& parser) override {
         parser.addOption(QCommandLineOption("mapping", "Mapping JSON file for automatic symbol assignment", "mapping.json"));
         parser.addOption(QCommandLineOption("recursive", "Search directory recursively"));
-        parser.addOption(QCommandLineOption("json", "Output results in JSON format"));
     }
     QJsonObject inputSchema() const override {
         return QJsonObject{};

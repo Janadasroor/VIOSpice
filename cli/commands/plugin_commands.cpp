@@ -1,4 +1,4 @@
-/*
+﻿/*
  * Copyright 2026 Janada Sroor
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -187,7 +187,6 @@ public:
     QString description() const override { return "Inspect ports and modules of a Verilog source file."; }
     void setupParser(QCommandLineParser& parser) override {
         parser.addOption(QCommandLineOption("module", "Module name to inspect", "modname"));
-        parser.addOption(QCommandLineOption("json", "Output results in JSON format"));
     }
     QJsonObject inputSchema() const override {
         return QJsonObject{{"args", QJsonArray{"file.v"}}, {"options", QJsonObject{{"module", "string"}, {"json", "bool"}}}};

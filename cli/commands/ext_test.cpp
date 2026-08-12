@@ -1,9 +1,9 @@
-/*
+﻿/*
  * Copyright 2026 Janada Sroor
  * SPDX-License-Identifier: Apache-2.0
  */
 
-// ext_test.cpp — Extension test harness with headless mock GUI
+// ext_test.cpp â€” Extension test harness with headless mock GUI
 // Usage: viora ext-test <extension-dir> [--verbose] [--json]
 
 #include "ext_test.h"
@@ -483,7 +483,6 @@ public:
     }
     void setupParser(QCommandLineParser& parser) override {
         parser.addOption(QCommandLineOption("verbose", "Show detailed output"));
-        parser.addOption(QCommandLineOption("json", "Output results as JSON"));
     }
     QJsonObject inputSchema() const override { return {}; }
     QJsonObject outputSchema() const override { return {}; }
@@ -535,7 +534,7 @@ private:
             QString status = r.passed ? "\033[92mPASS\033[0m" : "\033[91mFAIL\033[0m";
             std::cout << "  " << status.toStdString() << "  " << r.name.toStdString();
             if (!r.message.isEmpty()) {
-                std::cout << " — " << r.message.toStdString();
+                std::cout << " â€” " << r.message.toStdString();
             }
             std::cout << " (" << r.durationMs << "ms)\n";
         }
