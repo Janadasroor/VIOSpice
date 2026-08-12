@@ -31,6 +31,11 @@ bool isForwardable(const QString& command, const QStringList& args) {
 } // namespace
 
 int main(int argc, char *argv[]) {
+    // Register command objects before the pre-scan loop so --help can
+    // enumerate them (registration only constructs command objects and does
+    // not require a QCoreApplication/QApplication or the QPA platform).
+    registerAllCommands();
+
     // 1. Handle --help and --version before QApplication (avoids slow offscreen init)
     for (int i = 1; i < argc; ++i) {
         std::string a(argv[i]);
@@ -82,8 +87,6 @@ int main(int argc, char *argv[]) {
     }
     QCoreApplication::setApplicationName("viora");
     QCoreApplication::setApplicationVersion("1.0");
-
-    registerAllCommands();
 
     // 4. Resolve subcommand
     QStringList args = QCoreApplication::arguments();
