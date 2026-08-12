@@ -349,8 +349,17 @@ int forwardCommand(const QStringList& arguments) {
         return -1;
     }
 
+    // Total deadline: a command that runs past this still gets its full
+    // response closed (the daemon keeps serving everyone else), but the caller
+    // does not hang forever. Returned as the -2 "stalled" sentinel.
+    const qint64 deadline =
+        QDateTime::currentMSecsSinceEpoch() + 120000;
+
     QByteArray response;
     while (!response.contains('\n')) {
+        if (QDateTime::currentMSecsSinceEpoch() > deadline) {
+            return -2; // command still running on the daemon; give up waiting
+        }
         if (!socket.waitForReadyRead(10000)) {
             if (socket.state() != QLocalSocket::ConnectedState) {
                 break; // daemon went away while running (or after reply)
@@ -449,6 +458,11 @@ bool spawnAndForward(const QStringList& arguments, int* exitCode) {
             }
             return true;
         }
+        if (rc == -2) {
+            // A command is stuck running on the daemon. It may eventually
+            // finish, so do not spawn a competing daemon for it.
+            return false;
+        }
         if (QDateTime::currentMSecsSinceEpoch() > deadline) {
             break;
         }
@@ -525,7 +539,27 @@ void killWorker() {
     workerOutBuffer().clear();
 }
 
-// Spawns the worker (if needed) and waits until it reports it is ready.
+// ---------------------------------------------------------------------------
+// Shared state + helpers for the asynchronous request handling below. These are
+// declared here (ahead of ensureWorker, which wires the worker's signals) and
+// the definitions live in the async section further down.
+// ---------------------------------------------------------------------------
+
+struct ClientSession;
+QList<ClientSession*> g_sessions;
+QList<ClientSession*> g_pending;
+ClientSession* g_inFlight = nullptr;
+bool g_workerReady = false;
+
+void sendResponse(ClientSession* cs, const QJsonObject& obj);
+void dispatchNext();
+void onWorkerData();
+void onWorkerFinished(int code);
+void spawnWorkerAsync();
+void connectWorkerSignals(QProcess* worker);
+
+// Spawns the worker (if needed) and blocks until it reports it is ready.
+// Used once at daemon startup so socket reachability implies a warm worker.
 // Returns true when a healthy worker is running.
 bool ensureWorker() {
     QProcess*& worker = workerProcess();
@@ -561,102 +595,230 @@ bool ensureWorker() {
         killWorker();
         return false;
     }
+    g_workerReady = true;
+    connectWorkerSignals(worker);
     return true;
 }
 
-void serveOneClient(QLocalSocket* socket) {
-    QByteArray data;
-    while (!data.contains('\n')) {
-        if (!socket->waitForReadyRead(30000)) {
-            if (socket->state() != QLocalSocket::ConnectedState) {
-                break;
-            }
-            if (socket->error() != QLocalSocket::UnknownSocketError) {
-                break;
-            }
-            continue;
-        }
-        data += socket->readAll();
-    }
+// ---------------------------------------------------------------------------
+// Asynchronous request handling.
+//
+// The daemon never blocks its event loop while a command runs, so a slow (or
+// stuck) command only holds the one client that asked for it — bounded by the
+// client-side timeout — while every other client keeps being served. Requests
+// are queued and dispatched to the single worker in FIFO order; a worker crash
+// answers the in-flight client with an error and respawns automatically.
+// ---------------------------------------------------------------------------
 
-    const int newline = data.indexOf('\n');
-    QByteArray line = (newline < 0) ? data : data.left(newline);
+struct ClientSession : QObject {
+    QLocalSocket* socket = nullptr;
+    QByteArray buf;
+    QJsonObject request;
+    bool done = false;
+};
+
+void connectWorkerSignals(QProcess* worker) {
+    QObject::connect(worker, &QProcess::readyReadStandardOutput,
+                     []() { onWorkerData(); });
+    QObject::connect(
+        worker, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
+        [](int code, QProcess::ExitStatus) { onWorkerFinished(code); });
+    QObject::connect(worker, &QProcess::errorOccurred,
+                     [](QProcess::ProcessError err) {
+                         if (err == QProcess::FailedToStart) {
+                             onWorkerFinished(-1);
+                         }
+                     });
+}
+
+void finishSession(ClientSession* cs) {
+    if (!cs || cs->done) return;
+    cs->done = true;
+    g_sessions.removeAll(cs);
+    g_pending.removeAll(cs);
+    if (g_inFlight == cs) g_inFlight = nullptr;
+    if (cs->socket) {
+        cs->socket->disconnectFromServer();
+        cs->socket->deleteLater();
+    }
+    cs->deleteLater();
+}
+
+void sendResponse(ClientSession* cs, const QJsonObject& obj) {
+    if (!cs || cs->done) return;
+    const QByteArray out =
+        QJsonDocument(obj).toJson(QJsonDocument::Compact) + "\n";
+    if (cs->socket->state() == QLocalSocket::ConnectedState) {
+        cs->socket->write(out);
+        cs->socket->flush();
+        cs->socket->waitForBytesWritten(2000);
+    }
+    finishSession(cs);
+}
+
+void onClientData(ClientSession* cs) {
+    if (cs->done) return;
+    cs->buf += cs->socket->readAll();
+    const int nl = cs->buf.indexOf('\n');
+    if (nl < 0) return;
 
     QJsonParseError parseError;
-    const QJsonDocument doc = QJsonDocument::fromJson(line, &parseError);
+    const QJsonDocument doc =
+        QJsonDocument::fromJson(cs->buf.left(nl), &parseError);
 
+    QJsonObject resp;
+    resp["exit"] = 1;
+    resp["stderr"] = "viora: malformed request";
     if (parseError.error == QJsonParseError::NoError && doc.isObject()) {
-        const QJsonObject request = doc.object();
-
-        if (request.contains("stop")) {
-            socket->write("{\"exit\":0}\n");
-            socket->flush();
-            socket->waitForBytesWritten(2000);
-            socket->disconnectFromServer();
-            socket->deleteLater();
+        cs->request = doc.object();
+        if (cs->request.contains("stop")) {
+            QJsonObject ok;
+            ok["exit"] = 0;
+            sendResponse(cs, ok);
             killWorker();
             QTimer::singleShot(0, QCoreApplication::instance(),
                                &QCoreApplication::quit);
             return;
         }
+        g_pending.append(cs);
+        dispatchNext();
+        return;
+    }
+    sendResponse(cs, resp);
+}
 
-        QJsonObject response;
-        response["exit"] = 1;
-        response["stderr"] = "viora: daemon failed to start engine worker";
+void onWorkerData() {
+    QProcess*& worker = workerProcess();
+    if (!worker) return;
+    QByteArray& buf = workerOutBuffer();
+    buf += worker->readAllStandardOutput();
 
-        if (ensureWorker()) {
-            QProcess* worker = workerProcess();
+    int nl;
+    while ((nl = buf.indexOf('\n')) >= 0) {
+        const QByteArray line = buf.left(nl);
+        buf = buf.mid(nl + 1);
 
-            QJsonObject req;
-            req["argv"] = request.value("argv");
-            worker->write(QJsonDocument(req).toJson(QJsonDocument::Compact) +
-                          "\n");
-
-            if (worker->waitForBytesWritten(5000)) {
-                QByteArray respLine;
-                if (readWorkerFrame(worker, &respLine)) {
-                    const QJsonDocument respDoc =
-                        QJsonDocument::fromJson(respLine, &parseError);
-                    if (parseError.error == QJsonParseError::NoError &&
-                        respDoc.isObject()) {
-                        response = respDoc.object();
-                    } else {
-                        response["exit"] = 1;
-                        response["stderr"] =
-                            "viora: invalid response from engine worker";
-                    }
-                } else {
-                    // Worker crashed while running the command: report the
-                    // crash code; a fresh worker is spawned on next request.
-                    worker->waitForFinished(2000);
-                    const int crashCode = worker->exitCode();
-                    response["exit"] = crashCode ? crashCode : 1;
-                    response["stderr"] = QString(
-                        "viora: command crashed inside the engine worker "
-                        "(exit code %1)").arg(crashCode);
-                    killWorker();
-                }
-            } else {
-                killWorker();
-            }
+        QJsonParseError parseError;
+        const QJsonDocument doc = QJsonDocument::fromJson(line, &parseError);
+        if (parseError.error != QJsonParseError::NoError || !doc.isObject()) {
+            continue;
         }
+        const QJsonObject obj = doc.object();
 
-        socket->write(QJsonDocument(response).toJson(QJsonDocument::Compact) +
-                      "\n");
-        socket->flush();
-        socket->waitForBytesWritten(5000);
-    } else {
-        socket->write("{\"exit\":1}\n");
-        socket->flush();
+        if (obj.contains("ready")) {
+            g_workerReady = true;
+            dispatchNext();
+        } else if (obj.contains("exit")) {
+            ClientSession* cs = g_inFlight;
+            g_inFlight = nullptr;
+            if (cs) sendResponse(cs, obj);
+            dispatchNext();
+        }
+    }
+}
+
+void onWorkerFinished(int code) {
+    ClientSession* cs = g_inFlight;
+    g_inFlight = nullptr;
+    if (cs) {
+        QJsonObject resp;
+        resp["exit"] = code ? code : 1;
+        resp["stderr"] = QString(
+            "viora: command crashed inside the engine worker (exit code %1)")
+            .arg(code);
+        sendResponse(cs, resp);
+    }
+    g_workerReady = false;
+    QProcess*& worker = workerProcess();
+    if (worker) {
+        if (worker->state() != QProcess::NotRunning) {
+            worker->kill();
+            worker->waitForFinished(2000);
+        }
+        delete worker;
+        worker = nullptr;
+    }
+    workerOutBuffer().clear();
+    dispatchNext(); // respawn a fresh worker for queued requests
+}
+
+void spawnWorkerAsync() {
+    QProcess*& worker = workerProcess();
+    if (worker && worker->state() != QProcess::NotRunning) {
+        return;
     }
 
-    socket->disconnectFromServer();
-    socket->deleteLater();
+    const QString program = QCoreApplication::applicationFilePath();
+    if (program.isEmpty()) {
+        // No way to run commands; fail every queued request.
+        while (!g_pending.isEmpty()) {
+            ClientSession* p = g_pending.takeFirst();
+            QJsonObject resp;
+            resp["exit"] = 1;
+            resp["stderr"] = "viora: cannot start engine worker";
+            sendResponse(p, resp);
+        }
+        return;
+    }
+
+    worker = new QProcess;
+    worker->setProgram(program);
+    worker->setArguments({ QStringLiteral("__worker") });
+    worker->setStandardErrorFile(QProcess::nullDevice());
+#ifdef Q_OS_WIN
+    worker->setCreateProcessArgumentsModifier(
+        [](QProcess::CreateProcessArguments* args) {
+            args->flags |= 0x08000000; // CREATE_NO_WINDOW
+        });
+#endif
+    g_workerReady = false;
+    workerOutBuffer().clear();
+    connectWorkerSignals(worker);
+    worker->start();
+    if (!worker->waitForStarted(10000)) {
+        onWorkerFinished(-1);
+    }
+}
+
+void dispatchNext() {
+    while (!g_pending.isEmpty() && !g_inFlight) {
+        QProcess*& worker = workerProcess();
+        if (!worker || worker->state() == QProcess::NotRunning) {
+            spawnWorkerAsync();
+            return; // dispatch resumes once the worker reports ready
+        }
+        if (!g_workerReady) {
+            return;
+        }
+
+        ClientSession* cs = g_pending.takeFirst();
+        g_inFlight = cs;
+
+        QJsonObject req;
+        req["argv"] = cs->request.value("argv");
+        worker->write(QJsonDocument(req).toJson(QJsonDocument::Compact) +
+                      "\n");
+    }
 }
 
 void onNewConnection(QLocalServer* server) {
     while (QLocalSocket* socket = server->nextPendingConnection()) {
-        serveOneClient(socket);
+        auto* cs = new ClientSession;
+        cs->socket = socket;
+        socket->setParent(cs);
+        g_sessions.append(cs);
+
+        QObject::connect(socket, &QLocalSocket::readyRead, cs,
+                         [cs]() { onClientData(cs); });
+        QObject::connect(socket, &QLocalSocket::disconnected, cs,
+                         [cs]() { finishSession(cs); });
+
+        // Drop clients that connect but never send a request.
+        QTimer* timer = new QTimer(cs);
+        timer->setSingleShot(true);
+        QObject::connect(timer, &QTimer::timeout, cs,
+                         [cs]() { finishSession(cs); });
+        timer->start(60000);
     }
 }
 
