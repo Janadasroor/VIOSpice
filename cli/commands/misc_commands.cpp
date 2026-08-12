@@ -1,4 +1,4 @@
-/*
+﻿/*
  * Copyright 2026 Janada Sroor
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -1116,7 +1116,6 @@ public:
     void setupParser(QCommandLineParser& parser) override {
         parser.addOption(QCommandLineOption("transparent", "Render PNG with transparent background"));
         parser.addOption(QCommandLineOption("scale", "Render scale", "scale", "1.0"));
-        parser.addOption(QCommandLineOption("json", "Output results in JSON format"));
     }
     QJsonObject inputSchema() const override {
         return QJsonObject{{"args", QJsonArray{"file.json", "out.png"}}};

@@ -1,4 +1,4 @@
-/*
+﻿/*
  * Copyright 2026 Janada Sroor
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -275,7 +275,6 @@ public:
     void setupParser(QCommandLineParser& parser) override {
         parser.addOption(QCommandLineOption("transparent", "Render PNG with transparent background"));
         parser.addOption(QCommandLineOption("scale", "Render scale (default 20.0 for mm units)", "scale", "20"));
-        parser.addOption(QCommandLineOption("json", "Output results in JSON format"));
     }
     
     QJsonObject inputSchema() const override {
@@ -348,7 +347,6 @@ public:
     void setupParser(QCommandLineParser& parser) override {
         parser.addOption(QCommandLineOption("render", "Auto-render imported footprints to PNG"));
         parser.addOption(QCommandLineOption("limit", "Limit number of footprints to process (default: unlimited)", "limit"));
-        parser.addOption(QCommandLineOption("json", "Output results in JSON format"));
     }
     
     QJsonObject inputSchema() const override {
@@ -511,7 +509,6 @@ public:
         parser.addOption(QCommandLineOption("query", "Search query for footprint names", "query"));
         parser.addOption(QCommandLineOption("limit", "Maximum number of footprints to return", "limit", "-1"));
         parser.addOption(QCommandLineOption("offset", "Number of footprints to skip", "offset", "0"));
-        parser.addOption(QCommandLineOption("json", "Output results in JSON format"));
     }
 
     QJsonObject inputSchema() const override {

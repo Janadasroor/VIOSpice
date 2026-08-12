@@ -1,4 +1,4 @@
-/*
+﻿/*
  * Copyright 2026 Janada Sroor
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -503,7 +503,6 @@ public:
         parser.addOption(QCommandLineOption("signal", "Signal to export (repeatable, raw-export)", "signame"));
         parser.addOption(QCommandLineOption("max-points", "Limit exported samples (raw-export, netlist-run --export-raw)", "pointcount"));
         parser.addOption(QCommandLineOption("base-signal", "Base signal for decimation align", "signame"));
-        parser.addOption(QCommandLineOption("json", "Output results in JSON format"));
         parser.addOption(QCommandLineOption({"a", "analysis"}, "Analysis type (op, tran, ac)", "type", "op"));
         parser.addOption(QCommandLineOption({"s", "step"}, "Step size for transient", "time", "100u"));
         parser.addOption(QCommandLineOption({"t", "stop"}, "Stop time for transient", "time", "10m"));
@@ -1351,7 +1350,6 @@ public:
     QString name() const override { return "netlist-validate"; }
     QString description() const override { return "Validate SPICE netlist syntax."; }
     void setupParser(QCommandLineParser& parser) override {
-        parser.addOption(QCommandLineOption("json", "Output results in JSON format"));
     }
     QJsonObject inputSchema() const override {
         return QJsonObject{{"args", QJsonArray{"file.cir"}}, {"options", QJsonObject{{"json", "bool"}}}};
@@ -1443,7 +1441,6 @@ public:
     QString description() const override { return "Synthesize a schematic (.flxsch) from a SPICE netlist (.cir)."; }
     void setupParser(QCommandLineParser& parser) override {
         parser.addOption(QCommandLineOption("out", "Output schematic path", "file"));
-        parser.addOption(QCommandLineOption("json", "Output results in JSON format"));
     }
     QJsonObject inputSchema() const override {
         return QJsonObject{{"args", QJsonArray{"file.cir"}}, {"options", QJsonObject{{"json", "bool"}, {"out", "string"}, {"quiet", "bool"}}}};
@@ -1500,7 +1497,6 @@ public:
     QString name() const override { return "raw-info"; }
     QString description() const override { return "Display information about raw simulation data file."; }
     void setupParser(QCommandLineParser& parser) override {
-        parser.addOption(QCommandLineOption("json", "Output results in JSON format"));
         parser.addOption(QCommandLineOption("summary", "Show summary count of signals"));
         parser.addOption(QCommandLineOption("base-signal", "Base signal for validation check", "signame"));
     }
@@ -1583,7 +1579,6 @@ public:
         parser.addOption(QCommandLineOption("base-signal", "Base signal for decimation", "signame"));
         parser.addOption(QCommandLineOption("range", "Time range t0:t1", "range"));
         parser.addOption(QCommandLineOption("out", "Output path for parquet file", "file"));
-        parser.addOption(QCommandLineOption("json", "Output response in JSON format"));
     }
     QJsonObject inputSchema() const override {
         return QJsonObject{{"args", QJsonArray{"file.raw"}}, {"options", QJsonObject{{"signal", "name (repeatable)"}, {"signal-regex", "pattern"}, {"format", "csv|json|parquet"}, {"max-points", "int"}, {"base-signal", "name"}, {"range", "t0:t1"}, {"out", "file (parquet)"}}}};
@@ -1893,7 +1888,6 @@ public:
         parser.addOption(QCommandLineOption("max-step", "Maximum timestep for live mode", "time", "1e-3"));
         parser.addOption(QCommandLineOption("max-time", "Maximum simulation time for live mode", "time", "0"));
         parser.addOption(QCommandLineOption("max-pts", "Maximum data points for live mode", "count", "100000"));
-        parser.addOption(QCommandLineOption("json", "Output results in JSON format"));
     }
     QJsonObject inputSchema() const override {
         return QJsonObject{};
