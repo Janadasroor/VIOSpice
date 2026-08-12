@@ -79,12 +79,14 @@ int main(int argc, char *argv[]) {
 
 
     // 3. Initialize Qt Application
-    QScopedPointer<QCoreApplication> app;
-    if (isView) {
-        app.reset(new QApplication(argc, argv));
-    } else {
-        app.reset(new QCoreApplication(argc, argv));
-    }
+    Q_UNUSED(isView)
+    // Many CLI commands (erc, schematic-query, netlist-from-schematic, ...)
+    // build QGraphicsScene/QGraphicsViews, which require a full QApplication
+    // (QGraphicsScene's internals touch QGuiApplication/QApplication data).
+    // Create QApplication unconditionally; the non-view path above already
+    // selects the offscreen QPA platform to keep headless runs cheap.
+    QScopedPointer<QApplication> app;
+    app.reset(new QApplication(argc, argv));
     QCoreApplication::setApplicationName("viora");
     QCoreApplication::setApplicationVersion("1.0");
 
