@@ -29,7 +29,9 @@ void cliInitializeLibraries();
 
 // Client side -------------------------------------------------------------
 // Attempt to run `arguments` on a running daemon. Returns the exit code if the
-// request was served; returns -1 when no daemon is reachable.
+// request was served, -1 when no daemon is reachable, and -2 when a previous
+// invocation of the command is still running on the daemon (the caller gave up
+// waiting rather than hang forever).
 int forwardCommand(const QStringList& arguments);
 
 // Spawn a detached background daemon, wait for it to become ready (up to a
@@ -39,6 +41,9 @@ bool spawnAndForward(const QStringList& arguments, int* exitCode);
 
 // Server side -------------------------------------------------------------
 // Start the persistent daemon: spawn the engine worker, listen, serve requests.
+// Requests are handled asynchronously so a slow command only holds its own
+// client while every other client keeps being served from the single worker
+// (FIFO order); a crashed worker answers its client with an error and respawns.
 // Returns 0 on success (caller should then run the Qt event loop),
 // or a non-zero code if the daemon could not be started.
 int startServer();

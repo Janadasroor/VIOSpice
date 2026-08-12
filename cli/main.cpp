@@ -145,6 +145,13 @@ int main(int argc, char *argv[]) {
         if (fwdExit >= 0) {
             return fwdExit;
         }
+        if (fwdExit == -2) {
+            // A previous invocation of this command is still running on the
+            // daemon. Do not spawn a competing daemon or re-run it in-process.
+            std::cerr << "viora: the requested command is still running on the "
+                         "background daemon (waiting for it to finish)\n";
+            return 1;
+        }
         int spawnedExit = -1;
         if (CliDaemon::spawnAndForward(args, &spawnedExit)) {
             return spawnedExit;
