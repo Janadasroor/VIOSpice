@@ -116,6 +116,7 @@ simulator/TODO.md
 .antigravitycli/
 .viospice/
 .flux_cache/
+.fluxcache/
 .pytest_cache/
 .qtcreator/
 nanobanana-output/
@@ -158,4 +159,5 @@ CPackSourceConfig.cmake
 *_Setup.exe
 *_Installer.exe
 VioraEDA-*-windows-x86_64.exe
+VioraEDA-*.zip
 
