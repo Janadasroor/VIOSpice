@@ -581,10 +581,10 @@ if(VIOSPICE_DEV_MODE OR VIOSPICE_BUILD_FLUXSCRIPT)
             # v1.2.0 ships a legacy src/compiler/codegen.cpp that still calls the
             # removed llvm::Intrinsic::getDeclaration, breaking the MSYS2 (LLVM 21+)
             # source build on Windows. Pin to flux main, which already uses
-            # getOrInsertDeclaration and compiles against LLVM 21/22. d545072 also
+            # getOrInsertDeclaration and compiles against LLVM 21/22. c6ab58c also
             # merges all top-level statements into a single anon_expr scope so
             # variables declared before def/struct/enum stay visible after them.
-            GIT_TAG        d545072daff36daf17cbf0c89d02bec6f4248964
+            GIT_TAG        c6ab58cca4994a61f61d12cab6e472460fbc6293
         )
         FetchContent_Populate(FluxScript)
         # When using prebuilt VioMATRIXC, fix FluxScript's ngspice path computation
@@ -823,6 +823,7 @@ if(BUILD_VIOSPICE_CLI)
     # CLI tool
     qt_add_executable(viora
         cli/main.cpp
+        cli/cli_daemon.cpp
         cli/flux_command.cpp
         cli/extension_command.cpp
         cli/command_registry.cpp
