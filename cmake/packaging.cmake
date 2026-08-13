@@ -105,6 +105,19 @@ if(WIN32)
         "${CMAKE_BINARY_DIR}/vioavr-prebuilt/lib/avr_cosim.dll"
     )
     install(FILES ${VIO_RUNTIME_DLLS} DESTINATION bin OPTIONAL)
+
+    # The Qt QSQLITE plugin (bin/sqldrivers/qsqlite.dll) depends on
+    # libsqlite3-0.dll. windeployqt deploys the plugin but not this dependency,
+    # so without it every SQL-backed feature reports "Driver not loaded" and the
+    # library index silently fails. Ship it next to the executable explicitly.
+    find_file(VIO_SQLITE_RUNTIME libsqlite3-0.dll
+        HINTS "C:/msys64/mingw64/bin"
+        NO_DEFAULT_PATH)
+    if(VIO_SQLITE_RUNTIME)
+        install(FILES "${VIO_SQLITE_RUNTIME}" DESTINATION bin)
+    else()
+        message(WARNING "libsqlite3-0.dll not found; SQLite will not work in the package")
+    endif()
 endif()
 
 

@@ -27,6 +27,8 @@
 #include <QLocalSocket>
 #include <QMessageLogContext>
 #include <QDir>
+#include <QStandardPaths>
+#include <QFile>
 #include <QTimer>
 #include <QThread>
 #include <QDateTime>
@@ -136,11 +138,16 @@ bool socketReachable(const QString& name) {
 
 } // namespace
 
+// Bumped whenever the CLI <-> daemon protocol or socket layout changes, and
+// baked into the socket name so a stale daemon from an older build can never
+// satisfy a newer client (which would mis-forward requests).
+constexpr int kDaemonProtocol = 1;
+
 // ---------------------------------------------------------------------------
 // Helpers (defined in CliDaemon scope, as declared in cli_daemon.h)
 // ---------------------------------------------------------------------------
 
-QString socketName() {
+QString socketBase() {
     QString user = qEnvironmentVariable("USERNAME");
     if (user.isEmpty()) {
         user = qEnvironmentVariable("USER");
@@ -154,6 +161,85 @@ QString socketName() {
         user = user.left(24);
     }
     return QStringLiteral("viora-daemon-%1").arg(user);
+}
+
+QString socketName() {
+    return QStringLiteral("%1-p%2").arg(socketBase()).arg(kDaemonProtocol);
+}
+
+// Per-user directory for daemon logs; created on demand.
+QString daemonLogDir() {
+    QString base =
+        QStandardPaths::writableLocation(QStandardPaths::GenericDataLocation);
+    if (base.isEmpty()) {
+        base = QDir::homePath();
+    }
+    const QString dir = base + QStringLiteral("/viora");
+    QDir().mkpath(dir);
+    return dir;
+}
+
+// Worker stderr lands here so crashes / Qt warnings inside the engine worker
+// are diagnosed instead of vanishing into nullDevice().
+QString workerLogPath() {
+    return daemonLogDir() + QStringLiteral("/worker.log");
+}
+
+// Keep daemon logs bounded: move a log that grew past the cap aside, so the
+// file the process keeps appending to cannot run away. No hard bound at the
+// level of total history (old generations are expected to be purged by the OS
+// user or installer).
+constexpr qint64 kLogRotateBytes = 2 * 1024 * 1024;
+void rotateLogIfLarge(const QString& path) {
+    QFileInfo info(path);
+    if (info.exists() && info.size() > kLogRotateBytes) {
+        QFile::remove(path + QStringLiteral(".1"));
+        QFile::rename(path, path + QStringLiteral(".1"));
+    }
+}
+
+// Watchdog: a command running longer than this is killed and its client is
+// answered with an error. Overridable via VIORA_CMD_TIMEOUT (seconds), read
+// identically on both client and daemon so their clocks stay in agreement.
+int commandTimeoutMs() {
+    static const int ms = [] {
+        int secs = qEnvironmentVariableIntValue("VIORA_CMD_TIMEOUT");
+        if (secs <= 0) secs = 120;
+        return secs * 1000;
+    }();
+    return ms;
+}
+
+// How long a client waits for a response on top of the watchdog window. The
+// daemon-side watchdog only starts ticking once the command is dispatched to a
+// live engine worker, but the client's clock starts the moment the request is
+// written, so this extra budget must cover a full one-time worker (re)init
+// that runs after a worker crash (or, on first connection, before the daemon
+// even accepts sockets). Without it, a healthy daemon that is merely re-warming
+// its engine after a crash would look "stalled" to the caller.
+constexpr int kWorkerInitAllowanceMs = 120000;
+
+// The daemon auto-shuts down after this long without any client activity.
+// Overridable via VIORA_DAEMON_IDLE_TIMEOUT (seconds); 0 disables it.
+int idleTimeoutMs() {
+    static const int ms = [] {
+        int secs = qEnvironmentVariableIntValue("VIORA_DAEMON_IDLE_TIMEOUT");
+        return secs * 1000;
+    }();
+    return ms;
+}
+
+// Best effort: tell a daemon listening on `name` to stop.
+bool stopDaemonNamed(const QString& name) {
+    QLocalSocket socket;
+    socket.connectToServer(name);
+    if (!socket.waitForConnected(2500)) {
+        return false;
+    }
+    socket.write("{\"stop\":true}\n");
+    socket.flush();
+    socket.waitForBytesWritten(3000);
+    return true;
 }
 
 void cliPrintGeneralHelp() {
@@ -341,6 +427,7 @@ int forwardCommand(const QStringList& arguments) {
     for (const QString& a : arguments) {
         argvArr.append(a);
     }
+    request["proto"] = kDaemonProtocol;
     request["argv"] = argvArr;
 
     socket.write(QJsonDocument(request).toJson(QJsonDocument::Compact) + "\n");
@@ -352,8 +439,17 @@ int forwardCommand(const QStringList& arguments) {
     // Total deadline: a command that runs past this still gets its full
     // response closed (the daemon keeps serving everyone else), but the caller
     // does not hang forever. Returned as the -2 "stalled" sentinel.
+    //
+    // The daemon-side watchdog only starts its clock once the command has been
+    // dispatched to a live engine worker, but this client-side clock starts the
+    // moment the request is written. After a worker crash the daemon must
+    // respawn the worker (a full one-time library init) before the command can
+    // even begin, so the wait budget has to cover one worker (re)initialization
+    // on top of the watchdog window; otherwise a healthy daemon that is simply
+    // re-warming its engine looks like a stalled command.
     const qint64 deadline =
-        QDateTime::currentMSecsSinceEpoch() + 120000;
+        QDateTime::currentMSecsSinceEpoch() + commandTimeoutMs() +
+        kWorkerInitAllowanceMs;
 
     QByteArray response;
     while (!response.contains('\n')) {
@@ -550,6 +646,7 @@ QList<ClientSession*> g_sessions;
 QList<ClientSession*> g_pending;
 ClientSession* g_inFlight = nullptr;
 bool g_workerReady = false;
+QTimer* g_idleTimer = nullptr;
 
 void sendResponse(ClientSession* cs, const QJsonObject& obj);
 void dispatchNext();
@@ -557,6 +654,8 @@ void onWorkerData();
 void onWorkerFinished(int code);
 void spawnWorkerAsync();
 void connectWorkerSignals(QProcess* worker);
+void restartIdleTimer();
+void startCommandWatchdog(ClientSession* cs);
 
 // Spawns the worker (if needed) and blocks until it reports it is ready.
 // Used once at daemon startup so socket reachability implies a warm worker.
@@ -576,7 +675,8 @@ bool ensureWorker() {
     worker = new QProcess;
     worker->setProgram(program);
     worker->setArguments({ QStringLiteral("__worker") });
-    worker->setStandardErrorFile(QProcess::nullDevice());
+    rotateLogIfLarge(workerLogPath());
+    worker->setStandardErrorFile(workerLogPath(), QIODevice::Append);
 #ifdef Q_OS_WIN
     worker->setCreateProcessArgumentsModifier(
         [](QProcess::CreateProcessArguments* args) {
@@ -604,10 +704,12 @@ bool ensureWorker() {
 // Asynchronous request handling.
 //
 // The daemon never blocks its event loop while a command runs, so a slow (or
-// stuck) command only holds the one client that asked for it — bounded by the
-// client-side timeout — while every other client keeps being served. Requests
-// are queued and dispatched to the single worker in FIFO order; a worker crash
-// answers the in-flight client with an error and respawns automatically.
+// stuck) command only holds the one client that asked for it while every other
+// client keeps being served. Requests are queued and dispatched to the single
+// worker in FIFO order; a worker crash answers the in-flight client with an
+// error and respawns automatically. A command that outlives the watchdog (see
+// commandTimeoutMs) is killed the same way, so a hung command cannot wedge the
+// daemon forever.
 // ---------------------------------------------------------------------------
 
 struct ClientSession : QObject {
@@ -616,6 +718,10 @@ struct ClientSession : QObject {
     QJsonObject request;
     bool done = false;
 };
+
+void finishSession(ClientSession* cs);
+void sendResponse(ClientSession* cs, const QJsonObject& obj);
+void handleWorkerTerminated(ClientSession* cs, int code, const QString& stderrMsg);
 
 void connectWorkerSignals(QProcess* worker) {
     QObject::connect(worker, &QProcess::readyReadStandardOutput,
@@ -644,20 +750,44 @@ void finishSession(ClientSession* cs) {
     cs->deleteLater();
 }
 
+// Writes the reply and closes the session only once the socket has drained it.
+// The daemon must not block its event loop (that would stall every other
+// client), so for a reply that exceeds the socket buffer we keep the session
+// open until QLocalSocket::bytesWritten reports everything flushed. The
+// watchdog timer guarantees a slow-to-drain peer cannot hold a session forever.
 void sendResponse(ClientSession* cs, const QJsonObject& obj) {
     if (!cs || cs->done) return;
     const QByteArray out =
         QJsonDocument(obj).toJson(QJsonDocument::Compact) + "\n";
-    if (cs->socket->state() == QLocalSocket::ConnectedState) {
-        cs->socket->write(out);
-        cs->socket->flush();
-        cs->socket->waitForBytesWritten(2000);
+    if (cs->socket->state() != QLocalSocket::ConnectedState ||
+        cs->socket->bytesToWrite() > 0) {
+        finishSession(cs); // peer already gone or still draining old bytes
+        return;
     }
-    finishSession(cs);
+
+    cs->socket->write(out);
+    cs->socket->flush();
+    if (cs->socket->bytesToWrite() == 0) {
+        finishSession(cs);
+        return;
+    }
+
+    QObject::connect(cs->socket, &QLocalSocket::bytesWritten, cs,
+                     [cs]() {
+                         if (!cs->done && cs->socket->bytesToWrite() == 0) {
+                             finishSession(cs);
+                         }
+                     });
+    QTimer* drain = new QTimer(cs);
+    drain->setSingleShot(true);
+    QObject::connect(drain, &QTimer::timeout, cs,
+                     [cs]() { finishSession(cs); });
+    drain->start(10000);
 }
 
 void onClientData(ClientSession* cs) {
     if (cs->done) return;
+    restartIdleTimer();
     cs->buf += cs->socket->readAll();
     const int nl = cs->buf.indexOf('\n');
     if (nl < 0) return;
@@ -680,6 +810,14 @@ void onClientData(ClientSession* cs) {
                                &QCoreApplication::quit);
             return;
         }
+        if (cs->request.value("proto").toInt() != kDaemonProtocol) {
+            QJsonObject resp;
+            resp["exit"] = 2;
+            resp["stderr"] =
+                "viora: daemon protocol mismatch (stale client or daemon)";
+            sendResponse(cs, resp);
+            return;
+        }
         g_pending.append(cs);
         dispatchNext();
         return;
@@ -692,6 +830,24 @@ void onWorkerData() {
     if (!worker) return;
     QByteArray& buf = workerOutBuffer();
     buf += worker->readAllStandardOutput();
+
+    // Defensive backpressure cap: a command that floods stdout far beyond the
+    // frame protocol would otherwise grow the buffer without bound. Treat it
+    // like a crashed worker rather than risk exhausting memory.
+    const qint64 kWorstFrame = 256 * 1024 * 1024;
+    if (buf.size() > kWorstFrame) {
+        ClientSession* cs = g_inFlight;
+        g_inFlight = nullptr;
+        if (cs) {
+            QJsonObject resp;
+            resp["exit"] = 1;
+            resp["stderr"] =
+                "viora: command flooded the worker pipe and was terminated";
+            sendResponse(cs, resp);
+        }
+        handleWorkerTerminated(nullptr, -1, QStringLiteral("backpressure"));
+        return;
+    }
 
     int nl;
     while ((nl = buf.indexOf('\n')) >= 0) {
@@ -712,20 +868,24 @@ void onWorkerData() {
             ClientSession* cs = g_inFlight;
             g_inFlight = nullptr;
             if (cs) sendResponse(cs, obj);
+            restartIdleTimer();
             dispatchNext();
         }
     }
 }
 
-void onWorkerFinished(int code) {
-    ClientSession* cs = g_inFlight;
-    g_inFlight = nullptr;
-    if (cs) {
+// Shared teardown for "the worker can no longer run the current command":
+// answer the in-flight client, drop worker state, and respawn for whoever is
+// queued. Responding to the client happens only when `cs` is actually the
+// in-flight session; the worker cleanup always runs. A later QProcess
+// finished signal sees an empty in-flight slot and becomes a no-op.
+void handleWorkerTerminated(ClientSession* cs, int code,
+                            const QString& stderrMsg) {
+    if (cs && g_inFlight == cs) {
+        g_inFlight = nullptr;
         QJsonObject resp;
         resp["exit"] = code ? code : 1;
-        resp["stderr"] = QString(
-            "viora: command crashed inside the engine worker (exit code %1)")
-            .arg(code);
+        resp["stderr"] = stderrMsg;
         sendResponse(cs, resp);
     }
     g_workerReady = false;
@@ -739,7 +899,48 @@ void onWorkerFinished(int code) {
         worker = nullptr;
     }
     workerOutBuffer().clear();
-    dispatchNext(); // respawn a fresh worker for queued requests
+    restartIdleTimer(); // command (or its worker) is gone; not busy anymore
+    dispatchNext();     // respawn a fresh worker for queued requests
+}
+
+void onWorkerFinished(int code) {
+    ClientSession* cs = g_inFlight;
+    handleWorkerTerminated(
+        cs, code ? code : 1,
+        QString("viora: command crashed inside the engine worker (exit "
+                "code %1)")
+            .arg(code));
+}
+
+// Arms the watchdog for the command about to run: an unresponsive command that
+// outlives commandTimeoutMs is killed exactly like a crash, so one stuck
+// command cannot wedge the daemon for everyone else.
+void startCommandWatchdog(ClientSession* cs) {
+    if (commandTimeoutMs() <= 0) return;
+    QTimer* timer = new QTimer(cs);
+    timer->setSingleShot(true);
+    QObject::connect(timer, &QTimer::timeout, cs, [cs]() {
+        if (g_inFlight != cs) return;
+        handleWorkerTerminated(
+            cs, 124,
+            QString("viora: command timed out after %1s and was terminated")
+                .arg(commandTimeoutMs() / 1000));
+    });
+    timer->start(commandTimeoutMs());
+}
+
+void restartIdleTimer() {
+    if (!g_idleTimer) return;
+    const int ms = idleTimeoutMs();
+    if (ms > 0) g_idleTimer->start(ms);
+}
+
+// A command currently running for the daemon is not "idle": pause the idle
+// timer while work is dispatched and resume it once the command completes.
+void pauseIdleTimer() {
+    if (g_idleTimer && g_idleTimer->isActive()) {
+        g_idleTimer->stop();
+    }
 }
 
 void spawnWorkerAsync() {
@@ -764,7 +965,8 @@ void spawnWorkerAsync() {
     worker = new QProcess;
     worker->setProgram(program);
     worker->setArguments({ QStringLiteral("__worker") });
-    worker->setStandardErrorFile(QProcess::nullDevice());
+    rotateLogIfLarge(workerLogPath());
+    worker->setStandardErrorFile(workerLogPath(), QIODevice::Append);
 #ifdef Q_OS_WIN
     worker->setCreateProcessArgumentsModifier(
         [](QProcess::CreateProcessArguments* args) {
@@ -793,15 +995,19 @@ void dispatchNext() {
 
         ClientSession* cs = g_pending.takeFirst();
         g_inFlight = cs;
+        pauseIdleTimer();
 
         QJsonObject req;
+        req["proto"] = kDaemonProtocol;
         req["argv"] = cs->request.value("argv");
         worker->write(QJsonDocument(req).toJson(QJsonDocument::Compact) +
                       "\n");
+        startCommandWatchdog(cs);
     }
 }
 
 void onNewConnection(QLocalServer* server) {
+    restartIdleTimer();
     while (QLocalSocket* socket = server->nextPendingConnection()) {
         auto* cs = new ClientSession;
         cs->socket = socket;
@@ -833,6 +1039,17 @@ int startServer() {
         return 1;
     }
 
+    // Stop any daemon left behind by an older build. Versioned socket names
+    // make it unreachable to new clients, so shut it down explicitly rather
+    // than leave an orphan holding the warmed worker's memory. Also sweep the
+    // pre-versioning name (protocol had no suffix) for the first bump.
+    for (int p = 0; p < kDaemonProtocol; ++p) {
+        const QString name =
+            (p == 0) ? socketBase()
+                     : QStringLiteral("%1-p%2").arg(socketBase()).arg(p);
+        stopDaemonNamed(name);
+    }
+
     // Sockets only become reachable once the engine worker has finished its
     // one-time initialization, which is what the spawn/forward client waits
     // for. A command that later crashes only kills the worker, not the daemon.
@@ -845,6 +1062,10 @@ int startServer() {
     // No daemon is currently listening; clear a socket left by a crashed
     // daemon (if any) before taking over the name.
     server.removeServer(socketName());
+    // Restrict the named pipe to the owning user only. On Windows the default
+    // DACL lets any local account connect; without this, a colleague (or
+    // malware) could execute arbitrary viora commands as this user.
+    server.setSocketOptions(QLocalServer::UserAccessOption);
     if (!server.listen(socketName())) {
         if (server.serverError() == QAbstractSocket::AddressInUseError &&
             socketReachable(socketName())) {
@@ -860,6 +1081,20 @@ int startServer() {
     QLocalServer* serverPtr = &server;
     QObject::connect(&server, &QLocalServer::newConnection,
                      [serverPtr]() { onNewConnection(serverPtr); });
+
+    // Auto-shutdown after a quiet period so an unused daemon does not hold the
+    // warmed worker's memory forever.
+    if (idleTimeoutMs() > 0) {
+        g_idleTimer = new QTimer(QCoreApplication::instance());
+        g_idleTimer->setSingleShot(true);
+        QObject::connect(
+            g_idleTimer, &QTimer::timeout, g_idleTimer,
+            []() {
+                killWorker();
+                QCoreApplication::instance()->quit();
+            });
+        restartIdleTimer();
+    }
     return 0;
 }
 
@@ -908,25 +1143,10 @@ int workerMain() {
 }
 
 int sendStop() {
-    QLocalSocket socket;
-    socket.connectToServer(socketName());
-    if (!socket.waitForConnected(3000)) {
+    if (!stopDaemonNamed(socketName())) {
         std::cerr << "viora: no daemon is running\n";
         return 1;
     }
-
-    socket.write("{\"stop\":true}\n");
-    socket.flush();
-    socket.waitForBytesWritten(5000);
-
-    QByteArray response;
-    while (!response.contains('\n')) {
-        if (!socket.waitForReadyRead(5000)) {
-            break;
-        }
-        response += socket.readAll();
-    }
-
     std::cerr << "viora: daemon stopped\n";
     return 0;
 }
