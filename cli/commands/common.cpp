@@ -16,6 +16,14 @@ bool g_quiet = false;
 bool g_debug = false;
 bool g_noColor = false;
 bool g_exitOnWarning = false;
+bool g_daemonWorker = false;
+
+void commandExit(int code) {
+    if (g_daemonWorker) {
+        throw CompletedRequest{code};
+    }
+    std::_Exit(code);
+}
 
 std::optional<int> parseTimeoutMs(const QString& value, QString* error) {
     const QString trimmed = value.trimmed();

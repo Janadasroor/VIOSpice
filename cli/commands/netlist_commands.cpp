@@ -754,7 +754,7 @@ public:
                     if (!resolveBaseSignalIndex(data, parser.value("base-signal"), &baseSignalIndex, &baseError)) {
                         out["error"] = baseError;
                         printJsonValue(out);
-                        std::_Exit(1);
+                        commandExit(1);
                     }
                     if (ok && exportRaw) out["raw"] = rawToJson(data, signalNames, indices, maxPointsValue, tStart, tEnd, baseSignalIndex);
                     if (ok && exportStats) {
@@ -935,7 +935,7 @@ public:
                 }
             }
             printJsonValue(out);
-            std::_Exit(okForExit ? 0 : 1);
+            commandExit(okForExit ? 0 : 1);
         }
 
         if (!g_quiet) {
@@ -1036,12 +1036,12 @@ public:
 
         if (timedOut) {
             std::cerr << "Error: Simulation timed out." << std::endl;
-            if (g_quiet && !parser.isSet("json")) std::_Exit(1);
+            if (g_quiet && !parser.isSet("json")) commandExit(1);
             return 1;
         }
         if (!errorMsg.isEmpty()) {
             std::cerr << "Error: " << errorMsg.toStdString() << std::endl;
-            if (g_quiet && !parser.isSet("json")) std::_Exit(1);
+            if (g_quiet && !parser.isSet("json")) commandExit(1);
             return 1;
         }
 
@@ -1328,19 +1328,19 @@ public:
                     std::cout << rawToCsv(data, signalNames, indices, maxPointsValue, tStart, tEnd, baseSignalIndex).toStdString();
                 }
             }
-            std::_Exit(okForExit ? 0 : 1);
+            commandExit(okForExit ? 0 : 1);
         }
         if (g_exitOnWarning && hasWarnings) {
             if (!g_quiet) {
                 std::cerr << "Warning: ngspice reported warnings during simulation." << std::endl;
             }
-            if (g_quiet && !parser.isSet("json") && !exportRequested) std::_Exit(1);
+            if (g_quiet && !parser.isSet("json") && !exportRequested) commandExit(1);
             return 1;
         }
-        if (g_quiet && !parser.isSet("json") && !exportRequested) { std::_Exit(okResult ? 0 : 1); }
+        if (g_quiet && !parser.isSet("json") && !exportRequested) { commandExit(okResult ? 0 : 1); }
         std::cout.flush();
         std::cerr.flush();
-        std::_Exit(okResult ? 0 : 1);
+        commandExit(okResult ? 0 : 1);
         return okResult ? 0 : 1;
     }
 };
@@ -1421,16 +1421,16 @@ public:
         }
         if (!errorMsg.isEmpty()) {
             std::cerr << "Error: " << errorMsg.toStdString() << std::endl;
-            if (g_quiet && !parser.isSet("json")) std::_Exit(1);
+            if (g_quiet && !parser.isSet("json")) commandExit(1);
             return 1;
         }
         if (g_exitOnWarning && hasWarnings) {
             if (!g_quiet) std::cerr << "Warning: ngspice reported warnings during validation." << std::endl;
-            if (g_quiet && !parser.isSet("json")) std::_Exit(1);
+            if (g_quiet && !parser.isSet("json")) commandExit(1);
             return 1;
         }
         if (ok) std::cout << "Netlist OK" << std::endl;
-        if (g_quiet && !parser.isSet("json")) std::_Exit(okForExit ? 0 : 1);
+        if (g_quiet && !parser.isSet("json")) commandExit(okForExit ? 0 : 1);
         return okForExit ? 0 : 1;
     }
 };

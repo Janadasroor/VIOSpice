@@ -1104,6 +1104,11 @@ int workerMain() {
     // command crashing later cannot take this initialization down with it.
     cliInitializeLibraries();
 
+    // Commands that print JSON then terminate the process with std::_Exit()
+    // must instead unwind back here so the worker can send its response frame
+    // and keep serving. commandExit() throws CompletedRequest for this reason.
+    g_daemonWorker = true;
+
     std::cout << "{\"ready\":true}\n" << std::flush;
 
     std::string line;
@@ -1125,7 +1130,14 @@ int workerMain() {
 
             OutputCapture capture;
             capture.begin();
-            const int rc = qApp ? cliRunCommand(qApp, argv, false) : 1;
+            int rc = 1;
+            try {
+                rc = qApp ? cliRunCommand(qApp, argv, false) : 1;
+            } catch (const CompletedRequest& req) {
+                // The command printed its result then asked to exit. Route the
+                // exit code back through the normal response frame.
+                rc = req.code;
+            }
             capture.end();
 
             response["exit"] = rc;
