@@ -28,6 +28,10 @@ bool SpiceBackend::initialize(SendChar* cbChar, SendStat* cbStat, ControlledExit
 #ifdef HAVE_NGSPICE
     int rc = ngSpice_Init(cbChar, cbStat, cbExit, cbData, cbInitData, cbRunning, userData);
     m_initialized = (rc == 0);
+    if (m_initialized) {
+        void* sym = resolveSymbol("ngSpice_IsPaused");
+        m_isPausedFn.store(reinterpret_cast<IsPausedFn>(sym));
+    }
     return m_initialized;
 #else
     return false;
@@ -63,11 +67,16 @@ int SpiceBackend::loadCircuit(char** deck) {
 }
 
 bool SpiceBackend::isPaused() const {
-    // ngSpice_IsPaused is a custom symbol only present in VioMATRIXC patched ngspice.
-    // Use dynamic lookup to gracefully handle prebuilt binaries that lack it.
+    // Fast path: use cached function pointer from initialize()
+    IsPausedFn fn = m_isPausedFn.load();
+    if (fn) return fn();
+
+    // Fallback if called before initialize or prebuilt lacks symbol
     void* sym = const_cast<SpiceBackend*>(this)->resolveSymbol("ngSpice_IsPaused");
     if (!sym) return false;
-    return reinterpret_cast<bool(*)()>(sym)();
+    fn = reinterpret_cast<IsPausedFn>(sym);
+    m_isPausedFn.store(fn);
+    return fn();
 }
 
 void* SpiceBackend::resolveSymbol(const char* symbolName) {

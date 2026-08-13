@@ -35,6 +35,8 @@ private:
     SpiceBackend();
     bool m_initialized;
     mutable std::mutex m_mutex;
+    using IsPausedFn = bool (*)();
+    mutable std::atomic<IsPausedFn> m_isPausedFn{nullptr};
 };
 
 } // namespace Flux
