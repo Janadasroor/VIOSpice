@@ -148,7 +148,7 @@ void ModelLibraryManager::scanDirectoryAsync(const QString& path) {
     for (const QString& f : files) {
         current++;
         if (current % 5 == 0 || current == total) {
-            QCoreApplication::processEvents(QEventLoop::AllEvents, 50);
+            QCoreApplication::processEvents();
             Q_EMIT progressUpdated(QString("Indexing SPICE Model: %1 (%2/%3)").arg(QFileInfo(f).fileName()).arg(current).arg(total), current, total);
         }
         indexLibraryFile(f);

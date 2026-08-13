@@ -101,16 +101,45 @@ void FootprintLibrary::load() {
 }
 
 bool FootprintLibrary::hasFootprint(const QString& name) const {
+    if (m_loaded) {
+        return m_footprints.contains(name);
+    }
+    if (!m_path.endsWith(".fplib", Qt::CaseInsensitive)) {
+        return QFile::exists(m_path + "/" + name + ".json");
+    }
     ensureLoaded();
     return m_footprints.contains(name);
 }
 
 FootprintDefinition FootprintLibrary::getFootprint(const QString& name) const {
+    if (!m_loaded && !m_path.endsWith(".fplib", Qt::CaseInsensitive)) {
+        QString fpPath = m_path + "/" + name + ".json";
+        QFile file(fpPath);
+        if (file.open(QIODevice::ReadOnly)) {
+            QJsonDocument doc = QJsonDocument::fromJson(file.readAll());
+            if (!doc.isNull() && doc.isObject()) {
+                FootprintDefinition def = FootprintDefinition::fromJson(doc.object());
+                if (def.isValid()) {
+                    return def;
+                }
+            }
+        }
+    }
     ensureLoaded();
     return m_footprints.value(name);
 }
 
 QStringList FootprintLibrary::getFootprintNames() const {
+    if (!m_loaded && !m_path.endsWith(".fplib", Qt::CaseInsensitive)) {
+        QDir dir(m_path);
+        QStringList names = dir.entryList(QStringList() << "*.json", QDir::Files);
+        for (QString& n : names) {
+            if (n.endsWith(".json", Qt::CaseInsensitive)) {
+                n.chop(5);
+            }
+        }
+        return names;
+    }
     ensureLoaded();
     return m_footprints.keys();
 }
@@ -139,7 +168,6 @@ bool FootprintLibrary::saveFootprint(const FootprintDefinition& footprint) {
         QJsonDocument doc(footprint.toJson());
         file.write(doc.toJson());
         file.close();
-        qDebug() << "Saved footprint" << footprint.name() << "to library" << m_name;
         return true;
     } 
     return false;
@@ -162,12 +190,10 @@ FootprintLibraryManager::~FootprintLibraryManager() {
 
 void FootprintLibraryManager::initialize() {
     LibraryIndex::instance().initialize();
-    LibraryIndex::instance().beginTransaction();
     
     // 1. Load Built-in from Resources
     FootprintLibrary* builtin = new FootprintLibrary("Built-in Standard", ":/library/builtin.fplib", true);
     m_libraries.append(builtin);
-    indexLibraryFootprints(builtin);
     
     // 2. Ensure root directory exists for user libs
     QString baseDir = QDir::homePath() + "/ViospiceLib/footprints";
@@ -176,37 +202,18 @@ void FootprintLibraryManager::initialize() {
     // Seed a richer default library set in user space on first run.
     createDefaultBuiltInLibrary();
 
-    // 3. Scan recursively for footprint library directories (any directory containing .json files)
-    QSet<QString> libraryPaths;
-    QDirIterator it(baseDir, QStringList() << "*.json", QDir::Files, QDirIterator::Subdirectories);
-    while (it.hasNext()) {
-        it.next();
-        libraryPaths.insert(it.fileInfo().absolutePath());
+    // 3. Scan for footprint library subdirectories in user footprint root
+    QDir userDir(baseDir);
+    const QFileInfoList subdirs = userDir.entryInfoList(QDir::Dirs | QDir::NoDotAndDotDot);
+    for (const QFileInfo& dirInfo : subdirs) {
+        m_libraries.append(new FootprintLibrary(dirInfo.fileName(), dirInfo.absoluteFilePath()));
     }
 
     // 4. Scan for standalone .fplib libraries dropped into user footprint root.
-    QDir userDir(baseDir);
     const QFileInfoList fplibFiles = userDir.entryInfoList(QStringList() << "*.fplib", QDir::Files);
-    
-    int fpCurrent = 0;
-    int fpTotal = libraryPaths.size() + fplibFiles.size();
-    for (const QString& libPath : libraryPaths) {
-        fpCurrent++;
-        QCoreApplication::processEvents(QEventLoop::AllEvents, 50);
-        Q_EMIT progressUpdated(QString("Loading Footprint Lib: %1 (%2/%3)").arg(QFileInfo(libPath).fileName()).arg(fpCurrent).arg(fpTotal), fpCurrent, fpTotal);
-        addLibrary(libPath);
-    }
-
     for (const QFileInfo& fileInfo : fplibFiles) {
-        fpCurrent++;
-        QCoreApplication::processEvents(QEventLoop::AllEvents, 50);
-        Q_EMIT progressUpdated(QString("Loading Footprint Lib: %1 (%2/%3)").arg(fileInfo.fileName()).arg(fpCurrent).arg(fpTotal), fpCurrent, fpTotal);
-        addLibrary(fileInfo.absoluteFilePath());
+        m_libraries.append(new FootprintLibrary(fileInfo.baseName(), fileInfo.absoluteFilePath()));
     }
-
-
-
-    LibraryIndex::instance().commitTransaction();
 }
 
 void FootprintLibraryManager::loadBuiltInLibrary() {
@@ -215,6 +222,10 @@ void FootprintLibraryManager::loadBuiltInLibrary() {
 
 void FootprintLibraryManager::createDefaultBuiltInLibrary() {
     QString baseDir = QDir::homePath() + "/ViospiceLib/footprints";
+    QDir dir(baseDir);
+    if (dir.exists() && !dir.entryInfoList(QDir::Dirs | QDir::NoDotAndDotDot).isEmpty()) {
+        return; // Already seeded on disk
+    }
     QMap<QString, FootprintLibrary*> catLibs;
 
     auto addFootprintToCat = [&](const FootprintDefinition& fpt) {
