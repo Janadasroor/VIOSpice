@@ -51,13 +51,17 @@ int main(int argc, char** argv) {
     const QString validPath = QDir::tempPath() + "/rerun_valid.cir";
     {
         QFile f(failPath);
-        f.open(QIODevice::WriteOnly);
-        f.write("Hard failure test\nV1 1 0 10\nB1 1 0 V=exp(v(1))\n.tran 1u 100m\n.options itl1=1 itl2=1 itl4=1\n.end\n");
+        if (f.open(QIODevice::WriteOnly)) {
+            f.write("Hard failure test\nV1 1 0 10\nB1 1 0 V=exp(v(1))\n.tran 1u 100m\n.options itl1=1 itl2=1 itl4=1\n.end\n");
+            f.close();
+        }
     }
     {
         QFile f(validPath);
-        f.open(QIODevice::WriteOnly);
-        f.write("Valid RC test\nV1 1 0 10\nR1 1 2 1k\nC1 2 0 1u\n.tran 1u 10m\n.end\n");
+        if (f.open(QIODevice::WriteOnly)) {
+            f.write("Valid RC test\nV1 1 0 10\nR1 1 2 1k\nC1 2 0 1u\n.tran 1u 10m\n.end\n");
+            f.close();
+        }
     }
 
     QSignalSpy errorSpy(&sim, &SimulationManager::errorOccurred);
