@@ -42,8 +42,10 @@ int main(int argc, char** argv) {
     QString path = QDir::tempPath() + "/fail_popup_test.cir";
     {
         QFile f(path);
-        f.open(QIODevice::WriteOnly);
-        f.write(failingNetlist);
+        if (f.open(QIODevice::WriteOnly)) {
+            f.write(failingNetlist);
+            f.close();
+        }
     }
 
     QSignalSpy errorSpy(&sim, &SimulationManager::errorOccurred);
