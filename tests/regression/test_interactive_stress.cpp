@@ -15,6 +15,7 @@
 #include <QTimer>
 #include <QDebug>
 #include <QSignalSpy>
+#include <QThread>
 #include "simulation/simulation_manager.h"
 #include <iostream>
 
@@ -123,7 +124,9 @@ int main(int argc, char *argv[]) {
         return 2;
     }
 
+    QSignalSpy finishSpy(&sim, &SimulationManager::simulationFinished);
+    sim.stopSimulation();
+    finishSpy.wait(2000);
     fprintf(stderr, "STRESS: SUCCESS\n");
-    sim.shutdown();
     return 0;
 }
