@@ -41,34 +41,34 @@ void CommandWorker::executeSequence(const QStringList& cmds) {
 
     bool needsResume = false;
 
-    if (m_manager->isRunning()) {
+    // Issue 1: In native SmartSignal mode, do not use bg_halt / bg_resume cycles for alter sequences.
+    // The native engine applies alter commands directly in-solver.
+    // Only in non-native / legacy mode, gate through haltAndWait.
+    if (m_manager->isRunning() && !m_manager->isNativeSmartSignalMode()) {
         qDebug() << "[SimWorker] Requesting bg_halt for alteration...";
-        
-        // Signal that we are intentionally halting — prevents auto-resume in the callback
-        m_manager->m_haltRequested = true;
-        
-        {
-            std::lock_guard<std::mutex> lock(m_manager->m_workerSyncMutex);
-            m_manager->m_ngspiceIsHalted = false; // Reset so we can wait for the new pause event
-        }
-        
-        SpiceBackend::instance().execute("bg_halt");
-        needsResume = true;
-        
-        // Wait for the sync-pause callback to confirm the halt.
-        // cbBGThreadRunning(finished=true, isPaused=true) will set m_ngspiceIsHalted=true.
-        {
-            std::unique_lock<std::mutex> lock(m_manager->m_workerSyncMutex);
-            bool halted = m_manager->m_workerSyncCond.wait_for(lock, std::chrono::milliseconds(500), [this] {
-                return m_manager->m_ngspiceIsHalted.load();
+
+        // Issue 3: Use dynamic halt budget scaled by circuit complexity
+        auto budget = m_manager->dynamicHaltBudget();
+        if (m_manager->haltAndWait(budget)) {
+            qDebug() << "[SimWorker] Halt confirmed at sync point.";
+            needsResume = true;
+        } else if (SpiceBackend::instance().isPaused()) {
+            // Engine reports paused even though the sync-pause callback never fired.
+            qDebug() << "[SimWorker] Engine reports paused; proceeding with alteration.";
+            needsResume = true;
+        } else {
+            // Issue 2: Instead of dropping the update permanently, retry with coalescing.
+            qDebug() << "[SimWorker] Halt confirmation timed out and engine is not paused; rescheduling alter retry.";
+            m_manager->m_jitUpdateInProgress = false;
+            m_manager->m_fluxSyncRequested = false;
+            m_manager->m_haltRequested = false;
+            SpiceBackend::instance().execute("bg_resume");
+
+            // Re-queue the commands to retry after a brief delay so user actions (e.g. switch toggle) are not lost
+            QTimer::singleShot(50, this, [this, cmds]() {
+                executeSequence(cmds);
             });
-            if (halted) {
-                qDebug() << "[SimWorker] Halt confirmed at sync point.";
-            } else {
-                qDebug() << "[SimWorker] Warning: Halt timed out. Sim may have finished. Proceeding.";
-                needsResume = false; // Thread may be dead — don't try to resume
-                m_manager->m_haltRequested = false;
-            }
+            return;
         }
     }
 
@@ -375,6 +375,51 @@ bool SimulationManager::isRunning() const {
     return m_state == SimulationState::Running || m_state == SimulationState::Halted;
 }
 
+std::chrono::milliseconds SimulationManager::dynamicHaltBudget() const {
+    // Base budget 2000ms. Scale up based on netlist size and vector count for large circuits (Issue 3)
+    int netlistLen = 0;
+    {
+        std::lock_guard<std::mutex> lock(const_cast<SimulationManager*>(this)->m_netlistMutex);
+        netlistLen = m_currentNetlist.size();
+    }
+    int vecCount = 0;
+    {
+        std::lock_guard<std::mutex> lock(const_cast<SimulationManager*>(this)->m_vectorMutex);
+        vecCount = static_cast<int>(m_vectorMap.size());
+    }
+    int extraMs = (netlistLen / 50) + (vecCount * 20);
+    int totalMs = std::clamp(2000 + extraMs, 2000, 10000);
+    return std::chrono::milliseconds(totalMs);
+}
+
+bool SimulationManager::haltAndWait(std::chrono::milliseconds budget) {
+    m_haltRequested = true;
+
+    {
+        std::lock_guard<std::mutex> lock(m_workerSyncMutex);
+        // Already parked at a sync point (e.g. state==Halted) — no new
+        // callback will fire for a redundant bg_halt, so don't reset the flag.
+        if (m_ngspiceIsHalted) return true;
+    }
+
+    SpiceBackend::instance().execute("bg_halt");
+
+    const auto deadline = std::chrono::steady_clock::now() + budget;
+    {
+        std::unique_lock<std::mutex> lock(m_workerSyncMutex);
+        while (std::chrono::steady_clock::now() < deadline) {
+            if (m_ngspiceIsHalted) return true;
+            // Issue 12: Engine already terminated — safe for alter/teardown commands,
+            // but do NOT set m_ngspiceIsHalted = true (which conflates paused vs terminated).
+            if (m_state == SimulationState::Finished || m_state == SimulationState::Error) {
+                return true;
+            }
+            m_workerSyncCond.wait_for(lock, std::chrono::milliseconds(25));
+        }
+    }
+    return m_ngspiceIsHalted.load();
+}
+
 bool SimulationManager::recoverEngineIfNeeded() {
 #ifdef HAVE_NGSPICE
     if (!m_engineRecoveryRequired.exchange(false)) return true;
@@ -429,9 +474,14 @@ void SimulationManager::runSimulation(const QString& netlist, SimControl* contro
     
     // Cleanup stale raw file (same location used for default temp netlists)
     QFile::remove(QDir::tempPath() + "/viospice.raw");
-    // If already running, stop first (with wait)
+    // If already running, halt and confirm before tearing down the circuit.
+    // stopSimulation() is fire-and-forget (queued bg_halt); using it here means
+    // the stale queued bg_halt can land AFTER the new bg_run and strand the new
+    // run in Halted. A synchronous confirmed halt avoids that race entirely.
     if (m_state == SimulationState::Running || m_state == SimulationState::Halted) {
-        stopSimulation();
+        if (!haltAndWait(dynamicHaltBudget())) {
+            qWarning() << "[SimManager] Pre-run halt not confirmed; loadNetlistInternal will force recovery.";
+        }
     }
 
     QString error;
@@ -473,6 +523,17 @@ void SimulationManager::runSimulation(const QString& netlist, SimControl* contro
 
 bool SimulationManager::validateNetlist(const QString& netlist, QString* errorOut) {
     if (!isAvailable()) { if (errorOut) *errorOut = "Simulation engine not installed."; return false; }
+    
+    // Issue 10: If a simulation is running, validate netlist syntax without destroying live circuit
+    if (isRunning()) {
+        auto processResult = NetlistProcessor::process(netlist);
+        if (!processResult.success) {
+            if (errorOut) *errorOut = processResult.error;
+            return false;
+        }
+        return true;
+    }
+
     if (!recoverEngineIfNeeded()) { if (errorOut) *errorOut = "Failed to recover engine."; return false; }
     if (!m_isInitialized) initialize();
 
@@ -482,20 +543,31 @@ bool SimulationManager::validateNetlist(const QString& netlist, QString* errorOu
 
 bool SimulationManager::loadNetlistInternal(const QString& netlist, bool keepStorage, QString* errorOut) {
 #ifdef HAVE_NGSPICE
-    // Ensure background thread is stopped before resetting
+    // Ensure background thread is stopped before resetting. Do NOT run
+    // destroy/reset/loadCircuit until the old run is confirmed parked — issuing
+    // them against an active bg thread is what wedges the engine.
     if (m_state == SimulationState::Running || m_state == SimulationState::Halted) {
-        m_haltRequested = true;
-        {
-            std::lock_guard<std::mutex> lock(m_workerSyncMutex);
-            m_ngspiceIsHalted = false;
+        if (!haltAndWait(dynamicHaltBudget())) {
+            QString haltErr;
+            {
+                std::lock_guard<std::mutex> lock(m_logMutex);
+                haltErr = m_lastErrorMessage;
+            }
+            qWarning() << "[SimManager] Halt confirmation timed out; forcing engine recovery before reload.";
+            SpiceBackend::instance().execute("bg_halt");
+            SpiceBackend::instance().execute("quit");
+            m_isInitialized = false;
+            initialize();
+            if (!m_isInitialized) {
+                // Issue 9: Preserve underlying diagnostic detail
+                if (errorOut) {
+                    *errorOut = haltErr.isEmpty()
+                        ? "Failed to stop the running simulation."
+                        : QString("Failed to stop the running simulation (ngspice error: %1).").arg(haltErr);
+                }
+                return false;
+            }
         }
-        SpiceBackend::instance().execute("bg_halt");
-        
-        // Wait for halt confirmation
-        std::unique_lock<std::mutex> lock(m_workerSyncMutex);
-        m_workerSyncCond.wait_for(lock, std::chrono::milliseconds(500), [this] {
-            return m_ngspiceIsHalted.load();
-        });
     }
     
     setState(SimulationState::Loading);
@@ -563,9 +635,13 @@ void SimulationManager::stopSimulation() {
 void SimulationManager::shutdown() {
 #ifdef HAVE_NGSPICE
     setState(SimulationState::Stopping);
+    if (m_bufferTimer) m_bufferTimer->stop();
+    if (isRunning()) {
+        // Issue 15: Confirmed-halt gate to avoid racing with worker executeSequence
+        haltAndWait(std::chrono::milliseconds(1000));
+    }
     SpiceBackend::instance().execute("bg_halt");
     SpiceBackend::instance().execute("quit");
-    m_bufferTimer->stop();
     m_isInitialized = false;
     setState(SimulationState::Idle);
 #endif
@@ -583,7 +659,35 @@ double SimulationManager::getVectorValue(const QString& name) {
 QPair<QVector<double>, QVector<double>> SimulationManager::getVectorHistory(const QString& name) {
     QVector<double> time, values;
 
-    // Primary: read from m_simBuffer (Qt-owned, same data as streaming pipeline)
+    // Issue 7: Primary path reads from Ngspice's internal vectors which contain
+    // the complete untruncated history for long runs.
+#ifdef HAVE_NGSPICE
+    if (m_isInitialized) {
+        ngSpice_LockRealloc();
+        QByteArray timeName("time");
+        pvector_info timeInfo = ngGet_Vec_Info(timeName.data());
+        QByteArray sigName = name.toLatin1();
+        pvector_info sigInfo = ngGet_Vec_Info(sigName.data());
+        if (sigInfo == nullptr) {
+            QByteArray lowerName = name.toLower().toLatin1();
+            sigInfo = ngGet_Vec_Info(lowerName.data());
+        }
+        if (timeInfo && timeInfo->v_realdata && timeInfo->v_length > 0 &&
+            sigInfo && sigInfo->v_realdata && sigInfo->v_length > 0) {
+            int len = qMin(timeInfo->v_length, sigInfo->v_length);
+            time.reserve(len);
+            values.reserve(len);
+            for (int i = 0; i < len; ++i) {
+                time.append(timeInfo->v_realdata[i]);
+                values.append(sigInfo->v_realdata[i]);
+            }
+        }
+        ngSpice_UnlockRealloc();
+        if (!time.isEmpty()) return {time, values};
+    }
+#endif
+
+    // Fallback: read from m_simBuffer (e.g. streaming mode when ngspice vectors not indexed)
     {
         std::lock_guard<std::mutex> lock(m_bufferMutex);
         if (!m_simBuffer.empty()) {
@@ -612,30 +716,6 @@ QPair<QVector<double>, QVector<double>> SimulationManager::getVectorHistory(cons
         }
     }
 
-    // Fallback: read directly from Ngspice's internal vectors (thread-safe)
-#ifdef HAVE_NGSPICE
-    if (!m_isInitialized) return {time, values};
-    ngSpice_LockRealloc();
-    QByteArray timeName("time");
-    pvector_info timeInfo = ngGet_Vec_Info(timeName.data());
-    QByteArray sigName = name.toLatin1();
-    pvector_info sigInfo = ngGet_Vec_Info(sigName.data());
-    if (sigInfo == nullptr) {
-        QByteArray lowerName = name.toLower().toLatin1();
-        sigInfo = ngGet_Vec_Info(lowerName.data());
-    }
-    if (timeInfo && timeInfo->v_realdata && timeInfo->v_length > 0 &&
-        sigInfo && sigInfo->v_realdata && sigInfo->v_length > 0) {
-        int len = qMin(timeInfo->v_length, sigInfo->v_length);
-        time.reserve(len);
-        values.reserve(len);
-        for (int i = 0; i < len; ++i) {
-            time.append(timeInfo->v_realdata[i]);
-            values.append(sigInfo->v_realdata[i]);
-        }
-    }
-    ngSpice_UnlockRealloc();
-#endif
     return {time, values};
 }
 
@@ -659,7 +739,10 @@ void SimulationManager::sendInternalCommand(const QString& command) {
         m_haltRequested = true; 
         QMetaObject::invokeMethod(m_bufferTimer, "stop", Qt::QueuedConnection);
     }
-    else if (command == "bg_resume") { 
+    else if (command == "bg_resume" || command == "resume") { 
+        // Issue 6: Clear stale m_stopRequested flag on resume
+        m_stopRequested = false;
+        m_haltRequested = false;
         // NOTE: Don't set Running state here - wait for handleEngineStateChange callback
         // to confirm ngspice has actually resumed. This prevents race conditions.
         { std::lock_guard<std::mutex> lock(m_controlMutex); if (m_streamingControl) QMetaObject::invokeMethod(m_bufferTimer, "start", Qt::QueuedConnection); }
@@ -825,7 +908,11 @@ int SimulationManager::cbSendStat(char* stat, int id, void* userData) {
 int SimulationManager::cbControlledExit(int status, bool immediate, bool quit, int id, void* userData) {
     SimulationManager* self = static_cast<SimulationManager*>(userData);
     if (self) {
-        if (status != 0 || immediate || quit) self->m_engineRecoveryRequired = true;
+        // Issue 8: Do not flag recovery on benign halt/quit exits initiated during normal stopping/shutdown
+        bool isIntentional = (self->m_state == SimulationState::Stopping || self->m_state == SimulationState::Idle);
+        if (status != 0 || (immediate && !isIntentional) || (quit && !isIntentional)) {
+            self->m_engineRecoveryRequired = true;
+        }
         QMetaObject::invokeMethod(self, [self]() { self->handleSimulationFinished(""); }, Qt::QueuedConnection);
     }
     return 0;
@@ -1024,6 +1111,7 @@ void SimulationManager::handleEngineStateChange(bool finished, int id) {
     } else if (!finished && !isPaused) {
         // === Engine Running/Resumed ===
         setState(SimulationState::Running);
+        m_stopRequested = false; // Issue 6: clear stale stop flag on resume
         { std::lock_guard<std::mutex> lock(m_controlMutex); if (m_streamingControl) QMetaObject::invokeMethod(m_bufferTimer, "start", Qt::QueuedConnection); }
         m_haltRequested = false; 
         {
@@ -1041,15 +1129,28 @@ void SimulationManager::handleSimulationFinished(const QString& rawPath) {
 
 #ifdef HAVE_NGSPICE
     if (!m_lastLoadFailed && !m_lastRunFailed && !rawPath.isEmpty()) {
-        QTimer::singleShot(200, this, [this, rawPath]() {
-            SpiceBackend::instance().execute("set filetype=binary");
-            SpiceBackend::instance().execute("write " + rawPath);
-            QThread::msleep(200);
-            bool exists = QFile::exists(rawPath);
-            qint64 size = exists ? QFileInfo(rawPath).size() : 0;
-            if (exists && size > 0) Q_EMIT rawResultsReady(rawPath);
-            Q_EMIT simulationFinished();
-        });
+        // Issue 5: Execute raw-file export on worker thread without blocking GUI thread,
+        // and verify actual vector presence.
+        QMetaObject::invokeMethod(m_worker, [this, rawPath]() {
+            pvector_info vecInfo = ngGet_Vec_Info(const_cast<char*>("all"));
+            if (!vecInfo) vecInfo = ngGet_Vec_Info(const_cast<char*>("time"));
+            if (!vecInfo) vecInfo = ngGet_Vec_Info(const_cast<char*>("frequency"));
+            if (!vecInfo) vecInfo = ngGet_Vec_Info(const_cast<char*>("v-sweep"));
+            if (!vecInfo) vecInfo = ngGet_Vec_Info(const_cast<char*>("i-sweep"));
+            if (vecInfo && vecInfo->v_length > 0) {
+                SpiceBackend::instance().execute("write " + rawPath);
+                bool exists = QFile::exists(rawPath);
+                qint64 size = exists ? QFileInfo(rawPath).size() : 0;
+                if (exists && size > 0) {
+                    QMetaObject::invokeMethod(this, [this, rawPath]() {
+                        Q_EMIT rawResultsReady(rawPath);
+                    }, Qt::QueuedConnection);
+                }
+            }
+            QMetaObject::invokeMethod(this, [this]() {
+                Q_EMIT simulationFinished();
+            }, Qt::QueuedConnection);
+        }, Qt::QueuedConnection);
         return;
     }
     if (m_lastRunFailed || m_lastLoadFailed) {
@@ -1061,8 +1162,13 @@ void SimulationManager::handleSimulationFinished(const QString& rawPath) {
 }
 
 void SimulationManager::clearCircuits() {
-    m_haltRequested = true;
+#ifdef HAVE_NGSPICE
+    if (isRunning()) {
+        // Issue 15: Confirmed-halt gate to avoid racing with worker executeSequence
+        haltAndWait(std::chrono::milliseconds(1000));
+    }
     sendCommandAsync("bg_halt");
     sendCommandAsync("reset");
     m_circStorage.clear(); m_circPtrs.clear();
+#endif
 }
