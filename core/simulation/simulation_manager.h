@@ -19,6 +19,7 @@
 #include <atomic>
 #include <thread>
 #include <deque>
+#include <chrono>
 
 #ifdef HAVE_NGSPICE
 #include <ngspice/sharedspice.h>
@@ -148,6 +149,14 @@ private:
     void loadCircuitAsync(char** deck);
     
     bool recoverEngineIfNeeded();
+    // Computes a dynamic halt budget scaled by circuit size and vector count (Issue 3)
+    std::chrono::milliseconds dynamicHaltBudget() const;
+
+    // Sends bg_halt and waits (bounded retry) for a confirmed pause at a sync
+    // point, or for the engine to be observed terminated. Returns true when the
+    // engine is safe for alter/teardown commands. Callers must NOT hold
+    // m_workerSyncMutex when invoking this.
+    bool haltAndWait(std::chrono::milliseconds budget);
 
     // Verifies that the loaded digital.cm d_cosim codemodel was built from the
     // same VioMATRIXC tree as the linked libngspice engine. A mismatched pair
