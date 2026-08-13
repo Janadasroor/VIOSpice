@@ -1,0 +1,6 @@
+* RC Low-Pass Filter — production validation goldens
+V1 in 0 DC 0 SIN(0 1 159 0 0 0)
+R1 in out 59000
+C1 out 0 1e-09
+.tran 3.14465e-06 0.00628931 uic
+.end
