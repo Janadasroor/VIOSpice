@@ -866,12 +866,8 @@ SimManager::SimManager(QObject* parent) : QObject(parent) {
         }
     });
     connect(&liveSim, &SimulationManager::rawResultsReady, this, [this](const QString& rawPath) {
-        const bool sharedTransientRun =
-            (m_lastConfig.type == SimAnalysisType::RealTime || m_lastConfig.type == SimAnalysisType::Transient) &&
-            !m_ngspiceProcess &&
-            (!m_sharedNetlistPath.isEmpty() || m_control || m_stopRequested);
-        if (sharedTransientRun) {
-            parseRawResultsFile(rawPath, m_activeNetlistText, SimAnalysisType::Transient);
+        if (!m_ngspiceProcess && (!m_sharedNetlistPath.isEmpty() || m_control || m_stopRequested || !m_activeStepLabel.isEmpty() || !m_pendingStepRuns.isEmpty())) {
+            parseRawResultsFile(rawPath, m_activeNetlistText, m_lastConfig.type);
         }
     });
     
@@ -1141,6 +1137,21 @@ void SimManager::startNgspiceWithNetlist(const QString& netlistContent) {
         Q_EMIT errorOccurred(otaCompatibilityError);
         Q_EMIT simulationFinished(SimResults());
         cleanupSimulation();
+        return;
+    }
+
+    // If standalone ngspice executable is not found in PATH or app dir,
+    // fallback to the shared simulation engine (libngspice).
+    QString ngspiceExec = QStandardPaths::findExecutable("ngspice");
+    if (ngspiceExec.isEmpty()) {
+        QString localNgspice = QCoreApplication::applicationDirPath() + "/ngspice.exe";
+        if (QFile::exists(localNgspice)) {
+            ngspiceExec = localNgspice;
+        }
+    }
+    if (ngspiceExec.isEmpty() && SimulationManager::instance().isAvailable()) {
+        m_activeNetlistText = netlistContent;
+        startSharedSimulation(netlistContent, "Starting simulation (shared engine)...");
         return;
     }
 
@@ -1581,18 +1592,26 @@ void SimManager::parseRawResultsFile(const QString& path, const QString& netlist
         m_resultsPending = false;
 
         if (result.first) {
-            Q_EMIT simulationFinished(result.second);
+            if (!m_activeStepLabel.isEmpty() || !m_pendingStepRuns.isEmpty()) {
+                mergeStepSweepResults(result.second, m_activeStepLabel, m_completedStepRuns + 1);
+            } else {
+                Q_EMIT simulationFinished(result.second);
+            }
         } else {
-            const QString err = "Ngspice: Data parse error or empty real-time results.";
+            const QString err = "Ngspice: Data parse error or empty results.";
             Q_EMIT logMessage(err);
             Q_EMIT errorOccurred(err);
             Q_EMIT simulationFinished(SimResults());
         }
 
+        const bool continueStepSweep = result.first && (!m_activeStepLabel.isEmpty() || !m_pendingStepRuns.isEmpty());
         // For real-time mode with auto-restart, cleanup is handled by the
         // simulationFinished no-args handler (or the restart path). Avoid duplicating here.
         if (m_lastConfig.type != SimAnalysisType::RealTime || m_stopRequested) {
             cleanupSimulation();
+        }
+        if (continueStepSweep) {
+            QTimer::singleShot(0, this, &SimManager::startNextStepSweepRun);
         }
     });
 
