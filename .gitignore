@@ -49,6 +49,9 @@ VioraEDA
 # Simulation Artifacts
 *.raw
 *.cir
+# Input fixtures for the production validation suite are committed
+# despite the *.cir ignore rule; generated .raw outputs stay ignored.
+!tests/production_validation/*.cir
 *.png
 *.jpeg
 *.jpg

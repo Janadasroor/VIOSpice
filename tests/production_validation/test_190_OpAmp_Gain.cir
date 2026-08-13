@@ -1,0 +1,7 @@
+* OpAmp Inverting Gain Stage — production validation goldens
+V1 in 0 DC 0 SIN(0 0.1 339 0 0 0)
+R1 in n1 1000
+R2 n1 out 40000
+E1 out 0 n1 0 100000
+.tran 1.47493e-06 0.00294985 uic
+.end

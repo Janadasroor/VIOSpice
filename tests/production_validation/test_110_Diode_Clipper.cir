@@ -1,0 +1,7 @@
+* Diode Clipper — production validation goldens
+V1 in 0 DC 0 SIN(0 2.45 209 0 0 0)
+D1 in out CLIP
+R1 out 0 1k
+.model CLIP D(IS=1e-14 N=1.8)
+.tran 2.39234e-06 0.00478469 uic
+.end
