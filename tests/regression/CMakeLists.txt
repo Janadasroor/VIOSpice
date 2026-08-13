@@ -41,6 +41,19 @@ if(BUILD_VIOSPICE_CLI)
     )
     set_tests_properties(regression.interactive_hang PROPERTIES LABELS "regression;interactive")
 
+    add_executable(test_interactive_stress
+        test_interactive_stress.cpp
+        ${VIORAEDA_CLI_MODULE_OBJECTS}
+    )
+    vioraeda_configure_cli_target(test_interactive_stress)
+    target_link_libraries(test_interactive_stress PRIVATE Qt6::Test VioVioraIDE)
+
+    add_test(
+        NAME regression.interactive_stress
+        COMMAND test_interactive_stress
+    )
+    set_tests_properties(regression.interactive_stress PROPERTIES LABELS "regression;interactive")
+
     add_test(
         NAME regression.cli.py
         COMMAND ${Python_EXECUTABLE} -m pytest ${CMAKE_CURRENT_SOURCE_DIR}/test_cli.py
