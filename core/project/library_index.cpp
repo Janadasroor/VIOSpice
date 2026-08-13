@@ -10,6 +10,8 @@
 #include <QDir>
 #include <QDebug>
 #include <QThread>
+#include <QSet>
+#include <QMutex>
 
 LibraryIndex& LibraryIndex::instance() {
     static LibraryIndex inst;
@@ -30,14 +32,33 @@ LibraryIndex::~LibraryIndex() {
 
 QSqlDatabase LibraryIndex::db() {
     QString connectionName = QString("LibraryIndex_%1").arg((quintptr)QThread::currentThreadId());
+    // A connection whose open attempt failed is not retried: the driver (or the
+    // database file) going away does not recover by hammering it thousands of
+    // times during a library scan, and each retry spams warnings. The connection
+    // is registered on first addDatabase() even when the open fails, so reuse
+    // whatever state exists and only warn on the very first failure per name.
+    static QSet<QString> s_failedConnections;
+    static QMutex s_failedMutex;
+
     if (QSqlDatabase::contains(connectionName)) {
         QSqlDatabase d = QSqlDatabase::database(connectionName);
         if (d.isOpen()) return d;
+        // Registered but closed: the sole reason that happens is a failed open.
+        // Remember it once and stop retrying so callers bail out quietly.
+        QMutexLocker lock(&s_failedMutex);
+        if (!s_failedConnections.contains(connectionName)) {
+            s_failedConnections.insert(connectionName);
+            qWarning() << "LibraryIndex: Failed to open database connection"
+                       << connectionName << ":" << d.lastError().text();
+        }
+        return QSqlDatabase(); // invalid; callers check isOpen()
     }
-    
+
     QSqlDatabase d = QSqlDatabase::addDatabase("QSQLITE", connectionName);
     d.setDatabaseName(m_dbPath);
     if (!d.open()) {
+        QMutexLocker lock(&s_failedMutex);
+        s_failedConnections.insert(connectionName);
         qWarning() << "LibraryIndex: Failed to open database connection" << connectionName << ":" << d.lastError().text();
     }
     return d;

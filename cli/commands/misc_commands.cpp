@@ -617,6 +617,28 @@ public:
     }
 };
 
+// Sleeps for a given number of seconds. Used by the daemon integration tests to
+// exercise the command-timeout watchdog deterministically.
+class SleepCommand : public CLICommand {
+public:
+    QString name() const override { return "sleep"; }
+    QString description() const override { return "Sleep for a number of seconds (daemon watchdog test tool)."; }
+    void setupParser(QCommandLineParser& parser) override {}
+    QJsonObject inputSchema() const override { return QJsonObject{}; }
+    QJsonObject outputSchema() const override { return QJsonObject{}; }
+    int execute(const QStringList& args, const QCommandLineParser& parser) override {
+        Q_UNUSED(parser);
+        bool ok = false;
+        const int seconds = args.isEmpty() ? 0 : args.at(0).toInt(&ok);
+        if (!ok || seconds < 0) {
+            std::cerr << "Usage: viora sleep <seconds>" << std::endl;
+            return 1;
+        }
+        QThread::msleep(static_cast<unsigned long>(seconds) * 1000);
+        return 0;
+    }
+};
+
 class PluginsSmokeCommand : public CLICommand {
 public:
     QString name() const override { return "plugins-smoke"; }
@@ -1208,6 +1230,7 @@ public:
 
 void registerMiscCommands() {
     auto& reg = CommandRegistry::instance();
+    reg.registerCommand(std::make_unique<SleepCommand>());
     reg.registerCommand(std::make_unique<DrcCommand>());
     reg.registerCommand(std::make_unique<RenderCommand>());
     reg.registerCommand(std::make_unique<AuditCommand>());

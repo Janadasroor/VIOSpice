@@ -47,4 +47,18 @@ if(BUILD_VIOSPICE_CLI)
         WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
     )
     set_tests_properties(regression.cli.py PROPERTIES LABELS "regression;cli;python")
+
+    add_executable(test_cli_daemon
+        test_cli_daemon.cpp
+    )
+
+    target_include_directories(test_cli_daemon PRIVATE ${CMAKE_SOURCE_DIR})
+    target_link_libraries(test_cli_daemon PRIVATE Qt${QT_VERSION_MAJOR}::Core)
+    target_compile_definitions(test_cli_daemon PRIVATE VIO_CMD_PATH=\"$<TARGET_FILE:viora>\")
+
+    add_test(
+        NAME regression.cli.daemon
+        COMMAND test_cli_daemon
+    )
+    set_tests_properties(regression.cli.daemon PROPERTIES LABELS "regression;cli;daemon")
 endif()
