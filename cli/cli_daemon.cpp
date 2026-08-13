@@ -287,9 +287,6 @@ void cliInitializeLibraries() {
     PCBItemRegistry::registerBuiltInItems();
 #endif
     SchematicItemRegistry::registerBuiltInItems();
-    SymbolLibraryManager::instance().loadUserLibraries(
-        QDir::homePath() + "/ViospiceLib/sym");
-    ModelLibraryManager::instance().reload();
 }
 
 // ---------------------------------------------------------------------------

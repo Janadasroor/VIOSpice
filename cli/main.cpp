@@ -58,24 +58,9 @@ int main(int argc, char *argv[]) {
         }
     }
 
-#ifdef Q_OS_LINUX
     if (!isView) {
         qputenv("QT_QPA_PLATFORM", "offscreen");
     }
-#elif defined(Q_OS_WIN)
-    if (!isView) {
-        QString appDir = QCoreApplication::applicationDirPath();
-        if (QFile::exists(appDir + "/platforms/qoffscreen.dll")) {
-            qputenv("QT_QPA_PLATFORM", "offscreen");
-        } else {
-            qputenv("QT_QPA_PLATFORM", "windows");
-        }
-    }
-#else
-    if (!isView) {
-        qputenv("QT_QPA_PLATFORM", "offscreen");
-    }
-#endif
 
 
     // 3. Initialize Qt Application
