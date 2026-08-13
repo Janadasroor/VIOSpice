@@ -141,7 +141,7 @@ bool socketReachable(const QString& name) {
 // Bumped whenever the CLI <-> daemon protocol or socket layout changes, and
 // baked into the socket name so a stale daemon from an older build can never
 // satisfy a newer client (which would mis-forward requests).
-constexpr int kDaemonProtocol = 1;
+constexpr int kDaemonProtocol = 2;
 
 // ---------------------------------------------------------------------------
 // Helpers (defined in CliDaemon scope, as declared in cli_daemon.h)
@@ -429,6 +429,10 @@ int forwardCommand(const QStringList& arguments) {
     }
     request["proto"] = kDaemonProtocol;
     request["argv"] = argvArr;
+    // The daemon worker persists after this client exits, so relative paths
+    // in the request must resolve against the caller's directory, not the
+    // daemon's (which inherited its CWD from whichever client spawned it).
+    request["cwd"] = QDir::currentPath();
 
     socket.write(QJsonDocument(request).toJson(QJsonDocument::Compact) + "\n");
     socket.flush();
@@ -742,7 +746,12 @@ void finishSession(ClientSession* cs) {
     cs->done = true;
     g_sessions.removeAll(cs);
     g_pending.removeAll(cs);
-    if (g_inFlight == cs) g_inFlight = nullptr;
+    // Intentionally do NOT clear g_inFlight here. The worker is still running
+    // this client's command; when its response frame arrives it is consumed
+    // (and dropped, since the session is done) and only then does dispatch
+    // advance. Clearing the in-flight slot early makes the next queued request
+    // be written to the worker ahead of the FIFO order, so the still-pending
+    // response gets misattributed to (or dropped against) the wrong session.
     if (cs->socket) {
         cs->socket->disconnectFromServer();
         cs->socket->deleteLater();
@@ -866,6 +875,24 @@ void onWorkerData() {
             dispatchNext();
         } else if (obj.contains("exit")) {
             ClientSession* cs = g_inFlight;
+            const qint64 rid = qint64(obj.value("id").toDouble());
+            if (!cs || (rid && qint64(qintptr(cs)) != rid)) {
+                // Defensive fallback (normally unreachable now that the in-flight
+                // slot is only cleared when the matching frame arrives): locate
+                // the response's actual owner by its echoed id.
+                if (rid) {
+                    for (ClientSession* c : g_sessions) {
+                        if (qint64(qintptr(c)) == rid) {
+                            cs = c;
+                            break;
+                        }
+                    }
+                }
+            }
+            // The worker just finished the command it was running, so the slot
+            // is consumed unconditionally (its session may be a done/abandoned
+            // one whose response we drop in sendResponse). FIFO is preserved
+            // because finishSession never clears the slot early.
             g_inFlight = nullptr;
             if (cs) sendResponse(cs, obj);
             restartIdleTimer();
@@ -1000,6 +1027,12 @@ void dispatchNext() {
         QJsonObject req;
         req["proto"] = kDaemonProtocol;
         req["argv"] = cs->request.value("argv");
+        // The worker echoes this back so the daemon can tie each response frame
+        // to the exact request that produced it (not just "whatever is current").
+        req["id"] = qint64(qintptr(cs));
+        // Forward the caller's working directory so the worker can run the
+        // command against relative paths as the caller intended.
+        req["cwd"] = cs->request.value("cwd");
         worker->write(QJsonDocument(req).toJson(QJsonDocument::Compact) +
                       "\n");
         startCommandWatchdog(cs);
@@ -1122,10 +1155,23 @@ int workerMain() {
         response["stderr"] = "viora: malformed worker request";
 
         if (parseError.error == QJsonParseError::NoError && doc.isObject()) {
+            const QJsonObject jobj = doc.object();
+            // Echo the daemon-assigned request id back so the daemon can
+            // attribute this response to the correct client even if an earlier
+            // client dropped its connection mid-command.
+            response["id"] = jobj.value("id");
             QStringList argv;
-            const QJsonArray argvArr = doc.object().value("argv").toArray();
+            const QJsonArray argvArr = jobj.value("argv").toArray();
             for (const QJsonValue& v : argvArr) {
                 argv << v.toString();
+            }
+
+            // Run the command in the directory the caller was in, so relative
+            // paths behave exactly as they would in-process. Safe because the
+            // worker serves one request at a time (FIFO from the daemon).
+            const QString reqDir = jobj.value("cwd").toString();
+            if (!reqDir.isEmpty()) {
+                QDir::setCurrent(reqDir);
             }
 
             OutputCapture capture;
