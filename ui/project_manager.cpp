@@ -453,9 +453,19 @@ ProjectManager::ProjectManager(QWidget* parent)
     : QMainWindow(parent), m_workspaceDirty(false), m_workspaceFilePath(QString()) {
     setWindowTitle("VioraEDA");
     setMinimumSize(900, 600);
-    
+    setAttribute(Qt::WA_OpaquePaintEvent);
+
+    auto* theme = ThemeManager::theme();
+    QPalette pal = palette();
+    QColor bg = theme ? theme->windowBackground() : QColor(20, 20, 23);
+    pal.setColor(QPalette::Window, bg);
+    pal.setColor(QPalette::Base, bg);
+    setPalette(pal);
+
     applyKiCadStyle();
     setupUI();
+
+    ThemeManager::applyTitlebarTheme(this, theme ? (theme->type() != PCBTheme::Light) : true);
 
     connect(&ThemeManager::instance(), &ThemeManager::themeChanged, this, &ProjectManager::updateThemeStyle);
 
