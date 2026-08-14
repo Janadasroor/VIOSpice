@@ -14,6 +14,8 @@
 #include <QLineEdit>
 #include <QTextEdit>
 #include <QCheckBox>
+#include <QComboBox>
+#include <QList>
 #include "installer_worker.h"
 
 class InstallerWindow : public QWidget {
@@ -29,35 +31,52 @@ protected:
 private Q_SLOTS:
     void nextPage();
     void prevPage();
-    void startInstallation();
-    void onProgressChanged(int percentage, const QString& currentFile, double speedMBps, quint64 bytesCopied, quint64 totalBytes);
-    void onStatusChanged(const QString& statusText);
-    void onInstallationFinished(bool success, const QString& message);
-    void finishInstallation();
-    void cancelInstallation();
+    void onInstallTypeChanged(int index);
+    void onComponentToggled();
     void browseDirectory();
     void updateDiskSpaceInfo();
     void onLicenseCheckChanged(bool checked);
+    void startInstallation();
+    void cancelInstallation();
+    void onProgressUpdated(const ProgressMetrics& metrics);
+    void onStatusUpdated(const QString& statusText);
+    void onFinished(bool success, const QString& errorMessage);
+    void finishInstallation();
 
 private:
     void setupUi();
+    void updateSidebarStep(int pageIndex);
     QWidget* createSidebar();
     QWidget* createWelcomePage();
     QWidget* createLicensePage();
+    QWidget* createComponentsPage();
     QWidget* createDirectoryPage();
     QWidget* createProgressPage();
     QWidget* createFinishPage();
 
     bool m_isUninstall{false};
     bool m_isAdmin{false};
+    bool m_installationSuccess{false};
 
     QStackedWidget *m_stackedWidget{nullptr};
     QPushButton *m_backBtn{nullptr};
     QPushButton *m_nextBtn{nullptr};
     QPushButton *m_cancelBtn{nullptr};
 
+    // Sidebar Step Indicators
+    QList<QLabel*> m_stepLabels;
+
     // License Page
     QCheckBox *m_licenseCheckBox{nullptr};
+
+    // Components Page
+    QComboBox *m_installTypeCombo{nullptr};
+    QCheckBox *m_chkCoreSuite{nullptr};
+    QCheckBox *m_chkSimulators{nullptr};
+    QCheckBox *m_chkLibrary{nullptr};
+    QCheckBox *m_chkCliTools{nullptr};
+    QCheckBox *m_chkExamples{nullptr};
+    QLabel *m_componentDescLabel{nullptr};
 
     // Directory & Options Page
     QLineEdit *m_dirLineEdit{nullptr};
@@ -74,6 +93,7 @@ private:
     QLabel *m_statusLabel{nullptr};
     QLabel *m_speedLabel{nullptr};
     QLabel *m_currentFileLabel{nullptr};
+    QLabel *m_timeRemainingLabel{nullptr};
 
     // Finish Page
     QLabel *m_finishTitleLabel{nullptr};
@@ -81,7 +101,7 @@ private:
     QCheckBox *m_launchCheckBox{nullptr};
 
     InstallerWorker *m_worker{nullptr};
-    bool m_installationSuccess{false};
+    InstallConfig m_config;
 };
 
 #endif // INSTALLER_WINDOW_H

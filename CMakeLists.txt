@@ -966,6 +966,7 @@ set_target_properties(viospice-merge PROPERTIES
 # Standalone Official Qt Setup Installer Framework
 add_executable(VioraEDA_Setup WIN32
     tools/installer/main.cpp
+    tools/installer/installer_types.h
     tools/installer/installer_window.h
     tools/installer/installer_window.cpp
     tools/installer/installer_worker.h

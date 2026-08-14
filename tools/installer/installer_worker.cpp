@@ -6,357 +6,451 @@
 #include "installer_worker.h"
 #include <QCoreApplication>
 #include <QDir>
-#include <QFile>
-#include <QFileInfo>
 #include <QDirIterator>
+#include <QFileInfo>
 #include <QSettings>
 #include <QStandardPaths>
-#include <QDebug>
+#include <QThread>
 
 #ifdef _WIN32
 #include <windows.h>
 #include <shlobj.h>
-#include <shobjidl.h>
-#include <winnls.h>
-#include <shlwapi.h>
-#endif
+#include <objbase.h>
 
 namespace {
-
-#ifdef _WIN32
 bool createShortcutWin32(const QString& linkPath, const QString& targetPath,
-                         const QString& arguments, const QString& workingDir,
+                         const QString& args, const QString& workingDir,
                          const QString& description, const QString& iconPath, int iconIndex) {
     HRESULT hr = CoInitialize(nullptr);
-    bool coInit = SUCCEEDED(hr);
+    bool coInitialized = SUCCEEDED(hr);
 
     IShellLinkW* psl = nullptr;
-    hr = CoCreateInstance(CLSID_ShellLink, nullptr, CLSCTX_INPROC_SERVER, IID_IShellLinkW, (void**)&psl);
-    if (FAILED(hr) || !psl) {
-        if (coInit) CoUninitialize();
-        return false;
+    hr = CoCreateInstance(CLSID_ShellLink, nullptr, CLSCTX_INPROC_SERVER, IID_IShellLinkW, (LPVOID*)&psl);
+    if (SUCCEEDED(hr)) {
+        psl->SetPath((LPCWSTR)targetPath.utf16());
+        if (!args.isEmpty()) {
+            psl->SetArguments((LPCWSTR)args.utf16());
+        }
+        if (!workingDir.isEmpty()) {
+            psl->SetWorkingDirectory((LPCWSTR)workingDir.utf16());
+        }
+        if (!description.isEmpty()) {
+            psl->SetDescription((LPCWSTR)description.utf16());
+        }
+        if (!iconPath.isEmpty()) {
+            psl->SetIconLocation((LPCWSTR)iconPath.utf16(), iconIndex);
+        }
+
+        IPersistFile* ppf = nullptr;
+        hr = psl->QueryInterface(IID_IPersistFile, (LPVOID*)&ppf);
+        if (SUCCEEDED(hr)) {
+            hr = ppf->Save((LPCWSTR)linkPath.utf16(), TRUE);
+            ppf->Release();
+        }
+        psl->Release();
     }
 
-    psl->SetPath(reinterpret_cast<LPCWSTR>(targetPath.toStdWString().c_str()));
-    if (!arguments.isEmpty()) {
-        psl->SetArguments(reinterpret_cast<LPCWSTR>(arguments.toStdWString().c_str()));
+    if (coInitialized) {
+        CoUninitialize();
     }
-    if (!workingDir.isEmpty()) {
-        psl->SetWorkingDirectory(reinterpret_cast<LPCWSTR>(workingDir.toStdWString().c_str()));
-    }
-    if (!description.isEmpty()) {
-        psl->SetDescription(reinterpret_cast<LPCWSTR>(description.toStdWString().c_str()));
-    }
-    if (!iconPath.isEmpty()) {
-        psl->SetIconLocation(reinterpret_cast<LPCWSTR>(iconPath.toStdWString().c_str()), iconIndex);
-    }
-
-    IPersistFile* ppf = nullptr;
-    hr = psl->QueryInterface(IID_IPersistFile, (void**)&ppf);
-    bool success = false;
-    if (SUCCEEDED(hr) && ppf) {
-        QFileInfo fi(linkPath);
-        QDir().mkpath(fi.absolutePath());
-        hr = ppf->Save(reinterpret_cast<LPCWSTR>(linkPath.toStdWString().c_str()), TRUE);
-        success = SUCCEEDED(hr);
-        ppf->Release();
-    }
-
-    psl->Release();
-    if (coInit) CoUninitialize();
-    return success;
+    return SUCCEEDED(hr);
+}
 }
 #endif
 
-} // namespace
-
-InstallerWorker::InstallerWorker(const InstallOptions& options, QObject* parent)
-    : QThread(parent), m_options(options) {
+InstallerWorker::InstallerWorker(const InstallConfig& config, QObject* parent)
+    : QThread(parent), m_config(config) {
 }
 
-void InstallerWorker::requestCancel() {
-    m_cancelRequested.store(true);
+InstallerWorker::~InstallerWorker() {
+    cancel();
+    wait();
+}
+
+void InstallerWorker::cancel() {
+    m_cancelled.storeRelaxed(1);
 }
 
 void InstallerWorker::run() {
-    if (m_options.isUninstall) {
-        doUninstall();
+    if (m_config.isUninstall) {
+        performUninstallation();
     } else {
-        doInstall();
+        performInstallation();
     }
 }
 
-bool InstallerWorker::collectFilesToCopy(QList<QPair<QString, QString>>& outFileList, quint64& outTotalBytes) {
-    outFileList.clear();
-    outTotalBytes = 0;
+void InstallerWorker::discoverFilesToInstall() {
+    m_filesToCopy.clear();
+    m_totalBytes = 0;
 
     QString appDir = QCoreApplication::applicationDirPath();
-    QString targetRoot = QDir::cleanPath(m_options.installDir);
+    QString rootDir = QDir::cleanPath(appDir + "/..");
 
-    auto addDirectoryRecursive = [&](const QString& srcDir, const QString& dstSubDir) {
-        QDir dir(srcDir);
+    // Search source roots in order
+    QStringList searchRoots = {
+        appDir,
+        rootDir,
+        "C:/VioraEDA",
+        "C:/VioraEDA/build"
+    };
+
+    auto addDirFiles = [&](const QString& srcBaseDir, const QString& targetSubDir) {
+        QDir dir(srcBaseDir);
         if (!dir.exists()) return;
 
-        QDirIterator it(srcDir, QDir::Files | QDir::NoSymLinks, QDirIterator::Subdirectories);
+        QDirIterator it(srcBaseDir, QDir::Files, QDirIterator::Subdirectories);
         while (it.hasNext()) {
-            it.next();
-            QString srcFile = it.filePath();
-            QString relPath = dir.relativeFilePath(srcFile);
-            QString dstFile = QDir::cleanPath(targetRoot + "/" + dstSubDir + "/" + relPath);
-
-            QFileInfo fi(srcFile);
-            outTotalBytes += fi.size();
-            outFileList.append(qMakePair(srcFile, dstFile));
+            QString srcPath = it.next();
+            QString rel = dir.relativeFilePath(srcPath);
+            QString destRel = targetSubDir.isEmpty() ? rel : (targetSubDir + "/" + rel);
+            QFileInfo fi(srcPath);
+            m_filesToCopy.append(qMakePair(srcPath, destRel));
+            m_totalBytes += (uint64_t)fi.size();
         }
     };
 
-    // 1. If installer is running from a packaged layout where bin/, cm/, etc. sit alongside it
-    bool isStagedLayout = QDir(appDir + "/bin").exists() || QDir(appDir + "/../bin").exists();
-    QString baseDir = QDir(appDir + "/bin").exists() ? appDir : (QDir(appDir + "/../bin").exists() ? QDir::cleanPath(appDir + "/..") : appDir);
+    auto addSingleFile = [&](const QString& srcPath, const QString& destRel) {
+        if (QFile::exists(srcPath)) {
+            QFileInfo fi(srcPath);
+            m_filesToCopy.append(qMakePair(srcPath, destRel));
+            m_totalBytes += (uint64_t)fi.size();
+        }
+    };
 
-    if (isStagedLayout) {
-        addDirectoryRecursive(baseDir + "/bin", "bin");
-        addDirectoryRecursive(baseDir + "/cm", "cm");
-        addDirectoryRecursive(baseDir + "/python", "python");
-        addDirectoryRecursive(baseDir + "/examples", "examples");
-        addDirectoryRecursive(baseDir + "/templates", "templates");
-        addDirectoryRecursive(baseDir + "/core/simulation/model_params", "core/simulation/model_params");
-        addDirectoryRecursive(baseDir + "/ViospiceLib", "ViospiceLib");
-    } else {
-        // 2. Running in development/build environment (e.g. C:/VioraEDA/build)
-        // Copy build binaries to bin/
-        QDir buildDir(appDir);
-        QFileInfoList binFiles = buildDir.entryInfoList(QDir::Files | QDir::NoSymLinks);
-        for (const QFileInfo& fi : binFiles) {
-            QString name = fi.fileName();
-            if (name.endsWith(".exe", Qt::CaseInsensitive) || name.endsWith(".dll", Qt::CaseInsensitive)) {
-                outTotalBytes += fi.size();
-                outFileList.append(qMakePair(fi.absoluteFilePath(), QDir::cleanPath(targetRoot + "/bin/" + name)));
+    // 1. Core Suite Binaries and Libraries
+    if (m_config.components.coreSuite) {
+        for (const QString& root : searchRoots) {
+            addSingleFile(root + "/VioraEDA.exe", "bin/VioraEDA.exe");
+            addSingleFile(root + "/bin/VioraEDA.exe", "bin/VioraEDA.exe");
+            addSingleFile(root + "/VioraEDA_Setup.exe", "bin/VioraEDA_Setup.exe");
+            addSingleFile(root + "/bin/VioraEDA_Setup.exe", "bin/VioraEDA_Setup.exe");
+            addSingleFile(root + "/viospice-merge.exe", "bin/viospice-merge.exe");
+            addSingleFile(root + "/bin/viospice-merge.exe", "bin/viospice-merge.exe");
+
+            // Copy DLLs
+            QDir rootD(root);
+            for (const QString& dll : rootD.entryList({"*.dll"}, QDir::Files)) {
+                addSingleFile(root + "/" + dll, "bin/" + dll);
+            }
+            QDir binD(root + "/bin");
+            if (binD.exists()) {
+                for (const QString& dll : binD.entryList({"*.dll"}, QDir::Files)) {
+                    addSingleFile(root + "/bin/" + dll, "bin/" + dll);
+                }
+            }
+
+            // Copy Qt Plugins
+            addDirFiles(root + "/plugins", "bin/plugins");
+            addDirFiles(root + "/platforms", "bin/platforms");
+            addDirFiles(root + "/imageformats", "bin/imageformats");
+            addDirFiles(root + "/iconengines", "bin/iconengines");
+            addDirFiles(root + "/styles", "bin/styles");
+        }
+    }
+
+    // 2. Simulators and SPICE Code Models
+    if (m_config.components.simulators) {
+        for (const QString& root : searchRoots) {
+            addDirFiles(root + "/cm", "cm");
+            addDirFiles(root + "/viomatrixc-prebuilt", "bin");
+            addDirFiles(root + "/vioavr-prebuilt", "bin");
+            addDirFiles(root + "/models", "models");
+        }
+    }
+
+    // 3. Component Library
+    if (m_config.components.componentLibrary) {
+        QStringList libSources = {
+            "C:/Users/rdpuser/ViospiceLib",
+            "C:/VioraEDA/ViospiceLib",
+            rootDir + "/ViospiceLib",
+            appDir + "/ViospiceLib"
+        };
+        for (const QString& libSrc : libSources) {
+            if (QDir(libSrc).exists()) {
+                addDirFiles(libSrc, "ViospiceLib");
+                break;
             }
         }
-        // Also copy subdirs in build if any (e.g. cm/, platforms/, sqldrivers/)
-        addDirectoryRecursive(appDir + "/cm", "cm");
-        addDirectoryRecursive(appDir + "/platforms", "bin/platforms");
-        addDirectoryRecursive(appDir + "/sqldrivers", "bin/sqldrivers");
-        addDirectoryRecursive(appDir + "/styles", "bin/styles");
+    }
 
-        // Copy repository source assets
-        QString repoRoot = QDir::cleanPath(appDir + "/..");
-        addDirectoryRecursive(repoRoot + "/python", "python");
-        addDirectoryRecursive(repoRoot + "/examples", "examples");
-        addDirectoryRecursive(repoRoot + "/templates", "templates");
-        addDirectoryRecursive(repoRoot + "/core/simulation/model_params", "core/simulation/model_params");
-
-        // Check for ViospiceLib in user profile or repo
-        QString userLib = QDir::homePath() + "/ViospiceLib";
-        if (QDir(userLib).exists()) {
-            addDirectoryRecursive(userLib, "ViospiceLib");
-        } else if (QDir(repoRoot + "/ViospiceLib").exists()) {
-            addDirectoryRecursive(repoRoot + "/ViospiceLib", "ViospiceLib");
+    // 4. CLI Tools
+    if (m_config.components.cliTools) {
+        for (const QString& root : searchRoots) {
+            addSingleFile(root + "/viora.exe", "bin/viora.exe");
+            addSingleFile(root + "/bin/viora.exe", "bin/viora.exe");
+            addSingleFile(root + "/flux_runner.exe", "bin/flux_runner.exe");
+            addSingleFile(root + "/bin/flux_runner.exe", "bin/flux_runner.exe");
+            addSingleFile(root + "/flux-lsp.exe", "bin/flux-lsp.exe");
+            addSingleFile(root + "/bin/flux-lsp.exe", "bin/flux-lsp.exe");
         }
     }
 
-    return !outFileList.isEmpty();
+    // 5. Examples and Templates
+    if (m_config.components.examplesAndTemplates) {
+        for (const QString& root : searchRoots) {
+            addDirFiles(root + "/examples", "examples");
+            addDirFiles(root + "/templates", "templates");
+        }
+    }
+
+    // Deduplicate file list by relative destination path
+    QList<QPair<QString, QString>> uniqueList;
+    QSet<QString> seenDests;
+    uint64_t uniqueBytes = 0;
+
+    for (const auto& pair : m_filesToCopy) {
+        if (!seenDests.contains(pair.second)) {
+            seenDests.insert(pair.second);
+            uniqueList.append(pair);
+            QFileInfo fi(pair.first);
+            uniqueBytes += (uint64_t)fi.size();
+        }
+    }
+
+    m_filesToCopy = uniqueList;
+    m_totalBytes = uniqueBytes;
 }
 
-bool InstallerWorker::copyFileChunked(const QString& src, const QString& dst, quint64& copiedBytes, quint64 totalBytes) {
-    if (m_cancelRequested.load()) return false;
+bool InstallerWorker::copyChunked(const QString& srcPath, const QString& dstPath) {
+    QFile src(srcPath);
+    if (!src.open(QIODevice::ReadOnly)) return false;
 
-    QFileInfo dstInfo(dst);
+    QFileInfo dstInfo(dstPath);
     QDir().mkpath(dstInfo.absolutePath());
+    m_createdDirs.append(dstInfo.absolutePath());
 
-    if (QFile::exists(dst)) {
-        QFile::remove(dst);
-    }
+    QFile dst(dstPath);
+    if (!dst.open(QIODevice::WriteOnly)) return false;
 
-    QFile srcFile(src);
-    if (!srcFile.open(QIODevice::ReadOnly)) {
-        return false;
-    }
+    constexpr qint64 CHUNK_SIZE = 128 * 1024; // 128 KB chunk buffer
+    char buffer[CHUNK_SIZE];
 
-    QFile dstFile(dst);
-    if (!dstFile.open(QIODevice::WriteOnly)) {
-        srcFile.close();
-        return false;
-    }
-
-    constexpr qint64 kChunkSize = 64 * 1024;
-    char buffer[kChunkSize];
-
-    while (!srcFile.atEnd()) {
-        if (m_cancelRequested.load()) {
-            srcFile.close();
-            dstFile.close();
-            QFile::remove(dst);
+    while (!src.atEnd()) {
+        if (m_cancelled.loadRelaxed() != 0) {
+            dst.close();
+            dst.remove();
             return false;
         }
 
-        qint64 bytesRead = srcFile.read(buffer, kChunkSize);
+        qint64 bytesRead = src.read(buffer, CHUNK_SIZE);
         if (bytesRead <= 0) break;
 
-        qint64 bytesWritten = dstFile.write(buffer, bytesRead);
+        qint64 bytesWritten = dst.write(buffer, bytesRead);
         if (bytesWritten != bytesRead) {
-            srcFile.close();
-            dstFile.close();
-            QFile::remove(dst);
+            dst.close();
+            dst.remove();
             return false;
         }
 
-        copiedBytes += bytesWritten;
+        m_bytesCopied += (uint64_t)bytesWritten;
 
-        double elapsedSec = m_timer.elapsed() / 1000.0;
-        double speedMBps = (elapsedSec > 0.05) ? ((copiedBytes / (1024.0 * 1024.0)) / elapsedSec) : 0.0;
-        int pct = totalBytes > 0 ? static_cast<int>((copiedBytes * 100) / totalBytes) : 0;
-        if (pct > 100) pct = 100;
+        // Calculate transfer metrics every 80ms
+        qint64 now = m_timer.elapsed();
+        if (now - m_lastSpeedCheckTime >= 80) {
+            qint64 deltaMs = now - m_lastSpeedCheckTime;
+            uint64_t deltaBytes = m_bytesCopied - m_lastSpeedCheckBytes;
+            if (deltaMs > 0) {
+                m_currentSpeedMBps = ((double)deltaBytes / (1024.0 * 1024.0)) / ((double)deltaMs / 1000.0);
+            }
+            m_lastSpeedCheckTime = now;
+            m_lastSpeedCheckBytes = m_bytesCopied;
 
-        emit progressChanged(pct, dstInfo.fileName(), speedMBps, copiedBytes, totalBytes);
+            ProgressMetrics metrics;
+            metrics.percentage = m_totalBytes > 0 ? (int)((m_bytesCopied * 90) / m_totalBytes) : 0;
+            metrics.currentFileName = dstInfo.fileName();
+            metrics.currentStatus = QString("Extracting %1").arg(dstInfo.fileName());
+            metrics.transferSpeedMBps = m_currentSpeedMBps;
+            metrics.bytesTransferred = m_bytesCopied;
+            metrics.totalBytes = m_totalBytes;
+            metrics.filesProcessed = m_filesCopied;
+            metrics.totalFiles = m_filesToCopy.size();
+
+            if (m_currentSpeedMBps > 0.05 && m_totalBytes > m_bytesCopied) {
+                double remainingMB = (double)(m_totalBytes - m_bytesCopied) / (1024.0 * 1024.0);
+                metrics.estimatedSecondsRemaining = (int)(remainingMB / m_currentSpeedMBps);
+            }
+
+            emit progressUpdated(metrics);
+        }
     }
 
-    srcFile.close();
-    dstFile.close();
+    dst.close();
+    m_createdFiles.append(dstPath);
     return true;
 }
 
-void InstallerWorker::doInstall() {
-    emit statusChanged("Preparing installation directory...");
-    m_timer.start();
-
-    QList<QPair<QString, QString>> fileList;
-    quint64 totalBytes = 0;
-    if (!collectFilesToCopy(fileList, totalBytes)) {
-        emit installationFinished(false, "Failed to locate installation source payload files.");
-        return;
+void InstallerWorker::rollback() {
+    emit statusUpdated("Installation cancelled. Rolling back changes...");
+    for (const QString& f : m_createdFiles) {
+        QFile::remove(f);
     }
-
-    emit statusChanged("Copying files to destination...");
-    quint64 copiedBytes = 0;
-    QList<QString> copiedDestFiles;
-
-    for (const auto& pair : fileList) {
-        if (m_cancelRequested.load()) break;
-
-        if (!copyFileChunked(pair.first, pair.second, copiedBytes, totalBytes)) {
-            if (m_cancelRequested.load()) break;
-            // Continue or report warning
-        } else {
-            copiedDestFiles.append(pair.second);
+    // Remove directories in reverse order if empty
+    for (int i = m_createdDirs.size() - 1; i >= 0; --i) {
+        QDir d(m_createdDirs[i]);
+        if (d.isEmpty()) {
+            d.rmdir(m_createdDirs[i]);
         }
     }
-
-    if (m_cancelRequested.load()) {
-        emit statusChanged("Canceling installation and rolling back...");
-        for (const QString& file : copiedDestFiles) {
-            QFile::remove(file);
-        }
-        emit installationFinished(false, "Installation canceled by user.");
-        return;
-    }
-
-    // Windows Shell & System Integration
-#ifdef _WIN32
-    if (m_options.createDesktopShortcut || m_options.createStartMenuShortcut) {
-        emit statusChanged("Creating application shortcuts...");
-        createWindowsShortcuts();
-    }
-
-    if (m_options.associateFiles) {
-        emit statusChanged("Registering schematic and script file associations...");
-        setupFileAssociations();
-    }
-
-    if (m_options.addToPath) {
-        emit statusChanged("Adding VioraEDA to user PATH environment...");
-        updatePathEnvironment(true);
-    }
-
-    emit statusChanged("Registering uninstaller with Windows...");
-    registerUninstaller(totalBytes);
-#endif
-
-    emit progressChanged(100, "Done", 0.0, totalBytes, totalBytes);
-    emit statusChanged("Installation complete!");
-    emit installationFinished(true, QString());
 }
 
-void InstallerWorker::doUninstall() {
-    emit statusChanged("Removing Windows system integrations...");
+bool InstallerWorker::performInstallation() {
+    emit statusUpdated("Preparing installation environment...");
+    m_timer.start();
+    m_lastSpeedCheckTime = 0;
+    m_lastSpeedCheckBytes = 0;
+    m_bytesCopied = 0;
+    m_filesCopied = 0;
 
-#ifdef _WIN32
-    removeWindowsShortcuts();
-    removeFileAssociations();
-    updatePathEnvironment(false);
-    removeUninstallerRegistry();
-#endif
+    discoverFilesToInstall();
 
-    emit statusChanged("Deleting application files...");
-    QString targetRoot = QDir::cleanPath(m_options.installDir);
-    if (!targetRoot.isEmpty() && QDir(targetRoot).exists()) {
-        QDir dir(targetRoot);
-        dir.removeRecursively();
+    if (m_filesToCopy.isEmpty()) {
+        emit finished(false, "No installation payloads were found in the source distribution directory.");
+        return false;
     }
 
-    emit progressChanged(100, "Done", 0.0, 100, 100);
-    emit statusChanged("Uninstallation complete!");
-    emit installationFinished(true, QString());
+    QDir targetDir(m_config.installDir);
+    if (!targetDir.exists()) {
+        targetDir.mkpath(".");
+        m_createdDirs.append(m_config.installDir);
+    }
+
+    for (const auto& pair : m_filesToCopy) {
+        if (m_cancelled.loadRelaxed() != 0) {
+            rollback();
+            emit finished(false, "Installation was cancelled by the user.");
+            return false;
+        }
+
+        QString src = pair.first;
+        QString dst = QDir::cleanPath(m_config.installDir + "/" + pair.second);
+
+        if (!copyChunked(src, dst)) {
+            if (m_cancelled.loadRelaxed() != 0) {
+                rollback();
+                emit finished(false, "Installation was cancelled by the user.");
+                return false;
+            }
+            rollback();
+            emit finished(false, QString("Failed to write destination file: %1").arg(dst));
+            return false;
+        }
+        m_filesCopied++;
+    }
+
+    // Step: Windows System & Shell Integration
+#ifdef _WIN32
+    emit statusUpdated("Configuring Windows shell shortcuts and file associations...");
+
+    if (m_config.systemOptions.createDesktopShortcut || m_config.systemOptions.createStartMenuShortcuts) {
+        createWindowsShortcuts();
+    }
+    if (m_config.systemOptions.registerFileAssociations) {
+        registerFileAssociations();
+    }
+    if (m_config.systemOptions.addToPathEnvironment) {
+        updatePathEnvironment();
+    }
+    registerUninstaller();
+#endif
+
+    ProgressMetrics finalMetrics;
+    finalMetrics.percentage = 100;
+    finalMetrics.currentFileName = "Complete";
+    finalMetrics.currentStatus = "VioraEDA installed successfully!";
+    finalMetrics.transferSpeedMBps = 0.0;
+    finalMetrics.bytesTransferred = m_totalBytes;
+    finalMetrics.totalBytes = m_totalBytes;
+    finalMetrics.filesProcessed = m_filesToCopy.size();
+    finalMetrics.totalFiles = m_filesToCopy.size();
+    finalMetrics.estimatedSecondsRemaining = 0;
+
+    emit progressUpdated(finalMetrics);
+    emit statusUpdated("Installation completed successfully!");
+    emit finished(true, QString());
+    return true;
+}
+
+bool InstallerWorker::performUninstallation() {
+    emit statusUpdated("Removing VioraEDA installation...");
+    
+#ifdef _WIN32
+    emit statusUpdated("Removing shell shortcuts and file associations...");
+    removeWindowsShortcuts();
+    unregisterFileAssociations();
+    removeFromPathEnvironment();
+    unregisterUninstaller();
+#endif
+
+    emit statusUpdated("Deleting installed files and directories...");
+    QDir targetDir(m_config.installDir);
+    if (targetDir.exists()) {
+        targetDir.removeRecursively();
+    }
+
+    ProgressMetrics finalMetrics;
+    finalMetrics.percentage = 100;
+    finalMetrics.currentFileName = "Done";
+    finalMetrics.currentStatus = "VioraEDA uninstalled successfully.";
+    
+    emit progressUpdated(finalMetrics);
+    emit statusUpdated("Uninstallation complete.");
+    emit finished(true, QString());
+    return true;
 }
 
 #ifdef _WIN32
 bool InstallerWorker::createWindowsShortcuts() {
-    QString binDir = QDir::cleanPath(m_options.installDir + "/bin");
-    QString appExe = binDir + "/VioraEDA.exe";
-    QString cliExe = binDir + "/viora.exe";
+    QString binDir = QDir::toNativeSeparators(QDir::cleanPath(m_config.installDir + "/bin"));
+    QString appExe = binDir + "\\VioraEDA.exe";
+    QString cliExe = binDir + "\\viora.exe";
+    QString setupExe = binDir + "\\VioraEDA_Setup.exe";
 
     if (!QFile::exists(appExe)) return false;
 
     // Desktop Shortcut
-    if (m_options.createDesktopShortcut) {
+    if (m_config.systemOptions.createDesktopShortcut) {
         QString desktopPath = QStandardPaths::writableLocation(QStandardPaths::DesktopLocation);
         if (!desktopPath.isEmpty()) {
             QString linkFile = desktopPath + "/VioraEDA.lnk";
-            createShortcutWin32(linkFile, appExe, "", binDir, "VioraEDA 2026.1 High-Performance EDA Suite", appExe, 0);
+            createShortcutWin32(linkFile, appExe, "", binDir, "VioraEDA 2026 High-Performance EDA Suite", appExe, 0);
         }
     }
 
     // Start Menu Shortcuts
-    if (m_options.createStartMenuShortcut) {
+    if (m_config.systemOptions.createStartMenuShortcuts) {
         QString programsPath = QStandardPaths::writableLocation(QStandardPaths::ApplicationsLocation);
         if (!programsPath.isEmpty()) {
             QString menuFolder = programsPath + "/VioraEDA";
             QDir().mkpath(menuFolder);
 
-            createShortcutWin32(menuFolder + "/VioraEDA.lnk", appExe, "", binDir, "VioraEDA 2026.1", appExe, 0);
+            createShortcutWin32(menuFolder + "/VioraEDA.lnk", appExe, "", binDir, "VioraEDA 2026", appExe, 0);
             if (QFile::exists(cliExe)) {
-                createShortcutWin32(menuFolder + "/Viora CLI.lnk", cliExe, "", binDir, "VioraEDA Command Line Interface", cliExe, 0);
+                createShortcutWin32(menuFolder + "/Viora CLI.lnk", cliExe, "", binDir, "VioraEDA Command Line Tools", cliExe, 0);
             }
-            // Add Uninstall shortcut in start menu
-            QString setupExe = binDir + "/VioraEDA_Setup.exe";
             if (QFile::exists(setupExe)) {
                 createShortcutWin32(menuFolder + "/Uninstall VioraEDA.lnk", setupExe, "--uninstall", binDir, "Uninstall VioraEDA", setupExe, 0);
             }
         }
     }
-
     return true;
 }
 
 bool InstallerWorker::removeWindowsShortcuts() {
-    // Remove Desktop Shortcut
     QString desktopPath = QStandardPaths::writableLocation(QStandardPaths::DesktopLocation);
     if (!desktopPath.isEmpty()) {
         QFile::remove(desktopPath + "/VioraEDA.lnk");
     }
 
-    // Remove Start Menu Folder
     QString programsPath = QStandardPaths::writableLocation(QStandardPaths::ApplicationsLocation);
     if (!programsPath.isEmpty()) {
-        QString menuFolder = programsPath + "/VioraEDA";
-        QDir(menuFolder).removeRecursively();
+        QDir(programsPath + "/VioraEDA").removeRecursively();
     }
     return true;
 }
 
-bool InstallerWorker::setupFileAssociations() {
-    QString binDir = QDir::toNativeSeparators(QDir::cleanPath(m_options.installDir + "/bin"));
+bool InstallerWorker::registerFileAssociations() {
+    QString binDir = QDir::toNativeSeparators(QDir::cleanPath(m_config.installDir + "/bin"));
     QString appExe = binDir + "\\VioraEDA.exe";
     QString openCmd = "\"" + appExe + "\" \"%1\"";
 
@@ -368,24 +462,22 @@ bool InstallerWorker::setupFileAssociations() {
 
     const FileTypeAssoc assocs[] = {
         { ".flxsch",    "VioraEDA.Schematic.1",  "VioraEDA Schematic Document" },
-        { ".flux",      "VioraEDA.FluxScript.1", "FluxScript Document" },
-        { ".flxpcb",    "VioraEDA.PCB.1",        "VioraEDA PCB Document" },
+        { ".flux",      "VioraEDA.FluxScript.1", "FluxScript Source Document" },
+        { ".flxpcb",    "VioraEDA.PCB.1",        "VioraEDA PCB Layout Document" },
         { ".cir",       "VioraEDA.Netlist.1",    "SPICE Netlist Document" },
         { ".sp",        "VioraEDA.Netlist.1",    "SPICE Netlist Document" },
         { ".asc",       "VioraEDA.Schematic.1",  "LTspice Schematic Document" },
         { ".kicad_sch", "VioraEDA.Schematic.1",  "KiCad Schematic Document" },
-        { ".kicad_pcb", "VioraEDA.PCB.1",        "KiCad PCB Document" },
+        { ".kicad_pcb", "VioraEDA.PCB.1",        "KiCad PCB Layout Document" },
     };
 
     for (const auto& a : assocs) {
-        // HKCU\Software\Classes\<ProgID>
         QString progKey = QString("HKEY_CURRENT_USER\\Software\\Classes\\%1").arg(a.progId);
         QSettings regProg(progKey, QSettings::NativeFormat);
         regProg.setValue(".", a.desc);
         regProg.setValue("DefaultIcon/.", QString("%1,0").arg(appExe));
         regProg.setValue("shell/open/command/.", openCmd);
 
-        // HKCU\Software\Classes\<.ext>
         QString extKey = QString("HKEY_CURRENT_USER\\Software\\Classes\\%1").arg(a.ext);
         QSettings regExt(extKey, QSettings::NativeFormat);
         regExt.setValue(".", a.progId);
@@ -396,7 +488,7 @@ bool InstallerWorker::setupFileAssociations() {
     return true;
 }
 
-bool InstallerWorker::removeFileAssociations() {
+bool InstallerWorker::unregisterFileAssociations() {
     const char* exts[] = { ".flxsch", ".flux", ".flxpcb", ".cir", ".sp", ".asc", ".kicad_sch", ".kicad_pcb" };
     const char* progIds[] = { "VioraEDA.Schematic.1", "VioraEDA.FluxScript.1", "VioraEDA.PCB.1", "VioraEDA.Netlist.1" };
 
@@ -413,70 +505,76 @@ bool InstallerWorker::removeFileAssociations() {
     return true;
 }
 
-bool InstallerWorker::updatePathEnvironment(bool add) {
-    QString binDir = QDir::toNativeSeparators(QDir::cleanPath(m_options.installDir + "/bin"));
-    QSettings envSettings("HKEY_CURRENT_USER\\Environment", QSettings::NativeFormat);
+bool InstallerWorker::updatePathEnvironment() {
+    QString binDir = QDir::toNativeSeparators(QDir::cleanPath(m_config.installDir + "/bin"));
+    QSettings regEnv("HKEY_CURRENT_USER\\Environment", QSettings::NativeFormat);
+    QString currentPath = regEnv.value("Path", "").toString();
 
-    QString currentPath = envSettings.value("Path").toString();
-    QStringList pathList = currentPath.split(';', Qt::SkipEmptyParts);
-
-    bool changed = false;
-    if (add) {
-        bool alreadyPresent = false;
-        for (const QString& p : pathList) {
-            if (p.trimmed().compare(binDir, Qt::CaseInsensitive) == 0) {
-                alreadyPresent = true;
-                break;
-            }
-        }
-        if (!alreadyPresent) {
-            pathList.append(binDir);
-            changed = true;
-        }
-    } else {
-        for (int i = pathList.size() - 1; i >= 0; --i) {
-            if (pathList[i].trimmed().compare(binDir, Qt::CaseInsensitive) == 0) {
-                pathList.removeAt(i);
-                changed = true;
-            }
+    QStringList parts = currentPath.split(';', Qt::SkipEmptyParts);
+    for (const QString& p : parts) {
+        if (p.trimmed().compare(binDir, Qt::CaseInsensitive) == 0) {
+            return true;
         }
     }
 
-    if (changed) {
-        envSettings.setValue("Path", pathList.join(';'));
-        envSettings.sync();
-        SendMessageTimeoutW(HWND_BROADCAST, WM_SETTINGCHANGE, 0, (LPARAM)L"Environment", SMTO_ABORTIFHUNG, 5000, nullptr);
+    parts.append(binDir);
+    QString newPath = parts.join(';');
+    regEnv.setValue("Path", newPath);
+
+    DWORD_PTR dwResult = 0;
+    SendMessageTimeoutW(HWND_BROADCAST, WM_SETTINGCHANGE, 0, (LPARAM)L"Environment", SMTO_ABORTIFHUNG, 3000, &dwResult);
+    return true;
+}
+
+bool InstallerWorker::removeFromPathEnvironment() {
+    QString binDir = QDir::toNativeSeparators(QDir::cleanPath(m_config.installDir + "/bin"));
+    QSettings regEnv("HKEY_CURRENT_USER\\Environment", QSettings::NativeFormat);
+    QString currentPath = regEnv.value("Path", "").toString();
+
+    QStringList parts = currentPath.split(';', Qt::SkipEmptyParts);
+    QStringList filteredParts;
+    bool modified = false;
+
+    for (const QString& p : parts) {
+        if (p.trimmed().compare(binDir, Qt::CaseInsensitive) == 0) {
+            modified = true;
+        } else {
+            filteredParts.append(p);
+        }
+    }
+
+    if (modified) {
+        regEnv.setValue("Path", filteredParts.join(';'));
+        DWORD_PTR dwResult = 0;
+        SendMessageTimeoutW(HWND_BROADCAST, WM_SETTINGCHANGE, 0, (LPARAM)L"Environment", SMTO_ABORTIFHUNG, 3000, &dwResult);
     }
     return true;
 }
 
-bool InstallerWorker::registerUninstaller(quint64 totalBytes) {
-    QString targetRoot = QDir::toNativeSeparators(QDir::cleanPath(m_options.installDir));
-    QString binDir = targetRoot + "\\bin";
+bool InstallerWorker::registerUninstaller() {
+    QString uninstallKey = "HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\VioraEDA";
+    QSettings regUninst(uninstallKey, QSettings::NativeFormat);
+
+    QString binDir = QDir::toNativeSeparators(QDir::cleanPath(m_config.installDir + "/bin"));
     QString appExe = binDir + "\\VioraEDA.exe";
     QString setupExe = binDir + "\\VioraEDA_Setup.exe";
 
-    QSettings uninstReg("HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\VioraEDA", QSettings::NativeFormat);
-    uninstReg.setValue("DisplayName", "VioraEDA 2026.1");
-    uninstReg.setValue("DisplayVersion", "2026.1");
-    uninstReg.setValue("Publisher", "Janadasroor");
-    uninstReg.setValue("InstallLocation", targetRoot);
-    uninstReg.setValue("DisplayIcon", QString("%1,0").arg(appExe));
-    uninstReg.setValue("UninstallString", QString("\"%1\" --uninstall").arg(setupExe));
-    uninstReg.setValue("QuietUninstallString", QString("\"%1\" --uninstall --silent").arg(setupExe));
-    uninstReg.setValue("EstimatedSize", static_cast<qulonglong>(totalBytes / 1024));
-    uninstReg.setValue("URLInfoAbout", "https://github.com/Janadasroor/VioraEDA");
-    uninstReg.setValue("NoModify", 1);
-    uninstReg.setValue("NoRepair", 1);
-    uninstReg.sync();
-
+    regUninst.setValue("DisplayName", "VioraEDA 2026 Suite");
+    regUninst.setValue("DisplayVersion", "2026.1.0");
+    regUninst.setValue("Publisher", "Janada Sroor");
+    regUninst.setValue("InstallLocation", QDir::toNativeSeparators(m_config.installDir));
+    regUninst.setValue("DisplayIcon", appExe + ",0");
+    regUninst.setValue("UninstallString", "\"" + setupExe + "\" --uninstall");
+    regUninst.setValue("QuietUninstallString", "\"" + setupExe + "\" --uninstall --silent");
+    regUninst.setValue("NoModify", 1);
+    regUninst.setValue("NoRepair", 1);
     return true;
 }
 
-bool InstallerWorker::removeUninstallerRegistry() {
-    QSettings uninstReg("HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\VioraEDA", QSettings::NativeFormat);
-    uninstReg.clear();
-    uninstReg.sync();
+bool InstallerWorker::unregisterUninstaller() {
+    QString uninstallKey = "HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\VioraEDA";
+    QSettings regUninst(uninstallKey, QSettings::NativeFormat);
+    regUninst.clear();
     return true;
 }
 #endif
