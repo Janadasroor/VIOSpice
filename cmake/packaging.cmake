@@ -134,9 +134,57 @@ set(CPACK_PACKAGE_HOMEPAGE_URL "https://github.com/Janadasroor/VioraEDA")
 set(CPACK_RESOURCE_FILE_LICENSE "${CMAKE_SOURCE_DIR}/LICENSE")
 
 if(WIN32)
-    set(CPACK_GENERATOR "ZIP")
+    set(CPACK_GENERATOR "NSIS;ZIP")
     set(CPACK_PACKAGE_FILE_NAME "VioraEDA-${PROJECT_VERSION}-windows-x86_64")
     set(CPACK_PACKAGE_INSTALL_DIRECTORY "VioraEDA")
+    set(CPACK_NSIS_DISPLAY_NAME "VioraEDA ${PROJECT_VERSION}")
+    set(CPACK_NSIS_PACKAGE_NAME "VioraEDA")
+    set(CPACK_NSIS_HELP_LINK "https://github.com/Janadasroor/VioraEDA")
+    set(CPACK_NSIS_URL_INFO_ABOUT "https://github.com/Janadasroor/VioraEDA")
+    set(CPACK_NSIS_CONTACT "https://github.com/Janadasroor/VioraEDA/issues")
+    set(CPACK_NSIS_MODIFY_PATH ON)
+    set(CPACK_NSIS_ENABLE_UNINSTALL_BEFORE_INSTALL ON)
+    set(CPACK_NSIS_MUI_FINISHPAGE_RUN "bin/VioraEDA.exe")
+    set(CPACK_NSIS_CREATE_ICONS_EXTRA "
+        CreateShortCut '$SMPROGRAMS\\\\$STARTMENU_FOLDER\\\\VioraEDA.lnk' '$INSTDIR\\\\bin\\\\VioraEDA.exe' '' '$INSTDIR\\\\bin\\\\VioraEDA.exe' 0
+        CreateShortCut '$SMPROGRAMS\\\\$STARTMENU_FOLDER\\\\Viora CLI.lnk' '$INSTDIR\\\\bin\\\\viora.exe' '' '$INSTDIR\\\\bin\\\\viora.exe' 0
+        CreateShortCut '$DESKTOP\\\\VioraEDA.lnk' '$INSTDIR\\\\bin\\\\VioraEDA.exe' '' '$INSTDIR\\\\bin\\\\VioraEDA.exe' 0
+    ")
+    set(CPACK_NSIS_DELETE_ICONS_EXTRA "
+        Delete '$SMPROGRAMS\\\\$STARTMENU_FOLDER\\\\VioraEDA.lnk'
+        Delete '$SMPROGRAMS\\\\$STARTMENU_FOLDER\\\\Viora CLI.lnk'
+        Delete '$DESKTOP\\\\VioraEDA.lnk'
+    ")
+    set(CPACK_NSIS_EXTRA_INSTALL_COMMANDS "
+        WriteRegStr HKCR '.flxsch' '' 'VioraEDA.Schematic.1'
+        WriteRegStr HKCR '.flux' '' 'VioraEDA.FluxScript.1'
+        WriteRegStr HKCR '.flxpcb' '' 'VioraEDA.PCB.1'
+        WriteRegStr HKCR '.cir' '' 'VioraEDA.Netlist.1'
+        WriteRegStr HKCR 'VioraEDA.Schematic.1' '' 'VioraEDA Schematic Document'
+        WriteRegStr HKCR 'VioraEDA.Schematic.1\\\\DefaultIcon' '' '$INSTDIR\\\\bin\\\\VioraEDA.exe,0'
+        WriteRegStr HKCR 'VioraEDA.Schematic.1\\\\shell\\\\open\\\\command' '' '\"$INSTDIR\\\\bin\\\\VioraEDA.exe\" \"%1\"'
+        WriteRegStr HKCR 'VioraEDA.FluxScript.1' '' 'FluxScript Document'
+        WriteRegStr HKCR 'VioraEDA.FluxScript.1\\\\DefaultIcon' '' '$INSTDIR\\\\bin\\\\VioraEDA.exe,0'
+        WriteRegStr HKCR 'VioraEDA.FluxScript.1\\\\shell\\\\open\\\\command' '' '\"$INSTDIR\\\\bin\\\\VioraEDA.exe\" \"%1\"'
+        WriteRegStr HKCR 'VioraEDA.PCB.1' '' 'VioraEDA PCB Document'
+        WriteRegStr HKCR 'VioraEDA.PCB.1\\\\DefaultIcon' '' '$INSTDIR\\\\bin\\\\VioraEDA.exe,0'
+        WriteRegStr HKCR 'VioraEDA.PCB.1\\\\shell\\\\open\\\\command' '' '\"$INSTDIR\\\\bin\\\\VioraEDA.exe\" \"%1\"'
+        WriteRegStr HKCR 'VioraEDA.Netlist.1' '' 'SPICE Netlist Document'
+        WriteRegStr HKCR 'VioraEDA.Netlist.1\\\\DefaultIcon' '' '$INSTDIR\\\\bin\\\\VioraEDA.exe,0'
+        WriteRegStr HKCR 'VioraEDA.Netlist.1\\\\shell\\\\open\\\\command' '' '\"$INSTDIR\\\\bin\\\\VioraEDA.exe\" \"%1\"'
+        System::Call 'shell32::SHChangeNotify(i 0x08000000, i 0, i 0, i 0)'
+    ")
+    set(CPACK_NSIS_EXTRA_UNINSTALL_COMMANDS "
+        DeleteRegKey HKCR '.flxsch'
+        DeleteRegKey HKCR '.flux'
+        DeleteRegKey HKCR '.flxpcb'
+        DeleteRegKey HKCR '.cir'
+        DeleteRegKey HKCR 'VioraEDA.Schematic.1'
+        DeleteRegKey HKCR 'VioraEDA.FluxScript.1'
+        DeleteRegKey HKCR 'VioraEDA.PCB.1'
+        DeleteRegKey HKCR 'VioraEDA.Netlist.1'
+        System::Call 'shell32::SHChangeNotify(i 0x08000000, i 0, i 0, i 0)'
+    ")
 
 elseif(APPLE)
     set(CPACK_GENERATOR "DragNDrop;TGZ")

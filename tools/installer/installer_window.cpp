@@ -9,19 +9,37 @@
 #include <QFileDialog>
 #include <QApplication>
 #include <QProcess>
-#include <QGraphicsDropShadowEffect>
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
 #include <QDirIterator>
+#include <QStandardPaths>
+#include <QMessageBox>
+#include <QCloseEvent>
+#include <QSettings>
 
 #ifdef _WIN32
 #include <windows.h>
 #endif
 
+namespace {
 
+bool checkIsAdmin() {
+#ifdef _WIN32
+    BOOL isAdmin = FALSE;
+    PSID adminGroup = nullptr;
+    SID_IDENTIFIER_AUTHORITY ntAuthority = SECURITY_NT_AUTHORITY;
+    if (AllocateAndInitializeSid(&ntAuthority, 2, SECURITY_BUILTIN_DOMAIN_RID, DOMAIN_ALIAS_RID_ADMINS, 0, 0, 0, 0, 0, 0, &adminGroup)) {
+        CheckTokenMembership(nullptr, adminGroup, &isAdmin);
+        FreeSid(adminGroup);
+    }
+    return isAdmin == TRUE;
+#else
+    return false;
+#endif
+}
 
-static QPixmap loadInstallerLogo() {
+QPixmap loadInstallerLogo() {
     QPixmap pix(":/icons/viora_eda_logo.png");
     if (!pix.isNull()) return pix;
 
@@ -42,21 +60,25 @@ static QPixmap loadInstallerLogo() {
     return pix;
 }
 
-InstallerWindow::InstallerWindow(QWidget *parent) : QWidget(parent) {
-    setWindowTitle("VioraEDA 2026.1 Setup");
-    resize(640, 420);
+} // namespace
+
+InstallerWindow::InstallerWindow(bool isUninstall, QWidget *parent)
+    : QWidget(parent), m_isUninstall(isUninstall), m_isAdmin(checkIsAdmin()) {
+    
+    setWindowTitle(m_isUninstall ? "VioraEDA 2026.1 Uninstall" : "VioraEDA 2026.1 Setup");
+    resize(660, 440);
     
     QPixmap logoPix = loadInstallerLogo();
     if (!logoPix.isNull()) {
         setWindowIcon(QIcon(logoPix));
     }
 
-    // Global Dark QSS Theme
+    // Modern Dark QSS Theme
     setStyleSheet(R"(
         QWidget {
             background-color: #0d1117;
             color: #f4f4f5;
-            font-family: 'Segoe UI', 'Inter', sans-serif;
+            font-family: 'Segoe UI', 'Inter', -apple-system, sans-serif;
             font-size: 13px;
         }
         QStackedWidget {
@@ -129,7 +151,7 @@ InstallerWindow::InstallerWindow(QWidget *parent) : QWidget(parent) {
             background-color: #161b22;
             border: 1px solid #30363d;
             border-radius: 6px;
-            height: 14px;
+            height: 16px;
             text-align: center;
             color: #ffffff;
             font-size: 10px;
@@ -141,7 +163,7 @@ InstallerWindow::InstallerWindow(QWidget *parent) : QWidget(parent) {
         }
         QCheckBox {
             color: #f4f4f5;
-            spacing: 6px;
+            spacing: 8px;
         }
         QCheckBox::indicator {
             width: 16px;
@@ -157,6 +179,29 @@ InstallerWindow::InstallerWindow(QWidget *parent) : QWidget(parent) {
     )");
 
     setupUi();
+}
+
+InstallerWindow::~InstallerWindow() {
+    if (m_worker && m_worker->isRunning()) {
+        m_worker->requestCancel();
+        m_worker->wait(2000);
+    }
+}
+
+void InstallerWindow::closeEvent(QCloseEvent *event) {
+    if (m_worker && m_worker->isRunning()) {
+        auto res = QMessageBox::question(this, "Cancel Installation",
+            "Installation is currently in progress. Are you sure you want to cancel?",
+            QMessageBox::Yes | QMessageBox::No, QMessageBox::No);
+        if (res == QMessageBox::Yes) {
+            cancelInstallation();
+            event->accept();
+        } else {
+            event->ignore();
+        }
+    } else {
+        event->accept();
+    }
 }
 
 void InstallerWindow::setupUi() {
@@ -196,7 +241,7 @@ void InstallerWindow::setupUi() {
     btnLayout->addStretch();
 
     m_backBtn = new QPushButton("< Back", this);
-    m_nextBtn = new QPushButton("Next >", this);
+    m_nextBtn = new QPushButton(m_isUninstall ? "Uninstall" : "Next >", this);
     m_nextBtn->setObjectName("primaryBtn");
     m_cancelBtn = new QPushButton("Cancel", this);
 
@@ -205,14 +250,19 @@ void InstallerWindow::setupUi() {
     btnLayout->addWidget(m_cancelBtn);
 
     rightLayout->addLayout(btnLayout);
-
     mainLayout->addWidget(rightContainer, 1);
 
     connect(m_nextBtn, &QPushButton::clicked, this, &InstallerWindow::nextPage);
     connect(m_backBtn, &QPushButton::clicked, this, &InstallerWindow::prevPage);
-    connect(m_cancelBtn, &QPushButton::clicked, this, &QWidget::close);
+    connect(m_cancelBtn, &QPushButton::clicked, this, &InstallerWindow::cancelInstallation);
 
     m_backBtn->setEnabled(false);
+
+    if (m_isUninstall) {
+        // In uninstall mode, skip license & directory pages and jump straight to confirm
+        m_stackedWidget->setCurrentIndex(0);
+        m_nextBtn->setText("Uninstall");
+    }
 }
 
 QWidget* InstallerWindow::createSidebar() {
@@ -247,7 +297,7 @@ QWidget* InstallerWindow::createSidebar() {
     appName->setStyleSheet("font-size: 20px; font-weight: 800; color: #ffffff; letter-spacing: 1px;");
     layout->addWidget(appName, 0, Qt::AlignCenter);
 
-    auto *appVer = new QLabel("2026.1 SETUP", sidebar);
+    auto *appVer = new QLabel(m_isUninstall ? "UNINSTALLER" : "2026.1 SETUP", sidebar);
     appVer->setStyleSheet("font-size: 11px; font-weight: 700; color: #00d2ff; letter-spacing: 1.5px;");
     layout->addWidget(appVer, 0, Qt::AlignCenter);
 
@@ -265,20 +315,37 @@ QWidget* InstallerWindow::createWelcomePage() {
     auto *layout = new QVBoxLayout(page);
     layout->setContentsMargins(0, 0, 0, 0);
 
-    auto *title = new QLabel("Welcome to VioraEDA 2026.1 Setup", page);
-    title->setObjectName("titleLabel");
+    if (m_isUninstall) {
+        auto *title = new QLabel("Uninstall VioraEDA 2026.1", page);
+        title->setObjectName("titleLabel");
 
-    auto *desc = new QLabel(
-        "Setup will guide you through the installation of VioraEDA 2026.1.\n\n"
-        "It is recommended that you close all other applications before starting Setup. "
-        "This will make it possible to update relevant system files without needing a reboot.\n\n"
-        "Click Next to continue.", page);
-    desc->setWordWrap(true);
+        auto *desc = new QLabel(
+            "This wizard will completely remove VioraEDA 2026.1 and its associated shortcuts, "
+            "file associations, and environment settings from your computer.\n\n"
+            "Click Uninstall to proceed with the removal.", page);
+        desc->setWordWrap(true);
 
-    layout->addWidget(title);
-    layout->addSpacing(8);
-    layout->addWidget(desc);
-    layout->addStretch();
+        layout->addWidget(title);
+        layout->addSpacing(12);
+        layout->addWidget(desc);
+        layout->addStretch();
+    } else {
+        auto *title = new QLabel("Welcome to VioraEDA 2026.1 Setup", page);
+        title->setObjectName("titleLabel");
+
+        auto *desc = new QLabel(
+            "Setup will install VioraEDA 2026.1 on your computer.\n\n"
+            "VioraEDA is a modern, high-performance Electronic Design Automation suite "
+            "with interactive schematic capture, mixed-signal SPICE simulation, "
+            "and multi-layer PCB design.\n\n"
+            "Click Next to continue.", page);
+        desc->setWordWrap(true);
+
+        layout->addWidget(title);
+        layout->addSpacing(12);
+        layout->addWidget(desc);
+        layout->addStretch();
+    }
 
     return page;
 }
@@ -327,24 +394,32 @@ void InstallerWindow::onLicenseCheckChanged(bool checked) {
     }
 }
 
-
-
 QWidget* InstallerWindow::createDirectoryPage() {
     auto *page = new QWidget(this);
     auto *layout = new QVBoxLayout(page);
     layout->setContentsMargins(0, 0, 0, 0);
 
-    auto *title = new QLabel("Choose Install Location", page);
+    auto *title = new QLabel("Install Location & System Options", page);
     title->setObjectName("titleLabel");
 
-    auto *subTitle = new QLabel("Choose the folder in which to install VioraEDA 2026.1.", page);
+    auto *subTitle = new QLabel("Select destination directory and system integration options.", page);
     subTitle->setObjectName("subTitleLabel");
+
+    // Smart Privilege Detection: default to LocalAppData for Standard User, Program Files for Admin
+    QString defaultPath;
+    if (m_isAdmin) {
+        defaultPath = "C:\\Program Files\\VioraEDA";
+    } else {
+        QString localApp = QStandardPaths::writableLocation(QStandardPaths::GenericDataLocation);
+        if (localApp.isEmpty()) localApp = "C:\\Users\\" + qgetenv("USERNAME") + "\\AppData\\Local";
+        defaultPath = QDir::toNativeSeparators(localApp + "/Programs/VioraEDA");
+    }
 
     auto *dirBox = new QWidget(page);
     auto *dirLayout = new QHBoxLayout(dirBox);
     dirLayout->setContentsMargins(0, 0, 0, 0);
 
-    m_dirLineEdit = new QLineEdit("C:\\Program Files\\VioraEDA", page);
+    m_dirLineEdit = new QLineEdit(defaultPath, page);
     auto *browseBtn = new QPushButton("Browse...", page);
 
     dirLayout->addWidget(m_dirLineEdit, 1);
@@ -360,32 +435,60 @@ QWidget* InstallerWindow::createDirectoryPage() {
     spaceLayout->setContentsMargins(12, 10, 12, 10);
     spaceLayout->setSpacing(4);
 
-    m_spaceRequiredLabel = new QLabel("Space required: 385.4 MB", spaceCard);
+    m_privilegeLabel = new QLabel(m_isAdmin 
+        ? "🛡️ System-Wide Installation (Administrator Mode)" 
+        : "👤 Current User Installation (No Admin Rights Required)", spaceCard);
+    m_privilegeLabel->setStyleSheet("border: none; font-size: 11px; font-weight: 600; color: #a1a1aa;");
+
+    m_spaceRequiredLabel = new QLabel("Space required: Calculating...", spaceCard);
     m_spaceRequiredLabel->setStyleSheet("border: none; font-weight: 600; color: #ffffff;");
 
     m_spaceAvailableLabel = new QLabel("Space available: Calculating...", spaceCard);
     m_spaceAvailableLabel->setStyleSheet("border: none; font-weight: 600; color: #00d2ff;");
 
+    spaceLayout->addWidget(m_privilegeLabel);
     spaceLayout->addWidget(m_spaceRequiredLabel);
     spaceLayout->addWidget(m_spaceAvailableLabel);
 
+    // Options Checkboxes
+    auto *optsContainer = new QWidget(page);
+    auto *optsLayout = new QVBoxLayout(optsContainer);
+    optsLayout->setContentsMargins(0, 8, 0, 0);
+    optsLayout->setSpacing(8);
+
+    m_desktopShortcutCheckBox = new QCheckBox("Create Desktop Shortcut", page);
+    m_desktopShortcutCheckBox->setChecked(true);
+
+    m_startMenuShortcutCheckBox = new QCheckBox("Create Start Menu Shortcuts (VioraEDA & CLI)", page);
+    m_startMenuShortcutCheckBox->setChecked(true);
+
+    m_addToPathCheckBox = new QCheckBox("Add VioraEDA to user PATH environment variable", page);
+    m_addToPathCheckBox->setChecked(true);
+
+    m_associateFilesCheckBox = new QCheckBox("Associate schematic & script files (.flxsch, .flux, .flxpcb, .cir)", page);
+    m_associateFilesCheckBox->setChecked(true);
+
+    optsLayout->addWidget(m_desktopShortcutCheckBox);
+    optsLayout->addWidget(m_startMenuShortcutCheckBox);
+    optsLayout->addWidget(m_addToPathCheckBox);
+    optsLayout->addWidget(m_associateFilesCheckBox);
+
     layout->addWidget(title);
     layout->addWidget(subTitle);
-    layout->addSpacing(16);
+    layout->addSpacing(10);
     layout->addWidget(dirBox);
-    layout->addSpacing(12);
+    layout->addSpacing(8);
     layout->addWidget(spaceCard);
+    layout->addWidget(optsContainer);
     layout->addStretch();
 
     updateDiskSpaceInfo();
-
     return page;
 }
 
 void InstallerWindow::updateDiskSpaceInfo() {
     if (!m_spaceRequiredLabel || !m_spaceAvailableLabel || !m_dirLineEdit) return;
 
-    // Calculate dynamic payload size of staged VioraEDA installation files
     QString appDir = QCoreApplication::applicationDirPath();
     quint64 totalBytes = 0;
     QDirIterator it(appDir, QDir::Files | QDir::NoSymLinks, QDirIterator::Subdirectories);
@@ -394,9 +497,8 @@ void InstallerWindow::updateDiskSpaceInfo() {
         totalBytes += it.fileInfo().size();
     }
 
-    // Full uncompressed package payload baseline (~1.63 GB uncompressed including 49,558 offline components)
-    if (totalBytes < 500 * 1024 * 1024) {
-        totalBytes = static_cast<quint64>(1632) * 1024 * 1024;
+    if (totalBytes < 100 * 1024 * 1024) {
+        totalBytes = static_cast<quint64>(420) * 1024 * 1024;
     }
 
     double reqMB = static_cast<double>(totalBytes) / (1024.0 * 1024.0);
@@ -405,7 +507,6 @@ void InstallerWindow::updateDiskSpaceInfo() {
     } else {
         m_spaceRequiredLabel->setText(QString("Space required: %1 MB").arg(reqMB, 0, 'f', 1));
     }
-
 
     QString dirPath = m_dirLineEdit->text().trimmed();
     if (dirPath.isEmpty()) {
@@ -429,7 +530,6 @@ void InstallerWindow::updateDiskSpaceInfo() {
         return;
     }
 
-    // Probe root drive letter (e.g. "C:\") if specific target directory doesn't exist yet
     QString root = dirPath.left(3);
     if (root.endsWith(":\\") || root.endsWith(":/")) {
         std::wstring wroot = root.toStdWString();
@@ -448,30 +548,36 @@ void InstallerWindow::updateDiskSpaceInfo() {
     m_spaceAvailableLabel->setText("Space available: Unknown");
 }
 
-
-
 QWidget* InstallerWindow::createProgressPage() {
     auto *page = new QWidget(this);
     auto *layout = new QVBoxLayout(page);
     layout->setContentsMargins(0, 0, 0, 0);
 
-    auto *title = new QLabel("Installing VioraEDA 2026.1", page);
+    auto *title = new QLabel(m_isUninstall ? "Uninstalling VioraEDA 2026.1" : "Installing VioraEDA 2026.1", page);
     title->setObjectName("titleLabel");
 
-    m_statusLabel = new QLabel("Extracting binaries and core components...", page);
+    m_statusLabel = new QLabel("Initializing installation engine...", page);
+    m_statusLabel->setStyleSheet("font-weight: 600; color: #ffffff;");
+
+    m_currentFileLabel = new QLabel("", page);
+    m_currentFileLabel->setStyleSheet("font-size: 11px; color: #8b949e;");
 
     m_progressBar = new QProgressBar(page);
     m_progressBar->setRange(0, 100);
     m_progressBar->setValue(0);
 
+    m_speedLabel = new QLabel("", page);
+    m_speedLabel->setStyleSheet("font-size: 11px; font-weight: 600; color: #00d2ff;");
+
     layout->addWidget(title);
     layout->addSpacing(16);
     layout->addWidget(m_statusLabel);
+    layout->addWidget(m_currentFileLabel);
+    layout->addSpacing(6);
     layout->addWidget(m_progressBar);
+    layout->addSpacing(4);
+    layout->addWidget(m_speedLabel);
     layout->addStretch();
-
-    m_progressTimer = new QTimer(this);
-    connect(m_progressTimer, &QTimer::timeout, this, &InstallerWindow::updateProgress);
 
     return page;
 }
@@ -481,18 +587,22 @@ QWidget* InstallerWindow::createFinishPage() {
     auto *layout = new QVBoxLayout(page);
     layout->setContentsMargins(0, 0, 0, 0);
 
-    auto *title = new QLabel("Installation Complete", page);
-    title->setObjectName("titleLabel");
+    m_finishTitleLabel = new QLabel("Installation Complete", page);
+    m_finishTitleLabel->setObjectName("titleLabel");
 
-    auto *desc = new QLabel("VioraEDA 2026.1 has been installed on your computer.\n\nClick Finish to exit Setup.", page);
-    desc->setWordWrap(true);
+    m_finishDescLabel = new QLabel(
+        "VioraEDA 2026.1 has been successfully installed on your computer.\n\nClick Finish to exit Setup.", page);
+    m_finishDescLabel->setWordWrap(true);
 
     m_launchCheckBox = new QCheckBox("Launch VioraEDA 2026.1 now", page);
     m_launchCheckBox->setChecked(true);
+    if (m_isUninstall) {
+        m_launchCheckBox->setVisible(false);
+    }
 
-    layout->addWidget(title);
+    layout->addWidget(m_finishTitleLabel);
     layout->addSpacing(12);
-    layout->addWidget(desc);
+    layout->addWidget(m_finishDescLabel);
     layout->addSpacing(16);
     layout->addWidget(m_launchCheckBox);
     layout->addStretch();
@@ -509,10 +619,21 @@ void InstallerWindow::browseDirectory() {
 
 void InstallerWindow::nextPage() {
     int curr = m_stackedWidget->currentIndex();
+
+    if (m_isUninstall) {
+        if (curr == 0) { // Welcome -> Progress (Start Uninstall)
+            startInstallation();
+            return;
+        } else if (curr == 4) { // Finish
+            finishInstallation();
+            return;
+        }
+    }
+
     if (curr == 1) { // License -> Directory
         m_nextBtn->setText("Install");
         m_nextBtn->setEnabled(true);
-    } else if (curr == 2) { // Directory -> Progress
+    } else if (curr == 2) { // Directory -> Progress (Start Install)
         startInstallation();
         return;
     } else if (curr == 4) { // Finish
@@ -550,43 +671,100 @@ void InstallerWindow::prevPage() {
     }
 }
 
-
 void InstallerWindow::startInstallation() {
     m_stackedWidget->setCurrentIndex(3);
     m_backBtn->setEnabled(false);
     m_nextBtn->setEnabled(false);
-    m_cancelBtn->setEnabled(false);
+    m_cancelBtn->setEnabled(true);
 
-    m_progressValue = 0;
-    m_progressTimer->start(40);
-}
-
-void InstallerWindow::updateProgress() {
-    m_progressValue += 2;
-    m_progressBar->setValue(m_progressValue);
-
-    if (m_progressValue < 30) {
-        m_statusLabel->setText("Extracting Qt6 binaries and core DLLs...");
-    } else if (m_progressValue < 60) {
-        m_statusLabel->setText("Indexing SPICE subcircuits and footprint libraries...");
-    } else if (m_progressValue < 90) {
-        m_statusLabel->setText("Configuring Python engine and FluxScript JIT...");
+    InstallOptions opts;
+    if (m_isUninstall) {
+        opts.isUninstall = true;
+        // Detect installed path from registry or current location
+        QSettings uninstReg("HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\VioraEDA", QSettings::NativeFormat);
+        QString installedPath = uninstReg.value("InstallLocation").toString();
+        if (installedPath.isEmpty()) {
+            installedPath = QCoreApplication::applicationDirPath() + "/..";
+        }
+        opts.installDir = QDir::cleanPath(installedPath);
     } else {
-        m_statusLabel->setText("Creating Start Menu shortcuts...");
+        opts.isUninstall = false;
+        opts.installDir = m_dirLineEdit ? m_dirLineEdit->text().trimmed() : "C:\\Program Files\\VioraEDA";
+        opts.createDesktopShortcut = m_desktopShortcutCheckBox ? m_desktopShortcutCheckBox->isChecked() : true;
+        opts.createStartMenuShortcut = m_startMenuShortcutCheckBox ? m_startMenuShortcutCheckBox->isChecked() : true;
+        opts.addToPath = m_addToPathCheckBox ? m_addToPathCheckBox->isChecked() : true;
+        opts.associateFiles = m_associateFilesCheckBox ? m_associateFilesCheckBox->isChecked() : true;
     }
 
-    if (m_progressValue >= 100) {
-        m_progressTimer->stop();
-        m_stackedWidget->setCurrentIndex(4);
-        m_nextBtn->setText("Finish");
-        m_nextBtn->setEnabled(true);
-        m_cancelBtn->setEnabled(false);
+    m_worker = new InstallerWorker(opts, this);
+    connect(m_worker, &InstallerWorker::progressChanged, this, &InstallerWindow::onProgressChanged);
+    connect(m_worker, &InstallerWorker::statusChanged, this, &InstallerWindow::onStatusChanged);
+    connect(m_worker, &InstallerWorker::installationFinished, this, &InstallerWindow::onInstallationFinished);
+
+    m_worker->start();
+}
+
+void InstallerWindow::onProgressChanged(int percentage, const QString& currentFile, double speedMBps, quint64 bytesCopied, quint64 totalBytes) {
+    if (m_progressBar) {
+        m_progressBar->setValue(percentage);
+    }
+    if (m_currentFileLabel) {
+        m_currentFileLabel->setText(currentFile.isEmpty() ? "" : QString("Writing: %1").arg(currentFile));
+    }
+    if (m_speedLabel) {
+        double copiedMB = static_cast<double>(bytesCopied) / (1024.0 * 1024.0);
+        double totalMB = static_cast<double>(totalBytes) / (1024.0 * 1024.0);
+        if (speedMBps > 0.05) {
+            m_speedLabel->setText(QString("%1 MB / %2 MB (%3 MB/s)").arg(copiedMB, 0, 'f', 1).arg(totalMB, 0, 'f', 1).arg(speedMBps, 0, 'f', 1));
+        } else {
+            m_speedLabel->setText(QString("%1 MB / %2 MB").arg(copiedMB, 0, 'f', 1).arg(totalMB, 0, 'f', 1));
+        }
+    }
+}
+
+void InstallerWindow::onStatusChanged(const QString& statusText) {
+    if (m_statusLabel) {
+        m_statusLabel->setText(statusText);
+    }
+}
+
+void InstallerWindow::onInstallationFinished(bool success, const QString& message) {
+    m_installationSuccess = success;
+    m_stackedWidget->setCurrentIndex(4);
+    m_nextBtn->setText("Finish");
+    m_nextBtn->setEnabled(true);
+    m_cancelBtn->setEnabled(false);
+
+    if (m_finishTitleLabel && m_finishDescLabel) {
+        if (m_isUninstall) {
+            m_finishTitleLabel->setText(success ? "Uninstallation Complete" : "Uninstallation Incomplete");
+            m_finishDescLabel->setText(success 
+                ? "VioraEDA 2026.1 has been cleanly removed from your computer.\n\nClick Finish to exit."
+                : QString("Uninstallation could not complete: %1\n\nClick Finish to exit.").arg(message));
+        } else {
+            m_finishTitleLabel->setText(success ? "Installation Complete" : "Installation Incomplete");
+            m_finishDescLabel->setText(success
+                ? "VioraEDA 2026.1 has been successfully installed on your computer.\n\nClick Finish to exit Setup."
+                : QString("Installation encountered an issue: %1\n\nClick Finish to exit.").arg(message));
+        }
+    }
+}
+
+void InstallerWindow::cancelInstallation() {
+    if (m_worker && m_worker->isRunning()) {
+        m_worker->requestCancel();
+    } else {
+        close();
     }
 }
 
 void InstallerWindow::finishInstallation() {
-    if (m_launchCheckBox && m_launchCheckBox->isChecked()) {
-        QProcess::startDetached("C:\\VioraEDA\\build\\VioraEDA.exe", QStringList());
+    if (m_installationSuccess && !m_isUninstall && m_launchCheckBox && m_launchCheckBox->isChecked()) {
+        QString binDir = m_dirLineEdit ? (m_dirLineEdit->text().trimmed() + "/bin") : "C:/Program Files/VioraEDA/bin";
+        QString appExe = binDir + "/VioraEDA.exe";
+        if (QFile::exists(appExe)) {
+            QProcess::startDetached(appExe, QStringList());
+        }
     }
     close();
 }
