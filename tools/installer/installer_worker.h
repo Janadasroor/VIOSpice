@@ -9,54 +9,62 @@
 #include <QThread>
 #include <QString>
 #include <QStringList>
+#include <QPair>
+#include <QAtomicInt>
 #include <QElapsedTimer>
-#include <atomic>
-
-struct InstallOptions {
-    QString installDir;
-    bool createDesktopShortcut{true};
-    bool createStartMenuShortcut{true};
-    bool addToPath{true};
-    bool associateFiles{true};
-    bool isUninstall{false};
-};
+#include "installer_types.h"
 
 class InstallerWorker : public QThread {
     Q_OBJECT
 
 public:
-    explicit InstallerWorker(const InstallOptions& options, QObject* parent = nullptr);
-    ~InstallerWorker() override = default;
+    explicit InstallerWorker(const InstallConfig& config, QObject* parent = nullptr);
+    ~InstallerWorker() override;
 
-    void requestCancel();
+    void cancel();
 
 signals:
-    void progressChanged(int percentage, const QString& currentFile, double speedMBps, quint64 bytesCopied, quint64 totalBytes);
-    void statusChanged(const QString& statusText);
-    void installationFinished(bool success, const QString& message);
+    void progressUpdated(const ProgressMetrics& metrics);
+    void statusUpdated(const QString& message);
+    void finished(bool success, const QString& errorMessage);
 
 protected:
     void run() override;
 
 private:
-    void doInstall();
-    void doUninstall();
+    bool performInstallation();
+    bool performUninstallation();
+    void discoverFilesToInstall();
+    bool copyChunked(const QString& srcPath, const QString& dstPath);
+    void rollback();
 
-    bool collectFilesToCopy(QList<QPair<QString, QString>>& outFileList, quint64& outTotalBytes);
-    bool copyFileChunked(const QString& src, const QString& dst, quint64& copiedBytes, quint64 totalBytes);
-
-    // Windows System Integration Helpers
+    // Windows Shell and System Integrations
+#ifdef _WIN32
     bool createWindowsShortcuts();
     bool removeWindowsShortcuts();
-    bool setupFileAssociations();
-    bool removeFileAssociations();
-    bool updatePathEnvironment(bool add);
-    bool registerUninstaller(quint64 totalBytes);
-    bool removeUninstallerRegistry();
+    bool registerFileAssociations();
+    bool unregisterFileAssociations();
+    bool updatePathEnvironment();
+    bool removeFromPathEnvironment();
+    bool registerUninstaller();
+    bool unregisterUninstaller();
+#endif
 
-    InstallOptions m_options;
-    std::atomic<bool> m_cancelRequested{false};
+    InstallConfig m_config;
+    QAtomicInt m_cancelled{0};
+    QStringList m_createdFiles;
+    QStringList m_createdDirs;
+    
+    // File list: <SourcePath, RelativeDestPath>
+    QList<QPair<QString, QString>> m_filesToCopy;
+    uint64_t m_totalBytes{0};
+    uint64_t m_bytesCopied{0};
+    int m_filesCopied{0};
+    
     QElapsedTimer m_timer;
+    qint64 m_lastSpeedCheckTime{0};
+    uint64_t m_lastSpeedCheckBytes{0};
+    double m_currentSpeedMBps{0.0};
 };
 
 #endif // INSTALLER_WORKER_H
