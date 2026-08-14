@@ -79,6 +79,7 @@ jobs:
           msystem: MINGW64
           update: true
           install: >-
+            git
             base-devel
             mingw-w64-x86_64-gcc
             mingw-w64-x86_64-make
@@ -122,6 +123,8 @@ jobs:
           sudo apt update
           sudo apt install -y \
             build-essential cmake \
+            autoconf automake libtool bison flex \
+            libnghttp2-dev \
             libcurl4-openssl-dev \
             libgl1-mesa-dev \
             libpulse-dev \
@@ -141,6 +144,9 @@ jobs:
             wget -qO /tmp/pkg.deb "$pkg" && sudo dpkg -i /tmp/pkg.deb || true
           done
           sudo apt-get install -f -y
+          wget -qO /tmp/libnghttp2-14.deb \
+            http://archive.ubuntu.com/ubuntu/pool/main/n/nghttp2/libnghttp2-14_1.64.0-1ubuntu1_amd64.deb
+          sudo dpkg -i /tmp/libnghttp2-14.deb
 
       - name: Install system deps (macOS)
         if: runner.os == 'macOS'
