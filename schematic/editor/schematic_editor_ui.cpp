@@ -1333,9 +1333,10 @@ void SchematicEditor::ensureGeminiPanelInitialized() {
 }
 
 void SchematicEditor::createDockWidgets() {
-    // Configure Dock Corners so bottom dock doesn't stretch across the entire width
+    setDockNestingEnabled(true);
     setCorner(Qt::BottomLeftCorner, Qt::LeftDockWidgetArea);
     setCorner(Qt::BottomRightCorner, Qt::RightDockWidgetArea);
+    setDockOptions(QMainWindow::AnimatedDocks | QMainWindow::AllowNestedDocks | QMainWindow::AllowTabbedDocks | QMainWindow::GroupedDragging);
 
     // === Component Library Dock ===
     m_componentDock = new QDockWidget("Components", this);
@@ -1660,20 +1661,51 @@ void SchematicEditor::createDockWidgets() {
     m_oscilloscopeDock = new QDockWidget("Analog Oscilloscope", this);
     m_oscilloscopeDock->setObjectName("AnalogOscilloscopeDock");
     m_oscilloscopeDock->setFeatures(QDockWidget::DockWidgetMovable | QDockWidget::DockWidgetFloatable | QDockWidget::DockWidgetClosable);
-    m_oscilloscopeDock->setAllowedAreas(Qt::BottomDockWidgetArea | Qt::TopDockWidgetArea);
+    m_oscilloscopeDock->setAllowedAreas(Qt::AllDockWidgetAreas);
 
-    if (ThemeManager::theme()) {        m_oscilloscopeDock->setStyleSheet(QString(
-            "QDockWidget { border: none; }"
+    if (ThemeManager::theme()) {
+        m_oscilloscopeDock->setStyleSheet(QString(
+            "QDockWidget { border: 1px solid %3; }"
             "QDockWidget::title { background: %1; color: %2; padding: 6px; border-bottom: 1px solid %3; font-weight: bold; }"
+            "QDockWidget::close-button, QDockWidget::float-button { border: none; background: transparent; padding: 2px; border-radius: 3px; }"
+            "QDockWidget::close-button:hover, QDockWidget::float-button:hover { background: rgba(255, 255, 255, 0.15); }"
         ).arg(ThemeManager::theme()->panelBackground().name(), 
               ThemeManager::theme()->textColor().name(),
               ThemeManager::theme()->panelBorder().name()));
     }
     
-    m_oscilloscopeDock->setMinimumHeight(300);
+    m_oscilloscopeDock->setMinimumHeight(200);
     m_oscilloscopeDock->setMinimumWidth(0);
     m_oscilloscopeDock->hide();
     addDockWidget(Qt::BottomDockWidgetArea, m_oscilloscopeDock);
+
+    m_oscilloscopeDock->setContextMenuPolicy(Qt::CustomContextMenu);
+    connect(m_oscilloscopeDock, &QDockWidget::customContextMenuRequested, this, [this](const QPoint& pos) {
+        QMenu menu(this);
+        if (m_oscilloscopeDock->isFloating()) {
+            menu.addAction(getThemeIcon(":/icons/tool_oscilloscope.svg"), "Dock to Bottom (Default)", this, [this]() {
+                m_oscilloscopeDock->setFloating(false);
+                addDockWidget(Qt::BottomDockWidgetArea, m_oscilloscopeDock);
+                m_oscilloscopeDock->show();
+                m_oscilloscopeDock->raise();
+            });
+            menu.addAction("Dock to Right Area", this, [this]() {
+                m_oscilloscopeDock->setFloating(false);
+                addDockWidget(Qt::RightDockWidgetArea, m_oscilloscopeDock);
+                m_oscilloscopeDock->show();
+                m_oscilloscopeDock->raise();
+            });
+        } else {
+            menu.addAction("Float Window", this, [this]() {
+                m_oscilloscopeDock->setFloating(true);
+            });
+        }
+        menu.addSeparator();
+        menu.addAction("Hide Oscilloscope", this, [this]() {
+            m_oscilloscopeDock->hide();
+        });
+        menu.exec(m_oscilloscopeDock->mapToGlobal(pos));
+    });
 
     connect(m_oscilloscopeDock, &QDockWidget::visibilityChanged, this, [this](bool visible) {
         if (m_view) {

@@ -263,11 +263,10 @@ SchematicEditor::SchematicEditor(QWidget *parent)
             restoredWindowState = restoreState(state);
         }
     }
-    // Re-apply dock nesting and corner rules after restoring state to avoid overlaps.
     setDockNestingEnabled(true);
     setCorner(Qt::BottomLeftCorner, Qt::LeftDockWidgetArea);
     setCorner(Qt::BottomRightCorner, Qt::RightDockWidgetArea);
-    setDockOptions(QMainWindow::AllowTabbedDocks | QMainWindow::ForceTabbedDocks);
+    setDockOptions(QMainWindow::AnimatedDocks | QMainWindow::AllowNestedDocks | QMainWindow::AllowTabbedDocks | QMainWindow::GroupedDragging);
     // Only enforce default docking layout when we did not restore a prior layout.
     if (!restoredWindowState && m_ercDock && m_sourceControlDock) {
         addDockWidget(Qt::RightDockWidgetArea, m_ercDock);
