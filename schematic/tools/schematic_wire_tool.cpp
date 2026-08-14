@@ -6,6 +6,8 @@
 #include "schematic_wire_tool.h"
 #include "schematic_view.h"
 #include "wire_item.h"
+#include "bus_item.h"
+#include "bus_entry_item.h"
 #include "schematic_commands.h"
 #include "schematic_connectivity.h"
 #include "../analysis/wire_router.h"
@@ -189,7 +191,7 @@ void SchematicWireTool::mouseMoveEvent(QMouseEvent* event) {
     QPointF snappedPos = snapToConnection(scenePos);
     updateModeBadge(m_lastModifiers);
 
-    // Proteus-style capture cue: show target marker and cursor even before placing first point.
+    // Fast capture cue: show target marker and cursor even before placing first point.
     updateSnapIndicator(snappedPos, m_captureType);
     updateCaptureCursor(m_snappedToConnection);
 
@@ -627,6 +629,32 @@ QPointF SchematicWireTool::snapToConnection(QPointF pos) {
         }
     }
 
+    // --- 3. BusEntry terminal snap & Bus segment snap ---
+    for (QGraphicsItem* item : items) {
+        if (!item || !item->isVisible()) continue;
+
+        if (auto* entry = dynamic_cast<BusEntryItem*>(item)) {
+            for (const QPointF& ep : { entry->sceneP1(), entry->sceneP2() }) {
+                const qreal distSq = distSqToPos(ep);
+                if (distSq < closestDistSq) {
+                    closestDistSq = distSq;
+                    closestPoint = ep;
+                    m_snappedToConnection = true;
+                    m_captureType = WireVertexCapture;
+                }
+            }
+        } else if (auto* bus = dynamic_cast<BusItem*>(item)) {
+            qreal distSq = 0.0;
+            QPointF proj = bus->closestPointOnBus(pos, &distSq);
+            if (distSq < closestDistSq) {
+                closestDistSq = distSq;
+                closestPoint = view()->snapToGrid(proj);
+                m_snappedToConnection = true;
+                m_captureType = WireSegmentCapture;
+            }
+        }
+    }
+
     return closestPoint;
 }
 
@@ -651,7 +679,7 @@ QList<QPointF> SchematicWireTool::buildRoutePoints(const QPointF& start, const Q
         break;
     }
 
-    // Manhattan mode (forced): always use clean L-shape (Proteus-style)
+    // Manhattan mode (forced): always use clean orthogonal L-shape
     const bool forceH = modifiers.testFlag(Qt::ControlModifier);
     const bool forceV = modifiers.testFlag(Qt::AltModifier);
     
