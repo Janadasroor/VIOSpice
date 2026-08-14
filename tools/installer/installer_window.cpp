@@ -18,6 +18,7 @@
 #include <QApplication>
 #include <QStyle>
 #include <QPainter>
+#include <QDateTime>
 
 #ifdef _WIN32
 #include <windows.h>
@@ -713,6 +714,9 @@ void InstallerWindow::startInstallation() {
     m_nextBtn->setEnabled(false);
     m_cancelBtn->setEnabled(true);
 
+    m_lastEtaLabelUpdateTime = 0;
+    m_cachedEtaText.clear();
+
     m_worker = new InstallerWorker(m_config, this);
     connect(m_worker, &InstallerWorker::progressUpdated, this, &InstallerWindow::onProgressUpdated);
     connect(m_worker, &InstallerWorker::statusUpdated, this, &InstallerWindow::onStatusUpdated);
@@ -727,15 +731,39 @@ void InstallerWindow::onProgressUpdated(const ProgressMetrics& metrics) {
         .arg(metrics.filesProcessed)
         .arg(metrics.totalFiles));
     
-    m_speedLabel->setText(QString("Transfer Speed: %1 MB/s")
-        .arg(QString::number(metrics.transferSpeedMBps, 'f', 1)));
-
-    if (metrics.estimatedSecondsRemaining > 0) {
-        m_timeRemainingLabel->setText(QString("Time Remaining: %1s")
-            .arg(metrics.estimatedSecondsRemaining));
+    if (metrics.transferSpeedMBps > 0.05) {
+        m_speedLabel->setText(QString("Transfer Speed: %1 MB/s")
+            .arg(QString::number(metrics.transferSpeedMBps, 'f', 1)));
     } else {
-        m_timeRemainingLabel->setText("Time Remaining: Completing...");
+        m_speedLabel->setText("Transfer Speed: Calculating...");
     }
+
+    qint64 now = QDateTime::currentMSecsSinceEpoch();
+    if (now - m_lastEtaLabelUpdateTime >= 900 || m_cachedEtaText.isEmpty() || metrics.percentage >= 90) {
+        m_lastEtaLabelUpdateTime = now;
+
+        if (metrics.percentage >= 92) {
+            m_cachedEtaText = "Time Remaining: Finalizing...";
+        } else if (metrics.estimatedSecondsRemaining < 0) {
+            m_cachedEtaText = "Time Remaining: Calculating...";
+        } else if (metrics.estimatedSecondsRemaining <= 4) {
+            m_cachedEtaText = "Time Remaining: A few seconds";
+        } else if (metrics.estimatedSecondsRemaining < 60) {
+            m_cachedEtaText = QString("Time Remaining: ~%1 seconds").arg(metrics.estimatedSecondsRemaining);
+        } else if (metrics.estimatedSecondsRemaining < 120) {
+            int secs = metrics.estimatedSecondsRemaining - 60;
+            if (secs > 5) {
+                m_cachedEtaText = QString("Time Remaining: ~1 min %1s").arg((secs / 5) * 5);
+            } else {
+                m_cachedEtaText = "Time Remaining: ~1 minute";
+            }
+        } else {
+            int mins = (metrics.estimatedSecondsRemaining + 30) / 60;
+            m_cachedEtaText = QString("Time Remaining: ~%1 minutes").arg(mins);
+        }
+    }
+
+    m_timeRemainingLabel->setText(m_cachedEtaText);
 }
 
 void InstallerWindow::onStatusUpdated(const QString& statusText) {
