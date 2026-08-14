@@ -123,7 +123,17 @@ MainWindow::MainWindow(QWidget *parent)
     setMinimumSize(800, 600);
     resize(1100, 800);
     setObjectName("PCBEditor");
+    setAttribute(Qt::WA_OpaquePaintEvent);
     setWindowFlags(windowFlags() | Qt::WindowMinimizeButtonHint | Qt::WindowMaximizeButtonHint);
+
+    auto* theme = ThemeManager::theme();
+    QPalette pal = palette();
+    QColor bg = theme ? theme->windowBackground() : QColor(20, 20, 23);
+    pal.setColor(QPalette::Window, bg);
+    pal.setColor(QPalette::Base, bg);
+    setPalette(pal);
+
+    ThemeManager::applyTitlebarTheme(this, theme ? (theme->type() != PCBTheme::Light) : true);
 
     PCBItemRegistry::registerBuiltInItems();
     PCBToolRegistryBuiltIn::registerBuiltInTools();
@@ -199,6 +209,11 @@ MainWindow::MainWindow(QWidget *parent)
         bool restoredState = false;
         if (!geom.isEmpty()) restoreGeometry(geom);
         if (!state.isEmpty()) restoredState = restoreState(state);
+
+        setDockNestingEnabled(true);
+        setCorner(Qt::BottomLeftCorner, Qt::LeftDockWidgetArea);
+        setCorner(Qt::BottomRightCorner, Qt::RightDockWidgetArea);
+        setDockOptions(QMainWindow::AnimatedDocks | QMainWindow::AllowNestedDocks | QMainWindow::AllowTabbedDocks | QMainWindow::GroupedDragging);
 
         // Only enforce default tabbed docks if no saved window state was restored
         if (!restoredState) {

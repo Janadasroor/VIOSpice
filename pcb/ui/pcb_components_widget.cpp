@@ -336,6 +336,13 @@ void PCBComponentsWidget::updateRecentSection() {
         delete child;
     }
 
+    const bool hasRecent = !m_recentList.isEmpty();
+    m_recentHeader->setVisible(hasRecent);
+    const bool isSearching = m_searchBox && !m_searchBox->text().trimmed().isEmpty();
+    const bool showContainer = hasRecent && m_recentExpanded && !isSearching;
+    m_recentContainer->setVisible(showContainer);
+    updateSectionHeader(m_recentIndicator, m_recentExpanded && !isSearching);
+
     if (m_recentList.isEmpty()) {
         QLabel* emptyLabel = new QLabel("No footprints used recently.", m_recentContainer);
         emptyLabel->setStyleSheet("color: #555558; font-size: 11px; padding: 8px 15px; background: #1a1a1a;");
@@ -489,6 +496,15 @@ void PCBComponentsWidget::populate() {
 }
 
 void PCBComponentsWidget::onSearchTextChanged(const QString &text) {
+    const bool isSearching = !text.trimmed().isEmpty();
+    if (isSearching) {
+        m_recentContainer->setVisible(false);
+        updateSectionHeader(m_recentIndicator, false);
+    } else {
+        updateSectionHeader(m_recentIndicator, m_recentExpanded);
+        m_recentContainer->setVisible(m_recentExpanded && !m_recentList.isEmpty());
+    }
+
     if (text.isEmpty()) {
         for (int i = 0; i < m_componentList->topLevelItemCount(); ++i) {
             QTreeWidgetItem* lib = m_componentList->topLevelItem(i);
