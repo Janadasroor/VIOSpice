@@ -868,9 +868,16 @@ void MainWindow::ensureGeminiPanelInitialized() {
 }
 
 void MainWindow::createDockWidgets() {
+    setDockNestingEnabled(true);
+    setCorner(Qt::BottomLeftCorner, Qt::LeftDockWidgetArea);
+    setCorner(Qt::BottomRightCorner, Qt::RightDockWidgetArea);
+    setDockOptions(QMainWindow::AnimatedDocks | QMainWindow::AllowNestedDocks | QMainWindow::AllowTabbedDocks | QMainWindow::GroupedDragging);
+
     // === Layer Dock ===
     m_layerDock = new QDockWidget("Layers", this);
     m_layerDock->setObjectName("LayerDock");
+    m_layerDock->setFeatures(QDockWidget::DockWidgetMovable | QDockWidget::DockWidgetFloatable | QDockWidget::DockWidgetClosable);
+    m_layerDock->setAllowedAreas(Qt::AllDockWidgetAreas);
     m_layerPanel = new PCBLayerPanel(m_layerDock);
 
     QWidget* layerContainer = new QWidget(this);
@@ -894,6 +901,8 @@ void MainWindow::createDockWidgets() {
     // === DRC Dock ===
     m_drcDock = new QDockWidget("Design Rule Check", this);
     m_drcDock->setObjectName("DRCDock");
+    m_drcDock->setFeatures(QDockWidget::DockWidgetMovable | QDockWidget::DockWidgetFloatable | QDockWidget::DockWidgetClosable);
+    m_drcDock->setAllowedAreas(Qt::AllDockWidgetAreas);
     m_drcPanel = new PCBDRCPanel(m_drcDock);
     m_drcPanel->setScene(m_scene);
     m_drcDock->setWidget(m_drcPanel);
@@ -904,6 +913,8 @@ void MainWindow::createDockWidgets() {
     // === Properties Dock ===
     m_propertiesDock = new QDockWidget("Properties", this);
     m_propertiesDock->setObjectName("PropertiesDock");
+    m_propertiesDock->setFeatures(QDockWidget::DockWidgetMovable | QDockWidget::DockWidgetFloatable | QDockWidget::DockWidgetClosable);
+    m_propertiesDock->setAllowedAreas(Qt::AllDockWidgetAreas);
     m_propertyEditor = new Flux::PCBPropertyEditor();
     m_propertiesDock->setWidget(m_propertyEditor);
 
@@ -913,6 +924,7 @@ void MainWindow::createDockWidgets() {
     m_geminiDock = new QDockWidget("Gemini Assistant", this);
     m_geminiDock->setObjectName("GeminiDock");
     m_geminiDock->setFeatures(QDockWidget::DockWidgetMovable | QDockWidget::DockWidgetFloatable | QDockWidget::DockWidgetClosable);
+    m_geminiDock->setAllowedAreas(Qt::AllDockWidgetAreas);
 
     QScrollArea* geminiScroll = new QScrollArea(this);
     geminiScroll->setWidgetResizable(true);
@@ -939,6 +951,8 @@ void MainWindow::createDockWidgets() {
     // === Left Side: Library ===
     m_libraryDock = new QDockWidget("Component Library", this);
     m_libraryDock->setObjectName("LibraryDock");
+    m_libraryDock->setFeatures(QDockWidget::DockWidgetMovable | QDockWidget::DockWidgetFloatable | QDockWidget::DockWidgetClosable);
+    m_libraryDock->setAllowedAreas(Qt::AllDockWidgetAreas);
     m_componentsPanel = new PCBComponentsWidget(this);
     m_libraryDock->setWidget(m_componentsPanel);
     addDockWidget(Qt::LeftDockWidgetArea, m_libraryDock);
