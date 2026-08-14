@@ -96,9 +96,9 @@ private:
     // Progress Page
     QProgressBar *m_progressBar{nullptr};
     QLabel *m_statusLabel{nullptr};
-    QLabel *m_speedLabel{nullptr};
     QLabel *m_currentFileLabel{nullptr};
-    QLabel *m_timeRemainingLabel{nullptr};
+    QLabel *m_dataProcessedLabel{nullptr};
+    QLabel *m_speedLabel{nullptr};
 
     // Finish Page
     QLabel *m_finishTitleLabel{nullptr};
@@ -107,8 +107,6 @@ private:
 
     InstallerWorker *m_worker{nullptr};
     InstallConfig m_config;
-    qint64 m_lastEtaLabelUpdateTime{0};
-    QString m_cachedEtaText;
 };
 
 #endif // INSTALLER_WINDOW_H
