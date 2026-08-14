@@ -215,19 +215,54 @@ void InstallerWorker::discoverFilesToInstall() {
 
 void InstallerWorker::emitProgressThrottled(const QString& currentFile, bool force) {
     qint64 now = m_timer.elapsed();
-    if (!force && (now - m_lastProgressEmitTime < 50)) {
+    if (!force && (now - m_lastProgressEmitTime < 60)) {
         return;
     }
     m_lastProgressEmitTime = now;
 
-    if (now - m_lastSpeedCheckTime >= 100) {
+    // 1. Calculate and filter transfer speed with Exponential Moving Average (EMA)
+    if (now - m_lastSpeedCheckTime >= 150) {
         qint64 deltaMs = now - m_lastSpeedCheckTime;
         uint64_t deltaBytes = m_bytesCopied - m_lastSpeedCheckBytes;
         if (deltaMs > 0) {
-            m_currentSpeedMBps = ((double)deltaBytes / (1024.0 * 1024.0)) / ((double)deltaMs / 1000.0);
+            double instantSpeed = ((double)deltaBytes / (1024.0 * 1024.0)) / ((double)deltaMs / 1000.0);
+            if (m_smoothedSpeedMBps <= 0.05) {
+                m_smoothedSpeedMBps = instantSpeed;
+            } else {
+                // Smooth throughput (20% current window, 80% previous filtered)
+                m_smoothedSpeedMBps = 0.20 * instantSpeed + 0.80 * m_smoothedSpeedMBps;
+            }
+            m_currentSpeedMBps = m_smoothedSpeedMBps;
         }
         m_lastSpeedCheckTime = now;
         m_lastSpeedCheckBytes = m_bytesCopied;
+    }
+
+    // 2. Compute smooth, monotonically stable ETA
+    if (now - m_lastEtaCalculationTime >= 400 || m_smoothedEtaSeconds < 0) {
+        m_lastEtaCalculationTime = now;
+
+        if (now >= 1000 && m_bytesCopied > 0 && m_totalBytes > m_bytesCopied) {
+            double overallSpeed = ((double)m_bytesCopied / (1024.0 * 1024.0)) / ((double)now / 1000.0);
+            double effectiveSpeed = (m_smoothedSpeedMBps > 0.1)
+                ? (0.50 * m_smoothedSpeedMBps + 0.50 * overallSpeed)
+                : overallSpeed;
+
+            if (effectiveSpeed > 0.05) {
+                double remainingMB = (double)(m_totalBytes - m_bytesCopied) / (1024.0 * 1024.0);
+                int targetEta = (int)(remainingMB / effectiveSpeed);
+                if (targetEta < 1) targetEta = 1;
+
+                if (m_smoothedEtaSeconds <= 0) {
+                    m_smoothedEtaSeconds = targetEta;
+                } else {
+                    // Exponential smoothing on ETA to prevent jumping
+                    m_smoothedEtaSeconds = (int)(0.20 * targetEta + 0.80 * m_smoothedEtaSeconds);
+                }
+            }
+        } else {
+            m_smoothedEtaSeconds = -1; // Calibrating during the first second
+        }
     }
 
     ProgressMetrics metrics;
@@ -239,13 +274,7 @@ void InstallerWorker::emitProgressThrottled(const QString& currentFile, bool for
     metrics.totalBytes = m_totalBytes;
     metrics.filesProcessed = m_filesCopied;
     metrics.totalFiles = m_filesToCopy.size();
-
-    if (m_currentSpeedMBps > 0.1 && m_totalBytes > m_bytesCopied) {
-        double remainingMB = (double)(m_totalBytes - m_bytesCopied) / (1024.0 * 1024.0);
-        metrics.estimatedSecondsRemaining = (int)(remainingMB / m_currentSpeedMBps);
-    } else {
-        metrics.estimatedSecondsRemaining = 0;
-    }
+    metrics.estimatedSecondsRemaining = m_smoothedEtaSeconds;
 
     emit progressUpdated(metrics);
 }
@@ -334,8 +363,12 @@ bool InstallerWorker::performInstallation() {
     m_lastSpeedCheckTime = 0;
     m_lastSpeedCheckBytes = 0;
     m_lastProgressEmitTime = 0;
+    m_lastEtaCalculationTime = 0;
     m_bytesCopied = 0;
     m_filesCopied = 0;
+    m_currentSpeedMBps = 0.0;
+    m_smoothedSpeedMBps = 0.0;
+    m_smoothedEtaSeconds = -1;
     m_createdDirSet.clear();
 
     discoverFilesToInstall();

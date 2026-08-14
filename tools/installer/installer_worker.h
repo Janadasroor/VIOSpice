@@ -70,7 +70,10 @@ private:
     qint64 m_lastSpeedCheckTime{0};
     uint64_t m_lastSpeedCheckBytes{0};
     qint64 m_lastProgressEmitTime{0};
+    qint64 m_lastEtaCalculationTime{0};
     double m_currentSpeedMBps{0.0};
+    double m_smoothedSpeedMBps{0.0};
+    int m_smoothedEtaSeconds{-1};
 };
 
 #endif // INSTALLER_WORKER_H

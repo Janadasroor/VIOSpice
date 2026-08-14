@@ -107,6 +107,8 @@ private:
 
     InstallerWorker *m_worker{nullptr};
     InstallConfig m_config;
+    qint64 m_lastEtaLabelUpdateTime{0};
+    QString m_cachedEtaText;
 };
 
 #endif // INSTALLER_WINDOW_H
