@@ -270,7 +270,11 @@ QString ModelLibraryManager::findLibraryPath(const QString& name) const {
 
 void ModelLibraryManager::indexLibraryFile(const QString& path) {
     QFile file(path);
-    if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) return;
+    if (!file.open(QIODevice::ReadOnly)) return;
+    const QByteArray content = file.readAll();
+    file.close();
+
+    if (content.isEmpty()) return;
 
     static const QRegularExpression whitespaceRe("\\s+");
     static const QRegularExpression levelRe("LEVEL\\s*=\\s*(\\d+)", QRegularExpression::CaseInsensitiveOption);
@@ -278,76 +282,104 @@ void ModelLibraryManager::indexLibraryFile(const QString& path) {
     QVector<SpiceModelInfo> localModels;
     QSet<QString> localSeen;
 
-    QTextStream in(&file);
-    while (!in.atEnd()) {
-        QString line = in.readLine().trimmed();
-        if (line.startsWith(".model", Qt::CaseInsensitive)) {
-            QStringList parts = line.split(whitespaceRe, Qt::SkipEmptyParts);
-            if (parts.size() >= 3) {
-                QString name = parts[1];
-                QString nameLower = name.toLower();
-                if (localSeen.contains(nameLower)) continue;
+    const char* ptr = content.constData();
+    const char* end = ptr + content.size();
 
-                QString type = parts[2];
-                if (type.contains('(')) type = type.section('(', 0, 0);
+    while (ptr < end) {
+        while (ptr < end && (*ptr == ' ' || *ptr == '\t' || *ptr == '\r' || *ptr == '\n')) {
+            ptr++;
+        }
+        if (ptr >= end) break;
+
+        const char* lineStart = ptr;
+        while (ptr < end && *ptr != '\n' && *ptr != '\r') {
+            ptr++;
+        }
+        const char* lineEnd = ptr;
+
+        int len = static_cast<int>(lineEnd - lineStart);
+        if (len >= 6 && lineStart[0] == '.') {
+            if (len >= 7 && (lineStart[1] == 'm' || lineStart[1] == 'M') &&
+                (lineStart[2] == 'o' || lineStart[2] == 'O') &&
+                (lineStart[3] == 'd' || lineStart[3] == 'D') &&
+                (lineStart[4] == 'e' || lineStart[4] == 'E') &&
+                (lineStart[5] == 'l' || lineStart[5] == 'L') &&
+                (lineStart[6] == ' ' || lineStart[6] == '\t')) {
                 
-                QString modelLevel;
-                QString typeUpper = type.toUpper();
-                if (typeUpper == "BSIM4" || typeUpper == "BSIM3" ||
-                    typeUpper == "BSIMSOI" || typeUpper == "BSIM3SOI" ||
-                    typeUpper == "HISIM2" || typeUpper == "HISIM_HV" ||
-                    typeUpper == "VDMOS" || typeUpper == "SOI3") {
-                    modelLevel = typeUpper;
-                } else {
-                    // Try to extract LEVEL=N from the line
-                    auto levelMatch = levelRe.match(line);
-                    if (levelMatch.hasMatch()) {
-                        int lv = levelMatch.captured(1).toInt();
-                        switch (lv) {
-                            case 1: modelLevel = "MOS1"; break;
-                            case 2: modelLevel = "MOS2"; break;
-                            case 3: modelLevel = "MOS3"; break;
-                            case 4: modelLevel = "BSIM1"; break;
-                            case 5: modelLevel = "BSIM2"; break;
-                            case 6: modelLevel = "MOS6"; break;
-                            case 8: modelLevel = "BSIM3"; break;
-                            case 9: modelLevel = "MOS9"; break;
-                            case 10: modelLevel = "BSIM3SOI"; break;
-                            case 14: modelLevel = "BSIM4"; break;
-                            case 20: modelLevel = "BSIMSOI"; break;
-                            case 53: modelLevel = "HISIM2"; break;
-                            case 55: modelLevel = "HISIM_HV"; break;
-                            case 56: modelLevel = "HISIM_HV"; break;
-                            default: break;
+                QString line = QString::fromUtf8(lineStart, len).trimmed();
+                QStringList parts = line.split(whitespaceRe, Qt::SkipEmptyParts);
+                if (parts.size() >= 3) {
+                    QString name = parts[1];
+                    QString nameLower = name.toLower();
+                    if (!localSeen.contains(nameLower)) {
+                        localSeen.insert(nameLower);
+
+                        QString type = parts[2];
+                        if (type.contains('(')) type = type.section('(', 0, 0);
+                        
+                        QString modelLevel;
+                        QString typeUpper = type.toUpper();
+                        if (typeUpper == "BSIM4" || typeUpper == "BSIM3" ||
+                            typeUpper == "BSIMSOI" || typeUpper == "BSIM3SOI" ||
+                            typeUpper == "HISIM2" || typeUpper == "HISIM_HV" ||
+                            typeUpper == "VDMOS" || typeUpper == "SOI3") {
+                            modelLevel = typeUpper;
+                        } else {
+                            auto levelMatch = levelRe.match(line);
+                            if (levelMatch.hasMatch()) {
+                                int lv = levelMatch.captured(1).toInt();
+                                switch (lv) {
+                                    case 1: modelLevel = "MOS1"; break;
+                                    case 2: modelLevel = "MOS2"; break;
+                                    case 3: modelLevel = "MOS3"; break;
+                                    case 4: modelLevel = "BSIM1"; break;
+                                    case 5: modelLevel = "BSIM2"; break;
+                                    case 6: modelLevel = "MOS6"; break;
+                                    case 8: modelLevel = "BSIM3"; break;
+                                    case 9: modelLevel = "MOS9"; break;
+                                    case 10: modelLevel = "BSIM3SOI"; break;
+                                    case 14: modelLevel = "BSIM4"; break;
+                                    case 20: modelLevel = "BSIMSOI"; break;
+                                    case 53: modelLevel = "HISIM2"; break;
+                                    case 55: modelLevel = "HISIM_HV"; break;
+                                    case 56: modelLevel = "HISIM_HV"; break;
+                                    default: break;
+                                }
+                            }
                         }
+                        
+                        SpiceModelInfo info;
+                        info.name = name;
+                        info.type = typeUpper;
+                        info.modelLevel = modelLevel;
+                        info.libraryPath = path;
+                        localModels.append(info);
                     }
                 }
-                
-                localSeen.insert(nameLower);
-                SpiceModelInfo info;
-                info.name = name;
-                info.type = typeUpper;
-                info.modelLevel = modelLevel;
-                info.libraryPath = path;
-                localModels.append(info);
-            }
-        } else if (line.startsWith(".subckt", Qt::CaseInsensitive)) {
-            QStringList parts = line.split(whitespaceRe, Qt::SkipEmptyParts);
-            if (parts.size() >= 2) {
-                QString name = parts[1];
-                QString nameLower = name.toLower();
-                if (localSeen.contains(nameLower)) continue;
-
-                localSeen.insert(nameLower);
-                SpiceModelInfo info;
-                info.name = name;
-                info.type = "Subcircuit";
-                info.libraryPath = path;
-                localModels.append(info);
+            } else if (len >= 8 && (lineStart[1] == 's' || lineStart[1] == 'S') &&
+                       (lineStart[2] == 'u' || lineStart[2] == 'U') &&
+                       (lineStart[3] == 'b' || lineStart[3] == 'B') &&
+                       (lineStart[4] == 'c' || lineStart[4] == 'C') &&
+                       (lineStart[5] == 'k' || lineStart[5] == 'K') &&
+                       (lineStart[6] == 't' || lineStart[6] == 'T') &&
+                       (lineStart[7] == ' ' || lineStart[7] == '\t')) {
+                QString line = QString::fromUtf8(lineStart, len).trimmed();
+                QStringList parts = line.split(whitespaceRe, Qt::SkipEmptyParts);
+                if (parts.size() >= 2) {
+                    QString name = parts[1];
+                    QString nameLower = name.toLower();
+                    if (!localSeen.contains(nameLower)) {
+                        localSeen.insert(nameLower);
+                        SpiceModelInfo info;
+                        info.name = name;
+                        info.type = "Subcircuit";
+                        info.libraryPath = path;
+                        localModels.append(info);
+                    }
+                }
             }
         }
     }
-    file.close();
 
     if (!localModels.isEmpty()) {
         QWriteLocker locker(&m_lock);
