@@ -247,6 +247,8 @@ int main(int argc, char *argv[])
     a.setOrganizationName("VIO");
     a.setWindowIcon(QIcon(":/icons/viora_eda_logo.png"));
 
+    // Apply dark theme and application palette early to prevent white flashes on Windows native windows
+    ThemeManager::instance();
 
     SplashScreen* splash = new SplashScreen();
     splash->show();
@@ -255,10 +257,6 @@ int main(int argc, char *argv[])
     QCoreApplication::processEvents();
 
     initEmbeddedPython();
-
-    splash->setStatus("Loading Theme Engine...");
-    splash->setProgress(4, 100);
-    ThemeManager::instance();
 
     splash->setStatus("Initializing Flux Simulation Bridge...");
     splash->setProgress(7, 100);
@@ -348,6 +346,7 @@ int main(int argc, char *argv[])
                 ide->openFile(fileToOpen);
             }
             ide->show();
+            ThemeManager::applyTitlebarTheme(ide, true);
         } else if (!fileToOpen.isEmpty()) {
             if (fileToOpen.endsWith(".flux", Qt::CaseInsensitive)) {
                 // Open .flux files in VioraIDE
@@ -355,42 +354,53 @@ int main(int argc, char *argv[])
                 ide->setAttribute(Qt::WA_DeleteOnClose);
                 ide->openFile(fileToOpen);
                 ide->show();
+                ThemeManager::applyTitlebarTheme(ide, true);
             } else if (fileToOpen.endsWith(".pcb", Qt::CaseInsensitive) || fileToOpen.endsWith(".flxpcb", Qt::CaseInsensitive)) {
                 // Open .pcb / .flxpcb files in PCB Editor MainWindow
                 MainWindow* pcb = new MainWindow();
                 pcb->setAttribute(Qt::WA_DeleteOnClose);
                 pcb->openFile(fileToOpen);
                 pcb->show();
+                ThemeManager::applyTitlebarTheme(pcb, true);
             } else {
                 SchematicEditor* sch = new SchematicEditor();
                 sch->setAttribute(Qt::WA_DeleteOnClose);
                 sch->openFile(fileToOpen);
                 sch->show();
+                ThemeManager::applyTitlebarTheme(sch, true);
             }
         } else {
             ProjectManager* pm = new ProjectManager;
             pm->setAttribute(Qt::WA_DeleteOnClose);
             pm->show();
+            ThemeManager::applyTitlebarTheme(pm, true);
 
-            // Restore previously open schematic editor (sets project context too)
-            pm->restoreSchematicEditorWindow();
+            // Process events so ProjectManager window paints its dark UI immediately
+            QApplication::processEvents();
 
-            // Restore previously open PCB editor
-            bool pcbOpen = ConfigManager::instance().toolProperty("PCBEditor", "windowOpen", false).toBool();
-            if (pcbOpen) {
-                MainWindow* pcb = new MainWindow();
-                pcb->setAttribute(Qt::WA_DeleteOnClose);
-                QString lastPcb = ConfigManager::instance().toolProperty("PCBEditor", "openFile").toString();
-                if (!lastPcb.isEmpty()) {
-                    if (QFile::exists(lastPcb)) {
-                        pcb->openFile(lastPcb);
-                    } else {
-                        QFileInfo fi(lastPcb);
-                        pcb->setProjectContext(fi.completeBaseName(), fi.absolutePath());
+            // Defer secondary editor restoration to next event cycle to prevent main event loop starvation
+            QTimer::singleShot(20, pm, [pm]() {
+                // Restore previously open schematic editor (sets project context too)
+                pm->restoreSchematicEditorWindow();
+
+                // Restore previously open PCB editor
+                bool pcbOpen = ConfigManager::instance().toolProperty("PCBEditor", "windowOpen", false).toBool();
+                if (pcbOpen) {
+                    MainWindow* pcb = new MainWindow();
+                    pcb->setAttribute(Qt::WA_DeleteOnClose);
+                    QString lastPcb = ConfigManager::instance().toolProperty("PCBEditor", "openFile").toString();
+                    if (!lastPcb.isEmpty()) {
+                        if (QFile::exists(lastPcb)) {
+                            pcb->openFile(lastPcb);
+                        } else {
+                            QFileInfo fi(lastPcb);
+                            pcb->setProjectContext(fi.completeBaseName(), fi.absolutePath());
+                        }
                     }
+                    pcb->show();
+                    ThemeManager::applyTitlebarTheme(pcb, true);
                 }
-                pcb->show();
-            }
+            });
         }
         logMilestone("Main Window Visible & Session Restored");
         splash->deleteLater();
