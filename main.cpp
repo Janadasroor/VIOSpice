@@ -355,8 +355,10 @@ int main(int argc, char *argv[])
                 ide->openFile(fileToOpen);
                 ide->show();
                 ThemeManager::applyTitlebarTheme(ide, true);
-            } else if (fileToOpen.endsWith(".pcb", Qt::CaseInsensitive) || fileToOpen.endsWith(".flxpcb", Qt::CaseInsensitive)) {
-                // Open .pcb / .flxpcb files in PCB Editor MainWindow
+            } else if (fileToOpen.endsWith(".pcb", Qt::CaseInsensitive) || 
+                       fileToOpen.endsWith(".flxpcb", Qt::CaseInsensitive) ||
+                       fileToOpen.endsWith(".kicad_pcb", Qt::CaseInsensitive)) {
+                // Open .pcb / .flxpcb / .kicad_pcb files in PCB Editor MainWindow
                 MainWindow* pcb = new MainWindow();
                 pcb->setAttribute(Qt::WA_DeleteOnClose);
                 pcb->openFile(fileToOpen);

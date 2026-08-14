@@ -358,7 +358,7 @@ bool InstallerWorker::removeWindowsShortcuts() {
 bool InstallerWorker::setupFileAssociations() {
     QString binDir = QDir::toNativeSeparators(QDir::cleanPath(m_options.installDir + "/bin"));
     QString appExe = binDir + "\\VioraEDA.exe";
-    QString openCmd = QString("\"%1\" \"\%1\"").arg(appExe);
+    QString openCmd = "\"" + appExe + "\" \"%1\"";
 
     struct FileTypeAssoc {
         const char* ext;
@@ -367,11 +367,14 @@ bool InstallerWorker::setupFileAssociations() {
     };
 
     const FileTypeAssoc assocs[] = {
-        { ".flxsch", "VioraEDA.Schematic.1", "VioraEDA Schematic Document" },
-        { ".flux",   "VioraEDA.FluxScript.1", "FluxScript Document" },
-        { ".flxpcb", "VioraEDA.PCB.1",        "VioraEDA PCB Document" },
-        { ".cir",    "VioraEDA.Netlist.1",    "SPICE Netlist Document" },
-        { ".asc",    "VioraEDA.Schematic.1", "LTspice Schematic Document" },
+        { ".flxsch",    "VioraEDA.Schematic.1",  "VioraEDA Schematic Document" },
+        { ".flux",      "VioraEDA.FluxScript.1", "FluxScript Document" },
+        { ".flxpcb",    "VioraEDA.PCB.1",        "VioraEDA PCB Document" },
+        { ".cir",       "VioraEDA.Netlist.1",    "SPICE Netlist Document" },
+        { ".sp",        "VioraEDA.Netlist.1",    "SPICE Netlist Document" },
+        { ".asc",       "VioraEDA.Schematic.1",  "LTspice Schematic Document" },
+        { ".kicad_sch", "VioraEDA.Schematic.1",  "KiCad Schematic Document" },
+        { ".kicad_pcb", "VioraEDA.PCB.1",        "KiCad PCB Document" },
     };
 
     for (const auto& a : assocs) {
@@ -394,7 +397,7 @@ bool InstallerWorker::setupFileAssociations() {
 }
 
 bool InstallerWorker::removeFileAssociations() {
-    const char* exts[] = { ".flxsch", ".flux", ".flxpcb", ".cir", ".asc" };
+    const char* exts[] = { ".flxsch", ".flux", ".flxpcb", ".cir", ".sp", ".asc", ".kicad_sch", ".kicad_pcb" };
     const char* progIds[] = { "VioraEDA.Schematic.1", "VioraEDA.FluxScript.1", "VioraEDA.PCB.1", "VioraEDA.Netlist.1" };
 
     for (const char* p : progIds) {
