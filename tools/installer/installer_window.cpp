@@ -505,15 +505,15 @@ QWidget* InstallerWindow::createProgressPage() {
     m_currentFileLabel->setStyleSheet("color: #cbd5e1; font-size: 12px;");
 
     auto *subMetricsLayout = new QHBoxLayout();
-    m_speedLabel = new QLabel("Transfer Speed: 0.0 MB/s", metricsBox);
+    m_dataProcessedLabel = new QLabel("Extracted: 0.0 MB / 0.0 MB", metricsBox);
+    m_dataProcessedLabel->setStyleSheet("color: #94a3b8; font-size: 12px;");
+
+    m_speedLabel = new QLabel("Speed: --", metricsBox);
     m_speedLabel->setStyleSheet("color: #94a3b8; font-size: 12px;");
 
-    m_timeRemainingLabel = new QLabel("Time Remaining: Estimating...", metricsBox);
-    m_timeRemainingLabel->setStyleSheet("color: #94a3b8; font-size: 12px;");
-
-    subMetricsLayout->addWidget(m_speedLabel);
+    subMetricsLayout->addWidget(m_dataProcessedLabel);
     subMetricsLayout->addStretch(1);
-    subMetricsLayout->addWidget(m_timeRemainingLabel);
+    subMetricsLayout->addWidget(m_speedLabel);
 
     mLayout->addWidget(m_currentFileLabel);
     mLayout->addLayout(subMetricsLayout);
@@ -714,9 +714,6 @@ void InstallerWindow::startInstallation() {
     m_nextBtn->setEnabled(false);
     m_cancelBtn->setEnabled(true);
 
-    m_lastEtaLabelUpdateTime = 0;
-    m_cachedEtaText.clear();
-
     m_worker = new InstallerWorker(m_config, this);
     connect(m_worker, &InstallerWorker::progressUpdated, this, &InstallerWindow::onProgressUpdated);
     connect(m_worker, &InstallerWorker::statusUpdated, this, &InstallerWindow::onStatusUpdated);
@@ -731,39 +728,18 @@ void InstallerWindow::onProgressUpdated(const ProgressMetrics& metrics) {
         .arg(metrics.filesProcessed)
         .arg(metrics.totalFiles));
     
+    double transferredMB = (double)metrics.bytesTransferred / (1024.0 * 1024.0);
+    double totalMB = (double)metrics.totalBytes / (1024.0 * 1024.0);
+    m_dataProcessedLabel->setText(QString("Extracted: %1 MB / %2 MB")
+        .arg(QString::number(transferredMB, 'f', 1))
+        .arg(QString::number(totalMB, 'f', 1)));
+
     if (metrics.transferSpeedMBps > 0.05) {
-        m_speedLabel->setText(QString("Transfer Speed: %1 MB/s")
+        m_speedLabel->setText(QString("Speed: %1 MB/s")
             .arg(QString::number(metrics.transferSpeedMBps, 'f', 1)));
     } else {
-        m_speedLabel->setText("Transfer Speed: Calculating...");
+        m_speedLabel->setText("Speed: --");
     }
-
-    qint64 now = QDateTime::currentMSecsSinceEpoch();
-    if (now - m_lastEtaLabelUpdateTime >= 900 || m_cachedEtaText.isEmpty() || metrics.percentage >= 90) {
-        m_lastEtaLabelUpdateTime = now;
-
-        if (metrics.percentage >= 92) {
-            m_cachedEtaText = "Time Remaining: Finalizing...";
-        } else if (metrics.estimatedSecondsRemaining < 0) {
-            m_cachedEtaText = "Time Remaining: Calculating...";
-        } else if (metrics.estimatedSecondsRemaining <= 4) {
-            m_cachedEtaText = "Time Remaining: A few seconds";
-        } else if (metrics.estimatedSecondsRemaining < 60) {
-            m_cachedEtaText = QString("Time Remaining: ~%1 seconds").arg(metrics.estimatedSecondsRemaining);
-        } else if (metrics.estimatedSecondsRemaining < 120) {
-            int secs = metrics.estimatedSecondsRemaining - 60;
-            if (secs > 5) {
-                m_cachedEtaText = QString("Time Remaining: ~1 min %1s").arg((secs / 5) * 5);
-            } else {
-                m_cachedEtaText = "Time Remaining: ~1 minute";
-            }
-        } else {
-            int mins = (metrics.estimatedSecondsRemaining + 30) / 60;
-            m_cachedEtaText = QString("Time Remaining: ~%1 minutes").arg(mins);
-        }
-    }
-
-    m_timeRemainingLabel->setText(m_cachedEtaText);
 }
 
 void InstallerWindow::onStatusUpdated(const QString& statusText) {
