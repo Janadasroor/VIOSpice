@@ -121,7 +121,7 @@ jobs:
           zip -r viospice-${{ matrix.platform_name }}.zip package/viospice-macos-arm64
 
       - name: Upload Artifacts (Build)
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: viospice-${{ matrix.platform_name }}
           path: |
