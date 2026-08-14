@@ -64,6 +64,87 @@ void BusItem::addJunction(const QPointF& point) {
     update();
 }
 
+void BusItem::removeJunction(const QPointF& point) {
+    for (int i = m_junctions.size() - 1; i >= 0; --i) {
+        if (QLineF(m_junctions[i], point).length() < 2.0) {
+            m_junctions.removeAt(i);
+        }
+    }
+    update();
+}
+
+QPointF BusItem::closestPointOnBus(const QPointF& pt, qreal* outDistSq, int* outSegmentIdx) const {
+    if (m_points.size() < 2) {
+        if (outDistSq) *outDistSq = std::numeric_limits<qreal>::max();
+        if (outSegmentIdx) *outSegmentIdx = -1;
+        return pt;
+    }
+
+    qreal bestDistSq = std::numeric_limits<qreal>::max();
+    QPointF bestPoint = m_points.first();
+    int bestSegment = 0;
+
+    for (int i = 0; i < m_points.size() - 1; ++i) {
+        const QPointF a = m_points[i];
+        const QPointF b = m_points[i + 1];
+        const QPointF ab = b - a;
+        const qreal abLenSq = ab.x() * ab.x() + ab.y() * ab.y();
+        
+        qreal t = 0.0;
+        if (abLenSq > 1e-9) {
+            t = ((pt.x() - a.x()) * ab.x() + (pt.y() - a.y()) * ab.y()) / abLenSq;
+            if (t < 0.0) t = 0.0;
+            if (t > 1.0) t = 1.0;
+        }
+        const QPointF proj(a.x() + ab.x() * t, a.y() + ab.y() * t);
+        const QPointF diff = pt - proj;
+        const qreal dSq = diff.x() * diff.x() + diff.y() * diff.y();
+
+        if (dSq < bestDistSq) {
+            bestDistSq = dSq;
+            bestPoint = proj;
+            bestSegment = i;
+        }
+    }
+
+    if (outDistSq) *outDistSq = bestDistSq;
+    if (outSegmentIdx) *outSegmentIdx = bestSegment;
+    return bestPoint;
+}
+
+bool BusItem::isNearBus(const QPointF& pt, qreal tolerance) const {
+    qreal dSq = 0.0;
+    closestPointOnBus(pt, &dSq);
+    return dSq <= (tolerance * tolerance);
+}
+
+QRectF BusItem::labelRect() const {
+    if (netName().trimmed().isEmpty() || m_points.size() < 2) return QRectF();
+
+    // Find the longest segment to place the label badge
+    int longestIdx = 0;
+    qreal maxLenSq = 0.0;
+    for (int i = 0; i < m_points.size() - 1; ++i) {
+        const QPointF diff = m_points[i + 1] - m_points[i];
+        const qreal lenSq = diff.x() * diff.x() + diff.y() * diff.y();
+        if (lenSq > maxLenSq) {
+            maxLenSq = lenSq;
+            longestIdx = i;
+        }
+    }
+
+    const QPointF a = m_points[longestIdx];
+    const QPointF b = m_points[longestIdx + 1];
+    const QPointF mid = (a + b) * 0.5;
+
+    QFont font("Consolas", 8, QFont::Bold);
+    QFontMetrics fm(font);
+    const int textW = fm.horizontalAdvance(netName()) + 8;
+    const int textH = fm.height() + 4;
+
+    return QRectF(mid.x() - textW * 0.5, mid.y() - textH * 0.5 - 10, textW, textH);
+}
+
 QRectF BusItem::boundingRect() const {
     if (m_points.isEmpty()) return QRectF();
     
@@ -79,8 +160,13 @@ QRectF BusItem::boundingRect() const {
         maxY = qMax(maxY, p.y());
     }
     
-    qreal w = m_pen.widthF() + 2;
-    return QRectF(minX, minY, maxX - minX, maxY - minY).adjusted(-w, -w, w, w);
+    qreal w = m_pen.widthF() + 4;
+    QRectF rect = QRectF(minX, minY, maxX - minX, maxY - minY).adjusted(-w, -w, w, w);
+    const QRectF lr = labelRect();
+    if (lr.isValid()) {
+        rect = rect.united(lr.adjusted(-2, -2, 2, 2));
+    }
+    return rect;
 }
 
 void BusItem::paint(QPainter *painter, const QStyleOptionGraphicsItem *option, QWidget *widget) {
@@ -93,13 +179,22 @@ void BusItem::paint(QPainter *painter, const QStyleOptionGraphicsItem *option, Q
     
     QPen p = m_pen;
     if (isSelected()) {
-        p.setColor(p.color().lighter(150));
-        p.setStyle(Qt::DashLine);
+        p.setColor(QColor("#facc15")); // Amber yellow highlight on select
+        p.setStyle(Qt::SolidLine);
     }
     
-    // Draw highlight glow if enabled
+    // Draw glowing selection underlay if selected
+    if (isSelected()) {
+        QPen glowPen(QColor(250, 204, 21, 50), m_pen.widthF() + 6.0, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin);
+        painter->setPen(glowPen);
+        for (int i = 0; i < m_points.size() - 1; ++i) {
+            painter->drawLine(m_points[i], m_points[i+1]);
+        }
+    }
+
+    // Draw highlight glow if enabled by net manager
     if (m_isHighlighted) {
-        QPen highlightPen(QColor(255, 215, 0, 100), m_pen.widthF() + 4.0, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin);
+        QPen highlightPen(QColor(255, 215, 0, 120), m_pen.widthF() + 4.0, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin);
         painter->setPen(highlightPen);
         for (int i = 0; i < m_points.size() - 1; ++i) {
             painter->drawLine(m_points[i], m_points[i+1]);
@@ -111,13 +206,30 @@ void BusItem::paint(QPainter *painter, const QStyleOptionGraphicsItem *option, Q
         painter->drawLine(m_points[i], m_points[i+1]);
     }
 
-    // Draw bus junction dots (used for bus-to-bus and bus-to-wire T-connections)
+    // Draw bus junction dots
     if (!m_junctions.isEmpty()) {
-        QColor dotColor = ThemeManager::theme() ? ThemeManager::theme()->wireJunction() : QColor(230, 230, 230);
-        painter->setPen(QPen(dotColor, 1.5));
+        QColor dotColor = ThemeManager::theme() ? ThemeManager::theme()->schematicBus() : QColor("#3b82f6");
+        if (dotColor == Qt::transparent) dotColor = QColor("#3b82f6");
+        painter->setPen(QPen(dotColor.lighter(130), 1.0));
         painter->setBrush(QBrush(dotColor));
         for (const QPointF& junction : m_junctions) {
-            painter->drawEllipse(junction, 3.2, 3.2);
+            painter->drawEllipse(junction, 3.5, 3.5);
+        }
+    }
+
+    // Draw Bus Label Badge if set
+    const QString label = netName().trimmed();
+    if (!label.isEmpty()) {
+        const QRectF lr = labelRect();
+        if (lr.isValid()) {
+            painter->setPen(QPen(QColor("#334155"), 1.0));
+            painter->setBrush(QBrush(QColor("#0f172a")));
+            painter->drawRoundedRect(lr, 3.0, 3.0);
+
+            QFont font("Consolas", 8, QFont::Bold);
+            painter->setFont(font);
+            painter->setPen(QColor("#38bdf8"));
+            painter->drawText(lr, Qt::AlignCenter, label);
         }
     }
     

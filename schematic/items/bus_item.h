@@ -40,8 +40,12 @@ public:
     QString netName() const { return value(); }
 
     void addJunction(const QPointF& point);
+    void removeJunction(const QPointF& point);
     void clearJunctions() { m_junctions.clear(); update(); }
     QList<QPointF> junctions() const { return m_junctions; }
+
+    QPointF closestPointOnBus(const QPointF& pt, qreal* outDistSq = nullptr, int* outSegmentIdx = nullptr) const;
+    bool isNearBus(const QPointF& pt, qreal tolerance = 6.0) const;
 
     // QGraphicsItem interface
     QRectF boundingRect() const override;
@@ -49,6 +53,7 @@ public:
 
 private:
     void updatePen();
+    QRectF labelRect() const;
     QList<QPointF> m_points;
     QList<QPointF> m_junctions;
     QPen m_pen;

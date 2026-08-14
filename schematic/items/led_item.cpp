@@ -61,7 +61,7 @@ void LEDItem::paint(QPainter *painter, const QStyleOptionGraphicsItem*, QWidget*
     painter->drawLine(-45, 0, -20, 0);
     painter->drawLine(20, 0, 45, 0);
 
-    // 2. Draw Bloom/Halo (Proteus-style emission)
+    // 2. Draw Bloom/Halo emission
     if (lit) {
         // Core Halo
         QRadialGradient coreHalo(0, 0, 22);

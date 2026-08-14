@@ -1,8 +1,3 @@
-/*
- * Copyright 2026 Janada Sroor
- * SPDX-License-Identifier: Apache-2.0
- */
-
 #include "schematic_bus_entry_tool.h"
 #include "bus_entry_item.h"
 #include "bus_item.h"
@@ -13,116 +8,212 @@
 #include <QUndoStack>
 #include <QGraphicsScene>
 #include <limits>
+#include <cmath>
 
-namespace {
-qreal sqrLen(const QPointF& v) { return v.x() * v.x() + v.y() * v.y(); }
-
-QPointF closestPointOnSegment(const QPointF& p, const QPointF& a, const QPointF& b, qreal* outDistSq = nullptr) {
-    const QPointF ab = b - a;
-    const qreal abLenSq = sqrLen(ab);
-    qreal t = 0.0;
-    if (abLenSq > 1e-9) {
-        t = ((p.x() - a.x()) * ab.x() + (p.y() - a.y()) * ab.y()) / abLenSq;
-        if (t < 0.0) t = 0.0;
-        if (t > 1.0) t = 1.0;
-    }
-    const QPointF proj(a.x() + ab.x() * t, a.y() + ab.y() * t);
-    if (outDistSq) *outDistSq = sqrLen(p - proj);
-    return proj;
+SchematicBusEntryTool::SchematicBusEntryTool(QObject* parent)
+    : SchematicTool("Bus Entry", parent), m_previewItem(nullptr), m_manualFlipped(false), m_manualRotation(0.0) {
 }
 
-bool nearestPointOnItemSegments(QGraphicsScene* scene, const QPointF& p, bool busMode, QPointF& outPoint) {
-    if (!scene) return false;
-    constexpr qreal kSnapRadiusSq = 18.0 * 18.0;
-    qreal best = std::numeric_limits<qreal>::max();
-    bool found = false;
+SchematicBusEntryTool::~SchematicBusEntryTool() {
+    deactivate();
+}
 
-    for (QGraphicsItem* gi : scene->items(QRectF(p.x() - 24, p.y() - 24, 48, 48))) {
-        QList<QPointF> pts;
-        if (busMode) {
-            if (auto* bus = dynamic_cast<BusItem*>(gi)) pts = bus->points();
-        } else {
-            if (auto* wire = dynamic_cast<WireItem*>(gi)) pts = wire->points();
+void SchematicBusEntryTool::activate(SchematicView* view) {
+    SchematicTool::activate(view);
+    if (view && view->scene()) {
+        if (!m_previewItem) {
+            m_previewItem = new BusEntryItem(QPointF(0, 0), m_manualFlipped);
+            m_previewItem->setOpacity(0.65);
+            m_previewItem->setZValue(100);
+            view->scene()->addItem(m_previewItem);
         }
-        if (pts.size() < 2) continue;
-        for (int i = 0; i + 1 < pts.size(); ++i) {
-            qreal d2 = 0.0;
-            const QPointF cp = closestPointOnSegment(p, pts[i], pts[i + 1], &d2);
-            if (d2 < best) {
-                best = d2;
-                outPoint = cp;
-                found = true;
+        m_previewItem->setVisible(true);
+        QPointF scenePos = view->mapFromGlobal(QCursor::pos());
+        updatePreview(view->mapToScene(scenePos.toPoint()));
+    }
+}
+
+void SchematicBusEntryTool::deactivate() {
+    if (m_previewItem) {
+        if (m_previewItem->scene()) {
+            m_previewItem->scene()->removeItem(m_previewItem);
+        }
+        delete m_previewItem;
+        m_previewItem = nullptr;
+    }
+    SchematicTool::deactivate();
+}
+
+SchematicBusEntryTool::PlacementTarget SchematicBusEntryTool::calculateTarget(const QPointF& scenePos) const {
+    PlacementTarget target;
+    target.flipped = m_manualFlipped;
+    target.rotation = m_manualRotation;
+    target.center = view() ? view()->snapToGrid(scenePos) : scenePos;
+
+    if (!view() || !view()->scene()) return target;
+
+    // Search for nearby bus lines within snap radius
+    constexpr qreal kBusSnapRadius = 32.0;
+    qreal bestDistSq = kBusSnapRadius * kBusSnapRadius;
+    BusItem* bestBus = nullptr;
+    QPointF bestBusContact;
+    int bestSegIdx = -1;
+
+    const QRectF searchRect(scenePos.x() - kBusSnapRadius, scenePos.y() - kBusSnapRadius,
+                           kBusSnapRadius * 2.0, kBusSnapRadius * 2.0);
+    for (QGraphicsItem* gi : view()->scene()->items(searchRect)) {
+        if (auto* bus = dynamic_cast<BusItem*>(gi)) {
+            qreal dSq = 0.0;
+            int segIdx = -1;
+            QPointF proj = bus->closestPointOnBus(scenePos, &dSq, &segIdx);
+            if (dSq < bestDistSq && segIdx >= 0) {
+                bestDistSq = dSq;
+                bestBus = bus;
+                bestBusContact = proj;
+                bestSegIdx = segIdx;
             }
         }
     }
-    return found && best <= kSnapRadiusSq;
+
+    if (bestBus && bestSegIdx >= 0 && bestSegIdx + 1 < bestBus->points().size()) {
+        const QPointF a = bestBus->points()[bestSegIdx];
+        const QPointF b = bestBus->points()[bestSegIdx + 1];
+        const QPointF snappedBusContact = view()->snapToGrid(bestBusContact);
+
+        target.attachedBus = bestBus;
+        target.busContactPoint = snappedBusContact;
+
+        const bool isHorizontal = std::abs(b.y() - a.y()) <= std::abs(b.x() - a.x());
+
+        if (isHorizontal) {
+            target.rotation = 0.0;
+            const bool cursorAbove = (scenePos.y() < snappedBusContact.y());
+            const bool cursorLeft = (scenePos.x() < snappedBusContact.x());
+
+            if (cursorAbove) {
+                // Bottom endpoint touches bus
+                if (cursorLeft) {
+                    target.flipped = false; // "\" - P2 (10, 10) touches bus
+                    target.center = QPointF(snappedBusContact.x() - 10, snappedBusContact.y() - 10);
+                } else {
+                    target.flipped = true;  // "/" - P1 (-10, 10) touches bus
+                    target.center = QPointF(snappedBusContact.x() + 10, snappedBusContact.y() - 10);
+                }
+            } else {
+                // Top endpoint touches bus
+                if (cursorLeft) {
+                    target.flipped = true;  // "/" - P2 (10, -10) touches bus
+                    target.center = QPointF(snappedBusContact.x() - 10, snappedBusContact.y() + 10);
+                } else {
+                    target.flipped = false; // "\" - P1 (-10, -10) touches bus
+                    target.center = QPointF(snappedBusContact.x() + 10, snappedBusContact.y() + 10);
+                }
+            }
+        } else {
+            // Vertical bus
+            target.rotation = 0.0;
+            const bool cursorLeft = (scenePos.x() < snappedBusContact.x());
+            const bool cursorAbove = (scenePos.y() < snappedBusContact.y());
+
+            if (cursorLeft) {
+                // Right endpoint touches bus
+                if (cursorAbove) {
+                    target.flipped = true;  // "/" - P2 (10, -10) touches bus
+                    target.center = QPointF(snappedBusContact.x() - 10, snappedBusContact.y() + 10);
+                } else {
+                    target.flipped = false; // "\" - P2 (10, 10) touches bus
+                    target.center = QPointF(snappedBusContact.x() - 10, snappedBusContact.y() - 10);
+                }
+            } else {
+                // Left endpoint touches bus
+                if (cursorAbove) {
+                    target.flipped = false; // "\" - P1 (-10, -10) touches bus
+                    target.center = QPointF(snappedBusContact.x() + 10, snappedBusContact.y() + 10);
+                } else {
+                    target.flipped = true;  // "/" - P1 (-10, 10) touches bus
+                    target.center = QPointF(snappedBusContact.x() + 10, snappedBusContact.y() - 10);
+                }
+            }
+        }
+
+        // Apply manual flip toggle inversion if user pressed space
+        if (m_manualFlipped) {
+            target.flipped = !target.flipped;
+        }
+    }
+
+    return target;
 }
 
-QList<QPointF> entryEndpoints(bool flipped) {
-    if (flipped) return { QPointF(-10, 10), QPointF(10, -10) };
-    return { QPointF(-10, -10), QPointF(10, 10) };
+void SchematicBusEntryTool::updatePreview(const QPointF& scenePos) {
+    if (!m_previewItem) return;
+
+    PlacementTarget target = calculateTarget(scenePos);
+    m_previewItem->setPos(target.center);
+    m_previewItem->setFlipped(target.flipped);
+    m_previewItem->setRotation(target.rotation);
+    m_previewItem->update();
 }
+
+void SchematicBusEntryTool::mouseMoveEvent(QMouseEvent* event) {
+    if (!view()) return;
+    QPointF scenePos = view()->mapToScene(event->pos());
+    updatePreview(scenePos);
 }
 
 void SchematicBusEntryTool::mousePressEvent(QMouseEvent* event) {
-    if (!view()) return;
+    if (!view() || !view()->scene()) return;
+
     if (event->button() == Qt::LeftButton) {
         QPointF scenePos = view()->mapToScene(event->pos());
-        QPointF snapped = view()->snapToGrid(scenePos);
+        PlacementTarget target = calculateTarget(scenePos);
 
-        // Smart placement: if both a nearby bus and wire are found, orient/position entry
-        // so one endpoint snaps to the bus and the other aims at the wire.
-        QPointF busPt, wirePt;
-        bool hasBus = nearestPointOnItemSegments(view()->scene(), snapped, true, busPt);
-        bool hasWire = nearestPointOnItemSegments(view()->scene(), snapped, false, wirePt);
+        BusEntryItem* item = new BusEntryItem(target.center, target.flipped);
+        item->setRotation(target.rotation);
 
-        bool flipped = m_flipped;
-        QPointF center = snapped;
-        if (hasBus && hasWire) {
-            struct Candidate {
-                bool flipped = false;
-                int busEndpoint = 0; // 0 or 1
-                QPointF center;
-                qreal score = std::numeric_limits<qreal>::max();
-            };
-
-            Candidate best;
-            const QPointF desired = wirePt - busPt;
-
-            for (bool f : {false, true}) {
-                const QList<QPointF> ep = entryEndpoints(f);
-                for (int busIdx = 0; busIdx < 2; ++busIdx) {
-                    const int wireIdx = 1 - busIdx;
-                    const QPointF c = busPt - ep[busIdx];
-                    const QPointF wireEnd = c + ep[wireIdx];
-                    const QPointF vec = wireEnd - busPt;
-                    const qreal align = -((vec.x() * desired.x()) + (vec.y() * desired.y())); // lower is better (more aligned)
-                    const qreal wireErr = sqrLen(wireEnd - wirePt);
-                    const qreal score = wireErr + align * 0.05;
-                    if (score < best.score) {
-                        best.flipped = f;
-                        best.busEndpoint = busIdx;
-                        best.center = c;
-                        best.score = score;
-                    }
-                }
-            }
-            flipped = best.flipped;
-            center = view()->snapToGrid(best.center);
-        }
-        
-        BusEntryItem* item = new BusEntryItem(center, flipped);
-        
         if (view()->undoStack()) {
             view()->undoStack()->push(new AddItemCommand(view()->scene(), item));
         } else {
             view()->scene()->addItem(item);
         }
+
+        // If placed on an attached bus, register junction dot on the bus
+        if (target.attachedBus) {
+            target.attachedBus->addJunction(target.busContactPoint);
+        } else {
+            // Check if either endpoint touches an existing bus
+            for (QGraphicsItem* gi : view()->scene()->items(QRectF(target.center.x() - 20, target.center.y() - 20, 40, 40))) {
+                if (auto* bus = dynamic_cast<BusItem*>(gi)) {
+                    if (bus->isNearBus(item->sceneP1(), 3.0)) bus->addJunction(item->sceneP1());
+                    if (bus->isNearBus(item->sceneP2(), 3.0)) bus->addJunction(item->sceneP2());
+                }
+            }
+        }
+
+        // Update preview item location for next placement
+        updatePreview(scenePos);
+    } else if (event->button() == Qt::RightButton) {
+        // Right click finishes and returns to Select tool
+        view()->setCurrentTool("Select");
     }
 }
 
 void SchematicBusEntryTool::keyPressEvent(QKeyEvent* event) {
     if (event->key() == Qt::Key_Space) {
-        m_flipped = !m_flipped;
+        m_manualFlipped = !m_manualFlipped;
+        if (view()) {
+            QPointF scenePos = view()->mapFromGlobal(QCursor::pos());
+            updatePreview(view()->mapToScene(scenePos.toPoint()));
+        }
+    } else if (event->key() == Qt::Key_R) {
+        m_manualRotation = std::fmod(m_manualRotation + 90.0, 360.0);
+        if (view()) {
+            QPointF scenePos = view()->mapFromGlobal(QCursor::pos());
+            updatePreview(view()->mapToScene(scenePos.toPoint()));
+        }
+    } else if (event->key() == Qt::Key_Escape) {
+        if (view()) {
+            view()->setCurrentTool("Select");
+        }
     }
 }
