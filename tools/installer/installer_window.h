@@ -86,6 +86,7 @@ private:
     QCheckBox *m_desktopShortcutCheckBox{nullptr};
     QCheckBox *m_startMenuShortcutCheckBox{nullptr};
     QCheckBox *m_addToPathCheckBox{nullptr};
+    QCheckBox *m_setupGlobalEnvVarsCheckBox{nullptr};
     QCheckBox *m_associateFilesCheckBox{nullptr};
 
     // Progress Page

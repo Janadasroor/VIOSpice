@@ -451,11 +451,14 @@ QWidget* InstallerWindow::createDirectoryPage() {
     m_desktopShortcutCheckBox = new QCheckBox("Create a Desktop Shortcut", this);
     m_desktopShortcutCheckBox->setChecked(true);
 
-    m_startMenuShortcutCheckBox = new QCheckBox("Create Start Menu Shortcuts (VioraEDA, Viora CLI, Uninstaller)", this);
+    m_startMenuShortcutCheckBox = new QCheckBox("Create Start Menu Shortcuts (VioraEDA, Viora CLI, VioAVR, Uninstaller)", this);
     m_startMenuShortcutCheckBox->setChecked(true);
 
-    m_addToPathCheckBox = new QCheckBox("Add VioraEDA bin directory to User PATH environment variable", this);
+    m_addToPathCheckBox = new QCheckBox("Add VioraEDA and CLI binaries (viora, vioavr, flux_runner) to PATH", this);
     m_addToPathCheckBox->setChecked(true);
+
+    m_setupGlobalEnvVarsCheckBox = new QCheckBox("Set global environment variables (VIOSPICE_HOME, VIOAVR_HOME, FLUX_HOME)", this);
+    m_setupGlobalEnvVarsCheckBox->setChecked(true);
 
     m_associateFilesCheckBox = new QCheckBox("Associate VioraEDA with .flxsch, .flux, .flxpcb, .cir, .asc files", this);
     m_associateFilesCheckBox->setChecked(true);
@@ -463,6 +466,7 @@ QWidget* InstallerWindow::createDirectoryPage() {
     layout->addWidget(m_desktopShortcutCheckBox);
     layout->addWidget(m_startMenuShortcutCheckBox);
     layout->addWidget(m_addToPathCheckBox);
+    layout->addWidget(m_setupGlobalEnvVarsCheckBox);
     layout->addWidget(m_associateFilesCheckBox);
 
     layout->addStretch(1);
@@ -695,6 +699,7 @@ void InstallerWindow::startInstallation() {
         m_config.systemOptions.createDesktopShortcut = m_desktopShortcutCheckBox->isChecked();
         m_config.systemOptions.createStartMenuShortcuts = m_startMenuShortcutCheckBox->isChecked();
         m_config.systemOptions.addToPathEnvironment = m_addToPathCheckBox->isChecked();
+        m_config.systemOptions.setupGlobalEnvironmentVariables = m_setupGlobalEnvVarsCheckBox->isChecked();
         m_config.systemOptions.registerFileAssociations = m_associateFilesCheckBox->isChecked();
     }
 

@@ -48,6 +48,8 @@ private:
     bool unregisterFileAssociations();
     bool updatePathEnvironment();
     bool removeFromPathEnvironment();
+    bool setupGlobalEnvironmentVariables();
+    bool removeGlobalEnvironmentVariables();
     bool registerUninstaller();
     bool unregisterUninstaller();
 #endif

@@ -27,7 +27,8 @@ struct ComponentSelection {
 struct SystemIntegrationOptions {
     bool createDesktopShortcut{true};
     bool createStartMenuShortcuts{true};
-    bool addToPathEnvironment{true};
+    bool addToPathEnvironment{true};            // Add Viora & CLI tools (viora, vioavr, flux_runner) to PATH
+    bool setupGlobalEnvironmentVariables{true};  // Set VIOSPICE_HOME, VIOAVR_HOME, FLUX_HOME system variables
     bool registerFileAssociations{true};
 };
 

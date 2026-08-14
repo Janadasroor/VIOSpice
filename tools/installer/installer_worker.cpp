@@ -180,6 +180,10 @@ void InstallerWorker::discoverFilesToInstall() {
             addSingleFile(root + "/bin/flux_runner.exe", "bin/flux_runner.exe");
             addSingleFile(root + "/flux-lsp.exe", "bin/flux-lsp.exe");
             addSingleFile(root + "/bin/flux-lsp.exe", "bin/flux-lsp.exe");
+            addSingleFile(root + "/vioavr.exe", "bin/vioavr.exe");
+            addSingleFile(root + "/bin/vioavr.exe", "bin/vioavr.exe");
+            addSingleFile(root + "/vioavr-prebuilt/bin/vioavr.exe", "bin/vioavr.exe");
+            addSingleFile(root + "/vioavr-prebuilt/vioavr-v0.2.5-windows-x64/bin/vioavr.exe", "bin/vioavr.exe");
         }
     }
 
@@ -387,6 +391,9 @@ bool InstallerWorker::performInstallation() {
     if (m_config.systemOptions.addToPathEnvironment) {
         updatePathEnvironment();
     }
+    if (m_config.systemOptions.setupGlobalEnvironmentVariables) {
+        setupGlobalEnvironmentVariables();
+    }
     registerUninstaller();
 #endif
 
@@ -415,6 +422,7 @@ bool InstallerWorker::performUninstallation() {
     removeWindowsShortcuts();
     unregisterFileAssociations();
     removeFromPathEnvironment();
+    removeGlobalEnvironmentVariables();
     unregisterUninstaller();
 #endif
 
@@ -461,6 +469,10 @@ bool InstallerWorker::createWindowsShortcuts() {
             createShortcutWin32(menuFolder + "/VioraEDA.lnk", appExe, "", binDir, "VioraEDA 2026", appExe, 0);
             if (QFile::exists(cliExe)) {
                 createShortcutWin32(menuFolder + "/Viora CLI.lnk", cliExe, "", binDir, "VioraEDA Command Line Tools", cliExe, 0);
+            }
+            QString vioavrExe = binDir + "\\vioavr.exe";
+            if (QFile::exists(vioavrExe)) {
+                createShortcutWin32(menuFolder + "/VioAVR CLI.lnk", vioavrExe, "", binDir, "VioAVR Microcontroller Simulator CLI", vioavrExe, 0);
             }
             if (QFile::exists(setupExe)) {
                 createShortcutWin32(menuFolder + "/Uninstall VioraEDA.lnk", setupExe, "--uninstall", binDir, "Uninstall VioraEDA", setupExe, 0);
@@ -542,19 +554,23 @@ bool InstallerWorker::unregisterFileAssociations() {
 
 bool InstallerWorker::updatePathEnvironment() {
     QString binDir = QDir::toNativeSeparators(QDir::cleanPath(m_config.installDir + "/bin"));
-    QSettings regEnv("HKEY_CURRENT_USER\\Environment", QSettings::NativeFormat);
-    QString currentPath = regEnv.value("Path", "").toString();
 
-    QStringList parts = currentPath.split(';', Qt::SkipEmptyParts);
-    for (const QString& p : parts) {
-        if (p.trimmed().compare(binDir, Qt::CaseInsensitive) == 0) {
-            return true;
+    auto addToPathKey = [&](const QString& regKey) {
+        QSettings reg(regKey, QSettings::NativeFormat);
+        if (!reg.isWritable()) return;
+        QString currentPath = reg.value("Path", "").toString();
+        QStringList parts = currentPath.split(';', Qt::SkipEmptyParts);
+        for (const QString& p : parts) {
+            if (p.trimmed().compare(binDir, Qt::CaseInsensitive) == 0) {
+                return;
+            }
         }
-    }
+        parts.append(binDir);
+        reg.setValue("Path", parts.join(';'));
+    };
 
-    parts.append(binDir);
-    QString newPath = parts.join(';');
-    regEnv.setValue("Path", newPath);
+    addToPathKey("HKEY_CURRENT_USER\\Environment");
+    addToPathKey("HKEY_LOCAL_MACHINE\\SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Environment");
 
     // Only notify asynchronously and avoid desktop lock in Remote Desktop sessions
     if (GetSystemMetrics(SM_REMOTESESSION) == 0) {
@@ -565,26 +581,90 @@ bool InstallerWorker::updatePathEnvironment() {
 
 bool InstallerWorker::removeFromPathEnvironment() {
     QString binDir = QDir::toNativeSeparators(QDir::cleanPath(m_config.installDir + "/bin"));
-    QSettings regEnv("HKEY_CURRENT_USER\\Environment", QSettings::NativeFormat);
-    QString currentPath = regEnv.value("Path", "").toString();
 
-    QStringList parts = currentPath.split(';', Qt::SkipEmptyParts);
-    QStringList filteredParts;
-    bool modified = false;
+    auto removeFromPathKey = [&](const QString& regKey) {
+        QSettings reg(regKey, QSettings::NativeFormat);
+        if (!reg.isWritable()) return;
+        QString currentPath = reg.value("Path", "").toString();
+        QStringList parts = currentPath.split(';', Qt::SkipEmptyParts);
+        QStringList filteredParts;
+        bool modified = false;
+        for (const QString& p : parts) {
+            if (p.trimmed().compare(binDir, Qt::CaseInsensitive) == 0) {
+                modified = true;
+            } else {
+                filteredParts.append(p);
+            }
+        }
+        if (modified) {
+            reg.setValue("Path", filteredParts.join(';'));
+        }
+    };
 
-    for (const QString& p : parts) {
-        if (p.trimmed().compare(binDir, Qt::CaseInsensitive) == 0) {
-            modified = true;
-        } else {
-            filteredParts.append(p);
+    removeFromPathKey("HKEY_CURRENT_USER\\Environment");
+    removeFromPathKey("HKEY_LOCAL_MACHINE\\SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Environment");
+
+    if (GetSystemMetrics(SM_REMOTESESSION) == 0) {
+        SendNotifyMessageW(HWND_BROADCAST, WM_SETTINGCHANGE, 0, (LPARAM)L"Environment");
+    }
+    return true;
+}
+
+bool InstallerWorker::setupGlobalEnvironmentVariables() {
+    QString installRoot = QDir::toNativeSeparators(m_config.installDir);
+    QString binDir = QDir::toNativeSeparators(QDir::cleanPath(m_config.installDir + "/bin"));
+    QString modelsDir = QDir::toNativeSeparators(QDir::cleanPath(m_config.installDir + "/models"));
+    QString libDir = QDir::toNativeSeparators(QDir::cleanPath(m_config.installDir + "/ViospiceLib"));
+
+    // User Environment
+    {
+        QSettings regUser("HKEY_CURRENT_USER\\Environment", QSettings::NativeFormat);
+        regUser.setValue("VIOSPICE_HOME", installRoot);
+        regUser.setValue("VIOAVR_HOME", installRoot);
+        regUser.setValue("FLUX_HOME", installRoot);
+        regUser.setValue("SPICE_LIB_DIR", modelsDir);
+    }
+
+    // System Environment (if running elevated with permissions)
+    {
+        QSettings regSystem("HKEY_LOCAL_MACHINE\\SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Environment", QSettings::NativeFormat);
+        if (regSystem.isWritable()) {
+            regSystem.setValue("VIOSPICE_HOME", installRoot);
+            regSystem.setValue("VIOAVR_HOME", installRoot);
+            regSystem.setValue("FLUX_HOME", installRoot);
+            regSystem.setValue("SPICE_LIB_DIR", modelsDir);
         }
     }
 
-    if (modified) {
-        regEnv.setValue("Path", filteredParts.join(';'));
-        if (GetSystemMetrics(SM_REMOTESESSION) == 0) {
-            SendNotifyMessageW(HWND_BROADCAST, WM_SETTINGCHANGE, 0, (LPARAM)L"Environment");
+    if (GetSystemMetrics(SM_REMOTESESSION) == 0) {
+        SendNotifyMessageW(HWND_BROADCAST, WM_SETTINGCHANGE, 0, (LPARAM)L"Environment");
+    }
+    return true;
+}
+
+bool InstallerWorker::removeGlobalEnvironmentVariables() {
+    // User Environment
+    {
+        QSettings regUser("HKEY_CURRENT_USER\\Environment", QSettings::NativeFormat);
+        regUser.remove("VIOSPICE_HOME");
+        regUser.remove("VIOAVR_HOME");
+        regUser.remove("FLUX_HOME");
+        regUser.remove("SPICE_LIB_DIR");
+    }
+
+    // System Environment
+    {
+        QSettings regSystem("HKEY_LOCAL_MACHINE\\SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Environment", QSettings::NativeFormat);
+        if (regSystem.isWritable()) {
+            regSystem.remove("VIOSPICE_HOME");
+            regSystem.remove("VIOAVR_HOME");
+            regSystem.remove("FLUX_HOME");
+            regSystem.remove("SPICE_LIB_DIR");
         }
+    }
+
+    if (GetSystemMetrics(SM_REMOTESESSION) == 0) {
+        SendNotifyMessageW(HWND_BROADCAST, WM_SETTINGCHANGE, 0, (LPARAM)L"Environment");
     }
     return true;
 }
