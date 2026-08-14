@@ -734,7 +734,10 @@ void SchematicComponentsWidget::updateRecentSection() {
 
     bool hasRecent = !m_recentList.isEmpty();
     m_recentHeader->setVisible(hasRecent);
-    m_recentContainer->setVisible(hasRecent && m_recentExpanded);
+    const bool isSearching = m_searchBox && !m_searchBox->text().trimmed().isEmpty();
+    const bool showContainer = hasRecent && m_recentExpanded && !isSearching;
+    m_recentContainer->setVisible(showContainer);
+    updateSectionHeader(m_recentIndicator, m_recentExpanded && !isSearching);
 
     for (const QString& name : m_recentList) {
         auto* btn = new QPushButton(name, m_recentContainer);
@@ -995,6 +998,17 @@ void SchematicComponentsWidget::populate() {
 // ─── Slots ──────────────────────────────────────────────────────────────────
 void SchematicComponentsWidget::onSearchTextChanged(const QString &text) {
     m_pendingSearchText = text;
+
+    // Automatically collapse recent section while searching to maximize visible search results area
+    const bool isSearching = !text.trimmed().isEmpty();
+    if (isSearching) {
+        m_recentContainer->setVisible(false);
+        updateSectionHeader(m_recentIndicator, false);
+    } else {
+        updateSectionHeader(m_recentIndicator, m_recentExpanded);
+        m_recentContainer->setVisible(m_recentExpanded && !m_recentList.isEmpty());
+    }
+
     m_searchDebounceTimer->start();
 }
 
