@@ -86,7 +86,6 @@ void InstallerWorker::discoverFilesToInstall() {
     QString appDir = QCoreApplication::applicationDirPath();
     QString rootDir = QDir::cleanPath(appDir + "/..");
 
-    // Search source roots in order
     QStringList searchRoots = {
         appDir,
         rootDir,
@@ -127,7 +126,6 @@ void InstallerWorker::discoverFilesToInstall() {
             addSingleFile(root + "/viospice-merge.exe", "bin/viospice-merge.exe");
             addSingleFile(root + "/bin/viospice-merge.exe", "bin/viospice-merge.exe");
 
-            // Copy DLLs
             QDir rootD(root);
             for (const QString& dll : rootD.entryList({"*.dll"}, QDir::Files)) {
                 addSingleFile(root + "/" + dll, "bin/" + dll);
@@ -139,7 +137,6 @@ void InstallerWorker::discoverFilesToInstall() {
                 }
             }
 
-            // Copy Qt Plugins
             addDirFiles(root + "/plugins", "bin/plugins");
             addDirFiles(root + "/platforms", "bin/platforms");
             addDirFiles(root + "/imageformats", "bin/imageformats");
@@ -212,18 +209,80 @@ void InstallerWorker::discoverFilesToInstall() {
     m_totalBytes = uniqueBytes;
 }
 
-bool InstallerWorker::copyChunked(const QString& srcPath, const QString& dstPath) {
-    QFile src(srcPath);
-    if (!src.open(QIODevice::ReadOnly)) return false;
+void InstallerWorker::emitProgressThrottled(const QString& currentFile, bool force) {
+    qint64 now = m_timer.elapsed();
+    if (!force && (now - m_lastProgressEmitTime < 50)) {
+        return;
+    }
+    m_lastProgressEmitTime = now;
+
+    if (now - m_lastSpeedCheckTime >= 100) {
+        qint64 deltaMs = now - m_lastSpeedCheckTime;
+        uint64_t deltaBytes = m_bytesCopied - m_lastSpeedCheckBytes;
+        if (deltaMs > 0) {
+            m_currentSpeedMBps = ((double)deltaBytes / (1024.0 * 1024.0)) / ((double)deltaMs / 1000.0);
+        }
+        m_lastSpeedCheckTime = now;
+        m_lastSpeedCheckBytes = m_bytesCopied;
+    }
+
+    ProgressMetrics metrics;
+    metrics.percentage = m_totalBytes > 0 ? (int)((m_bytesCopied * 92) / m_totalBytes) : 0;
+    metrics.currentFileName = currentFile;
+    metrics.currentStatus = QString("Installing %1").arg(currentFile);
+    metrics.transferSpeedMBps = m_currentSpeedMBps;
+    metrics.bytesTransferred = m_bytesCopied;
+    metrics.totalBytes = m_totalBytes;
+    metrics.filesProcessed = m_filesCopied;
+    metrics.totalFiles = m_filesToCopy.size();
+
+    if (m_currentSpeedMBps > 0.1 && m_totalBytes > m_bytesCopied) {
+        double remainingMB = (double)(m_totalBytes - m_bytesCopied) / (1024.0 * 1024.0);
+        metrics.estimatedSecondsRemaining = (int)(remainingMB / m_currentSpeedMBps);
+    } else {
+        metrics.estimatedSecondsRemaining = 0;
+    }
+
+    emit progressUpdated(metrics);
+}
+
+bool InstallerWorker::copyFast(const QString& srcPath, const QString& dstPath, qint64 fileSize) {
+    if (m_cancelled.loadRelaxed() != 0) {
+        return false;
+    }
 
     QFileInfo dstInfo(dstPath);
-    QDir().mkpath(dstInfo.absolutePath());
-    m_createdDirs.append(dstInfo.absolutePath());
+    QString dirPath = dstInfo.absolutePath();
+
+    // Cache directory creation to avoid redundant filesystem traversals
+    if (!m_createdDirSet.contains(dirPath)) {
+        QDir().mkpath(dirPath);
+        m_createdDirSet.insert(dirPath);
+        m_createdDirs.append(dirPath);
+    }
+
+#ifdef _WIN32
+    // High-speed native Windows kernel copy for standard and small files (< 4MB)
+    if (fileSize < 4 * 1024 * 1024) {
+        std::wstring wSrc = QDir::toNativeSeparators(srcPath).toStdWString();
+        std::wstring wDst = QDir::toNativeSeparators(dstPath).toStdWString();
+        if (CopyFileW(wSrc.c_str(), wDst.c_str(), FALSE)) {
+            m_bytesCopied += (uint64_t)fileSize;
+            m_createdFiles.append(dstPath);
+            emitProgressThrottled(dstInfo.fileName());
+            return true;
+        }
+    }
+#endif
+
+    // Chunked copy stream for large files (> 4MB) or fallback
+    QFile src(srcPath);
+    if (!src.open(QIODevice::ReadOnly)) return false;
 
     QFile dst(dstPath);
     if (!dst.open(QIODevice::WriteOnly)) return false;
 
-    constexpr qint64 CHUNK_SIZE = 128 * 1024; // 128 KB chunk buffer
+    constexpr qint64 CHUNK_SIZE = 256 * 1024; // 256 KB chunk
     char buffer[CHUNK_SIZE];
 
     while (!src.atEnd()) {
@@ -244,35 +303,7 @@ bool InstallerWorker::copyChunked(const QString& srcPath, const QString& dstPath
         }
 
         m_bytesCopied += (uint64_t)bytesWritten;
-
-        // Calculate transfer metrics every 80ms
-        qint64 now = m_timer.elapsed();
-        if (now - m_lastSpeedCheckTime >= 80) {
-            qint64 deltaMs = now - m_lastSpeedCheckTime;
-            uint64_t deltaBytes = m_bytesCopied - m_lastSpeedCheckBytes;
-            if (deltaMs > 0) {
-                m_currentSpeedMBps = ((double)deltaBytes / (1024.0 * 1024.0)) / ((double)deltaMs / 1000.0);
-            }
-            m_lastSpeedCheckTime = now;
-            m_lastSpeedCheckBytes = m_bytesCopied;
-
-            ProgressMetrics metrics;
-            metrics.percentage = m_totalBytes > 0 ? (int)((m_bytesCopied * 90) / m_totalBytes) : 0;
-            metrics.currentFileName = dstInfo.fileName();
-            metrics.currentStatus = QString("Extracting %1").arg(dstInfo.fileName());
-            metrics.transferSpeedMBps = m_currentSpeedMBps;
-            metrics.bytesTransferred = m_bytesCopied;
-            metrics.totalBytes = m_totalBytes;
-            metrics.filesProcessed = m_filesCopied;
-            metrics.totalFiles = m_filesToCopy.size();
-
-            if (m_currentSpeedMBps > 0.05 && m_totalBytes > m_bytesCopied) {
-                double remainingMB = (double)(m_totalBytes - m_bytesCopied) / (1024.0 * 1024.0);
-                metrics.estimatedSecondsRemaining = (int)(remainingMB / m_currentSpeedMBps);
-            }
-
-            emit progressUpdated(metrics);
-        }
+        emitProgressThrottled(dstInfo.fileName());
     }
 
     dst.close();
@@ -285,7 +316,6 @@ void InstallerWorker::rollback() {
     for (const QString& f : m_createdFiles) {
         QFile::remove(f);
     }
-    // Remove directories in reverse order if empty
     for (int i = m_createdDirs.size() - 1; i >= 0; --i) {
         QDir d(m_createdDirs[i]);
         if (d.isEmpty()) {
@@ -295,12 +325,14 @@ void InstallerWorker::rollback() {
 }
 
 bool InstallerWorker::performInstallation() {
-    emit statusUpdated("Preparing installation environment...");
+    emit statusUpdated("Preparing installation payload...");
     m_timer.start();
     m_lastSpeedCheckTime = 0;
     m_lastSpeedCheckBytes = 0;
+    m_lastProgressEmitTime = 0;
     m_bytesCopied = 0;
     m_filesCopied = 0;
+    m_createdDirSet.clear();
 
     discoverFilesToInstall();
 
@@ -312,8 +344,11 @@ bool InstallerWorker::performInstallation() {
     QDir targetDir(m_config.installDir);
     if (!targetDir.exists()) {
         targetDir.mkpath(".");
+        m_createdDirSet.insert(m_config.installDir);
         m_createdDirs.append(m_config.installDir);
     }
+
+    emit statusUpdated("Installing files and component libraries...");
 
     for (const auto& pair : m_filesToCopy) {
         if (m_cancelled.loadRelaxed() != 0) {
@@ -324,8 +359,9 @@ bool InstallerWorker::performInstallation() {
 
         QString src = pair.first;
         QString dst = QDir::cleanPath(m_config.installDir + "/" + pair.second);
+        QFileInfo fi(src);
 
-        if (!copyChunked(src, dst)) {
+        if (!copyFast(src, dst, fi.size())) {
             if (m_cancelled.loadRelaxed() != 0) {
                 rollback();
                 emit finished(false, "Installation was cancelled by the user.");
@@ -408,7 +444,6 @@ bool InstallerWorker::createWindowsShortcuts() {
 
     if (!QFile::exists(appExe)) return false;
 
-    // Desktop Shortcut
     if (m_config.systemOptions.createDesktopShortcut) {
         QString desktopPath = QStandardPaths::writableLocation(QStandardPaths::DesktopLocation);
         if (!desktopPath.isEmpty()) {
@@ -417,7 +452,6 @@ bool InstallerWorker::createWindowsShortcuts() {
         }
     }
 
-    // Start Menu Shortcuts
     if (m_config.systemOptions.createStartMenuShortcuts) {
         QString programsPath = QStandardPaths::writableLocation(QStandardPaths::ApplicationsLocation);
         if (!programsPath.isEmpty()) {
@@ -484,7 +518,8 @@ bool InstallerWorker::registerFileAssociations() {
         regExt.setValue("Content Type", "application/x-vioraeda");
     }
 
-    SHChangeNotify(SHCNE_ASSOCCHANGED, SHCNF_IDLIST, nullptr, nullptr);
+    // Asynchronous shell notification without blocking UI
+    SHChangeNotify(SHCNE_ASSOCCHANGED, SHCNF_IDLIST | SHCNF_FLUSHNOWAIT, nullptr, nullptr);
     return true;
 }
 
@@ -501,7 +536,7 @@ bool InstallerWorker::unregisterFileAssociations() {
         regExt.clear();
     }
 
-    SHChangeNotify(SHCNE_ASSOCCHANGED, SHCNF_IDLIST, nullptr, nullptr);
+    SHChangeNotify(SHCNE_ASSOCCHANGED, SHCNF_IDLIST | SHCNF_FLUSHNOWAIT, nullptr, nullptr);
     return true;
 }
 
@@ -521,8 +556,10 @@ bool InstallerWorker::updatePathEnvironment() {
     QString newPath = parts.join(';');
     regEnv.setValue("Path", newPath);
 
-    DWORD_PTR dwResult = 0;
-    SendMessageTimeoutW(HWND_BROADCAST, WM_SETTINGCHANGE, 0, (LPARAM)L"Environment", SMTO_ABORTIFHUNG, 3000, &dwResult);
+    // Only notify asynchronously and avoid desktop lock in Remote Desktop sessions
+    if (GetSystemMetrics(SM_REMOTESESSION) == 0) {
+        SendNotifyMessageW(HWND_BROADCAST, WM_SETTINGCHANGE, 0, (LPARAM)L"Environment");
+    }
     return true;
 }
 
@@ -545,8 +582,9 @@ bool InstallerWorker::removeFromPathEnvironment() {
 
     if (modified) {
         regEnv.setValue("Path", filteredParts.join(';'));
-        DWORD_PTR dwResult = 0;
-        SendMessageTimeoutW(HWND_BROADCAST, WM_SETTINGCHANGE, 0, (LPARAM)L"Environment", SMTO_ABORTIFHUNG, 3000, &dwResult);
+        if (GetSystemMetrics(SM_REMOTESESSION) == 0) {
+            SendNotifyMessageW(HWND_BROADCAST, WM_SETTINGCHANGE, 0, (LPARAM)L"Environment");
+        }
     }
     return true;
 }

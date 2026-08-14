@@ -10,6 +10,7 @@
 #include <QString>
 #include <QStringList>
 #include <QPair>
+#include <QSet>
 #include <QAtomicInt>
 #include <QElapsedTimer>
 #include "installer_types.h"
@@ -35,7 +36,8 @@ private:
     bool performInstallation();
     bool performUninstallation();
     void discoverFilesToInstall();
-    bool copyChunked(const QString& srcPath, const QString& dstPath);
+    bool copyFast(const QString& srcPath, const QString& dstPath, qint64 fileSize);
+    void emitProgressThrottled(const QString& currentFile, bool force = false);
     void rollback();
 
     // Windows Shell and System Integrations
@@ -54,6 +56,7 @@ private:
     QAtomicInt m_cancelled{0};
     QStringList m_createdFiles;
     QStringList m_createdDirs;
+    QSet<QString> m_createdDirSet;
     
     // File list: <SourcePath, RelativeDestPath>
     QList<QPair<QString, QString>> m_filesToCopy;
@@ -64,6 +67,7 @@ private:
     QElapsedTimer m_timer;
     qint64 m_lastSpeedCheckTime{0};
     uint64_t m_lastSpeedCheckBytes{0};
+    qint64 m_lastProgressEmitTime{0};
     double m_currentSpeedMBps{0.0};
 };
 
