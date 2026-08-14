@@ -525,7 +525,7 @@ jobs:
           cp build/VioraEDA.exe staging/bin/
           cp build/viora.exe staging/bin/ 2>/dev/null || echo "no viora.exe"
           cp build/flux_runner.exe staging/bin/ 2>/dev/null || echo "no flux_runner.exe"
-          cp build/vioavr-prebuilt/bin/vioavr.exe staging/bin/ 2>/dev/null || cp build/vioavr.exe staging/bin/ 2>/dev/null || echo "no vioavr.exe"
+          find build -name "vioavr.exe" -exec cp {} staging/bin/ \; 2>/dev/null || echo "no vioavr.exe"
           cp build/VioraEDA_Setup.exe staging/bin/ 2>/dev/null || echo "no VioraEDA_Setup.exe"
           cp build/VioraEDA_Setup.exe "${{ github.workspace }}/VioraEDA-${{ github.ref_name }}-windows-x86_64-Setup.exe" 2>/dev/null || true
           # Code models (.cm) — from build/cm/ (CMake copies them) or direct from prebuilt

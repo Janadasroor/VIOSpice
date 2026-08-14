@@ -44,7 +44,7 @@ int main(int argc, char *argv[]) {
             return 0;
         }
         if (a == "--version") {
-            std::cout << "viora 1.0" << std::endl;
+            std::cout << "viora 0.2.0-beta" << std::endl;
             return 0;
         }
     }
