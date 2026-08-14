@@ -21,6 +21,7 @@
 
 #ifdef _WIN32
 #include <windows.h>
+#include <dwmapi.h>
 #endif
 
 namespace {
@@ -796,4 +797,38 @@ void InstallerWindow::closeEvent(QCloseEvent *event) {
     } else {
         event->accept();
     }
+}
+
+void InstallerWindow::showEvent(QShowEvent *event) {
+    QWidget::showEvent(event);
+    applyNativeWindowTheme();
+}
+
+void InstallerWindow::applyNativeWindowTheme() {
+#ifdef _WIN32
+    HWND hwnd = reinterpret_cast<HWND>(this->winId());
+    if (hwnd) {
+        // 1. Enable immersive dark mode for title bar and control box (minimize, maximize, close)
+        BOOL useDarkMode = TRUE;
+        // DWMWA_USE_IMMERSIVE_DARK_MODE (20 on Windows 11 & Windows 10 build 2004+)
+        DwmSetWindowAttribute(hwnd, 20, &useDarkMode, sizeof(useDarkMode));
+        // Fallback for earlier Windows 10 builds (1809 / 1903)
+        DwmSetWindowAttribute(hwnd, 19, &useDarkMode, sizeof(useDarkMode));
+
+        // 2. Set Caption / Window Control Bar Background Color to match installer background (#0b0f17 -> RGB(11, 15, 23))
+        // DWMWA_CAPTION_COLOR = 35 (Windows 11)
+        COLORREF captionColor = RGB(11, 15, 23);
+        DwmSetWindowAttribute(hwnd, 35, &captionColor, sizeof(captionColor));
+
+        // 3. Set Title Text Color (#f8fafc -> RGB(248, 250, 252))
+        // DWMWA_TEXT_COLOR = 36 (Windows 11)
+        COLORREF textColor = RGB(248, 250, 252);
+        DwmSetWindowAttribute(hwnd, 36, &textColor, sizeof(textColor));
+
+        // 4. Set Window Border Color (#1e293b -> RGB(30, 41, 59))
+        // DWMWA_BORDER_COLOR = 34 (Windows 11)
+        COLORREF borderColor = RGB(30, 41, 59);
+        DwmSetWindowAttribute(hwnd, 34, &borderColor, sizeof(borderColor));
+    }
+#endif
 }

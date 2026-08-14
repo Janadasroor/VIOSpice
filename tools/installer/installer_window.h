@@ -27,6 +27,10 @@ public:
 
 protected:
     void closeEvent(QCloseEvent *event) override;
+    void showEvent(QShowEvent *event) override;
+
+private:
+    void applyNativeWindowTheme();
 
 private Q_SLOTS:
     void nextPage();
