@@ -178,8 +178,16 @@ static void saveCurrentSession(void* excluding) {
     }
 }
 
+static QElapsedTimer s_bootTimer;
+static void logMilestone(const char* name) {
+    fprintf(stderr, "[Startup Profile] %s: %lld ms\n", name, s_bootTimer.elapsed());
+    fflush(stderr);
+    qDebug("[Startup Profile] %s: %lld ms", name, s_bootTimer.elapsed());
+}
+
 int main(int argc, char *argv[])
 {
+    s_bootTimer.start();
     // Early exit for --help and --version to avoid QApplication + ngspice/Python init
     for (int i = 1; i < argc; ++i) {
         std::string a = argv[i];
@@ -239,11 +247,12 @@ int main(int argc, char *argv[])
     a.setOrganizationName("VIO");
     a.setWindowIcon(QIcon(":/icons/viora_eda_logo.png"));
 
+
     SplashScreen* splash = new SplashScreen();
     splash->show();
     splash->setStatus("Initializing Embedded Python Environment...");
     splash->setProgress(1, 100);
-    QCoreApplication::processEvents(QEventLoop::AllEvents, 50);
+    QCoreApplication::processEvents();
 
     initEmbeddedPython();
 
@@ -318,6 +327,7 @@ int main(int argc, char *argv[])
         int port = ConfigManager::instance().toolProperty("Connectivity", "Port", 18790).toInt();
         UICommandServer::instance().start(port);
     }
+    logMilestone("UI Command Server Ready");
 
     splash->setStatus("Restoring Workspace Session...");
     splash->setProgress(95, 100);
@@ -382,6 +392,7 @@ int main(int argc, char *argv[])
                 pcb->show();
             }
         }
+        logMilestone("Main Window Visible & Session Restored");
         splash->deleteLater();
 
         auto *checker = new UpdateChecker("0.1", qApp);
@@ -443,7 +454,8 @@ int main(int argc, char *argv[])
     }
 
     // Process events to let deleteLater() run for WA_DeleteOnClose widgets
-    for(int i=0; i<10; ++i) QApplication::processEvents(QEventLoop::AllEvents, 200);
+    QApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+    QApplication::processEvents();
 
     SchematicToolRegistryBuiltIn::cleanup();
     shutdownEmbeddedPython();

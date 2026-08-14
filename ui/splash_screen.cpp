@@ -146,22 +146,23 @@ void SplashScreen::paintEvent(QPaintEvent* event) {
     QPainterPath path;
     path.addRoundedRect(cardRect, 16, 16);
 
-    // Soft outer shadow glow
-    for (int i = 0; i < 12; ++i) {
+    // Soft outer shadow glow (fast 3-step cached shadow)
+    for (int i = 0; i < 4; ++i) {
+        int offset = (i + 1) * 3;
         QPainterPath shadowPath;
-        shadowPath.addRoundedRect(cardRect.adjusted(-i, -i, i, i), 16 + i, 16 + i);
-        painter.fillPath(shadowPath, QColor(0, 0, 0, 15 - i));
+        shadowPath.addRoundedRect(cardRect.adjusted(-offset, -offset, offset, offset), 16 + offset, 16 + offset);
+        painter.fillPath(shadowPath, QColor(0, 0, 0, 18 - i * 4));
     }
 }
 
 void SplashScreen::setStatus(const QString& status) {
     m_statusLabel->setText(status);
-    QCoreApplication::processEvents(QEventLoop::AllEvents, 50);
+    QCoreApplication::processEvents();
 }
 
 void SplashScreen::setProgress(int value, int total) {
     m_progressBar->setMaximum(total);
     m_progressBar->setValue(value);
-    QCoreApplication::processEvents(QEventLoop::AllEvents, 50);
+    QCoreApplication::processEvents();
 }
 
