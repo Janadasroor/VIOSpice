@@ -259,16 +259,16 @@ QWidget* InstallerWindow::createWelcomePage() {
         auto *fLayout = new QVBoxLayout(featuresBox);
         fLayout->setSpacing(8);
 
-        auto addFeature = [&](const QString& icon, const QString& title, const QString& sub) {
-            auto *item = new QLabel(QString("<b>%1 %2</b> — <span style='color:#94a3b8;'>%3</span>").arg(icon, title, sub), featuresBox);
+        auto addFeature = [&](const QString& title, const QString& sub) {
+            auto *item = new QLabel(QString("<span style='color:#00d2ff; font-weight:700;'>[+]</span> <b>%1</b> &mdash; <span style='color:#94a3b8;'>%2</span>").arg(title, sub), featuresBox);
             item->setTextFormat(Qt::RichText);
             fLayout->addWidget(item);
         };
 
-        addFeature("⚡", "High-Performance Mixed-Signal SPICE", "ngspice 44, VioMATRIXC & AVR co-sim");
-        addFeature("🎨", "Schematic Capture & PCB Layout", "Multi-sheet hierarchical design with real-time DRC");
-        addFeature("📦", "VioSpiceLib Component Library", "49,550+ production-grade symbols and footprints");
-        addFeature("💻", "FluxScript JIT Compiler", "Sub-microsecond dynamic analog behavioral modeling");
+        addFeature("High-Performance Mixed-Signal SPICE", "ngspice 44, VioMATRIXC & AVR co-sim");
+        addFeature("Schematic Capture & PCB Layout", "Multi-sheet hierarchical design with real-time DRC");
+        addFeature("VioSpiceLib Component Library", "49,550+ production-grade symbols and footprints");
+        addFeature("FluxScript JIT Compiler", "Sub-microsecond dynamic analog behavioral modeling");
 
         layout->addWidget(featuresBox);
     }
@@ -423,11 +423,11 @@ QWidget* InstallerWindow::createDirectoryPage() {
     iLayout->setVerticalSpacing(6);
 
     m_privilegeLabel = new QLabel(this);
-    m_privilegeLabel->setStyleSheet("font-weight: 600;");
+    m_privilegeLabel->setStyleSheet("font-weight: 600; color: #f8fafc;");
     if (m_isAdmin) {
-        m_privilegeLabel->setText("🛡️ Administrator Mode (Installing system-wide for all users)");
+        m_privilegeLabel->setText("Administrator Mode (Installing system-wide for all users)");
     } else {
-        m_privilegeLabel->setText("👤 User Mode (Installing locally into user profile without UAC)");
+        m_privilegeLabel->setText("Standard User Mode (Installing locally into user profile without UAC elevation)");
     }
 
     m_spaceRequiredLabel = new QLabel("Space required: Calculating...", this);
@@ -654,7 +654,9 @@ void InstallerWindow::nextPage() {
     m_stackedWidget->setCurrentIndex(next);
     updateSidebarStep(next);
 
-    m_backBtn->setEnabled(next > 0 && next < (m_isUninstall ? 1 : 4));
+    bool canGoBack = (next > 0 && next < (m_isUninstall ? 1 : 4));
+    m_backBtn->setEnabled(canGoBack);
+    m_backBtn->setVisible(canGoBack);
 
     if (next == 1 && !m_isUninstall) {
         m_nextBtn->setEnabled(m_licenseCheckBox && m_licenseCheckBox->isChecked());
@@ -670,12 +672,17 @@ void InstallerWindow::nextPage() {
 }
 
 void InstallerWindow::prevPage() {
+    if (m_worker && m_worker->isRunning()) return;
     int current = m_stackedWidget->currentIndex();
+    if (current >= (m_isUninstall ? 1 : 4)) return;
+
     if (current > 0) {
         int prev = current - 1;
         m_stackedWidget->setCurrentIndex(prev);
         updateSidebarStep(prev);
-        m_backBtn->setEnabled(prev > 0);
+        bool canGoBack = (prev > 0);
+        m_backBtn->setEnabled(canGoBack);
+        m_backBtn->setVisible(canGoBack);
         m_nextBtn->setEnabled(true);
         m_nextBtn->setText(m_isUninstall ? "Uninstall" : "Next");
     }
@@ -696,6 +703,7 @@ void InstallerWindow::startInstallation() {
     updateSidebarStep(progressPageIndex);
 
     m_backBtn->setEnabled(false);
+    m_backBtn->setVisible(false);
     m_nextBtn->setEnabled(false);
     m_cancelBtn->setEnabled(true);
 
@@ -735,7 +743,9 @@ void InstallerWindow::onFinished(bool success, const QString& errorMessage) {
     updateSidebarStep(finishPageIndex);
 
     m_backBtn->setEnabled(false);
+    m_backBtn->setVisible(false);
     m_cancelBtn->setEnabled(false);
+    m_cancelBtn->setVisible(false);
     m_nextBtn->setEnabled(true);
     m_nextBtn->setText("Finish");
 
