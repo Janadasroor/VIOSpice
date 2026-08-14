@@ -203,7 +203,7 @@ int main(int argc, char *argv[])
             std::_Exit(0);
         }
         if (a == "--version" || a == "-V") {
-            std::cout << "VioraEDA 1.0" << std::endl;
+            std::cout << "VioraEDA 0.2.0-beta" << std::endl;
             std::cout.flush();
             std::_Exit(0);
         }

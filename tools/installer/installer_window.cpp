@@ -212,7 +212,7 @@ QWidget* InstallerWindow::createSidebar() {
 
     layout->addStretch(1);
 
-    auto *versionLabel = new QLabel("Version 2026.1\n64-bit Edition", this);
+    auto *versionLabel = new QLabel("Version 0.2.0-beta\n64-bit Edition", this);
     versionLabel->setStyleSheet("font-size: 11px; color: #475569;");
     layout->addWidget(versionLabel);
 

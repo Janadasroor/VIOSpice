@@ -6,7 +6,7 @@ if(POLICY CMP0111)
     cmake_policy(SET CMP0111 OLD)
 endif()
 
-project(viospice VERSION 0.1 LANGUAGES C CXX)
+project(viospice VERSION 0.2.0 LANGUAGES C CXX)
 
 # Disable third-party (Eigen) unit testing & Fortran BLAS/LAPACK generation globally
 set(EIGEN_BUILD_TESTING OFF CACHE BOOL "" FORCE)

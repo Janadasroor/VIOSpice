@@ -710,8 +710,8 @@ bool InstallerWorker::registerUninstaller() {
     QString appExe = binDir + "\\VioraEDA.exe";
     QString setupExe = binDir + "\\VioraEDA_Setup.exe";
 
-    regUninst.setValue("DisplayName", "VioraEDA 2026 Suite");
-    regUninst.setValue("DisplayVersion", "2026.1.0");
+    regUninst.setValue("DisplayName", "VioraEDA Suite");
+    regUninst.setValue("DisplayVersion", "0.2.0-beta");
     regUninst.setValue("Publisher", "Janada Sroor");
     regUninst.setValue("InstallLocation", QDir::toNativeSeparators(m_config.installDir));
     regUninst.setValue("DisplayIcon", appExe + ",0");
