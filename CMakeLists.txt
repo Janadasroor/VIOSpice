@@ -968,6 +968,8 @@ add_executable(VioraEDA_Setup WIN32
     tools/installer/main.cpp
     tools/installer/installer_window.h
     tools/installer/installer_window.cpp
+    tools/installer/installer_worker.h
+    tools/installer/installer_worker.cpp
     ${RESOURCES_RCC}
 )
 target_link_libraries(VioraEDA_Setup PRIVATE
@@ -975,6 +977,9 @@ target_link_libraries(VioraEDA_Setup PRIVATE
     Qt${QT_VERSION_MAJOR}::Gui
     Qt${QT_VERSION_MAJOR}::Core
 )
+if(WIN32)
+    target_link_libraries(VioraEDA_Setup PRIVATE ole32 shell32 advapi32)
+endif()
 
 
 # --- CPack Packaging ---
