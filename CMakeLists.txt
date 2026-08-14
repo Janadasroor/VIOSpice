@@ -979,7 +979,7 @@ target_link_libraries(VioraEDA_Setup PRIVATE
     Qt${QT_VERSION_MAJOR}::Core
 )
 if(WIN32)
-    target_link_libraries(VioraEDA_Setup PRIVATE ole32 shell32 advapi32)
+    target_link_libraries(VioraEDA_Setup PRIVATE ole32 shell32 advapi32 dwmapi)
 endif()
 
 
