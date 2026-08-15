@@ -85,21 +85,86 @@ Section "MainSection" SEC01
     ; Desktop Shortcut
     CreateShortcut "$DESKTOP\VioraEDA.lnk" "$INSTDIR\bin\VioraEDA.exe" "" "$INSTDIR\bin\VioraEDA.exe" 0
 
-    ; File Associations
+    ; File Associations & Windows Search Indexer Registration
+    ; 1. Schematic (.flxsch and .fluxsch)
     WriteRegStr HKCU "Software\Classes\.flxsch" "" "VioraEDA.Schematic.1"
+    WriteRegStr HKCU "Software\Classes\.flxsch" "Content Type" "application/x-viora-schematic"
+    WriteRegStr HKCU "Software\Classes\.flxsch" "PerceivedType" "document"
+    WriteRegStr HKCU "Software\Classes\.flxsch\OpenWithProgids" "VioraEDA.Schematic.1" ""
+    WriteRegStr HKCU "Software\Classes\.flxsch\PersistentHandler" "" "{5e941d80-bf96-11cd-b579-08002b30bfeb}"
+
+    WriteRegStr HKCU "Software\Classes\.fluxsch" "" "VioraEDA.Schematic.1"
+    WriteRegStr HKCU "Software\Classes\.fluxsch" "Content Type" "application/x-viora-schematic"
+    WriteRegStr HKCU "Software\Classes\.fluxsch" "PerceivedType" "document"
+    WriteRegStr HKCU "Software\Classes\.fluxsch\OpenWithProgids" "VioraEDA.Schematic.1" ""
+    WriteRegStr HKCU "Software\Classes\.fluxsch\PersistentHandler" "" "{5e941d80-bf96-11cd-b579-08002b30bfeb}"
+
     WriteRegStr HKCU "Software\Classes\VioraEDA.Schematic.1" "" "VioraEDA Schematic Document"
+    WriteRegStr HKCU "Software\Classes\VioraEDA.Schematic.1" "FriendlyTypeName" "VioraEDA Schematic Document"
     WriteRegStr HKCU "Software\Classes\VioraEDA.Schematic.1\DefaultIcon" "" "$INSTDIR\bin\VioraEDA.exe,0"
     WriteRegStr HKCU "Software\Classes\VioraEDA.Schematic.1\shell\open\command" "" '"$INSTDIR\bin\VioraEDA.exe" "%1"'
+    WriteRegStr HKCU "Software\Classes\VioraEDA.Schematic.1\shell\open" "FriendlyAppName" "VioraEDA Suite"
 
+    ; 2. FluxScript (.flux)
     WriteRegStr HKCU "Software\Classes\.flux" "" "VioraEDA.FluxScript.1"
+    WriteRegStr HKCU "Software\Classes\.flux" "Content Type" "text/plain"
+    WriteRegStr HKCU "Software\Classes\.flux" "PerceivedType" "document"
+    WriteRegStr HKCU "Software\Classes\.flux\OpenWithProgids" "VioraEDA.FluxScript.1" ""
+    WriteRegStr HKCU "Software\Classes\.flux\PersistentHandler" "" "{5e941d80-bf96-11cd-b579-08002b30bfeb}"
+
     WriteRegStr HKCU "Software\Classes\VioraEDA.FluxScript.1" "" "FluxScript Source Document"
+    WriteRegStr HKCU "Software\Classes\VioraEDA.FluxScript.1" "FriendlyTypeName" "FluxScript Source Document"
     WriteRegStr HKCU "Software\Classes\VioraEDA.FluxScript.1\DefaultIcon" "" "$INSTDIR\bin\VioraEDA.exe,0"
     WriteRegStr HKCU "Software\Classes\VioraEDA.FluxScript.1\shell\open\command" "" '"$INSTDIR\bin\VioraEDA.exe" "%1"'
+    WriteRegStr HKCU "Software\Classes\VioraEDA.FluxScript.1\shell\open" "FriendlyAppName" "VioraEDA Suite"
 
+    ; 3. PCB (.flxpcb)
     WriteRegStr HKCU "Software\Classes\.flxpcb" "" "VioraEDA.PCB.1"
+    WriteRegStr HKCU "Software\Classes\.flxpcb" "Content Type" "application/x-viora-pcb"
+    WriteRegStr HKCU "Software\Classes\.flxpcb" "PerceivedType" "document"
+    WriteRegStr HKCU "Software\Classes\.flxpcb\OpenWithProgids" "VioraEDA.PCB.1" ""
+    WriteRegStr HKCU "Software\Classes\.flxpcb\PersistentHandler" "" "{5e941d80-bf96-11cd-b579-08002b30bfeb}"
+
     WriteRegStr HKCU "Software\Classes\VioraEDA.PCB.1" "" "VioraEDA PCB Layout Document"
+    WriteRegStr HKCU "Software\Classes\VioraEDA.PCB.1" "FriendlyTypeName" "VioraEDA PCB Layout Document"
     WriteRegStr HKCU "Software\Classes\VioraEDA.PCB.1\DefaultIcon" "" "$INSTDIR\bin\VioraEDA.exe,0"
     WriteRegStr HKCU "Software\Classes\VioraEDA.PCB.1\shell\open\command" "" '"$INSTDIR\bin\VioraEDA.exe" "%1"'
+    WriteRegStr HKCU "Software\Classes\VioraEDA.PCB.1\shell\open" "FriendlyAppName" "VioraEDA Suite"
+
+    ; 4. SPICE Netlist (.cir and .sp)
+    WriteRegStr HKCU "Software\Classes\.cir" "" "VioraEDA.Netlist.1"
+    WriteRegStr HKCU "Software\Classes\.cir" "Content Type" "text/plain"
+    WriteRegStr HKCU "Software\Classes\.cir" "PerceivedType" "document"
+    WriteRegStr HKCU "Software\Classes\.cir\OpenWithProgids" "VioraEDA.Netlist.1" ""
+    WriteRegStr HKCU "Software\Classes\.cir\PersistentHandler" "" "{5e941d80-bf96-11cd-b579-08002b30bfeb}"
+
+    WriteRegStr HKCU "Software\Classes\.sp" "" "VioraEDA.Netlist.1"
+    WriteRegStr HKCU "Software\Classes\.sp" "Content Type" "text/plain"
+    WriteRegStr HKCU "Software\Classes\.sp" "PerceivedType" "document"
+    WriteRegStr HKCU "Software\Classes\.sp\OpenWithProgids" "VioraEDA.Netlist.1" ""
+    WriteRegStr HKCU "Software\Classes\.sp\PersistentHandler" "" "{5e941d80-bf96-11cd-b579-08002b30bfeb}"
+
+    WriteRegStr HKCU "Software\Classes\VioraEDA.Netlist.1" "" "SPICE Netlist Document"
+    WriteRegStr HKCU "Software\Classes\VioraEDA.Netlist.1" "FriendlyTypeName" "SPICE Netlist Document"
+    WriteRegStr HKCU "Software\Classes\VioraEDA.Netlist.1\DefaultIcon" "" "$INSTDIR\bin\VioraEDA.exe,0"
+    WriteRegStr HKCU "Software\Classes\VioraEDA.Netlist.1\shell\open\command" "" '"$INSTDIR\bin\VioraEDA.exe" "%1"'
+    WriteRegStr HKCU "Software\Classes\VioraEDA.Netlist.1\shell\open" "FriendlyAppName" "VioraEDA Suite"
+
+    ; 5. Application OpenWith & App Paths
+    WriteRegStr HKCU "Software\Classes\Applications\VioraEDA.exe" "FriendlyAppName" "VioraEDA Suite"
+    WriteRegStr HKCU "Software\Classes\Applications\VioraEDA.exe\shell\open\command" "" '"$INSTDIR\bin\VioraEDA.exe" "%1"'
+    WriteRegStr HKCU "Software\Classes\Applications\VioraEDA.exe\SupportedTypes" ".flxsch" ""
+    WriteRegStr HKCU "Software\Classes\Applications\VioraEDA.exe\SupportedTypes" ".fluxsch" ""
+    WriteRegStr HKCU "Software\Classes\Applications\VioraEDA.exe\SupportedTypes" ".flux" ""
+    WriteRegStr HKCU "Software\Classes\Applications\VioraEDA.exe\SupportedTypes" ".flxpcb" ""
+    WriteRegStr HKCU "Software\Classes\Applications\VioraEDA.exe\SupportedTypes" ".cir" ""
+    WriteRegStr HKCU "Software\Classes\Applications\VioraEDA.exe\SupportedTypes" ".sp" ""
+
+    WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\App Paths\VioraEDA.exe" "" "$INSTDIR\bin\VioraEDA.exe"
+    WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\App Paths\VioraEDA.exe" "Path" "$INSTDIR\bin"
+
+    ; Notify Windows Explorer & Start Menu to reload file associations immediately
+    System::Call 'shell32.dll::SHChangeNotify(i, i, i, i) v (0x08000000, 0, 0, 0)'
 SectionEnd
 
 Section "Uninstall"
@@ -113,14 +178,23 @@ Section "Uninstall"
     ; Remove File Associations
     DeleteRegKey HKCU "Software\Classes\VioraEDA.Schematic.1"
     DeleteRegKey HKCU "Software\Classes\.flxsch"
+    DeleteRegKey HKCU "Software\Classes\.fluxsch"
     DeleteRegKey HKCU "Software\Classes\VioraEDA.FluxScript.1"
     DeleteRegKey HKCU "Software\Classes\.flux"
     DeleteRegKey HKCU "Software\Classes\VioraEDA.PCB.1"
     DeleteRegKey HKCU "Software\Classes\.flxpcb"
+    DeleteRegKey HKCU "Software\Classes\VioraEDA.Netlist.1"
+    DeleteRegKey HKCU "Software\Classes\.cir"
+    DeleteRegKey HKCU "Software\Classes\.sp"
+    DeleteRegKey HKCU "Software\Classes\Applications\VioraEDA.exe"
+    DeleteRegKey HKCU "Software\Microsoft\Windows\CurrentVersion\App Paths\VioraEDA.exe"
 
     ; Remove Uninstall and App Registry
     DeleteRegKey HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\VioraEDA"
     DeleteRegKey HKCU "Software\VioraEDA"
+
+    ; Notify Windows Explorer & Start Menu to reload file associations
+    System::Call 'shell32.dll::SHChangeNotify(i, i, i, i) v (0x08000000, 0, 0, 0)'
 
     ; Remove Installed Files
     RMDir /r "$INSTDIR\bin"

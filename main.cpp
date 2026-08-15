@@ -56,6 +56,8 @@
 #include <unistd.h>
 #else
 #include <windows.h>
+#include <shlobj.h>
+#include <QSettings>
 #endif
 
 extern void initEmbeddedPython();
@@ -76,6 +78,70 @@ static BOOL WINAPI consoleCtrlHandler(DWORD ctrlType) {
         return TRUE;
     }
     return FALSE;
+}
+
+static void ensureWindowsFileAssociations(bool force = false) {
+    QString appExe = QDir::toNativeSeparators(QCoreApplication::applicationFilePath());
+    if (appExe.isEmpty() || !QFile::exists(appExe)) return;
+    QString appDir = QFileInfo(appExe).absolutePath();
+
+    QSettings checkReg("HKEY_CURRENT_USER\\Software\\Classes\\.flxsch\\PersistentHandler", QSettings::NativeFormat);
+    QString currentHandler = checkReg.value(".").toString();
+    if (!force && currentHandler == "{5e941d80-bf96-11cd-b579-08002b30bfeb}") {
+        return; // Already registered
+    }
+
+    struct FileTypeAssoc {
+        const char* ext;
+        const char* progId;
+        const char* desc;
+        const char* contentType;
+    };
+
+    const FileTypeAssoc assocs[] = {
+        { ".flxsch",    "VioraEDA.Schematic.1",  "VioraEDA Schematic Document", "application/x-viora-schematic" },
+        { ".fluxsch",   "VioraEDA.Schematic.1",  "VioraEDA Schematic Document", "application/x-viora-schematic" },
+        { ".flux",      "VioraEDA.FluxScript.1", "FluxScript Source Document",   "text/plain" },
+        { ".flxpcb",    "VioraEDA.PCB.1",        "VioraEDA PCB Layout Document", "application/x-viora-pcb" },
+        { ".cir",       "VioraEDA.Netlist.1",    "SPICE Netlist Document",       "text/plain" },
+        { ".sp",        "VioraEDA.Netlist.1",    "SPICE Netlist Document",       "text/plain" },
+        { ".asc",       "VioraEDA.Schematic.1",  "Schematic Document",           "text/plain" },
+        { ".kicad_sch", "VioraEDA.Schematic.1",  "Schematic Document",           "text/plain" },
+        { ".kicad_pcb", "VioraEDA.PCB.1",        "PCB Layout Document",          "text/plain" },
+    };
+
+    QString openCmd = QString("\"%1\" \"%2\"").arg(appExe, "%1");
+
+    for (const auto& a : assocs) {
+        QString progKey = QString("HKEY_CURRENT_USER\\Software\\Classes\\%1").arg(a.progId);
+        QSettings regProg(progKey, QSettings::NativeFormat);
+        regProg.setValue(".", a.desc);
+        regProg.setValue("FriendlyTypeName", a.desc);
+        regProg.setValue("DefaultIcon/.", QString("%1,0").arg(appExe));
+        regProg.setValue("shell/open/command/.", openCmd);
+        regProg.setValue("shell/open/FriendlyAppName", "VioraEDA Suite");
+
+        QString extKey = QString("HKEY_CURRENT_USER\\Software\\Classes\\%1").arg(a.ext);
+        QSettings regExt(extKey, QSettings::NativeFormat);
+        regExt.setValue(".", a.progId);
+        regExt.setValue("Content Type", a.contentType);
+        regExt.setValue("PerceivedType", "document");
+        regExt.setValue(QString("OpenWithProgids/%1").arg(a.progId), "");
+        regExt.setValue("PersistentHandler/.", "{5e941d80-bf96-11cd-b579-08002b30bfeb}");
+    }
+
+    QSettings regApp("HKEY_CURRENT_USER\\Software\\Classes\\Applications\\VioraEDA.exe", QSettings::NativeFormat);
+    regApp.setValue("FriendlyAppName", "VioraEDA Suite");
+    regApp.setValue("shell/open/command/.", openCmd);
+    for (const auto& a : assocs) {
+        regApp.setValue(QString("SupportedTypes/%1").arg(a.ext), "");
+    }
+
+    QSettings regAppPath("HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\App Paths\\VioraEDA.exe", QSettings::NativeFormat);
+    regAppPath.setValue(".", appExe);
+    regAppPath.setValue("Path", QString("%1").arg(appDir));
+
+    SHChangeNotify(SHCNE_ASSOCCHANGED, SHCNF_IDLIST | SHCNF_FLUSHNOWAIT, nullptr, nullptr);
 }
 #endif
 
@@ -207,6 +273,14 @@ int main(int argc, char *argv[])
             std::cout.flush();
             std::_Exit(0);
         }
+        if (a == "--register-associations") {
+#if defined(_WIN32) || defined(_WIN64)
+            ensureWindowsFileAssociations(true);
+            std::cout << "VioraEDA Windows file associations registered successfully." << std::endl;
+            std::cout.flush();
+            std::_Exit(0);
+#endif
+        }
     }
 
     // Enable ASan-friendly exit behavior
@@ -228,6 +302,10 @@ int main(int argc, char *argv[])
 #endif
 
     QApplication a(argc, argv);
+
+#if defined(_WIN32) || defined(_WIN64)
+    ensureWindowsFileAssociations();
+#endif
 
 
     // Register callback for dynamic session saving
