@@ -110,6 +110,16 @@
             "execution": {
                 "noTestsAction": "error"
             }
+        },
+        {
+            "name": "msys2-mingw64",
+            "configurePreset": "msys2-mingw64",
+            "output": {
+                "outputOnFailure": true
+            },
+            "execution": {
+                "noTestsAction": "error"
+            }
         }
     ]
 }

@@ -73,6 +73,7 @@ jobs:
       - name: Install system deps (Linux)
         if: runner.os == 'Linux'
         run: |
+          sudo apt update
           sudo apt install -y software-properties-common ccache
           wget -qO - https://apt.llvm.org/llvm-snapshot.gpg.key | sudo apt-key add -
           sudo add-apt-repository "deb https://apt.llvm.org/noble/ llvm-toolchain-noble-21 main"
@@ -81,6 +82,7 @@ jobs:
             build-essential cmake \
             autoconf automake libtool bison flex \
             libnghttp2-dev \
+            libcurl4-openssl-dev \
             libgl1-mesa-dev \
             libpulse-dev \
             llvm-21-dev \
@@ -301,7 +303,7 @@ jobs:
           ldd build/test_sim_rf_math.exe 2>&1 | grep -i "not found" || echo "(no unresolved deps)"
           echo "=== launching ctest ==="
           export QT_QPA_PLATFORM=offscreen
-          bash scripts/ci_ctest.sh --output-on-failure --preset unit -R "^(schematic|core|simulator|rpi|unit_|regression|integration)\."
+          bash scripts/ci_ctest.sh --output-on-failure --preset msys2-mingw64 -R "^(schematic|core|simulator|rpi|unit_|regression|integration)\."
 
   sanitizer:
     runs-on: ubuntu-24.04
@@ -319,6 +321,7 @@ jobs:
 
       - name: Install system deps
         run: |
+          sudo apt update
           sudo apt install -y software-properties-common ccache
           wget -qO - https://apt.llvm.org/llvm-snapshot.gpg.key | sudo apt-key add -
           sudo add-apt-repository "deb https://apt.llvm.org/noble/ llvm-toolchain-noble-21 main"
@@ -327,6 +330,7 @@ jobs:
             build-essential cmake \
             autoconf automake libtool bison flex \
             libnghttp2-dev \
+            libcurl4-openssl-dev \
             libgl1-mesa-dev \
             libpulse-dev \
             llvm-21-dev \
@@ -382,6 +386,7 @@ jobs:
 
       - name: Install system deps
         run: |
+          sudo apt update
           sudo apt install -y software-properties-common ccache
           wget -qO - https://apt.llvm.org/llvm-snapshot.gpg.key | sudo apt-key add -
           sudo add-apt-repository "deb https://apt.llvm.org/noble/ llvm-toolchain-noble-21 main"

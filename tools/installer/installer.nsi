@@ -3,7 +3,16 @@
 
 ; General Configuration
 Name "VioraEDA Suite"
-OutFile "..\..\VioraEDA-v0.2.0-beta-windows-x86_64-Setup.exe"
+
+!ifndef OUTFILE
+!define OUTFILE "..\..\VioraEDA-v0.2.0-beta-windows-x86_64-Setup.exe"
+!endif
+OutFile "${OUTFILE}"
+
+!ifndef VERSION
+!define VERSION "0.2.0-beta"
+!endif
+
 InstallDir "$LOCALAPPDATA\Programs\VioraEDA"
 InstallDirRegKey HKCU "Software\VioraEDA" "InstallDir"
 RequestExecutionLevel user
@@ -37,8 +46,8 @@ VIAddVersionKey "ProductName" "VioraEDA Suite"
 VIAddVersionKey "CompanyName" "Janadasroor Team"
 VIAddVersionKey "LegalCopyright" "Copyright 2026 Janadasroor Team. Apache 2.0"
 VIAddVersionKey "FileDescription" "VioraEDA Suite Installer"
-VIAddVersionKey "FileVersion" "0.2.0-beta"
-VIAddVersionKey "ProductVersion" "0.2.0-beta"
+VIAddVersionKey "FileVersion" "${VERSION}"
+VIAddVersionKey "ProductVersion" "${VERSION}"
 
 Section "MainSection" SEC01
     SetOutPath "$INSTDIR"
@@ -49,11 +58,11 @@ Section "MainSection" SEC01
 
     ; Registry Keys for Application
     WriteRegStr HKCU "Software\VioraEDA" "InstallDir" "$INSTDIR"
-    WriteRegStr HKCU "Software\VioraEDA" "Version" "0.2.0-beta"
+    WriteRegStr HKCU "Software\VioraEDA" "Version" "${VERSION}"
 
     ; Windows Add/Remove Programs Registration
-    WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\VioraEDA" "DisplayName" "VioraEDA Suite (v0.2.0-beta)"
-    WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\VioraEDA" "DisplayVersion" "0.2.0-beta"
+    WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\VioraEDA" "DisplayName" "VioraEDA Suite (${VERSION})"
+    WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\VioraEDA" "DisplayVersion" "${VERSION}"
     WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\VioraEDA" "Publisher" "Janadasroor Team"
     WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\VioraEDA" "UninstallString" '"$INSTDIR\Uninstall.exe"'
     WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\VioraEDA" "QuietUninstallString" '"$INSTDIR\Uninstall.exe" /S'

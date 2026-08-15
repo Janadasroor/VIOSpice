@@ -606,12 +606,7 @@ jobs:
         run: |
           set -e
           export PATH="/mingw64/bin:$PATH"
-          # Bundle the fetched library and build the installer.
-          cmake --preset msys2-mingw64 -DVIOSPICE_BUNDLED_LIB="$HOME/viora-libs" >/dev/null
-          cd build
-          cpack -G NSIS -C Release -B "${{ github.workspace }}/nsis-pkg"
-          # Move the installer to the workspace root for the release upload.
-          mv "${{ github.workspace }}/nsis-pkg"/*.exe "${{ github.workspace }}/"
+          makensis -DOUTFILE="${{ github.workspace }}/VioraEDA-${{ github.ref_name }}-windows-x86_64-Setup.exe" -DVERSION="${{ github.ref_name }}" tools/installer/installer.nsi
           ls -lh "${{ github.workspace }}"/*.exe
 
       - name: Verify package contents (Windows)

@@ -74,11 +74,20 @@ $zipPath = "C:\VioraEDA\VioraEDA-v0.2.0-beta-windows-x86_64.zip"
 if (Test-Path $zipPath) {
     Remove-Item -Force $zipPath
 }
-Compress-Archive -Path "$staging\*" -DestinationPath $zipPath -CompressionLevel Optimal
+if (Test-Path "C:\msys64\usr\bin\bsdtar.exe") {
+    & "C:\msys64\usr\bin\bsdtar.exe" -a -cf "$zipPath" -C "$staging" .
+} else {
+    Compress-Archive -Path "$staging\*" -DestinationPath $zipPath -CompressionLevel Optimal
+}
 
-Copy-Item "C:\VioraEDA\build\VioraEDA_Setup.exe" "C:\VioraEDA\VioraEDA-v0.2.0-beta-windows-x86_64-Setup.exe" -Force
+if (Test-Path "C:\msys64\mingw64\bin\makensis.exe") {
+    Write-Host "Compiling standalone NSIS installer..."
+    & "C:\msys64\mingw64\bin\makensis.exe" -DOUTFILE="C:\VioraEDA\VioraEDA-v0.2.0-beta-windows-x86_64-Setup.exe" -DVERSION="0.2.0-beta" "C:\VioraEDA\tools\installer\installer.nsi"
+} else {
+    Copy-Item "C:\VioraEDA\build\VioraEDA_Setup.exe" "C:\VioraEDA\VioraEDA-v0.2.0-beta-windows-x86_64-Setup.exe" -Force
+}
 
 Write-Host "Release packaging completed successfully!"
 Write-Host "Artifacts:"
 Write-Host "  - ZIP: $zipPath ($( [math]::round((Get-Item $zipPath).Length / 1MB, 2) ) MB)"
-Write-Host "  - Setup: C:\VioraEDA\VioraEDA-v0.2.0-beta-windows-x86_64-Setup.exe"
+Write-Host "  - Setup: C:\VioraEDA\VioraEDA-v0.2.0-beta-windows-x86_64-Setup.exe ($( [math]::round((Get-Item "C:\VioraEDA\VioraEDA-v0.2.0-beta-windows-x86_64-Setup.exe").Length / 1MB, 2) ) MB)"
