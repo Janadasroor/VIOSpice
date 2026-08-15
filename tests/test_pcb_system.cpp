@@ -50,8 +50,8 @@ void TestPCBSystem::testLayerManagerLayerOrder() {
     QCOMPARE(bottom->id(), PCBLayerManager::BottomCopper);
 
     // Verify inner layer dynamic registration (In1.Cu .. In30.Cu)
-    PCBLayer* in1 = mgr.layer(2); // In1.Cu
-    PCBLayer* in2 = mgr.layer(3); // In2.Cu
+    PCBLayer* in1 = mgr.layer(101); // In1.Cu
+    PCBLayer* in2 = mgr.layer(102); // In2.Cu
 
     QVERIFY(in1 != nullptr);
     QVERIFY(in2 != nullptr);
@@ -62,10 +62,11 @@ void TestPCBSystem::testLayerManagerLayerOrder() {
 void TestPCBSystem::testInnerLayerColors() {
     PCBLayerManager& mgr = PCBLayerManager::instance();
 
-    // Verify KiCad standard color palette for inner layers
-    PCBLayer* in1 = mgr.layer(2);
+    // Verify standard color palette for inner layers
+    PCBLayer* in1 = mgr.layer(101);
+    QVERIFY(in1 != nullptr);
     QVERIFY(in1->color().isValid());
-    QCOMPARE(in1->color(), QColor(200, 200, 50)); // KiCad yellow In1 color
+    QCOMPARE(in1->color(), QColor(200, 200, 50));
 }
 
 void TestPCBSystem::testTraceItemGeometry() {
@@ -88,13 +89,13 @@ void TestPCBSystem::testViaItemLayerRange() {
     via.setDrillSize(0.3);
 
     via.setStartLayer(PCBLayerManager::TopCopper); // L1
-    via.setEndLayer(2);                             // In1.Cu (L2)
+    via.setEndLayer(101);                           // In1.Cu (L2)
 
     QCOMPARE(via.pos(), pos);
     QCOMPARE(via.diameter(), 0.6);
     QCOMPARE(via.drillSize(), 0.3);
     QCOMPARE(via.startLayer(), PCBLayerManager::TopCopper);
-    QCOMPARE(via.endLayer(), 2);
+    QCOMPARE(via.endLayer(), 101);
     QCOMPARE(via.viaType(), QString("Blind"));
 }
 
