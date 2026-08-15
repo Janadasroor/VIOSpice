@@ -55,6 +55,7 @@ VioraEDA
 *.png
 *.jpeg
 *.jpg
+!resources/**
 *.sv
 *.flxsch.bak
 test_netlist.cir
