@@ -201,9 +201,12 @@ bool ViaItem::fromJson(const QJsonObject& json) {
 
 PCBItem* ViaItem::clone() const {
     ViaModel* newModel = m_model->clone();
+    QUuid newId = QUuid::createUuid();
+    newModel->setId(newId);
     
     ViaItem* newItem = new ViaItem(newModel, parentItem());
     newItem->m_ownsModel = true;
+    newItem->setId(newId);
     newItem->setName(name());
     newItem->setLayer(layer());
     newItem->m_brush = m_brush;

@@ -1,4 +1,4 @@
-﻿/*
+/*
  * Copyright 2026 Janada Sroor
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -180,16 +180,18 @@ class DrcCommand : public CLICommand {
 public:
     QString name() const override { return "drc"; }
     QString description() const override { return "Run design rules check (DRC) on a PCB layout."; }
-    void setupParser(QCommandLineParser& parser) override {}
+    void setupParser(QCommandLineParser& parser) override {
+        parser.addOption(QCommandLineOption("json", "Output results in JSON format"));
+    }
     QJsonObject inputSchema() const override {
-        return QJsonObject{{"args", QJsonArray{"file.pcb"}}};
+        return QJsonObject{{"args", QJsonArray{"file.pcb"}}, {"options", QJsonObject{{"json", "bool"}}}};
     }
     QJsonObject outputSchema() const override {
         return QJsonObject{};
     }
     int execute(const QStringList& args, const QCommandLineParser& parser) override {
         if (args.isEmpty()) {
-            std::cerr << "Usage: viora drc <file.pcb>" << std::endl;
+            std::cerr << "Usage: viora drc <file.pcb> [options]" << std::endl;
             return 1;
         }
         const QString filePath = args.at(0);
@@ -206,6 +208,27 @@ public:
         if (!g_quiet) std::cout << "Running DRC on " << filePath.toStdString() << "..." << std::endl;
         PCBDRC drc;
         drc.runFullCheck(&scene);
+
+        if (parser.isSet("json")) {
+            QJsonObject out;
+            out["ok"] = (drc.errorCount() == 0);
+            out["file"] = filePath;
+            QJsonArray arr;
+            for (const auto& v : drc.violations()) {
+                QJsonObject vio;
+                vio["severity"] = v.severityString();
+                vio["type"] = v.typeString();
+                vio["message"] = v.message();
+                vio["posX"] = v.location().x();
+                vio["posY"] = v.location().y();
+                arr.append(vio);
+            }
+            out["violations"] = arr;
+            out["errorCount"] = drc.errorCount();
+            out["warningCount"] = drc.warningCount();
+            std::cout << QJsonDocument(out).toJson(QJsonDocument::Compact).toStdString() << std::endl;
+            return drc.errorCount() > 0 ? 1 : 0;
+        }
 
         if (drc.violations().isEmpty()) {
             if (!g_quiet) std::cout << "DRC Passed! No violations found." << std::endl;
@@ -413,109 +436,119 @@ public:
         const QString filePath = args.at(0);
         if (!g_quiet) std::cout << "Project Autofix starting on: " << filePath.toStdString() << "..." << std::endl;
         
-        if (filePath.endsWith(".sch")) {
+        if (filePath.endsWith(".sch") || filePath.endsWith(".flxsch")) {
             QGraphicsScene scene;
             QString pageSize;
             TitleBlockData dummyTB;
-            if (SchematicFileIO::loadSchematic(&scene, filePath, pageSize, dummyTB)) {
-                int fixedCount = 0;
-                
-                // 1. Run Annotation
-                SchematicAnnotator::annotate(&scene, false);
-                if (!g_quiet) std::cout << "  - Reference annotation completed." << std::endl;
+            if (!SchematicFileIO::loadSchematic(&scene, filePath, pageSize, dummyTB)) {
+                std::cerr << "Error loading schematic: " << SchematicFileIO::lastError().toStdString() << std::endl;
+                return 1;
+            }
 
-                // 2. Remove duplicate/redundant wires
-                QList<WireItem*> wires;
-                for (auto* item : scene.items()) {
-                    if (auto* w = dynamic_cast<WireItem*>(item)) wires.append(w);
-                }
+            int fixedCount = 0;
+            
+            // 1. Run Annotation
+            SchematicAnnotator::annotate(&scene, false);
+            if (!g_quiet) std::cout << "  - Reference annotation completed." << std::endl;
 
-                for (int i = 0; i < wires.size(); ++i) {
-                    for (int j = i + 1; j < wires.size(); ++j) {
-                        if (wires[i]->startPoint() == wires[j]->startPoint() && 
-                            wires[i]->endPoint() == wires[j]->endPoint()) {
-                            scene.removeItem(wires[j]);
-                            delete wires[j];
-                            wires.removeAt(j);
-                            j--;
-                            fixedCount++;
-                        }
+            // 2. Remove duplicate/redundant wires
+            QList<WireItem*> wires;
+            for (auto* item : scene.items()) {
+                if (auto* w = dynamic_cast<WireItem*>(item)) wires.append(w);
+            }
+
+            for (int i = 0; i < wires.size(); ++i) {
+                for (int j = i + 1; j < wires.size(); ++j) {
+                    if (wires[i]->startPoint() == wires[j]->startPoint() && 
+                        wires[i]->endPoint() == wires[j]->endPoint()) {
+                        scene.removeItem(wires[j]);
+                        delete wires[j];
+                        wires.removeAt(j);
+                        j--;
+                        fixedCount++;
                     }
                 }
-                
-                if (!g_quiet && fixedCount > 0) std::cout << "  - Removed " << fixedCount << " duplicate wires." << std::endl;
-                
-                if (SchematicFileIO::saveSchematic(&scene, filePath, pageSize)) {
-                    if (!g_quiet) std::cout << "  - Schematic fixed and saved successfully." << std::endl;
-                }
             }
-        } else if (filePath.endsWith(".pcb")) {
+            
+            if (!g_quiet && fixedCount > 0) std::cout << "  - Removed " << fixedCount << " duplicate wires." << std::endl;
+            
+            if (!SchematicFileIO::saveSchematic(&scene, filePath, pageSize)) {
+                std::cerr << "Failed to save schematic: " << SchematicFileIO::lastError().toStdString() << std::endl;
+                return 1;
+            }
+            if (!g_quiet) std::cout << "  - Schematic fixed and saved successfully." << std::endl;
+        } else if (filePath.endsWith(".pcb") || filePath.endsWith(".flxpcb")) {
 #if !VIOSPICE_HAS_PCB
             std::cerr << "PCB features are not available in this build." << std::endl;
             return 1;
 #else
             QGraphicsScene scene;
-            if (PCBFileIO::loadPCB(&scene, filePath)) {
-                int fixedTraces = 0;
-                int snappedPoints = 0;
-                int snappedComponents = 0;
-                PCBDRC drc;
-                double minWidth = drc.rules().minTraceWidth();
-                double gridSize = 0.1;
+            if (!PCBFileIO::loadPCB(&scene, filePath)) {
+                std::cerr << "Error loading PCB: " << PCBFileIO::lastError().toStdString() << std::endl;
+                return 1;
+            }
 
-                auto snap = [&](QPointF p) {
-                    double x = std::round(p.x() / gridSize) * gridSize;
-                    double y = std::round(p.y() / gridSize) * gridSize;
-                    return QPointF(x, y);
-                };
+            int fixedTraces = 0;
+            int snappedPoints = 0;
+            int snappedComponents = 0;
+            PCBDRC drc;
+            double minWidth = drc.rules().minTraceWidth();
+            double gridSize = 0.1;
 
-                QMap<QString, QPointF> pointMap; 
-                auto ptKey = [](QPointF p) { return QString("%1,%2").arg(p.x(), 0, 'f', 4).arg(p.y(), 0, 'f', 4); };
+            auto snap = [&](QPointF p) {
+                double x = std::round(p.x() / gridSize) * gridSize;
+                double y = std::round(p.y() / gridSize) * gridSize;
+                return QPointF(x, y);
+            };
 
-                QList<TraceItem*> traces;
-                for (auto* item : scene.items()) {
-                    if (auto* trace = dynamic_cast<TraceItem*>(item)) {
-                        traces.append(trace);
-                        if (trace->width() < minWidth) {
-                            trace->setWidth(minWidth);
-                            fixedTraces++;
-                        }
-                        pointMap[ptKey(trace->startPoint())] = snap(trace->startPoint());
-                        pointMap[ptKey(trace->endPoint())] = snap(trace->endPoint());
-                    } else if (auto* comp = dynamic_cast<ComponentItem*>(item)) {
-                        QPointF oldPos = comp->pos();
-                        QPointF newPos = snap(oldPos);
-                        if (oldPos != newPos) {
-                            comp->setPos(newPos);
-                            snappedComponents++;
-                        }
+            QMap<QString, QPointF> pointMap; 
+            auto ptKey = [](QPointF p) { return QString("%1,%2").arg(p.x(), 0, 'f', 4).arg(p.y(), 0, 'f', 4); };
+
+            QList<TraceItem*> traces;
+            for (auto* item : scene.items()) {
+                if (auto* trace = dynamic_cast<TraceItem*>(item)) {
+                    traces.append(trace);
+                    if (trace->width() < minWidth) {
+                        trace->setWidth(minWidth);
+                        fixedTraces++;
                     }
-                }
-
-                for (auto* trace : traces) {
-                    QPointF oldS = trace->startPoint();
-                    QPointF oldE = trace->endPoint();
-                    QPointF newS = pointMap[ptKey(oldS)];
-                    QPointF newE = pointMap[ptKey(oldE)];
-
-                    if (newS != oldS || newE != oldE) {
-                        trace->setStartPoint(newS);
-                        trace->setEndPoint(newE);
-                        snappedPoints++;
+                    pointMap[ptKey(trace->startPoint())] = snap(trace->startPoint());
+                    pointMap[ptKey(trace->endPoint())] = snap(trace->endPoint());
+                } else if (auto* comp = dynamic_cast<ComponentItem*>(item)) {
+                    QPointF oldPos = comp->pos();
+                    QPointF newPos = snap(oldPos);
+                    if (oldPos != newPos) {
+                        comp->setPos(newPos);
+                        snappedComponents++;
                     }
-                }
-
-                if (!g_quiet && fixedTraces > 0) std::cout << "  - Adjusted " << fixedTraces << " traces to minimum width (" << minWidth << "mm)." << std::endl;
-                if (!g_quiet && snappedPoints > 0) std::cout << "  - Snapped " << snappedPoints << " trace points to " << gridSize << "mm grid." << std::endl;
-                if (!g_quiet && snappedComponents > 0) std::cout << "  - Realigned " << snappedComponents << " components to " << gridSize << "mm grid." << std::endl;
-                
-                if (PCBFileIO::savePCB(&scene, filePath)) {
-                    if (!g_quiet) std::cout << "  - PCB fixed and saved successfully." << std::endl;
                 }
             }
+
+            for (auto* trace : traces) {
+                QPointF oldS = trace->startPoint();
+                QPointF oldE = trace->endPoint();
+                QPointF newS = pointMap[ptKey(oldS)];
+                QPointF newE = pointMap[ptKey(oldE)];
+
+                if (newS != oldS || newE != oldE) {
+                    trace->setStartPoint(newS);
+                    trace->setEndPoint(newE);
+                    snappedPoints++;
+                }
+            }
+
+            if (!g_quiet && fixedTraces > 0) std::cout << "  - Adjusted " << fixedTraces << " traces to minimum width (" << minWidth << "mm)." << std::endl;
+            if (!g_quiet && snappedPoints > 0) std::cout << "  - Snapped " << snappedPoints << " trace points to " << gridSize << "mm grid." << std::endl;
+            if (!g_quiet && snappedComponents > 0) std::cout << "  - Realigned " << snappedComponents << " components to " << gridSize << "mm grid." << std::endl;
+            
+            if (!PCBFileIO::savePCB(&scene, filePath)) {
+                std::cerr << "Failed to save PCB: " << PCBFileIO::lastError().toStdString() << std::endl;
+                return 1;
+            }
+            if (!g_quiet) std::cout << "  - PCB fixed and saved successfully." << std::endl;
 #endif
         } else {
-            std::cerr << "Error: Autofix only supports .sch and .pcb files." << std::endl;
+            std::cerr << "Error: Autofix only supports .flxsch, .sch, .flxpcb, and .pcb files." << std::endl;
             return 1;
         }
         return 0;

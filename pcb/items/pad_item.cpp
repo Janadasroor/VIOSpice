@@ -393,9 +393,12 @@ bool PadItem::fromJson(const QJsonObject& json) {
 PCBItem* PadItem::clone() const {
     m_model->setNetName(netName());
     PadModel* newModel = m_model->clone();
+    QUuid newId = QUuid::createUuid();
+    newModel->setId(newId);
     
     PadItem* newItem = new PadItem(newModel, parentItem());
     newItem->m_ownsModel = true;
+    newItem->setId(newId);
     newItem->setName(name());
     newItem->setNetName(netName());
     newItem->setLayer(layer());

@@ -603,6 +603,34 @@ public:
             }
 
             ECOPackage pkg = NetlistGenerator::generateECOPackage(&schematicScene, QFileInfo(sourceSchematic).absolutePath(), nullptr);
+
+            // Filter components marked for PCB exclusion
+            QList<ECOComponent> filteredComps;
+            QSet<QString> excludedRefs;
+            for (const auto& comp : pkg.components) {
+                if (!comp.excludeFromPcb) {
+                    filteredComps.append(comp);
+                } else {
+                    excludedRefs.insert(comp.reference);
+                }
+            }
+            pkg.components = filteredComps;
+
+            // Filter net pins belonging to excluded components
+            for (int i = 0; i < pkg.nets.size(); ++i) {
+                QList<ECOPin> filteredPins;
+                for (const auto& pin : pkg.nets[i].pins) {
+                    if (!excludedRefs.contains(pin.componentRef)) {
+                        filteredPins.append(pin);
+                    }
+                }
+                pkg.nets[i].pins = filteredPins;
+            }
+            // Remove empty nets
+            pkg.nets.erase(std::remove_if(pkg.nets.begin(), pkg.nets.end(), [](const ECONet& n){
+                return n.pins.isEmpty();
+            }), pkg.nets.end());
+
             QStringList footprints;
             for (const auto& r : LibraryIndex::instance().search("", "Footprint")) {
                 footprints.append(r.name);
@@ -1126,8 +1154,17 @@ public:
             GerberExportSettings settings;
             settings.outputDirectory = outputPath;
 
-            const auto& layers = PCBLayerManager::instance().layers();
-            for (const auto& layer : layers) {
+            QList<PCBLayer> exportLayers;
+            for (PCBLayer* cl : PCBLayerManager::instance().copperLayers()) {
+                if (cl) exportLayers.append(*cl);
+            }
+            for (const auto& layer : PCBLayerManager::instance().layers()) {
+                if (!layer.isCopperLayer()) {
+                    exportLayers.append(layer);
+                }
+            }
+
+            for (const auto& layer : exportLayers) {
                 QString safeName = layer.name().toLower().replace(' ', '_');
                 QString filePath = outDir.filePath(safeName + ".gbr");
                 if (GerberExporter::exportLayer(&scene, layer.id(), filePath, settings)) {
@@ -1407,6 +1444,34 @@ public:
         }
 
         ECOPackage pkg = NetlistGenerator::generateECOPackage(&schematicScene, QFileInfo(schematicPath).absolutePath(), nullptr);
+
+        // Filter components marked for PCB exclusion
+        QList<ECOComponent> filteredComps;
+        QSet<QString> excludedRefs;
+        for (const auto& comp : pkg.components) {
+            if (!comp.excludeFromPcb) {
+                filteredComps.append(comp);
+            } else {
+                excludedRefs.insert(comp.reference);
+            }
+        }
+        pkg.components = filteredComps;
+
+        // Filter net pins belonging to excluded components
+        for (int i = 0; i < pkg.nets.size(); ++i) {
+            QList<ECOPin> filteredPins;
+            for (const auto& pin : pkg.nets[i].pins) {
+                if (!excludedRefs.contains(pin.componentRef)) {
+                    filteredPins.append(pin);
+                }
+            }
+            pkg.nets[i].pins = filteredPins;
+        }
+        // Remove empty nets
+        pkg.nets.erase(std::remove_if(pkg.nets.begin(), pkg.nets.end(), [](const ECONet& n){
+            return n.pins.isEmpty();
+        }), pkg.nets.end());
+
         QStringList footprints;
         for (const auto& r : LibraryIndex::instance().search("", "Footprint")) {
             footprints.append(r.name);

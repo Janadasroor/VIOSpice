@@ -64,11 +64,17 @@ public:
         int minY = static_cast<int>(std::floor(rect.top() / m_cellSize));
         int maxY = static_cast<int>(std::floor(rect.bottom() / m_cellSize));
 
+        QSet<T> seen;
         for (int x = minX; x <= maxX; ++x) {
             for (int y = minY; y <= maxY; ++y) {
                 auto it = m_grid.find({x, y});
                 if (it != m_grid.end()) {
-                    results.append(it.value());
+                    for (const auto& item : it.value()) {
+                        if (!seen.contains(item)) {
+                            seen.insert(item);
+                            results.append(item);
+                        }
+                    }
                 }
             }
         }

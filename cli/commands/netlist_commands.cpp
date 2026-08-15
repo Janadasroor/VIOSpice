@@ -1,4 +1,4 @@
-﻿/*
+/*
  * Copyright 2026 Janada Sroor
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -1888,9 +1888,20 @@ public:
         parser.addOption(QCommandLineOption("max-step", "Maximum timestep for live mode", "time", "1e-3"));
         parser.addOption(QCommandLineOption("max-time", "Maximum simulation time for live mode", "time", "0"));
         parser.addOption(QCommandLineOption("max-pts", "Maximum data points for live mode", "count", "100000"));
+        parser.addOption(QCommandLineOption("json", "Output results in JSON format"));
+        parser.addOption(QCommandLineOption("robust", "Enable robust convergence options"));
     }
     QJsonObject inputSchema() const override {
-        return QJsonObject{};
+        return QJsonObject{
+            {"args", QJsonArray{"file.flxsch"}},
+            {"options", QJsonObject{
+                {"analysis", "string (op, tran, ac, live)"},
+                {"step", "string"},
+                {"stop", "string"},
+                {"json", "bool"},
+                {"robust", "bool"}
+            }}
+        };
     }
     QJsonObject outputSchema() const override {
         return QJsonObject{};
@@ -1909,7 +1920,7 @@ public:
             return 1;
         }
 
-        printInfo("Simulating circuit " + filePath + " (Ngspice backend)...");
+        if (!g_quiet) printInfo("Simulating circuit " + filePath + " (Ngspice backend)...");
         
         QString analysisType = parser.value("analysis").toLower();
         SpiceNetlistGenerator::SimulationParams spiceParams;
@@ -1918,7 +1929,7 @@ public:
         if (analysisType == "live") {
             t = SimAnalysisType::RealTime;
 
-            printInfo(QString("  - Type: Interactive Live (MaxStep=%1s, MaxTime=%2s, MaxPts=%3)")
+            if (!g_quiet) printInfo(QString("  - Type: Interactive Live (MaxStep=%1s, MaxTime=%2s, MaxPts=%3)")
                       .arg(parser.value("max-step")).arg(parser.value("max-time")).arg(parser.value("max-pts")));
 
             double maxStep = 1e-3;
@@ -1959,7 +1970,7 @@ public:
                 std::cerr << "Interactive simulation failed: " << lastError.toStdString() << std::endl;
                 return 1;
             }
-            printInfo("Interactive simulation completed.");
+            if (!g_quiet) printInfo("Interactive simulation completed.");
             std::_Exit(0);
 
         } else if (analysisType == "tran") {
@@ -1969,21 +1980,29 @@ public:
             spiceParams.step = parser.value("step");
             if (spiceParams.stop.isEmpty()) spiceParams.stop = "10m";
             if (spiceParams.step.isEmpty()) spiceParams.step = "100u";
-            printInfo(QString("  - Type: Transient (Stop=%1, Step=%2)").arg(spiceParams.stop).arg(spiceParams.step));
+            if (!g_quiet) printInfo(QString("  - Type: Transient (Stop=%1, Step=%2)").arg(spiceParams.stop).arg(spiceParams.step));
         } else if (analysisType == "ac") {
             t = SimAnalysisType::AC;
             spiceParams.type = SpiceNetlistGenerator::AC;
             spiceParams.start = "10";
             spiceParams.stop = "1meg";
             spiceParams.step = "100";
-            printInfo("  - Type: AC Sweep (10Hz to 1MHz)");
+            if (!g_quiet) printInfo("  - Type: AC Sweep (10Hz to 1MHz)");
         } else {
             t = SimAnalysisType::OP;
             spiceParams.type = SpiceNetlistGenerator::OP;
-            printInfo("  - Type: DC Operating Point");
+            if (!g_quiet) printInfo("  - Type: DC Operating Point");
         }
 
         auto result = SpiceNetlistGenerator::generate(&scene, QFileInfo(filePath).absolutePath(), nullptr, spiceParams);
+        SimManager::instance().m_pinToNetMap = result.componentPins;
+        SimManager::instance().compileFluxScripts(&scene);
+
+        QString netlistText = result.netlist;
+        if (parser.isSet("robust")) {
+            netlistText += "\n.options gmin=1e-9 abstol=1e-10 reltol=1e-3 chgtol=1e-13 method=gear\n";
+            netlistText += ".options rshunt=10Meg\n";
+        }
         
         QTemporaryFile tempNetlist(QDir::tempPath() + "/viospice_cli_XXXXXX.cir");
         tempNetlist.setAutoRemove(false);
@@ -1993,7 +2012,7 @@ public:
         }
         {
             QTextStream out(&tempNetlist);
-            out << result.netlist;
+            out << netlistText;
         }
         tempNetlist.close();
 

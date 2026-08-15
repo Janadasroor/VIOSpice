@@ -309,9 +309,12 @@ bool CopperPourItem::fromJson(const QJsonObject& json) {
 
 PCBItem* CopperPourItem::clone() const {
     CopperPourModel* newModel = m_model->clone();
+    QUuid newId = QUuid::createUuid();
+    newModel->setId(newId);
     
     CopperPourItem* newItem = new CopperPourItem(newModel, parentItem());
     newItem->m_ownsModel = true;
+    newItem->setId(newId);
     newItem->setName(name());
     newItem->setLayer(layer());
     return newItem;

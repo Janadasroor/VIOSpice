@@ -184,9 +184,12 @@ bool TraceItem::fromJson(const QJsonObject& json) {
 
 PCBItem* TraceItem::clone() const {
     TraceModel* newModel = m_model->clone();
+    QUuid newId = QUuid::createUuid();
+    newModel->setId(newId);
     
     TraceItem* newItem = new TraceItem(newModel, parentItem());
     newItem->m_ownsModel = true; // New item owns the cloned model
+    newItem->setId(newId);
     newItem->setName(name());
     newItem->setLayer(layer());
     newItem->m_pen = m_pen;

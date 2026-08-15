@@ -159,7 +159,7 @@ void PCBLayerManager::initializeStandardLayers() {
     };
 
     for (int i = 1; i <= 30; ++i) {
-        int layerId = 1 + i; // 2..31
+        int layerId = 100 + i; // 101..130 (Internal copper layers start at 101)
         PCBLayer inLayer(layerId, QString("In%1.Cu").arg(i), PCBLayer::Copper, PCBLayer::Internal);
         QColor color = kicadCopperColors[(i - 1) % kicadCopperColors.size()];
         inLayer.setColor(color);
@@ -182,29 +182,19 @@ void PCBLayerManager::initializeStandardLayers() {
     m_layers.append(PCBLayer(TopAdhesive, "Top Adhesive", PCBLayer::Adhesive, PCBLayer::Top));
     m_layers.append(PCBLayer(BottomAdhesive, "Bottom Adhesive", PCBLayer::Adhesive, PCBLayer::Bottom));
 
-    // Mechanical documentation layers
+    // Courtyard layers
     m_layers.append(PCBLayer(TopCourtyard, "Top Courtyard", PCBLayer::Courtyard, PCBLayer::Top));
     m_layers.append(PCBLayer(BottomCourtyard, "Bottom Courtyard", PCBLayer::Courtyard, PCBLayer::Bottom));
+
+    // Fabrication layers
     m_layers.append(PCBLayer(TopFabrication, "Top Fabrication", PCBLayer::Fabrication, PCBLayer::Top));
     m_layers.append(PCBLayer(BottomFabrication, "Bottom Fabrication", PCBLayer::Fabrication, PCBLayer::Bottom));
 
-    // User documentation & ECO layers
-    m_layers.append(PCBLayer(UserDrawings, "User Drawings", PCBLayer::UserDrawings, PCBLayer::Both));
-    m_layers.append(PCBLayer(UserComments, "User Comments", PCBLayer::UserComments, PCBLayer::Both));
-    m_layers.append(PCBLayer(UserEco1, "User ECO1", PCBLayer::UserEco, PCBLayer::Both));
-    m_layers.append(PCBLayer(UserEco2, "User ECO2", PCBLayer::UserEco, PCBLayer::Both));
-    m_layers.append(PCBLayer(Margin, "Margin", PCBLayer::Margin, PCBLayer::Both));
+    // Board outline
+    m_layers.append(PCBLayer(EdgeCuts, "Edge.Cuts", PCBLayer::EdgeCuts, PCBLayer::Both));
 
-    // Mechanical layers
-    m_layers.append(PCBLayer(EdgeCuts, "Edge Cuts", PCBLayer::EdgeCuts, PCBLayer::Both));
-    m_layers.append(PCBLayer(Drills, "Drills", PCBLayer::Drill, PCBLayer::Both));
-
-    // User mechanical reference layers 1-9
-    for (int i = 1; i <= 9; ++i) {
-        m_layers.append(PCBLayer(User1 + (i - 1), QString("User %1").arg(i), PCBLayer::UserDefined, PCBLayer::Both));
-    }
-
-    emit layerListChanged();
+    // Margin
+    m_layers.append(PCBLayer(55, "Margin", PCBLayer::Margin, PCBLayer::Both));
 }
 
 PCBLayer* PCBLayerManager::layer(int id) {
@@ -218,7 +208,7 @@ PCBLayer* PCBLayerManager::layer(int id) {
 
 PCBLayer* PCBLayerManager::layer(const QString& name) {
     for (int i = 0; i < m_layers.size(); ++i) {
-        if (m_layers[i].name() == name) {
+        if (m_layers[i].name().compare(name, Qt::CaseInsensitive) == 0) {
             return &m_layers[i];
         }
     }
@@ -230,12 +220,9 @@ PCBLayer* PCBLayerManager::activeLayer() {
 }
 
 void PCBLayerManager::setActiveLayer(int id) {
-    if (m_activeLayerId != id) {
-        PCBLayer* l = layer(id);
-        if (l && !l->isLocked()) {
-            m_activeLayerId = id;
-            emit activeLayerChanged(id);
-        }
+    if (layer(id) && m_activeLayerId != id) {
+        m_activeLayerId = id;
+        emit activeLayerChanged(id);
     }
 }
 
@@ -256,8 +243,9 @@ void PCBLayerManager::setLayerVisible(int id, bool visible) {
 
 void PCBLayerManager::setLayerLocked(int id, bool locked) {
     PCBLayer* l = layer(id);
-    if (l) {
+    if (l && l->isLocked() != locked) {
         l->setLocked(locked);
+        emit layerLockedChanged(id, locked);
     }
 }
 
@@ -270,9 +258,17 @@ void PCBLayerManager::toggleLayerVisibility(int id) {
 
 QList<PCBLayer*> PCBLayerManager::copperLayers() {
     QList<PCBLayer*> result;
-    for (int i = 0; i < m_layers.size(); ++i) {
-        if (m_layers[i].isCopperLayer()) {
-            result.append(&m_layers[i]);
+    if (auto* top = layer(TopCopper)) {
+        result.append(top);
+    }
+    for (int i = 1; i <= m_copperLayerCount - 2; ++i) {
+        if (auto* in = layer(100 + i)) {
+            result.append(in);
+        }
+    }
+    if (m_copperLayerCount >= 2) {
+        if (auto* bot = layer(BottomCopper)) {
+            result.append(bot);
         }
     }
     return result;
@@ -285,16 +281,6 @@ int PCBLayerManager::copperLayerCount() const {
 void PCBLayerManager::setCopperLayerCount(int count) {
     if (count != m_copperLayerCount && count >= 2 && count <= 32) {
         m_copperLayerCount = count;
-        
-        // Ensure standard layers exist
-        initializeStandardLayers();
-        
-        // Add internal layers if count > 2
-        for (int i = 1; i < count - 1; ++i) {
-            int id = 100 + i; // Internal layer IDs start at 100
-            m_layers.append(PCBLayer(id, QString("In%1.Cu").arg(i), PCBLayer::Copper, PCBLayer::Internal));
-        }
-
         updateStackupFromLayerCount(count);
         emit layerListChanged();
     }

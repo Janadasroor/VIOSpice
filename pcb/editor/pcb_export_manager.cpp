@@ -721,8 +721,11 @@ bool PCBExportManager::exportPDFHeadless(QGraphicsScene* scene,
 
     QList<int> layerList = opts.layerIds;
     if (layerList.isEmpty()) {
+        for (PCBLayer* cl : PCBLayerManager::instance().copperLayers()) {
+            if (cl) layerList.append(cl->id());
+        }
         for (const auto& l : PCBLayerManager::instance().layers()) {
-            if (l.type() == PCBLayer::Copper || l.type() == PCBLayer::Silkscreen ||
+            if (l.type() == PCBLayer::Silkscreen ||
                 l.type() == PCBLayer::Soldermask || l.type() == PCBLayer::EdgeCuts) {
                 layerList.append(l.id());
             }

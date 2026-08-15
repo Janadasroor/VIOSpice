@@ -171,6 +171,7 @@ public:
 signals:
     void activeLayerChanged(int layerId);
     void layerVisibilityChanged(int layerId, bool visible);
+    void layerLockedChanged(int layerId, bool locked);
     void layerListChanged();
 
 private:

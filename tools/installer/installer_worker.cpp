@@ -580,7 +580,7 @@ bool InstallerWorker::registerFileAssociations() {
 
     QSettings regAppPath("HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\App Paths\\VioraEDA.exe", QSettings::NativeFormat);
     regAppPath.setValue(".", appExe);
-    regAppPath.setValue("Path", QString("%1\\bin").arg(targetDir));
+    regAppPath.setValue("Path", binDir);
 
     // Asynchronous shell notification without blocking UI
     SHChangeNotify(SHCNE_ASSOCCHANGED, SHCNF_IDLIST | SHCNF_FLUSHNOWAIT, nullptr, nullptr);

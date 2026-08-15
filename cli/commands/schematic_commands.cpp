@@ -1,4 +1,4 @@
-﻿/*
+/*
  * Copyright 2026 Janada Sroor
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -425,16 +425,18 @@ class ErcCommand : public CLICommand {
 public:
     QString name() const override { return "erc"; }
     QString description() const override { return "Run electrical rules check (ERC) on a schematic."; }
-    void setupParser(QCommandLineParser& parser) override {}
+    void setupParser(QCommandLineParser& parser) override {
+        parser.addOption(QCommandLineOption("json", "Output results in JSON format"));
+    }
     QJsonObject inputSchema() const override {
-        return QJsonObject{{"args", QJsonArray{"file.flxsch"}}};
+        return QJsonObject{{"args", QJsonArray{"file.flxsch"}}, {"options", QJsonObject{{"json", "bool"}}}};
     }
     QJsonObject outputSchema() const override {
         return QJsonObject{};
     }
     int execute(const QStringList& args, const QCommandLineParser& parser) override {
         if (args.isEmpty()) {
-            std::cerr << "Usage: viora erc <file.flxsch>" << std::endl;
+            std::cerr << "Usage: viora erc <file.flxsch> [options]" << std::endl;
             return 1;
         }
         QString filePath = args.at(0);
@@ -446,17 +448,46 @@ public:
             return 1;
         }
 
-        printInfo("Running ERC on " + filePath + "...");
+        if (!g_quiet) std::cout << "Running ERC on " << filePath.toStdString() << "..." << std::endl;
         auto violations = SchematicERC::run(&scene, QFileInfo(filePath).absolutePath());
 
+        if (parser.isSet("json")) {
+            QJsonObject out;
+            QJsonArray arr;
+            int errCount = 0;
+            int warnCount = 0;
+            for (const auto& v : violations) {
+                QJsonObject item;
+                QString sev = (v.severity == ERCViolation::Error) ? "Error" : "Warning";
+                item["severity"] = sev;
+                item["message"] = v.message;
+                item["x"] = v.position.x();
+                item["y"] = v.position.y();
+                arr.append(item);
+                if (v.severity == ERCViolation::Error) ++errCount;
+                else ++warnCount;
+            }
+            out["ok"] = (errCount == 0);
+            out["file"] = filePath;
+            out["violations"] = arr;
+            out["errorCount"] = errCount;
+            out["warningCount"] = warnCount;
+            std::cout << QJsonDocument(out).toJson(QJsonDocument::Compact).toStdString() << std::endl;
+            return errCount > 0 ? 1 : 0;
+        }
+
         if (violations.isEmpty()) {
-            printInfo("ERC Passed! No issues found.");
+            if (!g_quiet) std::cout << "ERC Passed! No issues found." << std::endl;
         } else {
-            printInfo(QString("ERC found %1 issues:").arg(violations.size()));
+            if (!g_quiet) std::cout << "ERC found " << violations.size() << " issues:" << std::endl;
+            int errCount = 0;
             for (const auto& v : violations) {
                 QString sev = (v.severity == ERCViolation::Error) ? "Error" : "Warning";
-                printInfo(QString("  [%1] %2 at (%3, %4)").arg(sev).arg(v.message).arg(v.position.x()).arg(v.position.y()));
+                if (!g_quiet) std::cout << "  [" << sev.toStdString() << "] " << v.message.toStdString()
+                                        << " at (" << v.position.x() << ", " << v.position.y() << ")" << std::endl;
+                if (v.severity == ERCViolation::Error) ++errCount;
             }
+            return errCount > 0 ? 1 : 0;
         }
         return 0;
     }

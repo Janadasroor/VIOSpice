@@ -388,9 +388,12 @@ bool ComponentItem::fromJson(const QJsonObject& json) {
 
 PCBItem* ComponentItem::clone() const {
     ComponentModel* newModel = m_model->clone();
+    QUuid newId = QUuid::createUuid();
+    newModel->setId(newId);
     
     ComponentItem* newItem = new ComponentItem(newModel, parentItem());
     newItem->m_ownsModel = true;
+    newItem->setId(newId);
     newItem->setName(name());
     newItem->setLayer(layer());
     return newItem;
