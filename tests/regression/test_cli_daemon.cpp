@@ -120,6 +120,18 @@ int main(int argc, char* argv[]) {
                 "`viora stop` should report the daemon was stopped");
         std::cout << "ok: `viora stop` shut the daemon down\n";
 
+        // 5. When VIORA_NO_DAEMON=1 is set, commands run in-process and do NOT
+        // spawn a background daemon.
+        QProcessEnvironment noDaemonEnv;
+        noDaemonEnv.insert("VIORA_NO_DAEMON", "1");
+        RunResult direct = runViora({"--help"}, noDaemonEnv, 30000);
+        require(direct.exitCode == 0,
+                "`viora --help` with VIORA_NO_DAEMON=1 should exit 0, got " +
+                    std::to_string(direct.exitCode));
+        require(!QString::fromUtf8(direct.stderrData).contains("starting background daemon"),
+                "VIORA_NO_DAEMON=1 should not print daemon startup banner");
+        std::cout << "ok: VIORA_NO_DAEMON=1 runs in-process without daemon\n";
+
         std::cout << "cli.daemon: all tests passed\n";
         return 0;
     } catch (const std::exception& e) {
