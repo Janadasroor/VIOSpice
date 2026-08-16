@@ -26,6 +26,7 @@ int runNetlist(const QString &cirPath, const QString &analysis) {
 }
 
 int main(int argc, char *argv[]) {
+    qputenv("VIORA_NO_DAEMON", "1");
     QCoreApplication app(argc, argv);
 
     if (argc < 2) {

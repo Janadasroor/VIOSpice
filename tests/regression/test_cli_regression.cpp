@@ -84,6 +84,7 @@ QJsonArray findSignalValues(const QJsonArray& signalList, const QString& name) {
 }
 
 int main(int argc, char* argv[]) {
+    qputenv("VIORA_NO_DAEMON", "1");
     QCoreApplication app(argc, argv);
     if (argc < 2) {
         std::cerr << "Usage: test_cli_regression <fixtures_dir>" << std::endl;

@@ -35,10 +35,12 @@ void indexLibraryFootprints(FootprintLibrary* lib) {
     if (LibraryIndex::instance().hasLibrary(lib->name(), "Footprint")) {
         return;
     }
+    LibraryIndex::instance().beginTransaction();
     for (const QString& name : lib->getFootprintNames()) {
         const FootprintDefinition def = lib->getFootprint(name);
         LibraryIndex::instance().addFootprint(name, lib->name(), def.category(), buildFootprintTags(def));
     }
+    LibraryIndex::instance().commitTransaction();
 }
 } // namespace
 
@@ -202,17 +204,17 @@ void FootprintLibraryManager::initialize() {
     // Seed a richer default library set in user space on first run.
     createDefaultBuiltInLibrary();
 
-    // 3. Scan for footprint library subdirectories in user footprint root
+    // 3. Scan for footprint libraries in user footprint root (including nested folders)
     QDir userDir(baseDir);
     const QFileInfoList subdirs = userDir.entryInfoList(QDir::Dirs | QDir::NoDotAndDotDot);
     for (const QFileInfo& dirInfo : subdirs) {
-        m_libraries.append(new FootprintLibrary(dirInfo.fileName(), dirInfo.absoluteFilePath()));
+        addLibrary(dirInfo.absoluteFilePath());
     }
 
     // 4. Scan for standalone .fplib libraries dropped into user footprint root.
     const QFileInfoList fplibFiles = userDir.entryInfoList(QStringList() << "*.fplib", QDir::Files);
     for (const QFileInfo& fileInfo : fplibFiles) {
-        m_libraries.append(new FootprintLibrary(fileInfo.baseName(), fileInfo.absoluteFilePath()));
+        addLibrary(fileInfo.absoluteFilePath());
     }
 }
 
@@ -502,29 +504,52 @@ void FootprintLibraryManager::createDefaultBuiltInLibrary() {
 
 void FootprintLibraryManager::addLibrary(const QString& path) {
     QFileInfo info(path);
-    QString name;
+    if (!info.exists()) return;
+
     if (info.isFile()) {
-        name = info.completeBaseName();
-    } else {
+        QString name = info.completeBaseName();
+        for (auto* lib : m_libraries) {
+            if (lib->path() == path) return;
+        }
+        FootprintLibrary* lib = new FootprintLibrary(name, path);
+        m_libraries.append(lib);
+        indexLibraryFootprints(lib);
+        return;
+    }
+
+    QDir dir(path);
+    const QStringList jsonOrFpFiles = dir.entryList(QStringList() << "*.json" << "*.fplib", QDir::Files);
+    if (!jsonOrFpFiles.isEmpty()) {
         QString baseDir = QDir::cleanPath(QDir::homePath() + "/ViospiceLib/footprints");
         QString cleanPath = QDir::cleanPath(path);
+        QString name;
         if (cleanPath.startsWith(baseDir)) {
             name = cleanPath.mid(baseDir.length());
             if (name.startsWith('/')) name = name.mid(1);
         } else {
-            name = QDir(path).dirName();
+            name = dir.dirName();
+        }
+        if (name.isEmpty()) name = "User Library";
+
+        bool exists = false;
+        for (auto* lib : m_libraries) {
+            if (lib->path() == path) {
+                exists = true;
+                break;
+            }
+        }
+        if (!exists) {
+            FootprintLibrary* lib = new FootprintLibrary(name, path);
+            m_libraries.append(lib);
+            indexLibraryFootprints(lib);
         }
     }
-    if (name.isEmpty()) name = "User Library";
-    
-    // Check if already exists
-    for (auto* lib : m_libraries) {
-        if (lib->path() == path) return;
+
+    // Recursively scan subdirectories
+    const QFileInfoList subdirs = dir.entryInfoList(QDir::Dirs | QDir::NoDotAndDotDot);
+    for (const QFileInfo& sub : subdirs) {
+        addLibrary(sub.absoluteFilePath());
     }
-    
-    FootprintLibrary* lib = new FootprintLibrary(name, path);
-    m_libraries.append(lib);
-    indexLibraryFootprints(lib);
 }
 
 FootprintLibrary* FootprintLibraryManager::createLibrary(const QString& name) {

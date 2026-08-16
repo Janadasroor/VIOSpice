@@ -25,6 +25,7 @@
 #include <QJsonArray>
 #include <QLocalServer>
 #include <QLocalSocket>
+#include <QPointer>
 #include <QMessageLogContext>
 #include <QDir>
 #include <QStandardPaths>
@@ -57,6 +58,13 @@
 #endif
 #ifdef Q_OS_WIN
 #include <windows.h>
+#else
+#include <unistd.h>
+#include <fcntl.h>
+#include <sys/wait.h>
+#include <sys/socket.h>
+#include <sys/un.h>
+#include <poll.h>
 #endif
 
 namespace CliDaemon {
@@ -198,16 +206,10 @@ void rotateLogIfLarge(const QString& path) {
     }
 }
 
-// Watchdog: a command running longer than this is killed and its client is
-// answered with an error. Overridable via VIORA_CMD_TIMEOUT (seconds), read
-// identically on both client and daemon so their clocks stay in agreement.
 int commandTimeoutMs() {
-    static const int ms = [] {
-        int secs = qEnvironmentVariableIntValue("VIORA_CMD_TIMEOUT");
-        if (secs <= 0) secs = 120;
-        return secs * 1000;
-    }();
-    return ms;
+    int secs = qEnvironmentVariableIntValue("VIORA_CMD_TIMEOUT");
+    if (secs <= 0) secs = 120;
+    return secs * 1000;
 }
 
 // How long a client waits for a response on top of the watchdog window. The
@@ -412,6 +414,104 @@ int cliRunCommand(QCoreApplication* app, const QStringList& arguments,
 // Client side
 // ---------------------------------------------------------------------------
 
+#ifndef Q_OS_WIN
+int forwardCommand(const QStringList& arguments) {
+    int fd = socket(AF_UNIX, SOCK_STREAM, 0);
+    if (fd < 0) {
+        return -1;
+    }
+
+    struct sockaddr_un addr;
+    memset(&addr, 0, sizeof(addr));
+    addr.sun_family = AF_UNIX;
+    QByteArray nameBytes = socketName().toUtf8();
+    if (!nameBytes.startsWith('/')) {
+        nameBytes.prepend("/tmp/");
+    }
+    strncpy(addr.sun_path, nameBytes.constData(), sizeof(addr.sun_path) - 1);
+
+    if (::connect(fd, (struct sockaddr*)&addr, sizeof(addr)) < 0) {
+        ::close(fd);
+        return -1;
+    }
+
+    QJsonObject request;
+    QJsonArray argvArr;
+    for (const QString& a : arguments) {
+        argvArr.append(a);
+    }
+    request["proto"] = kDaemonProtocol;
+    request["argv"] = argvArr;
+    request["cwd"] = QDir::currentPath();
+    request["timeout"] = commandTimeoutMs();
+
+    const QByteArray payload =
+        QJsonDocument(request).toJson(QJsonDocument::Compact) + "\n";
+    if (::write(fd, payload.constData(), payload.size()) != payload.size()) {
+        ::close(fd);
+        return -1;
+    }
+
+    const qint64 deadline =
+        QDateTime::currentMSecsSinceEpoch() + commandTimeoutMs() +
+        kWorkerInitAllowanceMs;
+
+    std::string response;
+    char buffer[4096];
+    while (response.find('\n') == std::string::npos) {
+        if (QDateTime::currentMSecsSinceEpoch() > deadline) {
+            ::close(fd);
+            return -2;
+        }
+        struct pollfd pfd;
+        pfd.fd = fd;
+        pfd.events = POLLIN;
+        int ret = ::poll(&pfd, 1, 500);
+        if (ret > 0 && (pfd.revents & POLLIN)) {
+            ssize_t n = ::read(fd, buffer, sizeof(buffer));
+            if (n <= 0) {
+                break;
+            }
+            response.append(buffer, n);
+        } else if (ret > 0 && (pfd.revents & (POLLERR | POLLHUP | POLLNVAL))) {
+            break;
+        }
+    }
+    ::close(fd);
+
+    size_t newline = response.find('\n');
+    if (newline == std::string::npos) {
+        return -1;
+    }
+    response.resize(newline);
+
+    QJsonParseError parseError;
+    const QJsonDocument doc =
+        QJsonDocument::fromJson(QByteArray::fromRawData(response.data(), response.size()), &parseError);
+    if (parseError.error != QJsonParseError::NoError || !doc.isObject()) {
+        return -1;
+    }
+
+    const QJsonObject obj = doc.object();
+    const QJsonValue exitVal = obj.value("exit");
+    if (!exitVal.isDouble()) {
+        return -1;
+    }
+    const int exitCode = exitVal.toInt();
+
+    const QByteArray out = obj.value("stdout").toString().toUtf8();
+    const QByteArray err = obj.value("stderr").toString().toUtf8();
+    if (!out.isEmpty()) {
+        std::cout.write(out.constData(), out.size());
+        std::cout.flush();
+    }
+    if (!err.isEmpty()) {
+        std::cerr.write(err.constData(), err.size());
+        std::cerr.flush();
+    }
+    return exitCode;
+}
+#else
 int forwardCommand(const QStringList& arguments) {
     QLocalSocket socket;
     socket.connectToServer(socketName());
@@ -426,10 +526,8 @@ int forwardCommand(const QStringList& arguments) {
     }
     request["proto"] = kDaemonProtocol;
     request["argv"] = argvArr;
-    // The daemon worker persists after this client exits, so relative paths
-    // in the request must resolve against the caller's directory, not the
-    // daemon's (which inherited its CWD from whichever client spawned it).
     request["cwd"] = QDir::currentPath();
+    request["timeout"] = commandTimeoutMs();
 
     socket.write(QJsonDocument(request).toJson(QJsonDocument::Compact) + "\n");
     socket.flush();
@@ -437,17 +535,6 @@ int forwardCommand(const QStringList& arguments) {
         return -1;
     }
 
-    // Total deadline: a command that runs past this still gets its full
-    // response closed (the daemon keeps serving everyone else), but the caller
-    // does not hang forever. Returned as the -2 "stalled" sentinel.
-    //
-    // The daemon-side watchdog only starts its clock once the command has been
-    // dispatched to a live engine worker, but this client-side clock starts the
-    // moment the request is written. After a worker crash the daemon must
-    // respawn the worker (a full one-time library init) before the command can
-    // even begin, so the wait budget has to cover one worker (re)initialization
-    // on top of the watchdog window; otherwise a healthy daemon that is simply
-    // re-warming its engine looks like a stalled command.
     const qint64 deadline =
         QDateTime::currentMSecsSinceEpoch() + commandTimeoutMs() +
         kWorkerInitAllowanceMs;
@@ -457,14 +544,12 @@ int forwardCommand(const QStringList& arguments) {
         if (QDateTime::currentMSecsSinceEpoch() > deadline) {
             return -2; // command still running on the daemon; give up waiting
         }
-        if (!socket.waitForReadyRead(10000)) {
+        if (!socket.waitForReadyRead(500)) {
+            response += socket.readAll();
             if (socket.state() != QLocalSocket::ConnectedState) {
-                break; // daemon went away while running (or after reply)
+                break; // daemon closed the connection (or after reply)
             }
-            if (socket.error() != QLocalSocket::UnknownSocketError) {
-                break;
-            }
-            continue; // timed out, keep waiting
+            continue; // timed out chunk, keep waiting
         }
         response += socket.readAll();
     }
@@ -500,6 +585,7 @@ int forwardCommand(const QStringList& arguments) {
     }
     return exitCode;
 }
+#endif
 
 namespace {
 
@@ -526,7 +612,39 @@ bool spawnDaemon(const QString& program) {
     CloseHandle(pi.hProcess);
     return true;
 #else
-    return QProcess::startDetached(program, QStringList() << "serve");
+    pid_t pid = fork();
+    if (pid < 0) {
+        return false;
+    }
+    if (pid > 0) {
+        int status = 0;
+        waitpid(pid, &status, 0);
+        return WIFEXITED(status) && (WEXITSTATUS(status) == 0);
+    }
+    setsid();
+    pid_t pid2 = fork();
+    if (pid2 < 0) {
+        _exit(1);
+    }
+    if (pid2 > 0) {
+        _exit(0);
+    }
+    int devNull = open("/dev/null", O_RDWR);
+    if (devNull >= 0) {
+        dup2(devNull, STDIN_FILENO);
+        dup2(devNull, STDOUT_FILENO);
+        dup2(devNull, STDERR_FILENO);
+        if (devNull > 2) {
+            close(devNull);
+        }
+    }
+    for (int fd = 3; fd < 1024; ++fd) {
+        close(fd);
+    }
+    QByteArray progBytes = program.toUtf8();
+    char* args[] = {progBytes.data(), const_cast<char*>("serve"), nullptr};
+    execv(progBytes.constData(), args);
+    _exit(1);
 #endif
 }
 
@@ -714,9 +832,10 @@ bool ensureWorker() {
 // ---------------------------------------------------------------------------
 
 struct ClientSession : QObject {
-    QLocalSocket* socket = nullptr;
+    QPointer<QLocalSocket> socket;
     QByteArray buf;
     QJsonObject request;
+    QTimer* connectTimer = nullptr;
     bool done = false;
 };
 
@@ -733,7 +852,7 @@ void connectWorkerSignals(QProcess* worker) {
     QObject::connect(worker, &QProcess::errorOccurred,
                      [](QProcess::ProcessError err) {
                          if (err == QProcess::FailedToStart) {
-                             onWorkerFinished(-1);
+                              onWorkerFinished(-1);
                          }
                      });
 }
@@ -743,6 +862,11 @@ void finishSession(ClientSession* cs) {
     cs->done = true;
     g_sessions.removeAll(cs);
     g_pending.removeAll(cs);
+    if (cs->connectTimer) {
+        cs->connectTimer->stop();
+        cs->connectTimer->deleteLater();
+        cs->connectTimer = nullptr;
+    }
     // Intentionally do NOT clear g_inFlight here. The worker is still running
     // this client's command; when its response frame arrives it is consumed
     // (and dropped, since the session is done) and only then does dispatch
@@ -752,8 +876,11 @@ void finishSession(ClientSession* cs) {
     if (cs->socket) {
         cs->socket->disconnectFromServer();
         cs->socket->deleteLater();
+        cs->socket = nullptr;
     }
-    cs->deleteLater();
+    if (g_inFlight != cs) {
+        cs->deleteLater();
+    }
 }
 
 // Writes the reply and closes the session only once the socket has drained it.
@@ -762,39 +889,33 @@ void finishSession(ClientSession* cs) {
 // open until QLocalSocket::bytesWritten reports everything flushed. The
 // watchdog timer guarantees a slow-to-drain peer cannot hold a session forever.
 void sendResponse(ClientSession* cs, const QJsonObject& obj) {
-    if (!cs || cs->done) return;
+    if (!cs || cs->done || !cs->socket) {
+        if (cs && cs->done && g_inFlight != cs) {
+            cs->deleteLater();
+        }
+        return;
+    }
     const QByteArray out =
         QJsonDocument(obj).toJson(QJsonDocument::Compact) + "\n";
-    if (cs->socket->state() != QLocalSocket::ConnectedState ||
-        cs->socket->bytesToWrite() > 0) {
-        finishSession(cs); // peer already gone or still draining old bytes
+    if (cs->socket->state() != QLocalSocket::ConnectedState) {
+        finishSession(cs);
         return;
     }
 
     cs->socket->write(out);
     cs->socket->flush();
-    if (cs->socket->bytesToWrite() == 0) {
-        finishSession(cs);
-        return;
-    }
-
-    QObject::connect(cs->socket, &QLocalSocket::bytesWritten, cs,
-                     [cs]() {
-                         if (!cs->done && cs->socket->bytesToWrite() == 0) {
-                             finishSession(cs);
-                         }
-                     });
-    QTimer* drain = new QTimer(cs);
-    drain->setSingleShot(true);
-    QObject::connect(drain, &QTimer::timeout, cs,
-                     [cs]() { finishSession(cs); });
-    drain->start(10000);
+    cs->socket->waitForBytesWritten(5000);
 }
 
 void onClientData(ClientSession* cs) {
     if (cs->done) return;
     restartIdleTimer();
-    cs->buf += cs->socket->readAll();
+    if (cs->connectTimer) {
+        cs->connectTimer->stop();
+        cs->connectTimer->deleteLater();
+        cs->connectTimer = nullptr;
+    }
+    cs->buf += cs->socket ? cs->socket->readAll() : QByteArray();
     const int nl = cs->buf.indexOf('\n');
     if (nl < 0) return;
 
@@ -849,7 +970,11 @@ void onWorkerData() {
             resp["exit"] = 1;
             resp["stderr"] =
                 "viora: command flooded the worker pipe and was terminated";
-            sendResponse(cs, resp);
+            if (cs->done) {
+                cs->deleteLater();
+            } else {
+                sendResponse(cs, resp);
+            }
         }
         handleWorkerTerminated(nullptr, -1, QStringLiteral("backpressure"));
         return;
@@ -891,7 +1016,13 @@ void onWorkerData() {
             // one whose response we drop in sendResponse). FIFO is preserved
             // because finishSession never clears the slot early.
             g_inFlight = nullptr;
-            if (cs) sendResponse(cs, obj);
+            if (cs) {
+                if (cs->done) {
+                    cs->deleteLater();
+                } else {
+                    sendResponse(cs, obj);
+                }
+            }
             restartIdleTimer();
             dispatchNext();
         }
@@ -910,17 +1041,22 @@ void handleWorkerTerminated(ClientSession* cs, int code,
         QJsonObject resp;
         resp["exit"] = code ? code : 1;
         resp["stderr"] = stderrMsg;
-        sendResponse(cs, resp);
+        if (cs->done) {
+            cs->deleteLater();
+        } else {
+            sendResponse(cs, resp);
+        }
     }
     g_workerReady = false;
-    QProcess*& worker = workerProcess();
+    QProcess* worker = workerProcess();
+    workerProcess() = nullptr;
     if (worker) {
+        worker->disconnect();
         if (worker->state() != QProcess::NotRunning) {
             worker->kill();
             worker->waitForFinished(2000);
         }
         delete worker;
-        worker = nullptr;
     }
     workerOutBuffer().clear();
     restartIdleTimer(); // command (or its worker) is gone; not busy anymore
@@ -929,6 +1065,9 @@ void handleWorkerTerminated(ClientSession* cs, int code,
 
 void onWorkerFinished(int code) {
     ClientSession* cs = g_inFlight;
+    if (!cs) {
+        return;
+    }
     handleWorkerTerminated(
         cs, code ? code : 1,
         QString("viora: command crashed inside the engine worker (exit "
@@ -936,21 +1075,20 @@ void onWorkerFinished(int code) {
             .arg(code));
 }
 
-// Arms the watchdog for the command about to run: an unresponsive command that
-// outlives commandTimeoutMs is killed exactly like a crash, so one stuck
-// command cannot wedge the daemon for everyone else.
 void startCommandWatchdog(ClientSession* cs) {
-    if (commandTimeoutMs() <= 0) return;
+    int timeoutMs = cs ? cs->request.value("timeout").toInt() : 0;
+    if (timeoutMs <= 0) timeoutMs = commandTimeoutMs();
+    if (timeoutMs <= 0) return;
     QTimer* timer = new QTimer(cs);
     timer->setSingleShot(true);
-    QObject::connect(timer, &QTimer::timeout, cs, [cs]() {
+    QObject::connect(timer, &QTimer::timeout, cs, [cs, timeoutMs]() {
         if (g_inFlight != cs) return;
         handleWorkerTerminated(
             cs, 124,
             QString("viora: command timed out after %1s and was terminated")
-                .arg(commandTimeoutMs() / 1000));
+                .arg(timeoutMs / 1000));
     });
-    timer->start(commandTimeoutMs());
+    timer->start(timeoutMs);
 }
 
 void restartIdleTimer() {
@@ -1032,6 +1170,7 @@ void dispatchNext() {
         req["cwd"] = cs->request.value("cwd");
         worker->write(QJsonDocument(req).toJson(QJsonDocument::Compact) +
                       "\n");
+        worker->waitForBytesWritten(5000);
         startCommandWatchdog(cs);
     }
 }
@@ -1050,11 +1189,15 @@ void onNewConnection(QLocalServer* server) {
                          [cs]() { finishSession(cs); });
 
         // Drop clients that connect but never send a request.
-        QTimer* timer = new QTimer(cs);
-        timer->setSingleShot(true);
-        QObject::connect(timer, &QTimer::timeout, cs,
+        cs->connectTimer = new QTimer(cs);
+        cs->connectTimer->setSingleShot(true);
+        QObject::connect(cs->connectTimer, &QTimer::timeout, cs,
                          [cs]() { finishSession(cs); });
-        timer->start(60000);
+        cs->connectTimer->start(60000);
+
+        if (socket->bytesAvailable() > 0) {
+            onClientData(cs);
+        }
     }
 }
 
@@ -1091,21 +1234,28 @@ int startServer() {
 
     // No daemon is currently listening; clear a socket left by a crashed
     // daemon (if any) before taking over the name.
-    server.removeServer(socketName());
+    QLocalServer::removeServer(socketName());
+    QFile::remove(QDir::tempPath() + QStringLiteral("/") + socketName());
+#ifdef Q_OS_WIN
     // Restrict the named pipe to the owning user only. On Windows the default
     // DACL lets any local account connect; without this, a colleague (or
     // malware) could execute arbitrary viora commands as this user.
     server.setSocketOptions(QLocalServer::UserAccessOption);
+#endif
     if (!server.listen(socketName())) {
         if (server.serverError() == QAbstractSocket::AddressInUseError &&
             socketReachable(socketName())) {
             // A real daemon is already running; nothing to do for us.
             return 1;
         }
-        std::cerr << "viora: daemon failed to listen on "
-                  << socketName().toStdString() << ": "
-                  << server.errorString().toStdString() << "\n";
-        return 1;
+        QLocalServer::removeServer(socketName());
+        QFile::remove(QDir::tempPath() + QStringLiteral("/") + socketName());
+        if (!server.listen(socketName())) {
+            std::cerr << "viora: daemon failed to listen on "
+                      << socketName().toStdString() << ": "
+                      << server.errorString().toStdString() << "\n";
+            return 1;
+        }
     }
 
     QLocalServer* serverPtr = &server;

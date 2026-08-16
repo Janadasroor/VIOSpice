@@ -1,0 +1,7 @@
+* Production Test 126: Diode Clipper variation
+V1 in 0 SIN(0 7.121385383615634 50)
+R1 in out 572.9417921832693
+D1 out 0 D1N4148
+.model D1N4148 D(Is=2.682n N=1.836 Rs=0.5662 Ikf=44.17m Cjo=4p M=0.3333 Vj=0.5 Fc=0.5 Bv=100 Ibv=100u Tt=11.54n)
+.tran 0.1m 0.1
+.end

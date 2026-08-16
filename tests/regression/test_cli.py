@@ -14,7 +14,9 @@ FIXTURES_DIR = Path(__file__).parent / "fixtures"
 def run_viora(args):
     """Helper to run viora and return parsed JSON output."""
     cmd = [VIORA_PATH] + args
-    result = subprocess.run(cmd, capture_output=True, text=True)
+    env = os.environ.copy()
+    env["VIORA_NO_DAEMON"] = "1"
+    result = subprocess.run(cmd, capture_output=True, text=True, env=env)
     if result.returncode != 0:
         # Some commands might return non-zero but still output valid JSON (warnings)
         # but generally we expect 0.

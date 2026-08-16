@@ -42,6 +42,9 @@ struct TestResult {
 
 static bool runSimulation(const QString &cirPath, int timeoutMs = 60000) {
 	QProcess proc;
+	QProcessEnvironment env = QProcessEnvironment::systemEnvironment();
+	env.insert("VIORA_NO_DAEMON", "1");
+	proc.setProcessEnvironment(env);
 	proc.start(QString::fromUtf8(VIO_CMD_PATH),
 		{"netlist-run", cirPath});
 	if (!proc.waitForFinished(timeoutMs)) {
@@ -90,6 +93,7 @@ static bool verifyGoldenReference(const QString &jsonPath, const QString &rawPat
 }
 
 int main(int argc, char *argv[]) {
+	qputenv("VIORA_NO_DAEMON", "1");
 	QCoreApplication app(argc, argv);
 
 	if (argc < 2) {

@@ -72,6 +72,7 @@ int main(int argc, char *argv[]) {
     // selects the offscreen QPA platform to keep headless runs cheap.
     QScopedPointer<QApplication> app;
     app.reset(new QApplication(argc, argv));
+    app->setQuitOnLastWindowClosed(false);
     QCoreApplication::setApplicationName("viora");
     QCoreApplication::setApplicationVersion("1.0");
 

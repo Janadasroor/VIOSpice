@@ -34,6 +34,7 @@ static bool runVioraNetlist(const QString& cirPath) {
 }
 
 void TestVioraLibsSimulation::initTestCase() {
+    qputenv("VIORA_NO_DAEMON", "1");
     // Determine path to viora-libs or ViospiceLib
     QString home = QDir::homePath();
     QString candidate1 = home + "/viora-libs";
