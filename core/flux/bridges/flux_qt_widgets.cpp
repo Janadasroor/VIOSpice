@@ -37,6 +37,7 @@
 #include <QComboBox>
 #include <QCheckBox>
 #include <QLabel>
+#include <iostream>
 #include <mutex>
 #include <cstring>
 #include <cstdint>
@@ -66,7 +67,13 @@ extern "C" {
     }
 
     void flux_qt_msg_box(double title_dbl, double text_dbl) {
-        QMessageBox::information(nullptr, QString::fromUtf8(dbl_to_str(title_dbl)), QString::fromUtf8(dbl_to_str(text_dbl)));
+        QString title = QString::fromUtf8(dbl_to_str(title_dbl));
+        QString text = QString::fromUtf8(dbl_to_str(text_dbl));
+        if (QGuiApplication::platformName() == "offscreen" || !qobject_cast<QApplication*>(QCoreApplication::instance())) {
+            std::cout << "[" << title.toStdString() << "] " << text.toStdString() << std::endl;
+            return;
+        }
+        QMessageBox::information(nullptr, title, text);
     }
 
     // New Widgets: Sliders & LCDs

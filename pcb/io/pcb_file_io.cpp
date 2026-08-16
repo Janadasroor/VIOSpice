@@ -120,6 +120,10 @@ BoardModel* PCBFileIO::sceneToModel(QGraphicsScene* scene) {
             QJsonObject json = item->toJson();
             json["type"] = "Image";
             board->addExtraItem(json);
+        } else if (TeardropItem* item = dynamic_cast<TeardropItem*>(qItem)) {
+            QJsonObject json = item->toJson();
+            json["type"] = "Teardrop";
+            board->addExtraItem(json);
         }
     }
     return board;

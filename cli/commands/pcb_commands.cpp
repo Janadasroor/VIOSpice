@@ -1113,7 +1113,11 @@ public:
         QString pcbPath = args.at(0);
         QString format = parser.value("format").trimmed().toLower();
         QString outputPath = parser.value("output").trimmed();
-        if (outputPath.isEmpty()) outputPath = "./output";
+        if (args.size() > 1 && (!parser.isSet("output") || outputPath.isEmpty() || outputPath == "./output")) {
+            outputPath = args.at(1);
+        } else if (outputPath.isEmpty()) {
+            outputPath = "./output";
+        }
 
         QGraphicsScene scene;
         if (!PCBFileIO::loadPCB(&scene, pcbPath)) {

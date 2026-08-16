@@ -116,9 +116,16 @@ void ResistorItem::paint(QPainter *painter, const QStyleOptionGraphicsItem *opti
 }
 
 QJsonObject ResistorItem::toJson() const {
-    // Start with model serialization (pos, rotation, value, reference, pins, etc.)
+    m_model->setReference(reference());
+    m_model->setValue(value());
+    m_model->setName(name());
+    m_model->setFootprint(footprint());
+    m_model->setPos(QPointF(pos().x(), pos().y()));
+    m_model->setRotation(rotation());
     QJsonObject json = m_model->toJson();
     json["type"] = itemTypeName();
+    json["reference"] = reference();
+    json["value"] = value();
     json["style"] = static_cast<int>(m_style);
     json["pinPadMapping"] = pinPadMappingToJson();
 

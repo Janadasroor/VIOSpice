@@ -195,16 +195,24 @@ public:
     QJsonObject outputSchema() const override { return {}; }
     int execute(const QStringList& args, const QCommandLineParser& parser) override {
         if (args.isEmpty()) {
-            std::cerr << "Usage: viora ext-schema-validate <extension-dir> [--fix]\n";
+            std::cerr << "Usage: viora ext-schema-validate <extension-dir> [--fix] [--json]\n";
             return 1;
         }
 
-        QString extDir = args[0];
+        QString inputTarget = args[0];
         bool autoFix = parser.isSet("fix");
 
-        QFile mf(extDir + "/manifest.json");
+        QString manifestPath = inputTarget;
+        QString extDir = inputTarget;
+        if (QFileInfo(inputTarget).isDir()) {
+            manifestPath = inputTarget + "/manifest.json";
+        } else {
+            extDir = QFileInfo(inputTarget).absolutePath();
+        }
+
+        QFile mf(manifestPath);
         if (!mf.exists()) {
-            std::cerr << "Error: manifest.json not found\n";
+            std::cerr << "Error: manifest.json not found: " << manifestPath.toStdString() << "\n";
             return 1;
         }
 
@@ -226,14 +234,17 @@ public:
         QJsonObject manifest = doc.object();
         int errors = 0;
         bool modified = false;
+        QStringList errorList;
 
         // Validate required fields
         if (manifest["id"].toString().isEmpty()) {
+            errorList << "missing required field 'id'";
             std::cerr << "Error: missing required field 'id'\n";
             errors++;
         }
 
         if (manifest["version"].toString().isEmpty()) {
+            errorList << "missing required field 'version'";
             std::cerr << "Error: missing required field 'version'\n";
             errors++;
             if (autoFix) {
@@ -244,6 +255,7 @@ public:
         }
 
         if (manifest["main"].toString().isEmpty()) {
+            errorList << "missing required field 'main'";
             std::cerr << "Error: missing required field 'main'\n";
             errors++;
             if (autoFix) {
@@ -301,6 +313,7 @@ public:
         QJsonObject deps = manifest["dependencies"].toObject();
         for (auto it = deps.constBegin(); it != deps.constEnd(); ++it) {
             if (!it.value().isString()) {
+                errorList << "dependency '" + it.key() + "' version must be a string";
                 std::cerr << "Error: dependency '" << it.key().toStdString() << "' version must be a string\n";
                 errors++;
             }
@@ -314,17 +327,25 @@ public:
 
         // Auto-fix and save
         if (autoFix && modified) {
-            QFile f(extDir + "/manifest.json");
+            QFile f(manifestPath);
             if (f.open(QIODevice::WriteOnly)) {
                 f.write(QJsonDocument(manifest).toJson(QJsonDocument::Indented));
                 std::cout << "Manifest updated with fixes\n";
             }
         }
 
-        if (errors == 0) {
-            std::cout << "Manifest is valid\n";
+        if (parser.isSet("json")) {
+            QJsonObject out;
+            out["valid"] = (errors == 0);
+            out["errors"] = QJsonArray::fromStringList(errorList);
+            out["manifest"] = manifest;
+            std::cout << QJsonDocument(out).toJson(QJsonDocument::Compact).toStdString() << std::endl;
         } else {
-            std::cerr << errors << " error(s) found\n";
+            if (errors == 0) {
+                std::cout << "Manifest is valid\n";
+            } else {
+                std::cerr << errors << " error(s) found\n";
+            }
         }
 
         return errors == 0 ? 0 : 1;

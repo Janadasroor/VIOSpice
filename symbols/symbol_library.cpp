@@ -598,14 +598,30 @@ bool SymbolLibrary::load(const QString& filePath) {
     }
     
     QJsonObject root = doc.object();
-    QJsonObject libObj = root["library"].toObject();
+    QString libName;
+    QJsonArray symbolsArr;
+
+    if (root["library"].isObject()) {
+        QJsonObject libObj = root["library"].toObject();
+        libName = libObj["name"].toString();
+        symbolsArr = libObj["symbols"].toArray();
+    } else if (root["symbols"].isArray()) {
+        libName = root["library"].toString();
+        symbolsArr = root["symbols"].toArray();
+    } else {
+        qWarning() << "Unrecognized library structure in:" << filePath;
+        return false;
+    }
+
+    if (libName.isEmpty()) {
+        libName = QFileInfo(filePath).baseName();
+    }
     
     QWriteLocker locker(&m_lock);
-    m_name = libObj["name"].toString();
+    m_name = libName;
     m_path = filePath;
     m_symbols.clear();
     
-    QJsonArray symbolsArr = libObj["symbols"].toArray();
     for (const QJsonValue& val : symbolsArr) {
         SymbolDefinition sym = SymbolDefinition::fromJson(val.toObject());
         m_symbols[sym.name()] = sym;
@@ -673,7 +689,7 @@ SymbolLibraryManager& SymbolLibraryManager::instance() {
 }
 
 SymbolLibraryManager::SymbolLibraryManager() : QObject(nullptr) {
-    createDefaultBuiltInLibrary();
+    loadBuiltInLibrary();
 }
 
 SymbolLibraryManager::~SymbolLibraryManager() {

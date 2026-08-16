@@ -157,7 +157,8 @@ public:
             return 1;
         }
         QString filePath = args.at(0);
-        const QString format = parser.value("format").trimmed().toLower();
+        QString format = parser.value("format").trimmed().toLower();
+        if (parser.isSet("json")) format = "json";
         const QString outPath = parser.value("out").trimmed();
         QGraphicsScene scene;
         QString pageSize;
@@ -417,6 +418,17 @@ public:
         out["summary"] = summary;
 
         printJsonValue(out);
+
+        bool hasErrors = false;
+        for (const auto& v : violations) {
+            if (v.severity == ERCViolation::Error || v.severity == ERCViolation::Critical) {
+                hasErrors = true;
+                break;
+            }
+        }
+        if (hasErrors || (!preflightArr.isEmpty()) || (parser.isSet("exit-on-warning") && (!ercIssues.isEmpty() || !preflightArr.isEmpty()))) {
+            return 1;
+        }
         return 0;
     }
 };
@@ -425,9 +437,7 @@ class ErcCommand : public CLICommand {
 public:
     QString name() const override { return "erc"; }
     QString description() const override { return "Run electrical rules check (ERC) on a schematic."; }
-    void setupParser(QCommandLineParser& parser) override {
-        parser.addOption(QCommandLineOption("json", "Output results in JSON format"));
-    }
+    void setupParser(QCommandLineParser& parser) override {}
     QJsonObject inputSchema() const override {
         return QJsonObject{{"args", QJsonArray{"file.flxsch"}}, {"options", QJsonObject{{"json", "bool"}}}};
     }
@@ -790,7 +800,20 @@ public:
                 netlist.addAutoProbe(("V(" + name + ")").toStdString());
             }
         } else {
+            QSet<QString> validSignals;
+            for (int i = 0; i < netlist.nodeCount(); ++i) {
+                const QString name = QString::fromStdString(netlist.nodeName(i)).trimmed();
+                if (!name.isEmpty()) validSignals.insert("V(" + name + ")");
+            }
+            for (const auto& comp : netlist.components()) {
+                const QString name = QString::fromStdString(comp.name).trimmed();
+                if (!name.isEmpty()) validSignals.insert("I(" + name + ")");
+            }
+
             for (const QString& sig : addSignals) {
+                if (!validSignals.contains(sig)) {
+                    std::cerr << "Warning: Signal not found in schematic: " << sig.toStdString() << std::endl;
+                }
                 netlist.addAutoProbe(sig.toStdString());
             }
         }
@@ -967,31 +990,26 @@ public:
                     printJsonValue(out);
                 } else {
                     printInfoStd("Schematic shared: " + fullUrl.toStdString());
-                    if (copyToClipboard || parser.value("copy").isEmpty()) {
+                    if (copyToClipboard) {
                         printInfoStd("URL copied to clipboard");
                     }
                 }
             } else {
                 std::cerr << "Error: Upload failed - " << response.constData() << std::endl;
-                reply->deleteLater();
                 return 1;
             }
-            
-            reply->deleteLater();
         } else {
-            QString encoded = SchematicUrlEncoder::encodeForUrl(data);
-            QString url = "viospice://open?data=" + encoded;
+            QString url = "viospice://open?data=" + SchematicUrlEncoder::encodeForUrl(data);
             
             if (parser.isSet("json")) {
                 QJsonObject out;
                 out["success"] = true;
                 out["url"] = url;
-                out["fitsInUrl"] = true;
-                out["size"] = data.size();
                 printJsonValue(out);
             } else {
-                printInfoStd("Schematic URL (fits in clipboard): " + url.toStdString());
-                if (copyToClipboard || parser.value("copy").isEmpty()) {
+                printInfoStd("Direct share URL (no server needed):");
+                std::cout << url.toStdString() << std::endl;
+                if (copyToClipboard) {
                     printInfoStd("URL copied to clipboard");
                 }
             }

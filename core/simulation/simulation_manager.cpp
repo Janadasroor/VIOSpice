@@ -538,7 +538,9 @@ bool SimulationManager::validateNetlist(const QString& netlist, QString* errorOu
     if (!m_isInitialized) initialize();
 
     { std::lock_guard<std::mutex> lock(m_netlistMutex); m_currentNetlist = netlist; }
-    return loadNetlistInternal(netlist, false, errorOut);
+    bool ok = loadNetlistInternal(netlist, false, errorOut);
+    processBufferedData();
+    return ok;
 }
 
 bool SimulationManager::loadNetlistInternal(const QString& netlist, bool keepStorage, QString* errorOut) {

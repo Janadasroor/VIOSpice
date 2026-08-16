@@ -102,7 +102,7 @@ NetlistToSchematic::ConvertResult NetlistToSchematic::convertToScene(const QStri
             result.componentCount++;
             
             // Advance grid position dynamically based on the symbol's pure rendered width (excluding child text labels)
-            currentX = item->mapRectToScene(item->boundingRect()).right() + GRID_SPACING; // 150px gap between symbols
+            currentX = qRound((item->mapRectToScene(item->boundingRect()).right() + GRID_SPACING) / 10.0) * 10.0;
         } else {
             qWarning() << "NetlistToSchematic: Skipping unrecognized component"
                        << comp.reference << comp.typeName;
@@ -128,16 +128,18 @@ NetlistToSchematic::ConvertResult NetlistToSchematic::convertToScene(const QStri
                 if (pin.pinIndex < connPts.size()) {
                     QPointF pinScenePos = item->mapToScene(connPts[pin.pinIndex]);
 
-                    // Place a GND symbol slightly below the pin
+                    // Place a GND symbol slightly below the pin (snapped to grid)
+                    QPointF gndPos = pinScenePos + QPointF(0, 30);
+                    gndPos = QPointF(qRound(gndPos.x() / 10.0) * 10.0, qRound(gndPos.y() / 10.0) * 10.0);
                     QJsonObject gndProps;
                     SchematicItem* gnd = SchematicItemFactory::instance().createItem(
-                        "GND", pinScenePos + QPointF(0, 30), gndProps);
+                        "GND", gndPos, gndProps);
                     if (gnd) {
                         scene->addItem(gnd);
                         
                         // Create an air wire connecting the pin to the GND symbol's connection point
-                        // The GND symbol's local connection point is at (0, -15)
-                        QPointF gndPinPos = gnd->mapToScene(QPointF(0, -15));
+                        QList<QPointF> gndConn = gnd->connectionPoints();
+                        QPointF gndPinPos = gndConn.isEmpty() ? gndPos : gnd->mapToScene(gndConn[0]);
                         auto* airWire = new WireItem(WireItem::AirWire);
                         airWire->setPoints({pinScenePos, gndPinPos});
                         airWire->setProperty("netName", "GND");
@@ -222,6 +224,7 @@ NetlistToSchematic::ConvertResult NetlistToSchematic::convertToScene(const QStri
     
     // The center of an A4 page corresponds to (0,0) in our layout
     QPointF offset = -totalBounds.center();
+    offset = QPointF(qRound(offset.x() / 10.0) * 10.0, qRound(offset.y() / 10.0) * 10.0);
     
     for (QGraphicsItem* item : scene->items()) {
         if (item->parentItem()) continue; // Sub-items move automatically with parents

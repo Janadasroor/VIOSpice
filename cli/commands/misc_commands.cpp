@@ -6,6 +6,7 @@
 #include "misc_commands.h"
 #include "common.h"
 #include "../command_registry.h"
+#include <QDirIterator>
 
 // Schematic Includes
 #include "flux/schematic/analysis/schematic_annotator.h"
@@ -180,9 +181,7 @@ class DrcCommand : public CLICommand {
 public:
     QString name() const override { return "drc"; }
     QString description() const override { return "Run design rules check (DRC) on a PCB layout."; }
-    void setupParser(QCommandLineParser& parser) override {
-        parser.addOption(QCommandLineOption("json", "Output results in JSON format"));
-    }
+    void setupParser(QCommandLineParser& parser) override {}
     QJsonObject inputSchema() const override {
         return QJsonObject{{"args", QJsonArray{"file.pcb"}}, {"options", QJsonObject{{"json", "bool"}}}};
     }
@@ -331,12 +330,15 @@ public:
         QStringList schFiles;
 
         if (info.isDir()) {
-            QDir dir(filePath);
-            for (const QString& f : dir.entryList({"*.pcb"}, QDir::Files)) pcbFiles << dir.filePath(f);
-            for (const QString& f : dir.entryList({"*.sch"}, QDir::Files)) schFiles << dir.filePath(f);
+            QDirIterator it(filePath, QStringList() << "*.pcb" << "*.sch" << "*.flxsch", QDir::Files, QDirIterator::Subdirectories);
+            while (it.hasNext()) {
+                QString path = it.next();
+                if (path.endsWith(".pcb")) pcbFiles << path;
+                else schFiles << path;
+            }
         } else {
             if (filePath.endsWith(".pcb")) pcbFiles << filePath;
-            else if (filePath.endsWith(".sch")) schFiles << filePath;
+            else if (filePath.endsWith(".sch") || filePath.endsWith(".flxsch")) schFiles << filePath;
         }
 
         // Run DRC on PCBs
@@ -361,7 +363,7 @@ public:
                     violations.append(vio);
                 }
                 pcbReport["violations"] = violations;
-                pcbReport["status"] = drc.errorCount() == 0 ? "Healthy" : "Needs Attention";
+                pcbReport["status"] = violations.isEmpty() ? "Healthy" : "Needs Attention";
             } else {
                 pcbReport["status"] = "Error Loading";
             }
@@ -588,13 +590,17 @@ public:
             return 1;
         }
 
-        if (filePath.endsWith(".sch")) {
+        if (filePath.endsWith(".sch") || filePath.endsWith(".flxsch")) {
             SchematicAPI api(&scene);
             if (!api.load(filePath)) {
                 std::cerr << "Error loading schematic: " << filePath.toStdString() << std::endl;
                 return 1;
             }
             int count = api.executeBatch(scriptDoc.array());
+            if (count == 0 && !scriptDoc.array().isEmpty()) {
+                std::cerr << "Error: No schematic commands could be executed." << std::endl;
+                return 1;
+            }
             if (!g_quiet) std::cout << "Executed " << count << " schematic commands." << std::endl;
             if (api.save(outputPath)) {
                 if (!g_quiet) std::cout << "Saved processed schematic to: " << outputPath.toStdString() << std::endl;
@@ -613,6 +619,10 @@ public:
                 return 1;
             }
             int count = api.executeBatch(scriptDoc.array());
+            if (count == 0 && !scriptDoc.array().isEmpty()) {
+                std::cerr << "Error: No PCB commands could be executed." << std::endl;
+                return 1;
+            }
             if (!g_quiet) std::cout << "Executed " << count << " PCB commands." << std::endl;
             if (api.save(outputPath)) {
                 if (!g_quiet) std::cout << "Saved processed PCB to: " << outputPath.toStdString() << std::endl;
@@ -1125,6 +1135,12 @@ public:
     void setupParser(QCommandLineParser& parser) override {
         parser.addOption(QCommandLineOption("time", "Time value for template execution", "value"));
         parser.addOption(QCommandLineOption("inputs", "Input values for template (comma separated)", "values"));
+        parser.addOption(QCommandLineOption("out", "Output file path", "file"));
+        parser.addOption(QCommandLineOption("output", "Output file path", "file"));
+        parser.addOption(QCommandLineOption("netlist", "Generate netlist only"));
+        parser.addOption(QCommandLineOption("run", "Run simulation"));
+        parser.addOption(QCommandLineOption("tran", "Transient analysis stop time", "stop", "10m"));
+        parser.addOption(QCommandLineOption("gui", "Show GUI window"));
     }
     QJsonObject inputSchema() const override {
         return QJsonObject{};
@@ -1142,7 +1158,13 @@ class ExtensionCommandWrapper : public CLICommand {
 public:
     QString name() const override { return "extension"; }
     QString description() const override { return "Manage C++ extension plugins."; }
-    void setupParser(QCommandLineParser& parser) override {}
+    void setupParser(QCommandLineParser& parser) override {
+        parser.addOption(QCommandLineOption("template", "Template type (empty, panel, calculator)", "type"));
+        parser.addOption(QCommandLineOption("name", "Display name", "name"));
+        parser.addOption(QCommandLineOption("desc", "Description", "desc"));
+        parser.addOption(QCommandLineOption("author", "Author", "author"));
+        parser.addOption(QCommandLineOption("version", "Version", "version"));
+    }
     QJsonObject inputSchema() const override {
         return QJsonObject{};
     }

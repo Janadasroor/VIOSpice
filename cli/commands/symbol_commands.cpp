@@ -1,4 +1,4 @@
-﻿/*
+/*
  * Copyright 2026 Janada Sroor
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -1733,7 +1733,12 @@ public:
         }
         const QString query = args.at(0);
         
-        QList<SymbolLibrary::SymbolInfo> results = SymbolLibraryManager::instance().searchMetadata(query);
+        auto& mgr = SymbolLibraryManager::instance();
+        if (mgr.libraries().isEmpty()) {
+            mgr.loadBuiltInLibrary();
+            mgr.loadUserLibraries(QString());
+        }
+        QList<SymbolLibrary::SymbolInfo> results = mgr.searchMetadata(query);
         
         QJsonObject out;
         out["query"] = query;
@@ -2214,9 +2219,12 @@ public:
 
         if (parser.isSet("json")) {
             QJsonObject res;
-            res["ok"] = true;
+            res["ok"] = (count > 0);
             res["count"] = count;
+            if (count == 0) res["error"] = "No subcircuits found or generated in " + inputPath;
             printJsonValue(res);
+        } else if (count == 0) {
+            std::cerr << "Error: No subcircuits found in " << inputPath.toStdString() << std::endl;
         }
 
         return count > 0 ? 0 : 1;

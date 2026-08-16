@@ -5,6 +5,7 @@
 
 #include "pcb_item_registry.h"
 #include "../items/image_item.h"
+#include "../items/teardrop_item.h"
 
 void PCBItemRegistry::registerBuiltInItems() {
     static bool initialized = false;
@@ -52,5 +53,9 @@ void PCBItemRegistry::registerBuiltInItems() {
 
     factory.registerItemType("Image", [](QPointF, const QJsonObject&, QGraphicsItem* parent) -> PCBItem* {
         return new PCBImageItem(parent);
+    });
+
+    factory.registerItemType("Teardrop", [](QPointF, const QJsonObject&, QGraphicsItem* parent) -> PCBItem* {
+        return new TeardropItem(parent);
     });
 }

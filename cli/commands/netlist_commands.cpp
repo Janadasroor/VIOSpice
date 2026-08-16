@@ -491,7 +491,7 @@ public:
     QString name() const override { return "netlist-run"; }
     QString description() const override { return "Run simulation on standard SPICE netlist or schematic."; }
     void setupParser(QCommandLineParser& parser) override {
-        parser.addOption(QCommandLineOption("timeout", "Netlist run timeout (e.g. 10s, 5000ms)", "time", "10s"));
+        parser.addOption(QCommandLineOption("timeout", "Netlist run timeout (e.g. 60s, 5000ms)", "time", "60s"));
         parser.addOption(QCommandLineOption("compat", "Apply backward compatibility transformations (for .cir files)"));
         parser.addOption(QCommandLineOption("robust", "Add robust simulation options to solver"));
         parser.addOption(QCommandLineOption("export-raw", "Export raw data after netlist-run (csv|json)", "rawformat"));
@@ -1709,14 +1709,34 @@ public:
             }
             return 0;
         }
+        const QString outPath = parser.value("out").trimmed();
         if (format == "json") {
             QJsonObject out = rawToJson(data, signalNames, indices, maxPointsValue, tStart, tEnd, baseSignalIndex);
             out["file"] = filePath;
-            printJsonValue(out);
+            if (!outPath.isEmpty()) {
+                QFile f(outPath);
+                if (!f.open(QIODevice::WriteOnly | QIODevice::Text)) {
+                    std::cerr << "Error: Failed to open output file: " << outPath.toStdString() << std::endl;
+                    return 1;
+                }
+                f.write(QJsonDocument(out).toJson(QJsonDocument::Indented));
+            } else {
+                printJsonValue(out);
+            }
             return 0;
         }
 
-        std::cout << rawToCsv(data, signalNames, indices, maxPointsValue, tStart, tEnd, baseSignalIndex).toStdString();
+        const QString csvStr = rawToCsv(data, signalNames, indices, maxPointsValue, tStart, tEnd, baseSignalIndex);
+        if (!outPath.isEmpty()) {
+            QFile f(outPath);
+            if (!f.open(QIODevice::WriteOnly | QIODevice::Text)) {
+                std::cerr << "Error: Failed to open output file: " << outPath.toStdString() << std::endl;
+                return 1;
+            }
+            f.write(csvStr.toUtf8());
+        } else {
+            std::cout << csvStr.toStdString();
+        }
         return 0;
     }
 };

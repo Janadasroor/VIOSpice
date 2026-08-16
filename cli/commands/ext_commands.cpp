@@ -1,4 +1,4 @@
-﻿/*
+/*
  * Copyright 2026 Janada Sroor
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -46,8 +46,8 @@
 
 namespace ExtCli {
     static void info(const QString& text) { std::cout << "  " << text.toStdString() << std::endl; }
-    static void success(const QString& text) { std::cout << "âœ“ " << text.toStdString() << std::endl; }
-    static void error(const QString& text) { std::cout << "âœ— " << text.toStdString() << std::endl; }
+    static void success(const QString& text) { std::cout << "✓ " << text.toStdString() << std::endl; }
+    static void error(const QString& text) { std::cout << "✗ " << text.toStdString() << std::endl; }
     static void header(const QString& text) { std::cout << text.toStdString() << std::endl; }
 }
 
@@ -521,24 +521,29 @@ public:
             valid = false;
         }
 
-        // Check main.flux
-        QFile sf(extDir + "/main.flux");
+        // Check main.flux or declared main
+        QString mainFile = QJsonDocument::fromJson(QFile(extDir + "/manifest.json").readAll()).object().value("main").toString("main.flux");
+        QFile sf(extDir + "/" + mainFile);
         if (sf.exists() && sf.open(QIODevice::ReadOnly)) {
             FluxScriptEngine::instance().initialize();
             QString source = QString::fromUtf8(sf.readAll());
             sf.close();
             QString error;
             if (!FluxScriptEngine::instance().executeString(source, &error)) {
-                ExtCli::error("main.flux compile error:");
+                ExtCli::error(mainFile + " compile error:");
                 std::cerr << "  " << error.toStdString() << std::endl;
                 result["main"] = "compile-error";
                 valid = false;
             } else {
-                ExtCli::success("main.flux compiles OK");
+                ExtCli::success(mainFile + " compiles OK");
                 result["main"] = "valid";
             }
+        } else if (!QJsonDocument::fromJson(QFile(extDir + "/manifest.json").readAll()).object().value("main").toString().isEmpty() || mainFile == "main.flux") {
+            ExtCli::error(mainFile + " declared in manifest but not found");
+            result["main"] = "missing";
+            valid = false;
         } else {
-            ExtCli::info("main.flux not found (optional)");
+            ExtCli::info(mainFile + " not found (optional)");
             result["main"] = "missing";
         }
 
@@ -548,16 +553,19 @@ public:
             ExtCli::success("config.json exists");
             result["config"] = "present";
         } else {
-            ExtCli::info("config.json not created yet (optional)");
-            result["config"] = "absent";
+            ExtCli::info("config.json not found (optional)");
+            result["config"] = "missing";
         }
 
         if (jsonOutput) {
             result["valid"] = valid;
             std::cout << QJsonDocument(result).toJson(QJsonDocument::Compact).toStdString() << std::endl;
         } else {
-            if (valid) ExtCli::success("Extension is valid");
-            else ExtCli::error("Extension has errors");
+            if (valid) {
+                ExtCli::success("Extension is valid");
+            } else {
+                ExtCli::error("Extension has errors");
+            }
         }
 
         return valid ? 0 : 1;
@@ -565,7 +573,7 @@ public:
 };
 
 // ============================================================================
-// ext package â€” Package extension for distribution
+// ext package — Package extension for distribution
 // ============================================================================
 
 class ExtPackageCommand : public CLICommand {
@@ -631,6 +639,7 @@ public:
             return 1;
         }
         outFile.write(QJsonDocument(package).toJson(QJsonDocument::Indented));
+        outFile.close();
 
         ExtCli::success("Packaged to " + outputPath);
         ExtCli::info("Files: " + QString::number(files.size()));
@@ -640,7 +649,7 @@ public:
 };
 
 // ============================================================================
-// ext deps â€” Show dependency tree
+// ext deps — Show dependency tree
 // ============================================================================
 
 class ExtDepsCommand : public CLICommand {

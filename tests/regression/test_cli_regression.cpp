@@ -234,6 +234,55 @@ int main(int argc, char* argv[]) {
         require(maxV > 4.0, "smart-signal OUT high-level check failed");
     }
 
+    // symbol-search built-in query
+    {
+        const QJsonObject out = runJsonCommand({"symbol-search", "resistor"});
+        require(out.value("results").isArray(), "symbol-search missing results array");
+    }
+
+    // schematic-netlist --json format
+    {
+        const QJsonObject out = runJsonCommand({"schematic-netlist", schematicPath, "--json"});
+        require(!out.isEmpty(), "schematic-netlist --json did not return json");
+    }
+
+    // raw-export --out file generation
+    if (hasSampleRaw) {
+        QTemporaryDir tempDir;
+        require(tempDir.isValid(), "failed to create temp dir for raw export");
+        const QString outCsv = QDir(tempDir.path()).filePath("exported.csv");
+        QProcess proc;
+        proc.start(QString::fromUtf8(VIO_CMD_PATH), {"raw-export", rawPath, "--out", outCsv});
+        require(proc.waitForFinished(30000), "raw-export --out timed out");
+        require(proc.exitCode() == 0, "raw-export --out failed");
+        require(QFile::exists(outCsv) && QFile(outCsv).size() > 0, "raw-export did not write output file");
+    }
+
+    // ext-schema-validate
+    {
+        QTemporaryDir tempDir;
+        require(tempDir.isValid(), "failed to create temp dir for extension");
+        const QString manifestPath = QDir(tempDir.path()).filePath("manifest.json");
+        QJsonObject manifest;
+        manifest["id"] = "test_ext";
+        manifest["name"] = "Test Extension";
+        manifest["version"] = "1.0.0";
+        manifest["main"] = "main.flux";
+        QFile f(manifestPath);
+        require(f.open(QIODevice::WriteOnly), "failed to write manifest");
+        f.write(QJsonDocument(manifest).toJson());
+        f.close();
+
+        const QJsonObject out = runJsonCommand({"ext-schema-validate", tempDir.path(), "--json"});
+        require(out.value("valid").toBool(), "ext-schema-validate failed on valid manifest");
+
+        // ext-validate should fail if main.flux is missing
+        QProcess proc;
+        proc.start(QString::fromUtf8(VIO_CMD_PATH), {"ext-validate", tempDir.path()});
+        require(proc.waitForFinished(30000), "ext-validate timed out");
+        require(proc.exitCode() != 0, "ext-validate should fail when declared main.flux is missing");
+    }
+
     std::cout << "cli.regression: all tests passed\n";
     return 0;
 }

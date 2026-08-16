@@ -101,8 +101,16 @@ def on_click() {
     }
 
     // calculator (default)
-    return QString(R"(def init() {
+    return QString(R"(input1 = 0.0
+input2 = 0.0
+result_display = 0.0
+
+def init() {
     viora_flux_print("%1 loaded")
+}
+
+def on_activate() {
+    init()
 }
 
 def on_calculate() {
