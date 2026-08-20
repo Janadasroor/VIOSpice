@@ -1255,29 +1255,33 @@ void SchematicView::keyPressEvent(QKeyEvent *event) {
 
     if (m_currentTool) m_currentTool->ensureView(this);
 
-    // Smart Context-Aware Delete: Hover takes precedence
+    // Delete key handling: Selected items take priority over hover
     if (event->key() == Qt::Key_Delete || event->key() == Qt::Key_Backspace) {
-        // 1. Check if we are hovering over a specific item
-        if (m_lastHoveredItem && m_undoStack) {
-            m_undoStack->push(new RemoveItemCommand(scene(), {m_lastHoveredItem}));
-            m_lastHoveredItem = nullptr;
-            clearHoverHighlights();
-            event->accept();
-            return;
-        }
-        
-        // 2. Fallback: Delete selected items
+        // 1. Check if there are explicitly selected items
         QList<QGraphicsItem*> selected = scene()->selectedItems();
         QList<SchematicItem*> toRemove;
         for (QGraphicsItem* item : selected) {
             if (SchematicItem* si = owningSchematicItem(item)) {
-                toRemove.append(si);
+                if (!toRemove.contains(si)) {
+                    toRemove.append(si);
+                }
             }
         }
         
         if (!toRemove.isEmpty() && m_undoStack) {
             scene()->clearSelection();
+            m_lastHoveredItem = nullptr;
+            clearHoverHighlights();
             m_undoStack->push(new RemoveItemCommand(scene(), toRemove));
+            event->accept();
+            return;
+        }
+
+        // 2. Fallback: If nothing is selected, delete the hovered item
+        if (m_lastHoveredItem && m_undoStack) {
+            m_undoStack->push(new RemoveItemCommand(scene(), {m_lastHoveredItem}));
+            m_lastHoveredItem = nullptr;
+            clearHoverHighlights();
             event->accept();
             return;
         }
