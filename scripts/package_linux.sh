@@ -18,14 +18,15 @@ usage() {
 VioraEDA Linux installer & packaging build script.
 
 Usage:
-  ./scripts/package_linux.sh                 build .tar.gz bundle & .deb package
+  ./scripts/package_linux.sh                 build .tar.gz bundle, .deb package & AppImage
+  ./scripts/package_linux.sh --appimage      build standalone .AppImage bundle
   ./scripts/package_linux.sh --deb-only      build only the Debian .deb package
   ./scripts/package_linux.sh --tar-only      build only the portable .tar.gz bundle
   ./scripts/package_linux.sh --lib <dir>     bundle custom component library
   ./scripts/package_linux.sh --jobs 8        limit parallel build jobs
   ./scripts/package_linux.sh --help          this help dialog
 
-Output: build/installer/VioraEDA-<ver>-linux-x86_64.{tar.gz,deb}
+Output: build/installer/VioraEDA-<ver>-linux-x86_64.{tar.gz,deb,AppImage}
 EOF
     exit 0
 }
@@ -39,13 +40,16 @@ OUT_DIR="$BUILD_DIR/installer"
 LIB_SRC=""
 DEB_ONLY=0
 TAR_ONLY=0
+APPIMAGE_ONLY=0
 JOBS="$(nproc 2>/dev/null || echo 8)"
 
 while [ $# -gt 0 ]; do
     case "$1" in
-        --help|-h)     usage ;;
-        --deb-only)    DEB_ONLY=1 ;;
-        --tar-only)    TAR_ONLY=1 ;;
+        --help|-h)        usage ;;
+        --deb-only)       DEB_ONLY=1 ;;
+        --tar-only)       TAR_ONLY=1 ;;
+        --appimage-only)  APPIMAGE_ONLY=1 ;;
+        --appimage)       APPIMAGE_ONLY=1 ;;
         --lib)
             shift; [ -d "${1:-}" ] || die "--lib needs an existing directory"
             LIB_SRC="$(cd "$1" && pwd)" ;;
@@ -310,7 +314,65 @@ EOF
     ok "Created $OUT_DIR/${PKG_NAME}.deb"
 fi
 
+# ==============================================================================
+# 9. AppImage Packaging
+# ==============================================================================
+if [ "$DEB_ONLY" -eq 0 ] && [ "$TAR_ONLY" -eq 0 ]; then
+    info "Generating AppImage bundle..."
+    APPDIR="$STAGE_DIR/AppDir"
+    rm -rf "$APPDIR"
+    mkdir -p "$APPDIR/usr"
+
+    # Copy files into AppDir
+    cp -rf "$STAGE_DIR/bin" "$APPDIR/usr/"
+    cp -rf "$STAGE_DIR/lib" "$APPDIR/usr/"
+    cp -rf "$STAGE_DIR/plugins" "$APPDIR/usr/"
+    cp -rf "$STAGE_DIR/resources" "$APPDIR/usr/"
+    cp -rf "$STAGE_DIR/share" "$APPDIR/usr/"
+    cp -f "$ROOT/resources/installer/linux/vioraeda.desktop" "$APPDIR/"
+    cp -f "$ROOT/resources/installer/linux/icons/hicolor/scalable/apps/vioraeda.svg" "$APPDIR/vioraeda.svg"
+    cp -f "$ROOT/resources/installer/linux/icons/hicolor/256x256/apps/vioraeda.png" "$APPDIR/vioraeda.png"
+    ln -sf vioraeda.png "$APPDIR/.DirIcon"
+
+    # Create AppRun script
+    cat <<'EOF' > "$APPDIR/AppRun"
+#!/bin/bash
+HERE="$(dirname "$(readlink -f "${0}")")"
+export PATH="${HERE}/usr/bin:${PATH}"
+export LD_LIBRARY_PATH="${HERE}/usr/lib:${HERE}/usr/lib/x86_64-linux-gnu:${LD_LIBRARY_PATH}"
+export QT_PLUGIN_PATH="${HERE}/usr/plugins:${QT_PLUGIN_PATH}"
+export QML2_IMPORT_PATH="${HERE}/usr/qml:${QML2_IMPORT_PATH}"
+export VIORA_LIB_DIR="${HERE}/usr/share/viospice"
+export FLUX_STDLIB_PATH="${HERE}/usr/share/flux/stdlib"
+exec "${HERE}/usr/bin/VioraEDA" "$@"
+EOF
+    chmod 755 "$APPDIR/AppRun"
+
+    # Download appimagetool if not locally available
+    AI_TOOL="$BUILD_DIR/appimagetool"
+    if ! command -v appimagetool >/dev/null 2>&1; then
+        if [ ! -f "$AI_TOOL" ]; then
+            info "Fetching appimagetool..."
+            curl -fsSL -o "$AI_TOOL" "https://github.com/AppImage/AppImageKit/releases/download/13/appimagetool-x86_64.AppImage" 2>/dev/null || true
+            [ -f "$AI_TOOL" ] && chmod +x "$AI_TOOL" || true
+        fi
+    else
+        AI_TOOL="appimagetool"
+    fi
+
+    if [ -x "$AI_TOOL" ] || command -v appimagetool >/dev/null 2>&1; then
+        ARCH=x86_64 "$AI_TOOL" "$APPDIR" "$OUT_DIR/${PKG_NAME}.AppImage" >/dev/null 2>&1 || {
+            # Fallback with --appimage-extract-and-run if FUSE is not available
+            ARCH=x86_64 "$AI_TOOL" --appimage-extract-and-run "$APPDIR" "$OUT_DIR/${PKG_NAME}.AppImage" >/dev/null 2>&1 || warn "AppImage generation skipped (appimagetool requires FUSE)"
+        }
+        [ -f "$OUT_DIR/${PKG_NAME}.AppImage" ] && ok "Created $OUT_DIR/${PKG_NAME}.AppImage"
+    else
+        warn "appimagetool not found; AppDir prepared at $APPDIR"
+    fi
+fi
+
 echo ""
 ok "Linux packaging complete."
 echo "Installer packages generated in $OUT_DIR:"
 ls -lh "$OUT_DIR" | grep "VioraEDA" | sed 's/^/  /'
+

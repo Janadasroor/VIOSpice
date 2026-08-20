@@ -280,4 +280,22 @@ QUndoCommand* createItemTransformCommand(QGraphicsScene* scene,
                                          SchematicItem::TransformAction action,
                                          QUndoCommand* parent = nullptr);
 
+/**
+ * @brief Command for replacing an item with another while preserving connectivity & values
+ */
+class ReplaceItemCommand : public SchematicCommand {
+public:
+    ReplaceItemCommand(QGraphicsScene* scene, SchematicItem* oldItem, SchematicItem* newItem, QUndoCommand* parent = nullptr);
+    ~ReplaceItemCommand();
+
+    void undo() override;
+    void redo() override;
+
+private:
+    SchematicItem* m_oldItem;
+    SchematicItem* m_newItem;
+    bool m_ownsOldItem;
+    bool m_ownsNewItem;
+};
+
 #endif // SCHEMATIC_COMMANDS_H

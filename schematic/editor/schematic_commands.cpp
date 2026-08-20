@@ -958,3 +958,47 @@ void SwitchPinFunctionCommand::undo() {
 void SwitchPinFunctionCommand::redo() {
     if (m_item) m_item->setPinMode(m_pinNumber, m_newMode);
 }
+
+// ============================================================================
+// ReplaceItemCommand
+// ============================================================================
+
+ReplaceItemCommand::ReplaceItemCommand(QGraphicsScene* scene, SchematicItem* oldItem, SchematicItem* newItem, QUndoCommand* parent)
+    : SchematicCommand(scene, "Replace Component", parent)
+    , m_oldItem(oldItem)
+    , m_newItem(newItem)
+    , m_ownsOldItem(false)
+    , m_ownsNewItem(true) {
+}
+
+ReplaceItemCommand::~ReplaceItemCommand() {
+    if (m_ownsOldItem) delete m_oldItem;
+    if (m_ownsNewItem) delete m_newItem;
+}
+
+void ReplaceItemCommand::undo() {
+    if (!m_scene || !m_oldItem || !m_newItem) return;
+    if (m_newItem->scene() == m_scene) {
+        m_scene->removeItem(m_newItem);
+        m_ownsNewItem = true;
+    }
+    if (m_oldItem->scene() != m_scene) {
+        m_scene->addItem(m_oldItem);
+        m_ownsOldItem = false;
+    }
+    refreshSceneViews(m_scene);
+}
+
+void ReplaceItemCommand::redo() {
+    if (!m_scene || !m_oldItem || !m_newItem) return;
+    if (m_oldItem->scene() == m_scene) {
+        m_scene->removeItem(m_oldItem);
+        m_ownsOldItem = true;
+    }
+    if (m_newItem->scene() != m_scene) {
+        m_scene->addItem(m_newItem);
+        m_ownsNewItem = false;
+    }
+    refreshSceneViews(m_scene);
+}
+
