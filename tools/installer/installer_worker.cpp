@@ -11,6 +11,7 @@
 #include <QSettings>
 #include <QStandardPaths>
 #include <QThread>
+#include <QProcess>
 
 #ifdef _WIN32
 #include <windows.h>
@@ -56,6 +57,8 @@ bool createShortcutWin32(const QString& linkPath, const QString& targetPath,
     return SUCCEEDED(hr);
 }
 }
+#else
+#include <unistd.h>
 #endif
 
 InstallerWorker::InstallerWorker(const InstallConfig& config, QObject* parent)
@@ -158,6 +161,7 @@ void InstallerWorker::discoverFilesToInstall() {
     // 3. Component Library
     if (m_config.components.componentLibrary) {
         QStringList libSources = {
+            QDir::homePath() + "/ViospiceLib",
             "C:/Users/rdpuser/ViospiceLib",
             "C:/VioraEDA/ViospiceLib",
             rootDir + "/ViospiceLib",
@@ -411,7 +415,7 @@ bool InstallerWorker::performInstallation() {
         m_filesCopied++;
     }
 
-    // Step: Windows System & Shell Integration
+    // Step: Windows / Linux System & Shell Integration
 #ifdef _WIN32
     emit statusUpdated("Configuring Windows shell shortcuts and file associations...");
 
@@ -428,6 +432,18 @@ bool InstallerWorker::performInstallation() {
         setupGlobalEnvironmentVariables();
     }
     registerUninstaller();
+#else
+    emit statusUpdated("Configuring Linux desktop shortcuts and system integrations...");
+    if (m_config.systemOptions.createDesktopShortcut || m_config.systemOptions.createStartMenuShortcuts) {
+        createLinuxShortcuts();
+    }
+    if (m_config.systemOptions.registerFileAssociations) {
+        registerLinuxFileAssociations();
+    }
+    if (m_config.systemOptions.addToPathEnvironment) {
+        updateLinuxPathEnvironment();
+    }
+    registerLinuxUninstaller();
 #endif
 
     ProgressMetrics finalMetrics;
@@ -457,6 +473,12 @@ bool InstallerWorker::performUninstallation() {
     removeFromPathEnvironment();
     removeGlobalEnvironmentVariables();
     unregisterUninstaller();
+#else
+    emit statusUpdated("Removing desktop shortcuts and file associations...");
+    removeLinuxShortcuts();
+    unregisterLinuxFileAssociations();
+    removeLinuxPathEnvironment();
+    unregisterLinuxUninstaller();
 #endif
 
     emit statusUpdated("Deleting installed files and directories...");
@@ -753,4 +775,153 @@ bool InstallerWorker::unregisterUninstaller() {
     regUninst.clear();
     return true;
 }
+#else
+
+bool InstallerWorker::createLinuxShortcuts() {
+    bool isRoot = (geteuid() == 0);
+    QString desktopDir = isRoot ? "/usr/share/applications" : (QDir::homePath() + "/.local/share/applications");
+    QString iconsBase = isRoot ? "/usr/share/icons/hicolor" : (QDir::homePath() + "/.local/share/icons/hicolor");
+    QString userDesktop = QStandardPaths::writableLocation(QStandardPaths::DesktopLocation);
+
+    QDir().mkpath(desktopDir);
+
+    // Install desktop entry
+    QString srcDesktop = m_config.installDir + "/resources/installer/linux/vioraeda.desktop";
+    QString targetDesktop = desktopDir + "/vioraeda.desktop";
+
+    QFile df(srcDesktop);
+    if (df.open(QIODevice::ReadOnly)) {
+        QString content = QString::fromUtf8(df.readAll());
+        df.close();
+        content.replace("Exec=VioraEDA", "Exec=" + m_config.installDir + "/bin/VioraEDA");
+        QFile outDf(targetDesktop);
+        if (outDf.open(QIODevice::WriteOnly)) {
+            outDf.write(content.toUtf8());
+            outDf.close();
+            outDf.setPermissions(QFile::ReadOwner | QFile::WriteOwner | QFile::ExeOwner | QFile::ReadGroup | QFile::ReadOther);
+        }
+        if (m_config.systemOptions.createDesktopShortcut && !userDesktop.isEmpty() && QDir(userDesktop).exists()) {
+            QFile userDf(userDesktop + "/vioraeda.desktop");
+            if (userDf.open(QIODevice::WriteOnly)) {
+                userDf.write(content.toUtf8());
+                userDf.close();
+                userDf.setPermissions(QFile::ReadOwner | QFile::WriteOwner | QFile::ExeOwner | QFile::ReadGroup | QFile::ReadOther);
+            }
+        }
+    }
+
+    // Install hicolor icons
+    QString srcIcons = m_config.installDir + "/resources/installer/linux/icons/hicolor";
+    if (QDir(srcIcons).exists()) {
+        QDirIterator it(srcIcons, QDir::Files, QDirIterator::Subdirectories);
+        while (it.hasNext()) {
+            it.next();
+            QString rel = QDir(srcIcons).relativeFilePath(it.filePath());
+            QString dst = iconsBase + "/" + rel;
+            QDir().mkpath(QFileInfo(dst).absolutePath());
+            QFile::remove(dst);
+            QFile::copy(it.filePath(), dst);
+        }
+    }
+
+    // Update caches
+    QProcess::execute("update-desktop-database", {desktopDir});
+    QProcess::execute("gtk-update-icon-cache", {"-f", "-t", iconsBase});
+    return true;
+}
+
+bool InstallerWorker::removeLinuxShortcuts() {
+    bool isRoot = (geteuid() == 0);
+    QString desktopDir = isRoot ? "/usr/share/applications" : (QDir::homePath() + "/.local/share/applications");
+    QString iconsBase = isRoot ? "/usr/share/icons/hicolor" : (QDir::homePath() + "/.local/share/icons/hicolor");
+    QString userDesktop = QStandardPaths::writableLocation(QStandardPaths::DesktopLocation);
+
+    QFile::remove(desktopDir + "/vioraeda.desktop");
+    if (!userDesktop.isEmpty()) {
+        QFile::remove(userDesktop + "/vioraeda.desktop");
+    }
+
+    const QStringList sizes = {"16x16", "32x32", "48x48", "64x64", "128x128", "256x256", "512x512", "scalable"};
+    for (const auto& s : sizes) {
+        QFile::remove(iconsBase + "/" + s + "/apps/vioraeda.png");
+        QFile::remove(iconsBase + "/" + s + "/apps/vioraeda.svg");
+    }
+
+    QProcess::execute("update-desktop-database", {desktopDir});
+    return true;
+}
+
+bool InstallerWorker::registerLinuxFileAssociations() {
+    bool isRoot = (geteuid() == 0);
+    QString mimeDir = isRoot ? "/usr/share/mime/packages" : (QDir::homePath() + "/.local/share/mime/packages");
+    QDir().mkpath(mimeDir);
+
+    QString srcMime = m_config.installDir + "/resources/installer/linux/vioraeda-mime.xml";
+    QString dstMime = mimeDir + "/vioraeda-mime.xml";
+    if (QFile::exists(srcMime)) {
+        QFile::remove(dstMime);
+        QFile::copy(srcMime, dstMime);
+        QProcess::execute("update-mime-database", {QFileInfo(mimeDir).absolutePath()});
+    }
+    return true;
+}
+
+bool InstallerWorker::unregisterLinuxFileAssociations() {
+    bool isRoot = (geteuid() == 0);
+    QString mimeDir = isRoot ? "/usr/share/mime/packages" : (QDir::homePath() + "/.local/share/mime/packages");
+    QFile::remove(mimeDir + "/vioraeda-mime.xml");
+    QProcess::execute("update-mime-database", {QFileInfo(mimeDir).absolutePath()});
+    return true;
+}
+
+bool InstallerWorker::updateLinuxPathEnvironment() {
+    bool isRoot = (geteuid() == 0);
+    QString binDir = isRoot ? "/usr/local/bin" : (QDir::homePath() + "/.local/bin");
+    QDir().mkpath(binDir);
+
+    QString installBin = m_config.installDir + "/bin";
+    const QStringList tools = {"VioraEDA", "viora", "flux_runner", "vioavr", "flux-lsp"};
+    for (const auto& t : tools) {
+        QString src = installBin + "/" + t;
+        QString dst = binDir + "/" + t;
+        if (QFile::exists(src)) {
+            QFile::remove(dst);
+            QFile::link(src, dst);
+        }
+    }
+    return true;
+}
+
+bool InstallerWorker::removeLinuxPathEnvironment() {
+    bool isRoot = (geteuid() == 0);
+    QString binDir = isRoot ? "/usr/local/bin" : (QDir::homePath() + "/.local/bin");
+
+    const QStringList tools = {"VioraEDA", "viora", "flux_runner", "vioavr", "flux-lsp"};
+    for (const auto& t : tools) {
+        QFile::remove(binDir + "/" + t);
+    }
+    return true;
+}
+
+bool InstallerWorker::registerLinuxUninstaller() {
+    QString srcUninst = m_config.installDir + "/resources/installer/linux/uninstall.sh";
+    if (!QFile::exists(srcUninst)) {
+        srcUninst = m_config.installDir + "/uninstall.sh";
+    }
+    QString dstUninst = m_config.installDir + "/uninstall.sh";
+    if (QFile::exists(srcUninst) && srcUninst != dstUninst) {
+        QFile::remove(dstUninst);
+        QFile::copy(srcUninst, dstUninst);
+    }
+    QFile f(dstUninst);
+    if (f.exists()) {
+        f.setPermissions(QFile::ReadOwner | QFile::WriteOwner | QFile::ExeOwner | QFile::ReadGroup | QFile::ReadOther);
+    }
+    return true;
+}
+
+bool InstallerWorker::unregisterLinuxUninstaller() {
+    return true;
+}
+
 #endif

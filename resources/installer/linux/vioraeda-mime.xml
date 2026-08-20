@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mime-info xmlns="http://www.freedesktop.org/standards/shared-mime-info">
+  <mime-type type="application/x-viora-schematic">
+    <comment>VioraEDA Schematic Document</comment>
+    <comment xml:lang="de">VioraEDA Schaltplandatei</comment>
+    <icon name="application-x-viora-schematic"/>
+    <glob pattern="*.flxsch"/>
+    <glob pattern="*.fluxsch"/>
+  </mime-type>
+  <mime-type type="application/x-viora-pcb">
+    <comment>VioraEDA PCB Layout Document</comment>
+    <comment xml:lang="de">VioraEDA Leiterplatten-Layout</comment>
+    <icon name="application-x-viora-pcb"/>
+    <glob pattern="*.flxpcb"/>
+    <glob pattern="*.pcb"/>
+  </mime-type>
+  <mime-type type="application/x-viora-symbol">
+    <comment>VioraEDA Symbol Library Document</comment>
+    <icon name="application-x-viora-symbol"/>
+    <glob pattern="*.viosym"/>
+    <glob pattern="*.sclib"/>
+  </mime-type>
+  <mime-type type="application/x-viora-extension">
+    <comment>VioraEDA Extension Package</comment>
+    <icon name="application-x-viora-extension"/>
+    <glob pattern="*.vioraext"/>
+  </mime-type>
+  <mime-type type="text/x-spice">
+    <comment>SPICE Circuit Netlist</comment>
+    <icon name="text-x-generic"/>
+    <glob pattern="*.cir"/>
+    <glob pattern="*.sp"/>
+    <glob pattern="*.net"/>
+  </mime-type>
+</mime-info>

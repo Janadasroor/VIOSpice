@@ -23,6 +23,8 @@
 #ifdef _WIN32
 #include <windows.h>
 #include <dwmapi.h>
+#else
+#include <unistd.h>
 #endif
 
 namespace {
@@ -38,7 +40,7 @@ bool checkIsAdmin() {
     }
     return isAdmin == TRUE;
 #else
-    return false;
+    return (geteuid() == 0);
 #endif
 }
 
@@ -68,6 +70,7 @@ InstallerWindow::InstallerWindow(bool isUninstall, QWidget *parent)
     m_config.isUninstall = isUninstall;
 
     // Default target path
+#ifdef _WIN32
     if (m_isAdmin) {
         m_config.installDir = "C:/Program Files/VioraEDA";
     } else {
@@ -77,6 +80,11 @@ InstallerWindow::InstallerWindow(bool isUninstall, QWidget *parent)
         }
         m_config.installDir = QDir::cleanPath(localApp + "/Programs/VioraEDA");
     }
+#elif defined(Q_OS_MACOS)
+    m_config.installDir = m_isAdmin ? "/Applications/VioraEDA" : (QDir::homePath() + "/Applications/VioraEDA");
+#else
+    m_config.installDir = m_isAdmin ? "/opt/VioraEDA" : (QDir::homePath() + "/.local/share/VioraEDA");
+#endif
 
     setupUi();
 }

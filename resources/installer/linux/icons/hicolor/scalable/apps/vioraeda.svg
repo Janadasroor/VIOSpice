@@ -1,0 +1,21 @@
+<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="viora_grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#00d2ff"/>
+      <stop offset="50%" stop-color="#0078ff"/>
+      <stop offset="100%" stop-color="#5856d6"/>
+    </linearGradient>
+  </defs>
+  <!-- V Monogram with Microchip Core -->
+  <g transform="translate(256, 256) scale(0.85) translate(-256, -256)">
+    <!-- Outer V Shape Traces -->
+    <path d="M 120 120 L 256 420 L 392 120 L 440 120 L 256 480 L 72 120 Z" fill="url(#viora_grad)"/>
+    <!-- IC Microchip Core -->
+    <rect x="206" y="206" width="100" height="100" rx="16" fill="#0078ff" stroke="#00d2ff" stroke-width="6"/>
+    <rect x="226" y="226" width="60" height="60" rx="8" fill="#0d1117"/>
+    <!-- Circuit Trace Lines -->
+    <path d="M 160 160 L 210 210 M 352 160 L 302 210 M 256 306 L 256 400" stroke="#00d2ff" stroke-width="8" stroke-linecap="round"/>
+    <circle cx="160" cy="160" r="10" fill="#00d2ff"/>
+    <circle cx="352" cy="160" r="10" fill="#00d2ff"/>
+  </g>
+</svg>

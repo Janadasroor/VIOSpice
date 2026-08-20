@@ -52,6 +52,15 @@ private:
     bool removeGlobalEnvironmentVariables();
     bool registerUninstaller();
     bool unregisterUninstaller();
+#else
+    bool createLinuxShortcuts();
+    bool removeLinuxShortcuts();
+    bool registerLinuxFileAssociations();
+    bool unregisterLinuxFileAssociations();
+    bool updateLinuxPathEnvironment();
+    bool removeLinuxPathEnvironment();
+    bool registerLinuxUninstaller();
+    bool unregisterLinuxUninstaller();
 #endif
 
     InstallConfig m_config;

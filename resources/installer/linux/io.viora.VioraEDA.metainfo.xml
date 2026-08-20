@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>io.viora.VioraEDA</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>Apache-2.0</project_license>
+  <name>VioraEDA</name>
+  <summary>Modern Electronic Design Automation &amp; SPICE Simulation Suite</summary>
+  <description>
+    <p>
+      VioraEDA is a high-performance Electronic Design Automation (EDA) suite integrating schematic capture,
+      analog and digital SPICE simulation, mixed-signal co-simulation (VioAVR, VioMATRIXC, digital.cm),
+      PCB layout with 3D ray-traced visualization, and automated Gerber/PDF manufacturing exports.
+    </p>
+    <p>Features include:</p>
+    <ul>
+      <li>Fast interactive mixed-signal simulation engine powered by ngspice and native JIT compilation</li>
+      <li>Smart Signal generators with embedded FluxScript scripting</li>
+      <li>Cross-platform schematic capture (.flxsch) with netlist-first synchronization</li>
+      <li>Advanced PCB Layout, interactive routing, teardrop generation, and automated Design Rule Checking (DRC)</li>
+      <li>Full CLI daemon with headless batch processing, ERC, and live web preview</li>
+    </ul>
+  </description>
+  <launchable type="desktop-id">vioraeda.desktop</launchable>
+  <url type="homepage">https://github.com/Janadasroor/VioraEDA</url>
+  <url type="bugtracker">https://github.com/Janadasroor/VioraEDA/issues</url>
+  <provides>
+    <binary>VioraEDA</binary>
+    <binary>viora</binary>
+    <mediatype>application/x-viora-schematic</mediatype>
+    <mediatype>application/x-viora-pcb</mediatype>
+    <mediatype>application/x-viora-symbol</mediatype>
+    <mediatype>application/x-viora-extension</mediatype>
+  </provides>
+  <releases>
+    <release version="0.2.0-beta" date="2026-08-16">
+      <description>
+        <p>Production release with enhanced Linux installer, full cross-platform path portability, and high-performance simulation.</p>
+      </description>
+    </release>
+  </releases>
+  <content_rating type="oars-1.1"/>
+</component>

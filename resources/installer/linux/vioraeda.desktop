@@ -1,0 +1,31 @@
+[Desktop Entry]
+Version=1.5
+Type=Application
+Name=VioraEDA
+GenericName=Electronic Design Automation Suite
+Comment=Modern EDA Suite for SPICE Simulation, Schematic Capture, and PCB Design
+Exec=VioraEDA %F
+Icon=vioraeda
+Terminal=false
+StartupNotify=true
+StartupWMClass=VioraEDA
+Categories=Development;Electronics;Engineering;Science;
+MimeType=application/x-viora-schematic;application/x-viora-pcb;application/x-viora-symbol;application/x-viora-extension;text/x-spice;
+Keywords=EDA;SPICE;Schematic;PCB;Simulation;Circuit;Electronics;Ngspice;VioAVR;
+
+Actions=NewSchematic;NewPCB;CLI;
+
+[Desktop Action NewSchematic]
+Name=New Schematic
+Exec=VioraEDA --new-schematic
+Icon=vioraeda
+
+[Desktop Action NewPCB]
+Name=New PCB Layout
+Exec=VioraEDA --new-pcb
+Icon=vioraeda
+
+[Desktop Action CLI]
+Name=Open Viora Terminal
+Exec=x-terminal-emulator -e viora --help
+Icon=vioraeda
