@@ -52,26 +52,43 @@ void SwitchItem::onInteractiveClick(const QPointF&) {
     update();
 }
 
+#include "theme_manager.h"
+
 QRectF SwitchItem::boundingRect() const { return QRectF(-50, -25, 100, 50); }
 
 void SwitchItem::paint(QPainter *painter, const QStyleOptionGraphicsItem*, QWidget*) {
     painter->setRenderHint(QPainter::Antialiasing);
-    painter->setPen(QPen(Qt::white, 2));
-    
-    // Leads
-    painter->drawLine(-45, 0, -30, 0);
-    painter->drawLine(30, 0, 45, 0);
 
-    // Terminals
-    painter->drawEllipse(-32, -2, 4, 4);
-    painter->drawEllipse(28, -2, 4, 4);
+    PCBTheme* theme = ThemeManager::theme();
+    const QColor wireColor = theme ? theme->schematicLine() : QColor(220, 220, 220);
+    const QColor accentColor = theme ? theme->accentColor() : QColor(59, 130, 246);
 
+    // 1. Leads
+    QPen leadPen(wireColor, 2.0, Qt::SolidLine, Qt::RoundCap);
+    painter->setPen(leadPen);
+    painter->drawLine(QPointF(-45, 0), QPointF(-25, 0));
+    painter->drawLine(QPointF(25, 0), QPointF(45, 0));
+
+    // 2. Terminals (Contact circles)
+    painter->setPen(QPen(accentColor, 1.8));
+    painter->setBrush(QBrush(theme ? theme->panelBackground() : QColor(30, 30, 30)));
+    painter->drawEllipse(QPointF(-25, 0), 3.5, 3.5);
+    painter->drawEllipse(QPointF(25, 0), 3.5, 3.5);
+
+    // 3. Switch arm / blade
     if (m_isOpen) {
-        painter->drawLine(-30, 0, 18, -15);
+        painter->setPen(QPen(accentColor, 2.2, Qt::SolidLine, Qt::RoundCap));
+        painter->drawLine(QPointF(-25, 0), QPointF(20, -15));
     } else {
-        painter->drawLine(-30, 0, 30, 0);
+        painter->setPen(QPen(accentColor, 2.2, Qt::SolidLine, Qt::RoundCap));
+        painter->drawLine(QPointF(-25, 0), QPointF(25, 0));
     }
-    
+
+    // Pivot dot at left terminal
+    painter->setBrush(QBrush(accentColor));
+    painter->setPen(Qt::NoPen);
+    painter->drawEllipse(QPointF(-25, 0), 2.0, 2.0);
+
     drawConnectionPointHighlights(painter);
 }
 

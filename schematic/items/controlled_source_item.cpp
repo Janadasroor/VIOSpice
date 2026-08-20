@@ -45,103 +45,121 @@ QString ControlledSourceItem::referencePrefix() const {
     return "B";
 }
 
+#include "theme_manager.h"
+
 QRectF ControlledSourceItem::boundingRect() const {
-    return QRectF(-55, -35, 110, 70);
+    return QRectF(-55, -55, 110, 110);
 }
 
 void ControlledSourceItem::paint(QPainter* painter, const QStyleOptionGraphicsItem* option, QWidget*) {
     painter->setRenderHint(QPainter::Antialiasing);
 
-    const QRectF diamondBounds(-30, -30, 60, 60);
-    QPolygonF diamond;
-    diamond << QPointF(0, -30) << QPointF(30, 0) << QPointF(0, 30) << QPointF(-30, 0);
+    PCBTheme* theme = ThemeManager::theme();
+    const QColor wireColor = theme ? theme->schematicLine() : QColor(220, 220, 220);
+    const QColor accentColor = theme ? theme->accentColor() : QColor(59, 130, 246);
 
-    // Background Gradient (Diamond)
-    QLinearGradient bgGrad(0, -30, 0, 30);
-    bgGrad.setColorAt(0, QColor(55, 55, 60));
-    bgGrad.setColorAt(1, QColor(35, 35, 40));
-    
-    if (option->state & QStyle::State_Selected) {
-        bgGrad.setColorAt(0, QColor(100, 80, 50));
-        bgGrad.setColorAt(1, QColor(60, 40, 20));
+    const bool isVoltageControlled = (m_type == VCVS || m_type == VCCS);
+
+    if (isVoltageControlled) {
+        // Main circle body at (0, 0), radius 22.5 (matching Voltage Source)
+        QPen circlePen(wireColor, 1.8, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin);
+        if (option && (option->state & QStyle::State_Selected)) {
+            circlePen.setColor(accentColor);
+            circlePen.setWidthF(2.2);
+        }
+        painter->setPen(circlePen);
+        painter->setBrush(QBrush(theme ? theme->panelBackground() : QColor(30, 30, 35)));
+        painter->drawEllipse(QPointF(0.0000, 0.0000), 22.5000, 22.5000);
+
+        // Control leads: (-45.0000, -16.8750) -> (-22.5000, -16.8750) -> (-16.8750, -14.0625)
+        //               (-45.0000, 16.8750) -> (-22.5000, 16.8750) -> (-16.8750, 14.0625)
+        QPen leadPen(wireColor, 1.6, Qt::SolidLine, Qt::RoundCap);
+        painter->setPen(leadPen);
+        painter->drawLine(QPointF(-45.0000, -16.8750), QPointF(-22.5000, -16.8750));
+        painter->drawLine(QPointF(-22.5000, -16.8750), QPointF(-16.8750, -14.0625));
+        painter->drawLine(QPointF(-45.0000, 16.8750), QPointF(-22.5000, 16.8750));
+        painter->drawLine(QPointF(-22.5000, 16.8750), QPointF(-16.8750, 14.0625));
+
+        // Control polarity indicators:
+        // '+' sign next to top input (y = -16.875):
+        painter->drawLine(QPointF(-33.7500, -11.2500), QPointF(-28.1250, -11.2500));
+        painter->drawLine(QPointF(-30.9375, -14.0625), QPointF(-30.9375, -8.4375));
+        // '-' sign next to bottom input (y = 16.875):
+        painter->drawLine(QPointF(-33.7500, 11.2500), QPointF(-28.1250, 11.2500));
+
+        // Output leads: (0, -45) -> (0, -22.5), (0, 45) -> (0, 22.5)
+        painter->drawLine(QPointF(0.0000, -45.0000), QPointF(0.0000, -22.5000));
+        painter->drawLine(QPointF(0.0000, 45.0000), QPointF(0.0000, 22.5000));
+
+        if (m_type == VCVS) {
+            // E source: internal '+' at top, '-' at bottom
+            painter->drawLine(QPointF(-2.8125, -11.2500), QPointF(2.8125, -11.2500));
+            painter->drawLine(QPointF(0.0000, -14.0625), QPointF(0.0000, -8.4375));
+            painter->drawLine(QPointF(-2.8125, 11.2500), QPointF(2.8125, 11.2500));
+        } else {
+            // G source: internal arrow pointing UP
+            painter->drawLine(QPointF(0.0000, -2.8125), QPointF(0.0000, 11.2500));
+            painter->drawLine(QPointF(2.8125, -2.8125), QPointF(0.0000, -11.2500));
+            painter->drawLine(QPointF(-2.8125, -2.8125), QPointF(0.0000, -11.2500));
+            painter->drawLine(QPointF(-2.8125, -2.8125), QPointF(2.8125, -2.8125));
+        }
+    } else {
+        // Current-controlled (F, H):
+        // Main circle at (0, 0), radius 22.5 (matching Voltage Source)
+        QPen circlePen(wireColor, 1.8, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin);
+        if (option && (option->state & QStyle::State_Selected)) {
+            circlePen.setColor(accentColor);
+            circlePen.setWidthF(2.2);
+        }
+        painter->setPen(circlePen);
+        painter->setBrush(QBrush(theme ? theme->panelBackground() : QColor(30, 30, 35)));
+        painter->drawEllipse(QPointF(0.0000, 0.0000), 22.5000, 22.5000);
+
+        // Terminal leads: (0, -45) -> (0, -22.5), (0, 45) -> (0, 22.5)
+        QPen leadPen(wireColor, 1.6, Qt::SolidLine, Qt::RoundCap);
+        painter->setPen(leadPen);
+        painter->drawLine(QPointF(0.0000, -45.0000), QPointF(0.0000, -22.5000));
+        painter->drawLine(QPointF(0.0000, 45.0000), QPointF(0.0000, 22.5000));
+
+        if (m_type == CCCS) {
+            // F source: internal arrow pointing DOWN
+            painter->drawLine(QPointF(0.0000, -11.2500), QPointF(0.0000, 2.8125));
+            painter->drawLine(QPointF(0.0000, 11.2500), QPointF(2.8125, 2.8125));
+            painter->drawLine(QPointF(0.0000, 11.2500), QPointF(-2.8125, 2.8125));
+            painter->drawLine(QPointF(-2.8125, 2.8125), QPointF(2.8125, 2.8125));
+        } else {
+            // H source: internal '+' at top, '-' at bottom
+            painter->drawLine(QPointF(-5.6250, -14.0625), QPointF(5.6250, -14.0625));
+            painter->drawLine(QPointF(0.0000, -19.6875), QPointF(0.0000, -8.4375));
+            painter->drawLine(QPointF(-5.6250, 14.0625), QPointF(5.6250, 14.0625));
+        }
     }
-    
-    painter->setBrush(bgGrad);
-    
-    // Accent Border (Golden/Orange for Controlled Sources)
-    QColor accentColor(249, 115, 22); // Orange 500
-    painter->setPen(QPen(accentColor, 2));
-    painter->drawPolygon(diamond);
-
-    // Glowing Label in the middle
-    painter->setPen(QColor(255, 200, 100));
-    QFont f("Monospace", 10, QFont::Bold);
-    painter->setFont(f);
-    
-    QString label;
-    switch (m_type) {
-        case VCVS: label = "E"; break;
-        case VCCS: label = "G"; break;
-        case CCCS: label = "F"; break;
-        case CCVS: label = "H"; break;
-    }
-    
-    // Subtle glow behind text
-    QRadialGradient glow(0, 0, 20);
-    glow.setColorAt(0, QColor(255, 180, 50, 40));
-    glow.setColorAt(1, Qt::transparent);
-    painter->setBrush(glow);
-    painter->setPen(Qt::NoPen);
-    painter->drawEllipse(QRectF(-15, -15, 30, 30));
-
-    painter->setPen(QColor(255, 180, 50));
-    painter->drawText(diamondBounds, Qt::AlignCenter, label);
-
-    // Pin tails
-    painter->setPen(QPen(QColor(100, 100, 105), 1.5));
-    
-    const bool hasControlPins = (m_type == VCVS || m_type == VCCS);
-
-    if (hasControlPins) {
-        // Control pins (Left)
-        painter->drawLine(-50, -10, -20, -10);
-        painter->drawLine(-50, 10, -20, 10);
-
-        // Control Polarized indicators
-        painter->setPen(QColor(200, 200, 205));
-        painter->setFont(QFont("Inter", 6, QFont::Bold));
-        painter->drawText(QRectF(-45, -20, 10, 10), Qt::AlignCenter, "+");
-        painter->drawText(QRectF(-45, 10, 10, 10), Qt::AlignCenter, "-");
-    }
-    
-    // Output pins (Right)
-    painter->setPen(QPen(QColor(100, 100, 105), 1.5));
-    painter->drawLine(50, -10, 20, -10);
-    painter->drawLine(50, 10, 20, 10);
-
-    // Output Polarized indicators
-    painter->setPen(QColor(200, 200, 205));
-    painter->setFont(QFont("Inter", 6, QFont::Bold));
-    painter->drawText(QRectF(35, -20, 10, 10), Qt::AlignCenter, "+");
-    painter->drawText(QRectF(35, 10, 10, 10), Qt::AlignCenter, "-");
 
     drawConnectionPointHighlights(painter);
 }
 
 QList<QPointF> ControlledSourceItem::connectionPoints() const {
     if (m_type == CCCS || m_type == CCVS) {
-        // 2 pins only (Output+, Output-)
+        // 2 pins (OUT+ at top 0, -45; OUT- at bottom 0, 45)
         return {
-            QPointF(50, -10),
-            QPointF(50, 10)
+            QPointF(0.0000, -45.0000),
+            QPointF(0.0000, 45.0000)
         };
     }
-    // 4 pins (Output+, Output-, Control+, Control-)
+    // 4 pins for E and G:
+    if (m_type == VCCS) {
+        return {
+            QPointF(0.0000, 45.0000),
+            QPointF(0.0000, -45.0000),
+            QPointF(-45.0000, -16.8750),
+            QPointF(-45.0000, 16.8750)
+        };
+    }
     return {
-        QPointF(50, -10),
-        QPointF(50, 10),
-        QPointF(-50, -10),
-        QPointF(-50, 10)
+        QPointF(0.0000, -45.0000),
+        QPointF(0.0000, 45.0000),
+        QPointF(-45.0000, -16.8750),
+        QPointF(-45.0000, 16.8750)
     };
 }
 

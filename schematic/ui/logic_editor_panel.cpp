@@ -109,13 +109,23 @@ void LogicEditorPanel::refreshTemplates() {
     
     // Resolve templates directory path
     const QString appPath = QCoreApplication::applicationDirPath();
-    QString templatesPath = QDir(appPath).absoluteFilePath("../python/templates");
-    if (!QDir(templatesPath).exists()) {
-        templatesPath = QDir(appPath).absoluteFilePath("python/templates");
+    QStringList candidates = {
+        QDir(appPath).absoluteFilePath("../python/templates"),
+        QDir(appPath).absoluteFilePath("python/templates"),
+        "/opt/VioraEDA/python/templates",
+        "/opt/VioraEDA/bin/python/templates",
+        QDir::current().absoluteFilePath("python/templates")
+    };
+    QString templatesPath;
+    for (const QString& cand : candidates) {
+        if (QDir(cand).exists()) {
+            templatesPath = cand;
+            break;
+        }
     }
 
-    if (!QDir(templatesPath).exists()) {
-        qWarning() << "[LogicIDE] Templates directory not found:" << templatesPath;
+    if (templatesPath.isEmpty() || !QDir(templatesPath).exists()) {
+        qWarning() << "[LogicIDE] Templates directory not found in candidates:" << candidates;
         return;
     }
 

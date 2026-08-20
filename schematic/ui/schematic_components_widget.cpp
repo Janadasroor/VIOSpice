@@ -203,6 +203,21 @@ private:
             if (category == "co-simulation" || name.contains("arduino")) return true;
         }
 
+        // Synonym: Controlled Sources & Switches
+        if (query == "controlled" || query == "controlled source" || query == "controlled sources") {
+            if (name.contains("vcvs") || name.contains("vccs") || name.contains("cccs") || name.contains("ccvs") ||
+                name == "e" || name == "g" || name == "f" || name == "h" ||
+                name.contains("voltage controlled switch") || name == "sw") {
+                return true;
+            }
+        }
+        if (query == "vcvs" || query == "vccs" || query == "cccs" || query == "ccvs") {
+            if (name.contains(query) || name.contains("controlled")) return true;
+        }
+        if (query == "sw" || query == "switch") {
+            if (name.contains("switch") || name == "sw" || name.contains("push button")) return true;
+        }
+
         // Substring common abbreviations
         if (query == "cap") return name.contains("capacitor");
         if (query == "res") return name.contains("resistor");
@@ -908,9 +923,19 @@ void SchematicComponentsWidget::populate() {
         {"BV", "Simulation"},
         {"BI", "Simulation"},
         {"VCVS (E)", "Simulation"},
+        {"VCVS", "Simulation"},
+        {"Voltage Controlled Voltage Source", "Simulation"},
         {"VCCS (G)", "Simulation"},
+        {"VCCS", "Simulation"},
+        {"Voltage Controlled Current Source", "Simulation"},
         {"CCCS (F)", "Simulation"},
+        {"CCCS", "Simulation"},
+        {"Current Controlled Current Source", "Simulation"},
         {"CCVS (H)", "Simulation"},
+        {"CCVS", "Simulation"},
+        {"Current Controlled Voltage Source", "Simulation"},
+        {"Voltage Controlled Switch", "Interactive"},
+        {"sw", "Interactive"},
         // XSPICE Behavioral Blocks
         {"XspiceBlock", "XSPICE"},
         {"SystemVerilogBlock", "XSPICE"},

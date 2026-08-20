@@ -323,13 +323,37 @@ void SymbolPreviewWidget::paintEvent(QPaintEvent* event) {
 }
 
 void SymbolPreviewWidget::drawPrimitive(QPainter* p, const SymbolPrimitive& prim, const QColor& fg, qreal scale) {
+    auto parseLineStyle = [](const QString& style) {
+        const QString s = style.trimmed().toLower();
+        if (s == "dash") return Qt::DashLine;
+        if (s == "dot") return Qt::DotLine;
+        if (s == "dashdot") return Qt::DashDotLine;
+        return Qt::SolidLine;
+    };
+
     switch (prim.type) {
         case SymbolPrimitive::Line: {
+            QPen pen(fg, 1.2 / scale, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin);
+            if (prim.data.contains("style")) {
+                pen.setStyle(parseLineStyle(prim.data.value("style").toString()));
+            }
+            if (prim.data.contains("width")) {
+                pen.setWidthF(prim.data.value("width").toDouble(1.2) / scale);
+            }
+            p->setPen(pen);
             p->drawLine(QPointF(prim.data["x1"].toDouble(), prim.data["y1"].toDouble()),
                         QPointF(prim.data["x2"].toDouble(), prim.data["y2"].toDouble()));
             break;
         }
         case SymbolPrimitive::Rect: {
+            QPen pen(fg, 1.2 / scale, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin);
+            if (prim.data.contains("style")) {
+                pen.setStyle(parseLineStyle(prim.data.value("style").toString()));
+            }
+            if (prim.data.contains("width")) {
+                pen.setWidthF(prim.data.value("width").toDouble(1.2) / scale);
+            }
+            p->setPen(pen);
             qreal w = prim.data.contains("width") ? prim.data["width"].toDouble() : prim.data["w"].toDouble();
             qreal h = prim.data.contains("height") ? prim.data["height"].toDouble() : prim.data["h"].toDouble();
             QRectF r(prim.data["x"].toDouble(), prim.data["y"].toDouble(), w, h);
@@ -341,6 +365,14 @@ void SymbolPreviewWidget::drawPrimitive(QPainter* p, const SymbolPrimitive& prim
             break;
         }
         case SymbolPrimitive::Circle: {
+            QPen pen(fg, 1.2 / scale, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin);
+            if (prim.data.contains("style")) {
+                pen.setStyle(parseLineStyle(prim.data.value("style").toString()));
+            }
+            if (prim.data.contains("width")) {
+                pen.setWidthF(prim.data.value("width").toDouble(1.2) / scale);
+            }
+            p->setPen(pen);
             qreal cx = prim.data.contains("centerX") ? prim.data["centerX"].toDouble() : prim.data["cx"].toDouble();
             qreal cy = prim.data.contains("centerY") ? prim.data["centerY"].toDouble() : prim.data["cy"].toDouble();
             qreal r = prim.data.contains("radius") ? prim.data["radius"].toDouble() : prim.data["r"].toDouble();
@@ -352,6 +384,8 @@ void SymbolPreviewWidget::drawPrimitive(QPainter* p, const SymbolPrimitive& prim
             break;
         }
         case SymbolPrimitive::Arc: {
+            QPen pen(fg, 1.2 / scale, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin);
+            p->setPen(pen);
             qreal x = prim.data["x"].toDouble();
             qreal y = prim.data["y"].toDouble();
             qreal w = prim.data.contains("width") ? prim.data["width"].toDouble() : prim.data["w"].toDouble();
@@ -362,6 +396,8 @@ void SymbolPreviewWidget::drawPrimitive(QPainter* p, const SymbolPrimitive& prim
             break;
         }
         case SymbolPrimitive::Polygon: {
+            QPen pen(fg, 1.2 / scale, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin);
+            p->setPen(pen);
             QPolygonF poly;
             for (const auto& v : prim.data["points"].toArray()) {
                 poly << QPointF(v.toObject()["x"].toDouble(), v.toObject()["y"].toDouble());
@@ -374,6 +410,10 @@ void SymbolPreviewWidget::drawPrimitive(QPainter* p, const SymbolPrimitive& prim
             break;
         }
         case SymbolPrimitive::Pin: {
+            PCBTheme* theme = ThemeManager::theme();
+            QColor pinColor = theme ? theme->accentColor() : QColor(59, 130, 246);
+            QPen pen(pinColor, 1.3 / scale, Qt::SolidLine, Qt::RoundCap);
+            p->setPen(pen);
             qreal x = prim.data["x"].toDouble();
             qreal y = prim.data["y"].toDouble();
             qreal len = prim.data["length"].toDouble();
@@ -385,17 +425,28 @@ void SymbolPreviewWidget::drawPrimitive(QPainter* p, const SymbolPrimitive& prim
             else if (dir == "Up") p2.ry() -= len;
             else if (dir == "Down") p2.ry() += len;
             p->drawLine(p1, p2);
-            // Draw pin name/number very simply
-            p->save();
-            p->setFont(QFont("Inter", 6));
-            p->drawText(p1 + QPointF(2, -2), prim.data["number"].toString());
-            p->restore();
             break;
         }
         case SymbolPrimitive::Text: {
             p->save();
-            p->setFont(QFont("Inter", 8));
-            p->drawText(QPointF(prim.data["x"].toDouble(), prim.data["y"].toDouble()), prim.data["text"].toString());
+            p->setPen(fg);
+            int fontSize = prim.data.value("fontSize").toInt(8);
+            QFont font("Inter", fontSize, QFont::Bold);
+            p->setFont(font);
+            const QString txt = prim.data["text"].toString();
+            const qreal tx = prim.data["x"].toDouble();
+            const qreal ty = prim.data["y"].toDouble();
+            const QString hAlign = prim.data.value("hAlign").toString().toLower();
+            const QString vAlign = prim.data.value("vAlign").toString().toLower();
+            if (hAlign == "center" || vAlign == "center") {
+                QFontMetricsF fm(font);
+                QRectF tr = fm.boundingRect(txt);
+                qreal drawX = (hAlign == "center") ? tx - tr.width() / 2.0 : tx;
+                qreal drawY = (vAlign == "center") ? ty + tr.height() / 4.0 : ty;
+                p->drawText(QPointF(drawX, drawY), txt);
+            } else {
+                p->drawText(QPointF(tx, ty), txt);
+            }
             p->restore();
             break;
         }

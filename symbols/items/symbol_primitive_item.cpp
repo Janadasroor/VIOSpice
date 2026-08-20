@@ -364,16 +364,21 @@ void SymbolTextItem::paint(QPainter* painter, const QStyleOptionGraphicsItem* op
     QFontMetricsF fm(font);
     QRectF tb = fm.boundingRect(resolved);
     
+    // tb.left() (bearing) and tb.top() are offsets relative to the text origin.
+    // To position text so its visual bounding box center lands exactly on anchorX,
+    // we must subtract tb.left() + tb.width() * 0.5.
     qreal dx = 0.0;
     const QString hAlign = m_model.data.value("hAlign").toString("left").toLower();
     const QString vAlign = m_model.data.value("vAlign").toString("baseline").toLower();
     
-    if (hAlign == "center") dx = -tb.width() * 0.5;
-    else if (hAlign == "right") dx = -tb.width();
+    if (hAlign == "center") dx = -(tb.left() + tb.width() * 0.5);
+    else if (hAlign == "right") dx = -tb.right();
+    else dx = -tb.left();
     
     qreal py = anchorY;
-    if (vAlign == "center") py += tb.height() * 0.5;
-    else if (vAlign == "top") py += fm.ascent();
+    if (vAlign == "center") py = anchorY - (tb.top() + tb.height() * 0.5);
+    else if (vAlign == "top") py = anchorY - tb.top();
+    else if (vAlign == "bottom") py = anchorY - tb.bottom();
     
     // Safety check: skip text drawing if effective pixel size is too small to avoid Qt/FreeType crash
     QTransform trans = painter->transform();

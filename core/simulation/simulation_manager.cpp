@@ -487,7 +487,14 @@ void SimulationManager::runSimulation(const QString& netlist, SimControl* contro
     QString error;
     if (!loadNetlistInternal(netlist, true, &error)) {
         QMetaObject::invokeMethod(m_bufferTimer, "stop", Qt::QueuedConnection);
+        setState(SimulationState::Error);
+        {
+            std::lock_guard<std::mutex> lock(m_logMutex);
+            if (error.isEmpty()) error = m_lastErrorMessage.isEmpty() ? "Failed to load netlist into ngspice." : m_lastErrorMessage;
+        }
         if (!error.isEmpty()) reportError(error);
+        clearCircuits();
+        Q_EMIT simulationFinished();
         return;
     }
 

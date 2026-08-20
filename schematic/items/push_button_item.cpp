@@ -45,24 +45,52 @@ void PushButtonItem::onInteractiveRelease(const QPointF&) {
     update();
 }
 
-QRectF PushButtonItem::boundingRect() const { return QRectF(-20, -20, 40, 40); }
+#include "theme_manager.h"
+
+QRectF PushButtonItem::boundingRect() const { return QRectF(-50, -30, 100, 60); }
 
 void PushButtonItem::paint(QPainter *painter, const QStyleOptionGraphicsItem*, QWidget*) {
     painter->setRenderHint(QPainter::Antialiasing);
-    painter->setPen(QPen(Qt::white, 2));
-    
-    painter->drawEllipse(-17, -2, 4, 4);
-    painter->drawEllipse(13, -2, 4, 4);
 
+    PCBTheme* theme = ThemeManager::theme();
+    const QColor wireColor = theme ? theme->schematicLine() : QColor(220, 220, 220);
+    const QColor accentColor = theme ? theme->accentColor() : QColor(59, 130, 246);
+    const QColor activeColor = QColor(0, 230, 118);
+
+    // 1. Leads
+    QPen leadPen(wireColor, 2.0, Qt::SolidLine, Qt::RoundCap);
+    painter->setPen(leadPen);
+    painter->drawLine(QPointF(-45, 0), QPointF(-25, 0));
+    painter->drawLine(QPointF(25, 0), QPointF(45, 0));
+
+    // 2. Terminals (Contact circles)
+    painter->setPen(QPen(accentColor, 1.8));
+    painter->setBrush(QBrush(theme ? theme->panelBackground() : QColor(30, 30, 30)));
+    painter->drawEllipse(QPointF(-25, 0), 3.5, 3.5);
+    painter->drawEllipse(QPointF(25, 0), 3.5, 3.5);
+
+    // 3. Push Button Bar and Plunger
     if (m_isPressed) {
-        painter->drawLine(-15, 0, 15, 0);
-        painter->fillRect(-10, -5, 20, 5, QColor(0, 255, 100));
+        // Connected short bar across contacts
+        painter->setPen(QPen(activeColor, 2.8, Qt::SolidLine, Qt::RoundCap));
+        painter->drawLine(QPointF(-25, 0), QPointF(25, 0));
+        // Pressed plunger stem
+        painter->setPen(QPen(activeColor, 2.0));
+        painter->drawLine(QPointF(0, 0), QPointF(0, -10));
+        // Tactile cap
+        painter->setBrush(QBrush(activeColor));
+        painter->drawRoundedRect(QRectF(-12, -14, 24, 6), 2, 2);
     } else {
-        painter->drawLine(-10, -10, 10, -10);
-        painter->drawLine(0, -10, 0, -15);
-        painter->drawRect(-5, -18, 10, 3);
+        // Raised bar above contacts
+        painter->setPen(QPen(accentColor, 2.2, Qt::SolidLine, Qt::RoundCap));
+        painter->drawLine(QPointF(-25, -10), QPointF(25, -10));
+        // Plunger stem
+        painter->drawLine(QPointF(0, -10), QPointF(0, -18));
+        // Tactile cap
+        painter->setBrush(QBrush(theme ? theme->panelBackground() : QColor(40, 40, 45)));
+        painter->drawRoundedRect(QRectF(-12, -22, 24, 6), 2, 2);
     }
-    
+
     drawConnectionPointHighlights(painter);
 }
 

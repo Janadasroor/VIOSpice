@@ -236,7 +236,13 @@ GeminiPanel::GeminiPanel(QGraphicsScene* scene, QWidget* parent)
     // Initialize QQuickWidget
     m_quickWidget = new QQuickWidget(this);
     m_quickWidget->setResizeMode(QQuickWidget::SizeRootObjectToView);
-    m_quickWidget->engine()->rootContext()->setContextProperty("geminiBridge", m_bridge);
+    if (auto* engine = m_quickWidget->engine()) {
+        const QString appDir = QCoreApplication::applicationDirPath();
+        engine->addImportPath(QDir(appDir).absoluteFilePath("../qml"));
+        engine->addImportPath(QDir(appDir).absoluteFilePath("qml"));
+        engine->addImportPath("/opt/VioraEDA/qml");
+        engine->rootContext()->setContextProperty("geminiBridge", m_bridge);
+    }
     
     mainLayout->addWidget(m_quickWidget);
 
@@ -285,13 +291,15 @@ GeminiPanel::GeminiPanel(QGraphicsScene* scene, QWidget* parent)
         const QString qmlPath = "python/qml/GeminiRoot.qml";
         
         // Candidates for QML location:
-        // 1. ../python/qml/ (Bundled AppImage)
+        // 1. ../python/qml/ (Bundled AppImage / /opt/VioraEDA/bin/../python/qml/)
         // 2. python/qml/ (Dev environment relative to build)
         // 3. ./python/qml/ (CWD fallback)
+        // 4. /opt/VioraEDA/python/qml/ (Standard deb/system install location)
         QStringList candidates = {
             QDir(appDir).absoluteFilePath("../" + qmlPath),
             QDir(appDir).absoluteFilePath(qmlPath),
-            QDir::current().absoluteFilePath(qmlPath)
+            QDir::current().absoluteFilePath(qmlPath),
+            "/opt/VioraEDA/" + qmlPath
         };
 
         QString resolvedPath;
@@ -1469,7 +1477,8 @@ void GeminiPanel::reloadQml() {
         QStringList candidates = {
             QDir(appDir).absoluteFilePath("../" + qmlPath),
             QDir(appDir).absoluteFilePath(qmlPath),
-            QDir::current().absoluteFilePath(qmlPath)
+            QDir::current().absoluteFilePath(qmlPath),
+            "/opt/VioraEDA/" + qmlPath
         };
         for (const QString& candidate : candidates) {
             if (QFileInfo::exists(candidate)) {

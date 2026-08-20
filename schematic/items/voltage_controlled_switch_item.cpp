@@ -5,6 +5,7 @@
 
 #include "voltage_controlled_switch_item.h"
 #include <QPainter>
+#include <QStyleOptionGraphicsItem>
 
 VoltageControlledSwitchItem::VoltageControlledSwitchItem(QPointF pos, QGraphicsItem* parent)
     : SchematicItem(parent),
@@ -20,33 +21,67 @@ VoltageControlledSwitchItem::VoltageControlledSwitchItem(QPointF pos, QGraphicsI
     syncParamExpressions();
 }
 
-QRectF VoltageControlledSwitchItem::boundingRect() const { return QRectF(-50, -35, 100, 70); }
+#include "theme_manager.h"
 
-void VoltageControlledSwitchItem::paint(QPainter* painter, const QStyleOptionGraphicsItem*, QWidget*) {
+QRectF VoltageControlledSwitchItem::boundingRect() const { return QRectF(-55, -55, 110, 110); }
+
+void VoltageControlledSwitchItem::paint(QPainter* painter, const QStyleOptionGraphicsItem* option, QWidget*) {
     painter->setRenderHint(QPainter::Antialiasing);
-    painter->setPen(QPen(Qt::white, 2));
 
-    // Main terminals
-    painter->drawLine(-45, 0, -30, 0);
-    painter->drawLine(30, 0, 45, 0);
-    painter->drawEllipse(-32, -2, 4, 4);
-    painter->drawEllipse(28, -2, 4, 4);
+    PCBTheme* theme = ThemeManager::theme();
+    const QColor wireColor = theme ? theme->schematicLine() : QColor(220, 220, 220);
+    const QColor accentColor = theme ? theme->accentColor() : QColor(59, 130, 246);
 
-    // Control terminals (aligned to grid)
-    painter->drawLine(-15, -30, -15, -10);
-    painter->drawLine(15, 30, 15, 10);
-    painter->drawEllipse(-17, -32, 4, 4);
-    painter->drawEllipse(13, 28, 4, 4);
+    // Main Circle body at (0, 0), radius 22.5 (matching Voltage Source)
+    QPen mainPen(wireColor, 1.8, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin);
+    if (option && (option->state & QStyle::State_Selected)) {
+        mainPen.setColor(accentColor);
+        mainPen.setWidthF(2.2);
+    }
+    painter->setPen(mainPen);
+    painter->setBrush(QBrush(theme ? theme->panelBackground() : QColor(30, 30, 35)));
+    painter->drawEllipse(QPointF(0.0000, 0.0000), 22.5000, 22.5000);
 
-    // Switch body
-    painter->drawLine(-30, 0, 30, 0);
-    painter->drawLine(-15, -10, 15, 10);
+    // Terminal contact dots
+    painter->setBrush(Qt::NoBrush);
+    painter->drawEllipse(QPointF(0.0000, 11.2500), 2.8125, 2.8125);
+    painter->drawEllipse(QPointF(14.0625, 2.8125), 2.8125, 2.8125);
+
+    // Switch blade: (0.0000, -14.0625) -> (14.0625, 2.8125)
+    painter->setPen(QPen(accentColor, 2.2, Qt::SolidLine, Qt::RoundCap));
+    painter->drawLine(QPointF(0.0000, -14.0625), QPointF(14.0625, 2.8125));
+
+    // Control leads and symbols on left
+    painter->setPen(QPen(wireColor, 1.6, Qt::SolidLine, Qt::RoundCap));
+    // NC+ lead (bottom left): (-45.0000, 16.8750) -> (-22.5000, 16.8750) -> (-16.8750, 14.0625)
+    painter->drawLine(QPointF(-45.0000, 16.8750), QPointF(-22.5000, 16.8750));
+    painter->drawLine(QPointF(-22.5000, 16.8750), QPointF(-16.8750, 14.0625));
+    // NC- lead (top left): (-45.0000, -16.8750) -> (-22.5000, -16.8750) -> (-16.8750, -14.0625)
+    painter->drawLine(QPointF(-45.0000, -16.8750), QPointF(-22.5000, -16.8750));
+    painter->drawLine(QPointF(-22.5000, -16.8750), QPointF(-16.8750, -14.0625));
+
+    // Polarity signs for control inputs:
+    // '+' sign next to NC+ (y = 16.875):
+    painter->drawLine(QPointF(-33.7500, 11.2500), QPointF(-28.1250, 11.2500));
+    painter->drawLine(QPointF(-30.9375, 14.0625), QPointF(-30.9375, 8.4375));
+    // '-' sign next to NC- (y = -16.875):
+    painter->drawLine(QPointF(-33.7500, -11.2500), QPointF(-28.1250, -11.2500));
+
+    // Main terminals: A (top) and B (bottom) leads
+    painter->drawLine(QPointF(0.0000, -45.0000), QPointF(0.0000, -14.0625));
+    painter->drawLine(QPointF(0.0000, 11.2500), QPointF(0.0000, 45.0000));
 
     drawConnectionPointHighlights(painter);
 }
 
 QList<QPointF> VoltageControlledSwitchItem::connectionPoints() const {
-    return { QPointF(-45, 0), QPointF(45, 0), QPointF(-15, -30), QPointF(15, 30) };
+    // 1:A (top 0, -45), 2:B (bottom 0, 45), 3:NC+ (left bottom -45, 16.88), 4:NC- (left top -45, -16.88)
+    return {
+        QPointF(0.0000, -45.0000),
+        QPointF(0.0000, 45.0000),
+        QPointF(-45.0000, 16.8750),
+        QPointF(-45.0000, -16.8750)
+    };
 }
 
 QJsonObject VoltageControlledSwitchItem::toJson() const {

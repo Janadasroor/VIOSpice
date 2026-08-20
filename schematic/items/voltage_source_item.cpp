@@ -364,8 +364,10 @@ void VoltageSourceItem::rebuildPrimitives() {
     // Outer Circle
     m_primitives.push_back(std::make_unique<CirclePrimitive>(QPointF(0, 0), 22.5, false));
     
-    m_primitives.push_back(std::make_unique<TextPrimitive>("+", QPointF(0, -10), 12));
-    m_primitives.push_back(std::make_unique<TextPrimitive>("-", QPointF(0, 10), 12));
+    // Polarity signs: '+' at top, '-' at bottom (exact geometric lines centered at x = 0)
+    m_primitives.push_back(std::make_unique<LinePrimitive>(QPointF(-5.6250, -14.0625), QPointF(5.6250, -14.0625)));
+    m_primitives.push_back(std::make_unique<LinePrimitive>(QPointF(0.0000, -19.6875), QPointF(0.0000, -8.4375)));
+    m_primitives.push_back(std::make_unique<LinePrimitive>(QPointF(-5.6250, 14.0625), QPointF(5.6250, 14.0625)));
     
     // Pin markers
     m_primitives.push_back(std::make_unique<CirclePrimitive>(QPointF(0, -45), 4, true));

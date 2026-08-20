@@ -794,7 +794,10 @@ QList<SymbolLibrary::SymbolInfo> SymbolLibraryManager::searchMetadata(const QStr
 }
 
 void SymbolLibraryManager::loadBuiltInLibrary() {
-    // Load from embedded resources
+    // Generate built-in symbols (including Interactive category components)
+    createDefaultBuiltInLibrary();
+
+    // Load from embedded resources if available
     SymbolLibrary* builtin = new SymbolLibrary("Built-in Standard", true);
     if (builtin->load(":/library/builtin.sclib")) {
         ensureBuiltInDefaultFootprints(builtin);
@@ -804,10 +807,10 @@ void SymbolLibraryManager::loadBuiltInLibrary() {
         }
     } else {
         delete builtin;
-        qWarning() << "Failed to load built-in symbols from resources!";
-        // Fallback to legacy generator if resource load fails
-        createDefaultBuiltInLibrary();
     }
+
+    // Load user/system libraries from standard paths
+    loadUserLibraries(QDir::homePath() + "/ViospiceLib/sym", false);
 }
 
 #include "config_manager.h"
@@ -892,15 +895,10 @@ void SymbolLibraryManager::loadUserLibraries(const QString& userLibPath, bool as
         sym.addPrimitive(SymbolPrimitive::createLine(QPointF(0, -45), QPointF(0, -22.5)));
         sym.addPrimitive(SymbolPrimitive::createLine(QPointF(0, 22.5), QPointF(0, 45)));
         sym.addPrimitive(SymbolPrimitive::createCircle(QPointF(0, 0), 22.5, false));
-        SymbolPrimitive plus = SymbolPrimitive::createText("+", QPointF(0, -10), 12, QColor(Qt::black));
-        plus.data["hAlign"] = "center";
-        plus.data["vAlign"] = "center";
-        sym.addPrimitive(plus);
-
-        SymbolPrimitive minus = SymbolPrimitive::createText("-", QPointF(0, 10), 12, QColor(Qt::black));
-        minus.data["hAlign"] = "center";
-        minus.data["vAlign"] = "center";
-        sym.addPrimitive(minus);
+        // Exact geometric '+' and '-' polarity marks centered perfectly on the X-axis (matching voltage.asy)
+        sym.addPrimitive(SymbolPrimitive::createLine(QPointF(-5.6250, -14.0625), QPointF(5.6250, -14.0625)));
+        sym.addPrimitive(SymbolPrimitive::createLine(QPointF(0.0000, -19.6875), QPointF(0.0000, -8.4375)));
+        sym.addPrimitive(SymbolPrimitive::createLine(QPointF(-5.6250, 14.0625), QPointF(5.6250, 14.0625)));
 
         SymbolPrimitive p1 = SymbolPrimitive::createPin(QPointF(0, -45), 1, "+", "Up", 0.0);
         p1.data["length"] = 0.0;
@@ -2348,31 +2346,176 @@ void SymbolLibraryManager::createDefaultBuiltInLibrary() {
     bi.addPrimitive(SymbolPrimitive::createPin(QPointF(0, 45), 2, "2"));
     addSym(bi);
 
-    // === Controlled Sources (E, G, F, H) ===
-    auto addControlledSource = [&](const QString& name, const QString& label, const QString& prefix) {
-        SymbolDefinition s(name);
-        s.setCategory("Simulation");
-        s.setReferencePrefix(prefix);
-        s.addPrimitive(SymbolPrimitive::createRect(QRectF(-25, -25, 50, 50), false));
-        SymbolPrimitive text = SymbolPrimitive::createText(label, QPointF(0, 0), 12, QColor(Qt::black));
-        text.data["hAlign"] = "center";
-        text.data["vAlign"] = "center";
-        s.addPrimitive(text);
-        
-        // Keep control pins on the left and output pins on the right, but number
-        // them in SPICE order so the netlister emits:
-        // E/G ref O+ O- C+ C- gain
-        s.addPrimitive(SymbolPrimitive::createPin(QPointF(-45, -15), 3, "C+"));
-        s.addPrimitive(SymbolPrimitive::createPin(QPointF(-45, 15), 4, "C-"));
-        s.addPrimitive(SymbolPrimitive::createPin(QPointF(45, -15), 1, "O+"));
-        s.addPrimitive(SymbolPrimitive::createPin(QPointF(45, 15), 2, "O-"));
-        
-        addSym(s);
-    };
-    addControlledSource("E", "E", "E");
-    addControlledSource("G", "G", "G");
-    addControlledSource("F", "F", "F");
-    addControlledSource("H", "H", "H");
+    // === Controlled Sources (E, G, F, H) - Standard Diamond Shape ===
+    // === Controlled Sources (E, G, F, H) - Scaled to match standard Voltage Source (Radius 22.5, Pins +/-45) ===
+    // === VCVS (E) ===
+    SymbolDefinition e_sym("VCVS (E)");
+    e_sym.setCategory("Simulation");
+    e_sym.setReferencePrefix("E");
+    e_sym.setDescription("Voltage dependent voltage source");
+    e_sym.setAliases({"VCVS (E)", "VCVS", "E", "Voltage Controlled Voltage Source"});
+    e_sym.addPrimitive(SymbolPrimitive::createCircle(QPointF(0.0000, 0.0000), 22.5000, false));
+    // Control leads: P (+) lead at y = -16.875, N (-) lead at y = 16.875
+    e_sym.addPrimitive(SymbolPrimitive::createLine(QPointF(-45.0000, -16.8750), QPointF(-22.5000, -16.8750)));
+    e_sym.addPrimitive(SymbolPrimitive::createLine(QPointF(-22.5000, -16.8750), QPointF(-16.8750, -14.0625)));
+    e_sym.addPrimitive(SymbolPrimitive::createLine(QPointF(-45.0000, 16.8750), QPointF(-22.5000, 16.8750)));
+    e_sym.addPrimitive(SymbolPrimitive::createLine(QPointF(-22.5000, 16.8750), QPointF(-16.8750, 14.0625)));
+    // Top/bottom main leads
+    e_sym.addPrimitive(SymbolPrimitive::createLine(QPointF(0.0000, -45.0000), QPointF(0.0000, -22.5000)));
+    e_sym.addPrimitive(SymbolPrimitive::createLine(QPointF(0.0000, 45.0000), QPointF(0.0000, 22.5000)));
+    // Polarity signs for control inputs (+ for P at y=-16.875, - for N at y=16.875)
+    // '+' sign next to P lead:
+    e_sym.addPrimitive(SymbolPrimitive::createLine(QPointF(-33.7500, -11.2500), QPointF(-28.1250, -11.2500)));
+    e_sym.addPrimitive(SymbolPrimitive::createLine(QPointF(-30.9375, -14.0625), QPointF(-30.9375, -8.4375)));
+    // '-' sign next to N lead:
+    e_sym.addPrimitive(SymbolPrimitive::createLine(QPointF(-33.7500, 11.2500), QPointF(-28.1250, 11.2500)));
+    // Internal markings: '+' at top, '-' at bottom
+    e_sym.addPrimitive(SymbolPrimitive::createLine(QPointF(-2.8125, -11.2500), QPointF(2.8125, -11.2500)));
+    e_sym.addPrimitive(SymbolPrimitive::createLine(QPointF(0.0000, -14.0625), QPointF(0.0000, -8.4375)));
+    e_sym.addPrimitive(SymbolPrimitive::createLine(QPointF(-2.8125, 11.2500), QPointF(2.8125, 11.2500)));
+    e_sym.addPrimitive(SymbolPrimitive::createPin(QPointF(0.0000, -45.0000), 1, "+", "Down", 0.0));
+    e_sym.addPrimitive(SymbolPrimitive::createPin(QPointF(0.0000, 45.0000), 2, "-", "Up", 0.0));
+    e_sym.addPrimitive(SymbolPrimitive::createPin(QPointF(-45.0000, -16.8750), 3, "P", "Right", 0.0));
+    e_sym.addPrimitive(SymbolPrimitive::createPin(QPointF(-45.0000, 16.8750), 4, "N", "Right", 0.0));
+    addSym(e_sym);
+
+    // Aliases for E
+    SymbolDefinition eAlias1("VCVS");
+    eAlias1.setCategory("Simulation"); eAlias1.setReferencePrefix("E");
+    eAlias1.setDescription("Voltage dependent voltage source");
+    for (const auto& prim : e_sym.primitives()) eAlias1.addPrimitive(prim);
+    addSym(eAlias1);
+
+    SymbolDefinition eAlias2("E");
+    eAlias2.setCategory("Simulation"); eAlias2.setReferencePrefix("E");
+    eAlias2.setDescription("Voltage dependent voltage source");
+    for (const auto& prim : e_sym.primitives()) eAlias2.addPrimitive(prim);
+    addSym(eAlias2);
+
+    SymbolDefinition eAlias3("Voltage Controlled Voltage Source");
+    eAlias3.setCategory("Simulation"); eAlias3.setReferencePrefix("E");
+    eAlias3.setDescription("Voltage dependent voltage source");
+    for (const auto& prim : e_sym.primitives()) eAlias3.addPrimitive(prim);
+    addSym(eAlias3);
+
+    // === VCCS (G) ===
+    SymbolDefinition g_sym("VCCS (G)");
+    g_sym.setCategory("Simulation");
+    g_sym.setReferencePrefix("G");
+    g_sym.setDescription("Voltage dependent current source");
+    g_sym.setAliases({"VCCS (G)", "VCCS", "G", "Voltage Controlled Current Source"});
+    g_sym.addPrimitive(SymbolPrimitive::createCircle(QPointF(0.0000, 0.0000), 22.5000, false));
+    g_sym.addPrimitive(SymbolPrimitive::createLine(QPointF(-45.0000, -16.8750), QPointF(-22.5000, -16.8750)));
+    g_sym.addPrimitive(SymbolPrimitive::createLine(QPointF(-22.5000, -16.8750), QPointF(-16.8750, -14.0625)));
+    g_sym.addPrimitive(SymbolPrimitive::createLine(QPointF(-45.0000, 16.8750), QPointF(-22.5000, 16.8750)));
+    g_sym.addPrimitive(SymbolPrimitive::createLine(QPointF(-22.5000, 16.8750), QPointF(-16.8750, 14.0625)));
+    g_sym.addPrimitive(SymbolPrimitive::createLine(QPointF(0.0000, -45.0000), QPointF(0.0000, -22.5000)));
+    g_sym.addPrimitive(SymbolPrimitive::createLine(QPointF(0.0000, 45.0000), QPointF(0.0000, 22.5000)));
+    // '+' sign next to NC+ (y = -16.875):
+    g_sym.addPrimitive(SymbolPrimitive::createLine(QPointF(-33.7500, -11.2500), QPointF(-28.1250, -11.2500)));
+    g_sym.addPrimitive(SymbolPrimitive::createLine(QPointF(-30.9375, -14.0625), QPointF(-30.9375, -8.4375)));
+    // '-' sign next to NC- (y = 16.875):
+    g_sym.addPrimitive(SymbolPrimitive::createLine(QPointF(-33.7500, 11.2500), QPointF(-28.1250, 11.2500)));
+    // Internal arrow pointing UP
+    g_sym.addPrimitive(SymbolPrimitive::createLine(QPointF(2.8125, -2.8125), QPointF(0.0000, -11.2500)));
+    g_sym.addPrimitive(SymbolPrimitive::createLine(QPointF(-2.8125, -2.8125), QPointF(0.0000, -11.2500)));
+    g_sym.addPrimitive(SymbolPrimitive::createLine(QPointF(-2.8125, -2.8125), QPointF(2.8125, -2.8125)));
+    g_sym.addPrimitive(SymbolPrimitive::createLine(QPointF(0.0000, -2.8125), QPointF(0.0000, 11.2500)));
+    g_sym.addPrimitive(SymbolPrimitive::createPin(QPointF(0.0000, 45.0000), 1, "+", "Up", 0.0));
+    g_sym.addPrimitive(SymbolPrimitive::createPin(QPointF(0.0000, -45.0000), 2, "-", "Down", 0.0));
+    g_sym.addPrimitive(SymbolPrimitive::createPin(QPointF(-45.0000, -16.8750), 3, "NC+", "Right", 0.0));
+    g_sym.addPrimitive(SymbolPrimitive::createPin(QPointF(-45.0000, 16.8750), 4, "NC-", "Right", 0.0));
+    addSym(g_sym);
+
+    // Aliases for G
+    SymbolDefinition gAlias1("VCCS");
+    gAlias1.setCategory("Simulation"); gAlias1.setReferencePrefix("G");
+    gAlias1.setDescription("Voltage dependent current source");
+    for (const auto& prim : g_sym.primitives()) gAlias1.addPrimitive(prim);
+    addSym(gAlias1);
+
+    SymbolDefinition gAlias2("G");
+    gAlias2.setCategory("Simulation"); gAlias2.setReferencePrefix("G");
+    gAlias2.setDescription("Voltage dependent current source");
+    for (const auto& prim : g_sym.primitives()) gAlias2.addPrimitive(prim);
+    addSym(gAlias2);
+
+    SymbolDefinition gAlias3("Voltage Controlled Current Source");
+    gAlias3.setCategory("Simulation"); gAlias3.setReferencePrefix("G");
+    gAlias3.setDescription("Voltage dependent current source");
+    for (const auto& prim : g_sym.primitives()) gAlias3.addPrimitive(prim);
+    addSym(gAlias3);
+
+    // === CCCS (F) ===
+    SymbolDefinition f_sym("CCCS (F)");
+    f_sym.setCategory("Simulation");
+    f_sym.setReferencePrefix("F");
+    f_sym.setDescription("Current dependent current source");
+    f_sym.setAliases({"CCCS (F)", "CCCS", "F", "Current Controlled Current Source"});
+    f_sym.addPrimitive(SymbolPrimitive::createCircle(QPointF(0.0000, 0.0000), 22.5000, false));
+    f_sym.addPrimitive(SymbolPrimitive::createLine(QPointF(0.0000, 11.2500), QPointF(2.8125, 2.8125)));
+    f_sym.addPrimitive(SymbolPrimitive::createLine(QPointF(0.0000, 11.2500), QPointF(-2.8125, 2.8125)));
+    f_sym.addPrimitive(SymbolPrimitive::createLine(QPointF(-2.8125, 2.8125), QPointF(2.8125, 2.8125)));
+    f_sym.addPrimitive(SymbolPrimitive::createLine(QPointF(0.0000, -11.2500), QPointF(0.0000, 2.8125)));
+    f_sym.addPrimitive(SymbolPrimitive::createLine(QPointF(0.0000, 45.0000), QPointF(0.0000, 22.5000)));
+    f_sym.addPrimitive(SymbolPrimitive::createLine(QPointF(0.0000, -45.0000), QPointF(0.0000, -22.5000)));
+    f_sym.addPrimitive(SymbolPrimitive::createPin(QPointF(0.0000, -45.0000), 1, "+", "Down", 0.0));
+    f_sym.addPrimitive(SymbolPrimitive::createPin(QPointF(0.0000, 45.0000), 2, "-", "Up", 0.0));
+    addSym(f_sym);
+
+    // Aliases for F
+    SymbolDefinition fAlias1("CCCS");
+    fAlias1.setCategory("Simulation"); fAlias1.setReferencePrefix("F");
+    fAlias1.setDescription("Current dependent current source");
+    for (const auto& prim : f_sym.primitives()) fAlias1.addPrimitive(prim);
+    addSym(fAlias1);
+
+    SymbolDefinition fAlias2("F");
+    fAlias2.setCategory("Simulation"); fAlias2.setReferencePrefix("F");
+    fAlias2.setDescription("Current dependent current source");
+    for (const auto& prim : f_sym.primitives()) fAlias2.addPrimitive(prim);
+    addSym(fAlias2);
+
+    SymbolDefinition fAlias3("Current Controlled Current Source");
+    fAlias3.setCategory("Simulation"); fAlias3.setReferencePrefix("F");
+    fAlias3.setDescription("Current dependent current source");
+    for (const auto& prim : f_sym.primitives()) fAlias3.addPrimitive(prim);
+    addSym(fAlias3);
+
+    // === CCVS (H) ===
+    SymbolDefinition h_sym("CCVS (H)");
+    h_sym.setCategory("Simulation");
+    h_sym.setReferencePrefix("H");
+    h_sym.setDescription("Current dependent voltage source");
+    h_sym.setAliases({"CCVS (H)", "CCVS", "H", "Current Controlled Voltage Source"});
+    h_sym.addPrimitive(SymbolPrimitive::createCircle(QPointF(0.0000, 0.0000), 22.5000, false));
+    h_sym.addPrimitive(SymbolPrimitive::createLine(QPointF(-5.6250, -14.0625), QPointF(5.6250, -14.0625)));
+    h_sym.addPrimitive(SymbolPrimitive::createLine(QPointF(-5.6250, 14.0625), QPointF(5.6250, 14.0625)));
+    h_sym.addPrimitive(SymbolPrimitive::createLine(QPointF(0.0000, -19.6875), QPointF(0.0000, -8.4375)));
+    h_sym.addPrimitive(SymbolPrimitive::createLine(QPointF(0.0000, 45.0000), QPointF(0.0000, 22.5000)));
+    h_sym.addPrimitive(SymbolPrimitive::createLine(QPointF(0.0000, -45.0000), QPointF(0.0000, -22.5000)));
+    h_sym.addPrimitive(SymbolPrimitive::createPin(QPointF(0.0000, -45.0000), 1, "+", "Down", 0.0));
+    h_sym.addPrimitive(SymbolPrimitive::createPin(QPointF(0.0000, 45.0000), 2, "-", "Up", 0.0));
+    addSym(h_sym);
+
+    // Aliases for H
+    SymbolDefinition hAlias1("CCVS");
+    hAlias1.setCategory("Simulation"); hAlias1.setReferencePrefix("H");
+    hAlias1.setDescription("Current dependent voltage source");
+    for (const auto& prim : h_sym.primitives()) hAlias1.addPrimitive(prim);
+    addSym(hAlias1);
+
+    SymbolDefinition hAlias2("H");
+    hAlias2.setCategory("Simulation"); hAlias2.setReferencePrefix("H");
+    hAlias2.setDescription("Current dependent voltage source");
+    for (const auto& prim : h_sym.primitives()) hAlias2.addPrimitive(prim);
+    addSym(hAlias2);
+
+    SymbolDefinition hAlias3("Current Controlled Voltage Source");
+    hAlias3.setCategory("Simulation"); hAlias3.setReferencePrefix("H");
+    hAlias3.setDescription("Current dependent voltage source");
+    for (const auto& prim : h_sym.primitives()) hAlias3.addPrimitive(prim);
+    addSym(hAlias3);
     
     // === Tuning Slider ===
     SymbolDefinition slider("Tuning Slider");
@@ -2391,12 +2534,113 @@ void SymbolLibraryManager::createDefaultBuiltInLibrary() {
     // Knob (as a small rect)
     SymbolPrimitive knob = SymbolPrimitive::createRect(QRectF(56, 18, 8, 14), true);
     slider.addPrimitive(knob);
-
-    SymbolPrimitive sliderText = SymbolPrimitive::createText("Tuning", QPointF(8, 12), 8, QColor(Qt::black));
-    slider.addPrimitive(sliderText);
     addSym(slider);
-    
-    // === Voltage Regulator ===
+
+    // === Interactive Components ===
+    // 1. Voltage Controlled Switch (SPICE S-device: N+ N- NC+ NC-)
+    SymbolDefinition vcsw("Voltage Controlled Switch");
+    vcsw.setCategory("Interactive");
+    vcsw.setReferencePrefix("S");
+    vcsw.setDescription("Voltage controlled switch");
+    vcsw.setAliases({"Voltage Controlled Switch", "VC Switch", "VCSW", "sw", "SW_VC", "SW"});
+    vcsw.setSpiceModelName("SW");
+    vcsw.addPrimitive(SymbolPrimitive::createCircle(QPointF(0.0000, 0.0000), 22.5000, false));
+    vcsw.addPrimitive(SymbolPrimitive::createCircle(QPointF(0.0000, 11.2500), 2.8125, false));
+    vcsw.addPrimitive(SymbolPrimitive::createCircle(QPointF(14.0625, 2.8125), 2.8125, false));
+    // Control leads: NC+ at y = 16.875, NC- at y = -16.875
+    vcsw.addPrimitive(SymbolPrimitive::createLine(QPointF(-45.0000, -16.8750), QPointF(-22.5000, -16.8750)));
+    vcsw.addPrimitive(SymbolPrimitive::createLine(QPointF(-22.5000, -16.8750), QPointF(-16.8750, -14.0625)));
+    vcsw.addPrimitive(SymbolPrimitive::createLine(QPointF(-45.0000, 16.8750), QPointF(-22.5000, 16.8750)));
+    vcsw.addPrimitive(SymbolPrimitive::createLine(QPointF(-22.5000, 16.8750), QPointF(-16.8750, 14.0625)));
+    // Main switch output leads
+    vcsw.addPrimitive(SymbolPrimitive::createLine(QPointF(0.0000, 45.0000), QPointF(0.0000, 11.2500)));
+    vcsw.addPrimitive(SymbolPrimitive::createLine(QPointF(0.0000, -45.0000), QPointF(0.0000, -14.0625)));
+    vcsw.addPrimitive(SymbolPrimitive::createLine(QPointF(0.0000, -14.0625), QPointF(14.0625, 2.8125)));
+    // '+' sign next to NC+ (y = 16.875):
+    vcsw.addPrimitive(SymbolPrimitive::createLine(QPointF(-33.7500, 11.2500), QPointF(-28.1250, 11.2500)));
+    vcsw.addPrimitive(SymbolPrimitive::createLine(QPointF(-30.9375, 14.0625), QPointF(-30.9375, 8.4375)));
+    // '-' sign next to NC- (y = -16.875):
+    vcsw.addPrimitive(SymbolPrimitive::createLine(QPointF(-33.7500, -11.2500), QPointF(-28.1250, -11.2500)));
+    vcsw.addPrimitive(SymbolPrimitive::createPin(QPointF(0.0000, -45.0000), 1, "A", "Down", 0.0));
+    vcsw.addPrimitive(SymbolPrimitive::createPin(QPointF(0.0000, 45.0000), 2, "B", "Up", 0.0));
+    vcsw.addPrimitive(SymbolPrimitive::createPin(QPointF(-45.0000, 16.8750), 3, "NC+", "Right", 0.0));
+    vcsw.addPrimitive(SymbolPrimitive::createPin(QPointF(-45.0000, -16.8750), 4, "NC-", "Right", 0.0));
+    addSym(vcsw);
+
+    // Also add alias "sw" definition
+    SymbolDefinition swAlias("sw");
+    swAlias.setCategory("Interactive");
+    swAlias.setReferencePrefix("S");
+    swAlias.setDescription("Voltage controlled switch (sw)");
+    for (const auto& prim : vcsw.primitives()) swAlias.addPrimitive(prim);
+    addSym(swAlias);
+
+    // 2. Interactive Switch (SPST)
+    SymbolDefinition spst("Switch");
+    spst.setCategory("Interactive");
+    spst.setReferencePrefix("SW");
+    spst.setDescription("Interactive SPST manual toggle switch");
+    spst.setAliases({"Switch", "SPST Switch", "Toggle Switch", "SW"});
+    spst.addPrimitive(SymbolPrimitive::createCircle(QPointF(-20, 0), 3.5, false));
+    spst.addPrimitive(SymbolPrimitive::createCircle(QPointF(20, 0), 3.5, false));
+    spst.addPrimitive(SymbolPrimitive::createLine(QPointF(-20, 0), QPointF(18, -15)));
+    spst.addPrimitive(SymbolPrimitive::createPin(QPointF(-45, 0), 1, "1", "Right", 25.0));
+    spst.addPrimitive(SymbolPrimitive::createPin(QPointF(45, 0), 2, "2", "Left", 25.0));
+    addSym(spst);
+
+    // 3. Interactive Push Button
+    SymbolDefinition pb("Push Button");
+    pb.setCategory("Interactive");
+    pb.setReferencePrefix("SW");
+    pb.setDescription("Interactive momentary tactile push button");
+    pb.setAliases({"Push Button", "PushButton", "Tactile Switch", "Button"});
+    pb.addPrimitive(SymbolPrimitive::createCircle(QPointF(-20, 0), 3.5, false));
+    pb.addPrimitive(SymbolPrimitive::createCircle(QPointF(20, 0), 3.5, false));
+    // Plunger & Contact Bar
+    pb.addPrimitive(SymbolPrimitive::createLine(QPointF(-22, -10), QPointF(22, -10)));
+    pb.addPrimitive(SymbolPrimitive::createLine(QPointF(0, -10), QPointF(0, -18)));
+    pb.addPrimitive(SymbolPrimitive::createRect(QRectF(-12, -22, 24, 6), false));
+    pb.addPrimitive(SymbolPrimitive::createPin(QPointF(-45, 0), 1, "1", "Right", 25.0));
+    pb.addPrimitive(SymbolPrimitive::createPin(QPointF(45, 0), 2, "2", "Left", 25.0));
+    addSym(pb);
+
+    // Also register "PushButton" alias
+    SymbolDefinition pbAlias("PushButton");
+    pbAlias.setCategory("Interactive");
+    pbAlias.setReferencePrefix("SW");
+    pbAlias.setDescription("Interactive momentary tactile push button");
+    for (const auto& prim : pb.primitives()) pbAlias.addPrimitive(prim);
+    addSym(pbAlias);
+
+    // 4. Interactive LED
+    SymbolDefinition ledSym("LED");
+    ledSym.setCategory("Interactive");
+    ledSym.setReferencePrefix("D");
+    ledSym.setDescription("Light Emitting Diode with real-time glow feedback");
+    ledSym.setAliases({"LED", "Light Emitting Diode"});
+    ledSym.setSpiceModelName("D");
+    ledSym.addPrimitive(SymbolPrimitive::createPolygon({QPointF(-15, -15), QPointF(-15, 15), QPointF(15, 0)}, false));
+    ledSym.addPrimitive(SymbolPrimitive::createLine(QPointF(15, -15), QPointF(15, 15)));
+    // Photonic light emission arrows
+    ledSym.addPrimitive(SymbolPrimitive::createLine(QPointF(5, -18), QPointF(15, -28)));
+    ledSym.addPrimitive(SymbolPrimitive::createPolygon({QPointF(15, -28), QPointF(10, -28), QPointF(15, -23)}, true));
+    ledSym.addPrimitive(SymbolPrimitive::createLine(QPointF(-3, -18), QPointF(7, -28)));
+    ledSym.addPrimitive(SymbolPrimitive::createPolygon({QPointF(7, -28), QPointF(2, -28), QPointF(7, -23)}, true));
+    ledSym.addPrimitive(SymbolPrimitive::createPin(QPointF(-45, 0), 1, "A", "Right", 30.0));
+    ledSym.addPrimitive(SymbolPrimitive::createPin(QPointF(45, 0), 2, "K", "Left", 30.0));
+    addSym(ledSym);
+
+    // 5. Interactive Blinking LED
+    SymbolDefinition blinkLed("Blinking LED");
+    blinkLed.setCategory("Interactive");
+    blinkLed.setReferencePrefix("D");
+    blinkLed.setDescription("Interactive self-pulsing blinking LED indicator");
+    blinkLed.setAliases({"Blinking LED", "BlinkingLED", "Blink LED"});
+    for (const auto& prim : ledSym.primitives()) blinkLed.addPrimitive(prim);
+    // Add pulsing indicator badge (top left badge)
+    blinkLed.addPrimitive(SymbolPrimitive::createCircle(QPointF(-25, -20), 4, false));
+    blinkLed.addPrimitive(SymbolPrimitive::createLine(QPointF(-28, -17), QPointF(-22, -23)));
+    addSym(blinkLed);
 
     QString baseDir = QDir::homePath() + "/ViospiceLib/sym";
     for (auto it = catLibs.begin(); it != catLibs.end(); ++it) {
@@ -2417,7 +2661,7 @@ void SymbolLibraryManager::createDefaultBuiltInLibrary() {
                         continue;
                     }
 
-                    if (isLegacyBuiltInMosfetSymbol(*current)) {
+                    if (isLegacyBuiltInMosfetSymbol(*current) || symbol.category() == "Interactive" || symbol.category() == "Simulation" || symbol.category() == "Passives") {
                         existing.addSymbol(symbol);
                         addedMissingSymbol = true;
                     }

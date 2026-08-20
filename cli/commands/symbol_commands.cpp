@@ -231,6 +231,12 @@ bool renderSymbolToPng(const SymbolDefinition& symbol, const QString& outPath, b
             if (prim.data.contains("color")) {
                 pen.setColor(parseColorOrDefault(prim.data, "color", bodyColor));
             }
+            if (prim.data.contains("style")) {
+                pen.setStyle(parseLineStyle(prim.data.value("style").toString()));
+            }
+            if (prim.data.contains("width")) {
+                pen.setWidthF(prim.data.value("width").toDouble(1.5));
+            }
             painter.setPen(pen);
             if (prim.data.value("fill").toBool(false)) {
                 painter.setBrush(QBrush(parseColorOrDefault(prim.data, "fillColor", QColor(40, 40, 45))));
@@ -246,6 +252,12 @@ bool renderSymbolToPng(const SymbolDefinition& symbol, const QString& outPath, b
             QPen pen = linePen;
             if (prim.data.contains("color")) {
                 pen.setColor(parseColorOrDefault(prim.data, "color", bodyColor));
+            }
+            if (prim.data.contains("style")) {
+                pen.setStyle(parseLineStyle(prim.data.value("style").toString()));
+            }
+            if (prim.data.contains("width")) {
+                pen.setWidthF(prim.data.value("width").toDouble(1.5));
             }
             painter.setPen(pen);
             if (prim.data.value("fill").toBool(false)) {
@@ -1664,35 +1676,47 @@ public:
     }
     int execute(const QStringList& args, const QCommandLineParser& parser) override {
         if (args.size() < 2) {
-            std::cerr << "Usage: viora symbol-render <file.viosym> <out.png> [options]" << std::endl;
+            std::cerr << "Usage: viora symbol-render <name-or-file.viosym> <out.png> [options]" << std::endl;
             return 1;
         }
-        const QString filePath = args.at(0);
+        const QString target = args.at(0);
         const QString outPath = args.at(1);
-        QFile file(filePath);
-        if (!file.open(QIODevice::ReadOnly)) {
-            std::cerr << "Error: Cannot read symbol file: " << filePath.toStdString() << std::endl;
-            return 1;
-        }
-        const QByteArray bytes = file.readAll();
-        file.close();
+        SymbolDefinition symbol;
 
-        QJsonParseError parseError;
-        QJsonDocument doc = QJsonDocument::fromJson(bytes, &parseError);
-        if (parseError.error != QJsonParseError::NoError || !doc.isObject()) {
-            std::cerr << "Error: Invalid symbol JSON: " << parseError.errorString().toStdString() << std::endl;
-            return 1;
-        }
+        if (QFile::exists(target)) {
+            QFile file(target);
+            if (!file.open(QIODevice::ReadOnly)) {
+                std::cerr << "Error: Cannot read symbol file: " << target.toStdString() << std::endl;
+                return 1;
+            }
+            const QByteArray bytes = file.readAll();
+            file.close();
 
-        QJsonObject obj = doc.object();
-        if (obj.contains("library")) {
-            std::cerr << "Error: This looks like a library file (.sclib), not a .viosym." << std::endl;
-            return 1;
-        }
-
-        SymbolDefinition symbol = SymbolDefinition::fromJson(obj);
-        if (symbol.name().trimmed().isEmpty()) {
-            symbol.setName(QFileInfo(filePath).completeBaseName());
+            QJsonParseError parseError;
+            const QJsonDocument doc = QJsonDocument::fromJson(bytes, &parseError);
+            if (parseError.error != QJsonParseError::NoError || !doc.isObject()) {
+                std::cerr << "Error: Invalid JSON in " << target.toStdString() << ": "
+                          << parseError.errorString().toStdString() << std::endl;
+                return 1;
+            }
+            QJsonObject obj = doc.object();
+            if (obj.contains("library")) {
+                std::cerr << "Error: This looks like a library file (.sclib), not a .viosym." << std::endl;
+                return 1;
+            }
+            symbol = SymbolDefinition::fromJson(obj);
+            if (symbol.name().trimmed().isEmpty()) {
+                symbol.setName(QFileInfo(target).completeBaseName());
+            }
+        } else {
+            // Lookup by symbol name in SymbolLibraryManager
+            SymbolLibraryManager& libMgr = SymbolLibraryManager::instance();
+            const SymbolDefinition* found = libMgr.findSymbol(target);
+            if (!found) {
+                std::cerr << "Error: Symbol not found: " << target.toStdString() << std::endl;
+                return 1;
+            }
+            symbol = *found;
         }
 
         const bool transparent = parser.isSet("transparent");
@@ -1703,7 +1727,7 @@ public:
         }
         if (parser.isSet("json")) {
             QJsonObject out;
-            out["file"] = filePath;
+            out["target"] = target;
             out["output"] = outPath;
             out["transparent"] = transparent;
             out["scale"] = scale;

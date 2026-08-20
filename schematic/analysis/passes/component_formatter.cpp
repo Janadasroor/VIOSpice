@@ -555,10 +555,34 @@ void ComponentFormatter::format(const ECOComponent& comp,
         }
 
         // Determine SPICE prefix
-        if (type == SchematicItem::ResistorType) line = ensurePrefix(ref, "R");
-        else if (type == SchematicItem::CapacitorType) line = ensurePrefix(ref, "C");
-        else if (type == SchematicItem::InductorType) line = ensurePrefix(ref, "L");
-        else if (type == SchematicItem::DiodeType) line = ensurePrefix(ref, "D");
+        if (type == SchematicItem::ResistorType ||
+            comp.typeName.compare("Resistor", Qt::CaseInsensitive) == 0 ||
+            comp.typeName.compare("Resistor_US", Qt::CaseInsensitive) == 0 ||
+            comp.typeName.compare("Resistor_IEC", Qt::CaseInsensitive) == 0 ||
+            comp.typeName.compare("res", Qt::CaseInsensitive) == 0 ||
+            baseRef.startsWith("R", Qt::CaseInsensitive)) {
+            line = ensurePrefix(ref, "R");
+        }
+        else if (type == SchematicItem::CapacitorType ||
+                 comp.typeName.compare("Capacitor", Qt::CaseInsensitive) == 0 ||
+                 comp.typeName.compare("cap", Qt::CaseInsensitive) == 0 ||
+                 comp.typeName.compare("polcap", Qt::CaseInsensitive) == 0 ||
+                 baseRef.startsWith("C", Qt::CaseInsensitive)) {
+            line = ensurePrefix(ref, "C");
+        }
+        else if (type == SchematicItem::InductorType ||
+                 comp.typeName.compare("Inductor", Qt::CaseInsensitive) == 0 ||
+                 comp.typeName.compare("ind", Qt::CaseInsensitive) == 0 ||
+                 baseRef.startsWith("L", Qt::CaseInsensitive)) {
+            line = ensurePrefix(ref, "L");
+        }
+        else if (type == SchematicItem::DiodeType ||
+                 comp.typeName.compare("Diode", Qt::CaseInsensitive) == 0 ||
+                 comp.typeName.compare("Diode_LED", Qt::CaseInsensitive) == 0 ||
+                 comp.typeName.compare("d", Qt::CaseInsensitive) == 0 ||
+                 baseRef.startsWith("D", Qt::CaseInsensitive)) {
+            line = ensurePrefix(ref, "D");
+        }
         else if (type == SchematicItem::TransistorType) line = ensurePrefix(ref, "Q");
         else if (type == SchematicItem::VoltageSourceType) {
             if (comp.value.trimmed().startsWith("V=", Qt::CaseInsensitive)) line = ensurePrefix(ref, "B");

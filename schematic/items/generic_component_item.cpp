@@ -94,8 +94,23 @@ GenericComponentItem::GenericComponentItem(const SymbolDefinition& symbol, QGrap
     , m_symbol(symbol) {
     // Set default name and value from symbol
     m_name = symbol.name();
-    // Default value is usually the name or empty
-    m_value = symbol.name();
+    if (!symbol.defaultValue().trimmed().isEmpty()) {
+        m_value = symbol.defaultValue().trimmed();
+    } else {
+        const QString prefix = symbol.referencePrefix().trimmed().toUpper();
+        const QString symName = symbol.name().trimmed().toLower();
+        if (prefix == "R" || symName == "resistor" || symName == "res" || symName.startsWith("resistor_")) {
+            m_value = "10k";
+        } else if (prefix == "C" || symName == "capacitor" || symName == "cap" || symName.startsWith("capacitor_")) {
+            m_value = "10uF";
+        } else if (prefix == "L" || symName == "inductor" || symName == "ind" || symName.startsWith("inductor_")) {
+            m_value = "10uH";
+        } else if (prefix == "D" || symName == "diode" || symName.startsWith("diode_")) {
+            m_value = "1N4148";
+        } else {
+            m_value = symbol.name();
+        }
+    }
     
     // Set default footprint from symbol definition
     setFootprint(symbol.defaultFootprint());

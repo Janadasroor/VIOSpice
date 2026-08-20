@@ -447,7 +447,18 @@ SymbolDefinition SymbolDefinition::fromJson(const QJsonObject& json) {
         def.m_symbolId = normalizeSymbolIdKey(def.m_name);
     }
     def.m_datasheet = json["datasheet"].toString();
-    def.m_referencePrefix = json["referencePrefix"].toString("U");
+    if (json.contains("referencePrefix")) {
+        def.m_referencePrefix = json["referencePrefix"].toString("U");
+    } else if (json.contains("prefix")) {
+        def.m_referencePrefix = json["prefix"].toString("U");
+    } else {
+        const QString nm = def.m_name.trimmed().toLower();
+        if (nm == "resistor" || nm == "r" || nm.startsWith("resistor_") || nm.startsWith("res_")) def.m_referencePrefix = "R";
+        else if (nm == "capacitor" || nm == "c" || nm.startsWith("capacitor_") || nm.startsWith("cap_") || nm == "polcap") def.m_referencePrefix = "C";
+        else if (nm == "inductor" || nm == "l" || nm.startsWith("inductor_") || nm.startsWith("ind_")) def.m_referencePrefix = "L";
+        else if (nm == "diode" || nm == "d" || nm.startsWith("diode_")) def.m_referencePrefix = "D";
+        else def.m_referencePrefix = "U";
+    }
     def.m_parentName = json["parentName"].toString();
     def.m_parentLibrary = json["parentLibrary"].toString();
     def.m_defaultValue = json["defaultValue"].toString();
