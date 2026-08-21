@@ -262,6 +262,12 @@ bool CodeEditor::event(QEvent* e) {
     if (e->type() == QEvent::ToolTip) {
         QHelpEvent* helpEvent = static_cast<QHelpEvent*>(e);
         QTextCursor cursor = cursorForPosition(helpEvent->pos());
+        int blockNum = cursor.blockNumber();
+        if (m_errorLines.contains(blockNum)) {
+            QToolTip::showText(helpEvent->globalPos(), QString("<b><font color='#ef4444'>Error (Line %1):</font></b> %2").arg(blockNum + 1).arg(m_errorLines[blockNum].toHtmlEscaped()), this);
+            return true;
+        }
+
         cursor.select(QTextCursor::WordUnderCursor);
         QString word = cursor.selectedText();
         
@@ -291,12 +297,16 @@ void CodeEditor::paintEvent(QPaintEvent* e) {
 void CodeEditor::rebuildExtraSelections() {
     QList<QTextEdit::ExtraSelection> selections;
 
-    auto addLine = [&](int line, const QColor& bg) {
+    auto addLine = [&](int line, const QColor& bg, bool isError) {
         QTextBlock block = document()->findBlockByNumber(line);
         if (!block.isValid()) return;
         QTextEdit::ExtraSelection sel;
         sel.format.setBackground(bg);
         sel.format.setProperty(QTextFormat::FullWidthSelection, true);
+        if (isError) {
+            sel.format.setUnderlineColor(QColor(239, 68, 68));
+            sel.format.setUnderlineStyle(QTextCharFormat::WaveUnderline);
+        }
         sel.cursor = QTextCursor(block);
         sel.cursor.movePosition(QTextCursor::StartOfBlock);
         sel.cursor.movePosition(QTextCursor::EndOfBlock, QTextCursor::KeepAnchor);
@@ -304,13 +314,13 @@ void CodeEditor::rebuildExtraSelections() {
     };
 
     for (auto it = m_errorLines.begin(); it != m_errorLines.end(); ++it)
-        addLine(it.key(), QColor(255, 0, 0, 60));
+        addLine(it.key(), QColor(255, 0, 0, 45), true);
     if (m_activeDebugLine >= 0)
-        addLine(m_activeDebugLine, QColor(255, 255, 0, 60));
+        addLine(m_activeDebugLine, QColor(255, 255, 0, 60), false);
     for (int line : m_diffAddedLines)
-        addLine(line, QColor(0, 200, 0, 60));
+        addLine(line, QColor(0, 200, 0, 60), false);
     for (int line : m_diffDeletedLines)
-        addLine(line, QColor(255, 0, 0, 60));
+        addLine(line, QColor(255, 0, 0, 60), false);
     setExtraSelections(selections);
 }
 

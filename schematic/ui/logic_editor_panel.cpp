@@ -1016,22 +1016,50 @@ void LogicEditorPanel::updatePreview() {
             m_statusLabel->setText("JIT Ready. Compilation: " + QString::number(elapsed) + "ms");
             m_editor->setErrorLines({});
         } else {
-            m_console->append("<font color='#f44747'>[JIT ERROR] Compilation failed.</font>");
-            // Parse line numbers from compiler diagnostic strings (e.g. "<input>:3:5: error: ...")
+            m_console->append("<font color='#f44747'><b>[JIT ERROR] Compilation failed.</b></font>");
+            
             QMap<int, QString> parsedErrors;
-            static const QRegularExpression lineRe(R"((?:<[^>]+>|[\w\.-]+):(\d+):(?:\d+:)?\s*(.*))");
+            // Parse patterns like:
+            // [FLUX ERROR] [line 8, column 1] Unknown variable name: y
+            // <flux>:8:1: error: ...
+            // <input>:8: error: ...
+            static const QRegularExpression fluxErrRe(R"(\[FLUX ERROR\]\s*\[line\s*(\d+)(?:,\s*column\s*(\d+))?\]\s*(.*))");
+            static const QRegularExpression stdErrRe(R"((?:<[^>]+>|[\w\.-]+):(\d+):(?:\d+:)?\s*(.*))");
+
             for (auto it = errors.begin(); it != errors.end(); ++it) {
                 const QString msg = it.value();
-                m_console->append("<font color='#f44747'>" + msg.toHtmlEscaped() + "</font>");
-                auto match = lineRe.match(msg);
-                if (match.hasMatch()) {
-                    int line1Indexed = match.captured(1).toInt();
-                    // JIT compiler wrapped the code with 1 header line (e.g. def update_... {)
-                    // If line was within body, offset back to match editor block (0-indexed block number)
-                    int editorLine = qMax(0, line1Indexed - 2);
-                    parsedErrors[editorLine] = match.captured(2);
-                } else if (it.key() > 0) {
-                    parsedErrors[qMax(0, it.key() - 1)] = msg;
+                QStringList lines = msg.split('\n');
+                for (const QString& line : lines) {
+                    if (line.trimmed().isEmpty()) continue;
+                    
+                    int lineNum = -1;
+                    int colNum = 1;
+                    QString detail = line;
+
+                    auto m1 = fluxErrRe.match(line);
+                    if (m1.hasMatch()) {
+                        lineNum = m1.captured(1).toInt();
+                        if (!m1.captured(2).isEmpty()) colNum = m1.captured(2).toInt();
+                        detail = m1.captured(3);
+                    } else {
+                        auto m2 = stdErrRe.match(line);
+                        if (m2.hasMatch()) {
+                            lineNum = m2.captured(1).toInt();
+                            detail = m2.captured(2);
+                        }
+                    }
+
+                    if (lineNum > 0) {
+                        // The source was wrapped with 1 header line (e.g. def update_... {)
+                        int editorLine = qMax(0, lineNum - 2);
+                        parsedErrors[editorLine] = detail;
+                        
+                        // Output formatted compiler message with error pointer
+                        m_console->append(QString("<font color='#f87171'><b>Line %1, Col %2:</b> %3</font>")
+                                          .arg(editorLine + 1).arg(colNum).arg(detail.toHtmlEscaped()));
+                    } else {
+                        m_console->append("<font color='#f87171'>" + line.toHtmlEscaped() + "</font>");
+                    }
                 }
             }
             m_editor->setErrorLines(parsedErrors);
