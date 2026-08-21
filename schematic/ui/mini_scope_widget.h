@@ -88,6 +88,7 @@ public:
     TraceStats getTraceStats(const QString& channelName) const;
     TraceStats getOverallTraceStats() const;
 
+    void ensureCursorsInView();
     void zoomToFit();
     void fitYAxis();
 

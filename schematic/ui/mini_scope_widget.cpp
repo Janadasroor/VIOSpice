@@ -61,18 +61,44 @@ MiniScopeWidget::MiniScopeWidget(QWidget* parent) : QWidget(parent) {
     m_rubberBand->setStyleSheet("border: 1px dashed #00f0ff; background-color: rgba(0, 240, 255, 45);");
 }
 
+void MiniScopeWidget::ensureCursorsInView() {
+    if (m_cursorMode == CursorNone) return;
+
+    double timeSpan = std::max(1e-9, m_maxX - m_minX);
+    bool changed = false;
+
+    if (!m_cursorsInitialized || m_timeCursorA < m_minX || m_timeCursorA > m_maxX) {
+        m_timeCursorA = m_minX + 0.25 * timeSpan;
+        changed = true;
+    }
+    if (!m_cursorsInitialized || m_timeCursorB < m_minX || m_timeCursorB > m_maxX) {
+        m_timeCursorB = m_minX + 0.75 * timeSpan;
+        changed = true;
+    }
+
+    if (!m_cursorsInitialized || m_voltCursorA < -3.8 || m_voltCursorA > 3.8) {
+        m_voltCursorA = 1.5;
+        changed = true;
+    }
+    if (!m_cursorsInitialized || m_voltCursorB < -3.8 || m_voltCursorB > 3.8) {
+        m_voltCursorB = -1.5;
+        changed = true;
+    }
+
+    m_cursorsInitialized = true;
+
+    if (changed) {
+        double dt = std::abs(m_timeCursorB - m_timeCursorA);
+        double f = (dt > 1e-15) ? (1.0 / dt) : 0.0;
+        double dv = std::abs(m_voltCursorA - m_voltCursorB);
+        Q_EMIT cursorsChanged(dt, f, dv);
+    }
+}
+
 void MiniScopeWidget::setCursorMode(CursorMode mode) {
     m_cursorMode = mode;
-    if (m_cursorMode != CursorNone && !m_cursorsInitialized) {
-        // Initialize cursors at 25% and 75% of current screen
-        double timeSpan = std::max(1e-9, m_maxX - m_minX);
-        m_timeCursorA = m_minX + 0.25 * timeSpan;
-        m_timeCursorB = m_minX + 0.75 * timeSpan;
-
-        double voltSpan = std::max(1e-9, m_globalMaxY - m_globalMinY);
-        m_voltCursorA = m_globalMinY + 0.75 * voltSpan;
-        m_voltCursorB = m_globalMinY + 0.25 * voltSpan;
-        m_cursorsInitialized = true;
+    if (m_cursorMode != CursorNone) {
+        ensureCursorsInView();
     }
     update();
 }
@@ -100,6 +126,7 @@ void MiniScopeWidget::setTimebase(double t) {
             m_minX = minXData;
             m_maxX = minXData + windowSpan;
         }
+        ensureCursorsInView();
         update();
     }
 }
@@ -802,6 +829,7 @@ void MiniScopeWidget::mouseReleaseEvent(QMouseEvent* event) {
                     double botDiv = unmapY(rect.bottom());
                     Q_EMIT rubberBandZoomCompleted(m_minX, m_maxX, botDiv, topDiv);
                 }
+                ensureCursorsInView();
                 update();
                 return;
             }
@@ -908,6 +936,7 @@ void MiniScopeWidget::zoomToFit() {
         m_maxX = overall.minT + (niceTdiv * 10.0);
         Q_EMIT timebaseChanged(m_timebase);
     }
+    ensureCursorsInView();
     update();
 }
 
