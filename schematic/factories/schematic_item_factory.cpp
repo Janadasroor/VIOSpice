@@ -59,6 +59,8 @@ SchematicItem* SchematicItemFactory::createItem(const QString& typeName, QPointF
     const bool isSpecializedItem = (typeName == "TuningSlider" || 
                                     typeName == "RotaryKnob" ||
                                     typeName == "Joystick" ||
+                                    typeName == "Oscilloscope" ||
+                                    typeName == "Oscilloscope Instrument" ||
                                     typeName == "OscilloscopeInstrument" ||
                                     typeName == "LogicAnalyzer" ||
                                     typeName == "LogicToggle" ||

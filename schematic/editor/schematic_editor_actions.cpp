@@ -1064,7 +1064,10 @@ void SchematicEditor::onItemDoubleClicked(SchematicItem* item) {
             dlg.exec();
             return;
         }
-    } else if (item->itemTypeName() == "OscilloscopeInstrument" || item->itemTypeName() == "Oscilloscope") {
+    } else if (item->itemTypeName() == "OscilloscopeInstrument" || 
+               item->itemTypeName() == "Oscilloscope" ||
+               item->itemTypeName() == "Oscilloscope Instrument" ||
+               (dynamic_cast<OscilloscopeItem*>(item) != nullptr)) {
         if (auto* osc = dynamic_cast<OscilloscopeItem*>(item)) {
             OscilloscopePropertiesDialog dlg(osc, m_undoStack, m_scene, this);
             dlg.exec();
@@ -1718,7 +1721,10 @@ void SchematicEditor::onSelectionDoubleClicked(const QList<SchematicItem*>& item
                 openLogicEditor(smart);
             }
             return;
-        } else if (items.first()->itemTypeName() == "OscilloscopeInstrument" || items.first()->itemTypeName() == "Oscilloscope") {
+        } else if (items.first()->itemTypeName() == "OscilloscopeInstrument" || 
+                   items.first()->itemTypeName() == "Oscilloscope" ||
+                   items.first()->itemTypeName() == "Oscilloscope Instrument" ||
+                   (dynamic_cast<OscilloscopeItem*>(items.first()) != nullptr)) {
             if (auto* osc = dynamic_cast<OscilloscopeItem*>(items.first())) {
                 OscilloscopePropertiesDialog dlg(osc, m_undoStack, m_scene, this);
                 dlg.exec();
@@ -1765,7 +1771,10 @@ void SchematicEditor::openItemProperties(SchematicItem* item) {
         return;
     }
 
-    if (item->itemTypeName() == "OscilloscopeInstrument" || item->itemTypeName() == "Oscilloscope") {
+    if (item->itemTypeName() == "OscilloscopeInstrument" || 
+        item->itemTypeName() == "Oscilloscope" ||
+        item->itemTypeName() == "Oscilloscope Instrument" ||
+        (dynamic_cast<OscilloscopeItem*>(item) != nullptr)) {
         if (auto* osc = dynamic_cast<OscilloscopeItem*>(item)) {
             OscilloscopePropertiesDialog dlg(osc, m_undoStack, m_scene, this);
             dlg.exec();
