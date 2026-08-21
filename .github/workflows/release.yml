@@ -567,6 +567,17 @@ jobs:
           fi
           cp -v /mingw64/bin/python3.dll staging/bin/ 2>/dev/null || true
 
+          # Bundle Python standard library into python<ver>.zip
+          for py_lib in /mingw64/lib/python3.*; do
+            if [ -d "$py_lib" ]; then
+              py_ver_short=$(basename "$py_lib" | tr -d 'python.')
+              zip_name="$GITHUB_WORKSPACE/staging/bin/python${py_ver_short}.zip"
+              echo "Packaging Python standard library into $zip_name..."
+              (cd "$py_lib" && /mingw64/bin/python3 -m zipfile -c "$zip_name" .) || true
+              break
+            fi
+          done
+
           # Bundle Qt DLLs
           windeployqt --dir staging/bin staging/bin/VioraEDA.exe
           

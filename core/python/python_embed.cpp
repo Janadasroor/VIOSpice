@@ -23,12 +23,20 @@
 #ifdef HAVE_PYTHON
 
 void initEmbeddedPython() {
+    QString appDir = QCoreApplication::applicationDirPath();
+    
     PyConfig config;
     PyConfig_InitIsolatedConfig(&config);
 
     config.site_import = 1;
     config.user_site_directory = 1;
     config.write_bytecode = 0;
+
+#ifdef _WIN32
+    // Set Python home to the application directory so it finds bundled python3xx.zip
+    std::wstring wAppDir = QDir::toNativeSeparators(appDir).toStdWString();
+    PyConfig_SetString(&config, &config.home, wAppDir.c_str());
+#endif
 
     PyStatus status = Py_InitializeFromConfig(&config);
     if (PyStatus_Exception(status)) {
