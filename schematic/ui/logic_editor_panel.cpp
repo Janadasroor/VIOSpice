@@ -578,7 +578,9 @@ void LogicEditorPanel::onLinterResult(const QString& output) {
     QJsonArray arr = doc.array();
     for (int i = 0; i < arr.size(); ++i) {
         QJsonObject obj = arr[i].toObject();
-        errors[obj["line"].toInt()] = obj["msg"].toString();
+        int linterLine = obj["line"].toInt();
+        int blockNumber = qMax(0, linterLine - 1);
+        errors[blockNumber] = obj["msg"].toString();
     }
 
     m_editor->setErrorLines(errors);
@@ -631,6 +633,8 @@ void LogicEditorPanel::setTargetBlock(SmartSignalItem* item) {
         m_engineCombo->blockSignals(false);
 
         m_fileLinkEdit->setText(m_targetBlock->scriptFile());
+        m_editor->clearDiffHighlights();
+        m_editor->setErrorLines({});
         m_editor->setPlainText(m_targetBlock->fluxCode());
         
         // If linked to file, load its content into editor (read-only)
@@ -1010,9 +1014,27 @@ void LogicEditorPanel::updatePreview() {
             qint64 elapsed = timer.elapsed();
             m_console->append("<font color='#4ec9b0'>[JIT] Compilation successful in " + QString::number(elapsed) + "ms.</font>");
             m_statusLabel->setText("JIT Ready. Compilation: " + QString::number(elapsed) + "ms");
+            m_editor->setErrorLines({});
         } else {
             m_console->append("<font color='#f44747'>[JIT ERROR] Compilation failed.</font>");
-            m_editor->setErrorLines(errors);
+            // Parse line numbers from compiler diagnostic strings (e.g. "<input>:3:5: error: ...")
+            QMap<int, QString> parsedErrors;
+            static const QRegularExpression lineRe(R"((?:<[^>]+>|[\w\.-]+):(\d+):(?:\d+:)?\s*(.*))");
+            for (auto it = errors.begin(); it != errors.end(); ++it) {
+                const QString msg = it.value();
+                m_console->append("<font color='#f44747'>" + msg.toHtmlEscaped() + "</font>");
+                auto match = lineRe.match(msg);
+                if (match.hasMatch()) {
+                    int line1Indexed = match.captured(1).toInt();
+                    // JIT compiler wrapped the code with 1 header line (e.g. def update_... {)
+                    // If line was within body, offset back to match editor block (0-indexed block number)
+                    int editorLine = qMax(0, line1Indexed - 2);
+                    parsedErrors[editorLine] = match.captured(2);
+                } else if (it.key() > 0) {
+                    parsedErrors[qMax(0, it.key() - 1)] = msg;
+                }
+            }
+            m_editor->setErrorLines(parsedErrors);
         }
     }
 }

@@ -185,6 +185,7 @@ void CodeEditor::onRunRequested() {
         QString error;
         if (eng.executeString(source, &error)) {
             qDebug() << "FluxScript: Run successful.";
+            setErrorLines({});
             
             // Extension templates define init() for setup and open_panel() for UI
             eng.callFunction("init", {});
@@ -193,12 +194,13 @@ void CodeEditor::onRunRequested() {
             qDebug() << "FluxScript: Run failed:" << error;
             // Parse errors from error message and highlight lines
             QMap<int, QString> errors;
-            // Simple line-number extraction from error messages
-            QRegularExpression lineRe(R"(<flux>:(\d+):(\d+):)");
+            // Line-number extraction from error messages
+            QRegularExpression lineRe(R"((?:<flux>|[\w\.-]+):(\d+):(?:\d+:)?\s*(.*))");
             auto match = lineRe.match(error);
             while (match.hasMatch()) {
-                int line = match.captured(1).toInt();
-                errors[line] = error;
+                int line1Indexed = match.captured(1).toInt();
+                int blockNumber = qMax(0, line1Indexed - 1);
+                errors[blockNumber] = match.captured(2);
                 match = lineRe.match(error, match.capturedEnd());
             }
             setErrorLines(errors);
