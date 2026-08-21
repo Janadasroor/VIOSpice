@@ -23,6 +23,11 @@
 #include "utils/schematic_url_encoder.h"
 #include "simulator/core/sim_report_generator.h"
 #include "simulator/core/raw_data_parser.h"
+#include "schematic/items/oscilloscope_item.h"
+#include "schematic/items/generic_component_item.h"
+#include "schematic/dialogs/oscilloscope_properties_dialog.h"
+#include "schematic/dialogs/component_properties_dialog.h"
+#include "schematic/dialogs/generic_symbol_properties_dialog.h"
 
 #include <QGraphicsScene>
 #include <QFileInfo>
@@ -1019,6 +1024,62 @@ public:
     }
 };
 
+class DialogRenderCommand : public CLICommand {
+public:
+    QString name() const override { return "dialog-render"; }
+    QString description() const override { return "Render a properties dialog to an image file for inspection."; }
+    void setupParser(QCommandLineParser& parser) override {
+        parser.addOption(QCommandLineOption("type", "Dialog type (osc|generic|component)", "type", "osc"));
+        parser.addOption(QCommandLineOption("output", "Output image PNG path", "file", "dialog_preview.png"));
+        parser.addOption(QCommandLineOption("width", "Dialog width", "px", "640"));
+        parser.addOption(QCommandLineOption("height", "Dialog height", "px", "520"));
+    }
+    QJsonObject inputSchema() const override { return QJsonObject{}; }
+    QJsonObject outputSchema() const override { return QJsonObject{}; }
+    int execute(const QStringList&, const QCommandLineParser& parser) override {
+        QString type = parser.value("type").toLower();
+        QString outPath = parser.value("output");
+        int w = parser.value("width").toInt();
+        int h = parser.value("height").toInt();
+        if (w <= 0) w = 640;
+        if (h <= 0) h = 520;
+
+        QDialog* dlg = nullptr;
+        std::unique_ptr<OscilloscopeItem> oscItem;
+        std::unique_ptr<GenericComponentItem> genItem;
+
+        if (type == "osc" || type == "oscilloscope") {
+            oscItem = std::make_unique<OscilloscopeItem>();
+            dlg = new OscilloscopePropertiesDialog(oscItem.get());
+        } else if (type == "component") {
+            Flux::Model::SymbolDefinition sym("U1");
+            genItem = std::make_unique<GenericComponentItem>(sym);
+            QList<SchematicItem*> items;
+            items.append(static_cast<SchematicItem*>(genItem.get()));
+            dlg = new ComponentPropertiesDialog(items);
+        } else {
+            Flux::Model::SymbolDefinition sym("U1");
+            genItem = std::make_unique<GenericComponentItem>(sym);
+            dlg = new GenericSymbolPropertiesDialog(static_cast<SchematicItem*>(genItem.get()));
+        }
+
+        dlg->resize(w, h);
+        dlg->show();
+        QCoreApplication::processEvents();
+
+        QPixmap pixmap = dlg->grab();
+        if (pixmap.save(outPath)) {
+            std::cout << "Successfully rendered dialog (" << type.toStdString() << ") to: " << outPath.toStdString() << std::endl;
+            delete dlg;
+            return 0;
+        } else {
+            std::cerr << "Failed to save dialog image to: " << outPath.toStdString() << std::endl;
+            delete dlg;
+            return 1;
+        }
+    }
+};
+
 } // namespace
 
 void registerSchematicCommands() {
@@ -1034,4 +1095,5 @@ void registerSchematicCommands() {
     reg.registerCommand(std::make_unique<SchematicProbeCommand>());
     reg.registerCommand(std::make_unique<GenerateReportCommand>());
     reg.registerCommand(std::make_unique<ShareCommand>());
+    reg.registerCommand(std::make_unique<DialogRenderCommand>());
 }

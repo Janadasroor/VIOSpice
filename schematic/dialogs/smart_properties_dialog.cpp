@@ -15,16 +15,40 @@
 SmartPropertiesDialog::SmartPropertiesDialog(const QList<SchematicItem*>& items, QUndoStack* undoStack, QGraphicsScene* scene, QWidget* parent)
     : QDialog(parent), m_items(items), m_undoStack(undoStack), m_scene(scene) {
     setWindowTitle("Properties");
-    setMinimumWidth(400);
+    setMinimumWidth(560);
+    setMinimumHeight(480);
     
     // Snapshot original states for live preview reversion
     for (auto* item : m_items) {
         if (item) m_originalStates[item->id()] = item->toJson();
     }
 
+    setStyleSheet(
+        "QDialog { background-color: #1a1a22; color: #f8fafc; font-family: 'Inter', 'Segoe UI', sans-serif; }"
+        "QTabWidget::pane { border: 1px solid #334155; background: #1e222d; border-radius: 6px; top: -1px; }"
+        "QTabBar::tab { background: #12141a; padding: 10px 20px; border-top-left-radius: 6px; border-top-right-radius: 6px; margin-right: 4px; color: #94a3b8; font-weight: 600; font-size: 12px; border: 1px solid #334155; border-bottom: none; }"
+        "QTabBar::tab:selected { background: #1e222d; border-top: 2px solid #3b82f6; color: #60a5fa; }"
+        "QTabBar::tab:hover { background: #242936; color: #f1f5f9; }"
+        "QLabel { color: #e2e8f0; font-weight: 600; font-size: 12px; }"
+        "QLineEdit, QDoubleSpinBox, QSpinBox, QComboBox { background: #0f1117; border: 1.5px solid #475569; border-radius: 5px; color: #ffffff; padding: 6px 12px; font-size: 13px; min-height: 26px; selection-background-color: #3b82f6; }"
+        "QLineEdit:focus, QDoubleSpinBox:focus, QSpinBox:focus, QComboBox:focus { border: 1.5px solid #3b82f6; background: #161922; }"
+        "QComboBox::drop-down { border: none; width: 24px; }"
+        "QComboBox QAbstractItemView { background: #1e222d; color: #f8fafc; selection-background-color: #3b82f6; selection-color: white; border: 1px solid #475569; }"
+        "QCheckBox { color: #f8fafc; font-size: 12px; font-weight: 600; spacing: 8px; }"
+        "QCheckBox::indicator { width: 18px; height: 18px; border: 1.5px solid #64748b; border-radius: 4px; background: #0f1117; }"
+        "QCheckBox::indicator:checked { background: #3b82f6; border-color: #3b82f6; }"
+        "QPushButton { background: #334155; color: #ffffff; border: 1px solid #475569; padding: 8px 18px; border-radius: 5px; font-weight: 600; font-size: 12px; min-width: 75px; }"
+        "QPushButton:hover { background: #475569; border-color: #64748b; }"
+        "QPushButton:pressed { background: #1e293b; }"
+        "QDialogButtonBox QPushButton[text='OK'], QDialogButtonBox QPushButton[text='&OK'], QDialogButtonBox QPushButton[text='Apply'], QDialogButtonBox QPushButton[text='&Apply'] { background: #2563eb; border-color: #3b82f6; color: white; }"
+        "QDialogButtonBox QPushButton[text='OK']:hover, QDialogButtonBox QPushButton[text='&OK']:hover, QDialogButtonBox QPushButton[text='Apply']:hover, QDialogButtonBox QPushButton[text='&Apply']:hover { background: #1d4ed8; }"
+    );
+
     m_tabWidget = new QTabWidget(this);
     
     QVBoxLayout* mainLayout = new QVBoxLayout(this);
+    mainLayout->setContentsMargins(12, 12, 12, 12);
+    mainLayout->setSpacing(12);
     mainLayout->addWidget(m_tabWidget);
     
     m_buttonBox = new QDialogButtonBox(
@@ -45,14 +69,24 @@ SmartPropertiesDialog::SmartPropertiesDialog(const QList<SchematicItem*>& items,
 void SmartPropertiesDialog::addTab(const PropertyTab& tab) {
     m_tabs.append(tab);
     
+    QScrollArea* scroll = new QScrollArea(this);
+    scroll->setWidgetResizable(true);
+    scroll->setFrameShape(QFrame::NoFrame);
+    scroll->setStyleSheet("background: transparent; border: none;");
+
     QWidget* page = new QWidget();
+    page->setStyleSheet("background: transparent;");
     QFormLayout* layout = new QFormLayout(page);
+    layout->setContentsMargins(16, 16, 16, 16);
+    layout->setSpacing(10);
+    layout->setLabelAlignment(Qt::AlignRight);
     
     for (const auto& field : tab.fields) {
         createFieldWidget(field, layout);
     }
     
-    m_tabWidget->addTab(page, tab.title);
+    scroll->setWidget(page);
+    m_tabWidget->addTab(scroll, tab.title);
 }
 
 void SmartPropertiesDialog::createFieldWidget(const PropertyField& field, QFormLayout* layout) {

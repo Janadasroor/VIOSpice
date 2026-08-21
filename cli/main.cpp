@@ -17,7 +17,7 @@ namespace {
 // Commands that must stay in-process: they need a GUI (QApplication) or run an
 // interactive/indefinite loop that cannot live inside the headless daemon.
 bool isForwardable(const QString& command, const QStringList& args) {
-    if (command == "view" || command == "simulate" ||
+    if (command == "view" || command == "simulate" || command == "dialog-render" ||
         command == "ext-watch" || command == "ext-preview") {
         return false;
     }
