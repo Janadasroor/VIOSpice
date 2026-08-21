@@ -696,6 +696,12 @@ void SchematicItemRegistry::registerBuiltInItems() {
         return item;
     });
 
+    factory.registerItemType("OscilloscopeInstrument", [](QPointF pos, const QJsonObject& properties, QGraphicsItem* parent) -> SchematicItem* {
+        auto* item = new OscilloscopeItem(pos, parent);
+        if (!properties.isEmpty()) item->fromJson(properties);
+        return item;
+    });
+
     factory.registerItemType("Voltmeter (DC)", [](QPointF pos, const QJsonObject&, QGraphicsItem* parent) -> SchematicItem* {
         return new InstrumentProbeItem(InstrumentProbeItem::Kind::Voltmeter, pos, parent);
     });

@@ -150,7 +150,10 @@ QJsonObject OscilloscopeItem::toJson() const {
 }
 
 bool OscilloscopeItem::fromJson(const QJsonObject& j) {
-    if (j["type"].toString() != itemTypeName()) return false;
+    const QString type = j["type"].toString();
+    if (type != itemTypeName() && type != "Oscilloscope" && type != "Oscilloscope Instrument") {
+        return false;
+    }
     
     setId(QUuid::fromString(j["id"].toString()));
     setPos(j["x"].toDouble(), j["y"].toDouble());
