@@ -1093,11 +1093,8 @@ void LogicEditorPanel::onRejectDiff() {
 }
 
 void LogicEditorPanel::onPythonGenerated(const QString& code) {
-    if (!code.isEmpty()) {
-        m_editor->setPlainText(code);
-        updatePreview();
-        m_statusLabel->setText("Code updated by AI Copilot.");
-    }
+    if (code.isEmpty()) return;
+    onFluxScriptGenerated(code);
 }
 
 void LogicEditorPanel::onApplyClicked() {
