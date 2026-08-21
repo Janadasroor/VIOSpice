@@ -377,9 +377,10 @@ void MiniScopeWidget::renderToPainter(QPainter& painter, const QSize& targetSize
         return (x - m_minX) / range * graphW;
     };
 
-    auto mapY = [&](double y) {
-        double range = std::max(1e-9, m_globalMaxY - m_globalMinY);
-        return h - ((y - m_globalMinY) / range * h);
+    // Standard 8-division scope graticule (-4 to +4 divisions around center line)
+    auto mapY = [&](double divY) {
+        double divHeight = (double)h / 8.0;
+        return (h / 2.0) - (divY * divHeight);
     };
 
     // Draw Memories (Ghost traces: dashed, transparent)
@@ -522,9 +523,9 @@ void MiniScopeWidget::mousePressEvent(QMouseEvent* event) {
             double range = std::max(1e-9, m_maxX - m_minX);
             return (x - m_minX) / range * graphW;
         };
-        auto mapY = [&](double y) {
-            double range = std::max(1e-9, m_globalMaxY - m_globalMinY);
-            return h - ((y - m_globalMinY) / range * h);
+        auto mapY = [&](double divY) {
+            double divHeight = (double)h / 8.0;
+            return (h / 2.0) - (divY * divHeight);
         };
 
         const double tol = 8.0;
@@ -566,8 +567,8 @@ void MiniScopeWidget::mouseMoveEvent(QMouseEvent* event) {
         return m_minX + (px / graphW) * range;
     };
     auto unmapY = [&](double py) {
-        double range = std::max(1e-9, m_globalMaxY - m_globalMinY);
-        return m_globalMinY + ((h - py) / h) * range;
+        double divHeight = (double)h / 8.0;
+        return ((h / 2.0) - py) / divHeight;
     };
 
     if (m_activeDrag != DragNone) {
@@ -576,9 +577,9 @@ void MiniScopeWidget::mouseMoveEvent(QMouseEvent* event) {
         } else if (m_activeDrag == DragTimeB) {
             m_timeCursorB = std::clamp(unmapX(event->pos().x()), m_minX, m_maxX);
         } else if (m_activeDrag == DragVoltA) {
-            m_voltCursorA = unmapY(event->pos().y());
+            m_voltCursorA = std::clamp(unmapY(event->pos().y()), -4.0, 4.0);
         } else if (m_activeDrag == DragVoltB) {
-            m_voltCursorB = unmapY(event->pos().y());
+            m_voltCursorB = std::clamp(unmapY(event->pos().y()), -4.0, 4.0);
         }
         
         double dt = std::abs(m_timeCursorB - m_timeCursorA);
@@ -595,9 +596,9 @@ void MiniScopeWidget::mouseMoveEvent(QMouseEvent* event) {
             double range = std::max(1e-9, m_maxX - m_minX);
             return (x - m_minX) / range * graphW;
         };
-        auto mapY = [&](double y) {
-            double range = std::max(1e-9, m_globalMaxY - m_globalMinY);
-            return h - ((y - m_globalMinY) / range * h);
+        auto mapY = [&](double divY) {
+            double divHeight = (double)h / 8.0;
+            return (h / 2.0) - (divY * divHeight);
         };
 
         const double tol = 8.0;

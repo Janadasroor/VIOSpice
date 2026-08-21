@@ -406,8 +406,8 @@ void OscilloscopeWindow::autoScaleChannels() {
                 maxY = std::max(maxY, v);
             }
 
-            double vpp = std::max(1e-6, maxY - minY);
-            // 8 grid divisions vertically, fit within ~6 divisions
+            double vpp = std::max(1e-4, maxY - minY);
+            // 8 vertical divisions total on real CRT scope; fit signal nicely within ~5 to 6 divisions
             double idealVdiv = vpp / 6.0;
 
             // Pick 1-2-5 standard scope sequence
@@ -421,8 +421,13 @@ void OscilloscopeWindow::autoScaleChannels() {
             double niceVdiv = standardMantissa * std::pow(10.0, exponent);
             niceVdiv = std::clamp(niceVdiv, 0.001, 1000.0);
 
+            // Channel scale is 1.0 / niceVdiv (1 Volt = 1 Division)
+            // Center the waveform on the central grid line (Offset in divisions)
+            double midV = (minY + maxY) / 2.0;
+            double idealOffsetDivs = -midV / niceVdiv;
+
             m_config.channels[i].scale = 1.0 / niceVdiv;
-            m_config.channels[i].offset = -((minY + maxY) / 2.0) * m_config.channels[i].scale;
+            m_config.channels[i].offset = idealOffsetDivs;
             changed = true;
 
             if (i < m_channelUIs.size()) {
@@ -433,7 +438,7 @@ void OscilloscopeWindow::autoScaleChannels() {
                 }
                 if (m_channelUIs[i].offset) {
                     m_channelUIs[i].offset->blockSignals(true);
-                    m_channelUIs[i].offset->setValue(m_config.channels[i].offset);
+                    m_channelUIs[i].offset->setValue(idealOffsetDivs);
                     m_channelUIs[i].offset->blockSignals(false);
                 }
             }
