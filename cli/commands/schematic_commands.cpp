@@ -28,7 +28,7 @@
 #include "schematic/items/voltage_source_item.h"
 #include "schematic/items/avr_microcontroller_item.h"
 #include "schematic/dialogs/oscilloscope_properties_dialog.h"
-#include "schematic/dialogs/voltage_source_advanced_dialog.h"
+#include "schematic/dialogs/voltage_source_waveform_dialog.h"
 #include "schematic/dialogs/avr_microcontroller_dialog.h"
 #include "schematic/dialogs/component_properties_dialog.h"
 #include "schematic/dialogs/generic_symbol_properties_dialog.h"
@@ -1059,7 +1059,7 @@ public:
             dlg = new OscilloscopePropertiesDialog(oscItem.get());
         } else if (type == "voltage" || type == "voltagesource") {
             vSrcItem = std::make_unique<VoltageSourceItem>();
-            dlg = new VoltageSourceAdvancedDialog(vSrcItem.get(), nullptr, nullptr, "");
+            dlg = new VoltageSourceWaveformDialog(vSrcItem.get(), nullptr, nullptr, "");
         } else if (type == "avr" || type == "mcu") {
             avrItem = std::make_unique<AvrMicrocontrollerItem>("ATmega328P");
             dlg = new AvrMicrocontrollerDialog(avrItem.get());

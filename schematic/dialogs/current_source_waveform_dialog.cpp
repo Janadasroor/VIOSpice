@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include "current_source_advanced_dialog.h"
+#include "current_source_waveform_dialog.h"
 #include "voltage_source_custom_waveform_dialog.h"
 #include <QVBoxLayout>
 #include <QHBoxLayout>
@@ -95,7 +95,7 @@ private:
     QRegularExpression m_opPattern;
 };
 
-CurrentSourceAdvancedDialog::CurrentSourceAdvancedDialog(CurrentSourceItem* item, QUndoStack* undoStack, QGraphicsScene* scene, const QString& projectDir, QWidget* parent)
+CurrentSourceWaveformDialog::CurrentSourceWaveformDialog(CurrentSourceItem* item, QUndoStack* undoStack, QGraphicsScene* scene, const QString& projectDir, QWidget* parent)
     : QDialog(parent), m_item(item), m_undoStack(undoStack), m_scene(scene), m_projectDir(projectDir) {
     
     setWindowTitle("Independent Current Source - " + item->reference());
@@ -103,7 +103,7 @@ CurrentSourceAdvancedDialog::CurrentSourceAdvancedDialog(CurrentSourceItem* item
     loadFromItem();
 }
 
-void CurrentSourceAdvancedDialog::setupUi() {
+void CurrentSourceWaveformDialog::setupUi() {
     auto* mainLayout = new QHBoxLayout(this);
 
     auto* leftCol = new QVBoxLayout();
@@ -137,7 +137,7 @@ void CurrentSourceAdvancedDialog::setupUi() {
     pwlFileLayout->addWidget(browseBtn);
     functionsLayout->addLayout(pwlFileLayout);
     
-    connect(browseBtn, &QPushButton::clicked, this, &CurrentSourceAdvancedDialog::onPwlBrowse);
+    connect(browseBtn, &QPushButton::clicked, this, &CurrentSourceWaveformDialog::onPwlBrowse);
 
     m_paramStack = new QStackedWidget();
     
@@ -281,19 +281,19 @@ void CurrentSourceAdvancedDialog::setupUi() {
     mainLayout->addLayout(leftCol);
     mainLayout->addLayout(rightCol);
 
-    connect(m_noneRadio, &QRadioButton::toggled, this, &CurrentSourceAdvancedDialog::onFunctionChanged);
-    connect(m_pulseRadio, &QRadioButton::toggled, this, &CurrentSourceAdvancedDialog::onFunctionChanged);
-    connect(m_sineRadio, &QRadioButton::toggled, this, &CurrentSourceAdvancedDialog::onFunctionChanged);
-    connect(m_expRadio, &QRadioButton::toggled, this, &CurrentSourceAdvancedDialog::onFunctionChanged);
-    connect(m_sffmRadio, &QRadioButton::toggled, this, &CurrentSourceAdvancedDialog::onFunctionChanged);
-    connect(m_pwlRadio, &QRadioButton::toggled, this, &CurrentSourceAdvancedDialog::onFunctionChanged);
-    connect(m_behavioralRadio, &QRadioButton::toggled, this, &CurrentSourceAdvancedDialog::onFunctionChanged);
-    connect(m_customRadio, &QRadioButton::toggled, this, &CurrentSourceAdvancedDialog::onFunctionChanged);
-    connect(m_pwlFileRadio, &QRadioButton::toggled, this, &CurrentSourceAdvancedDialog::onFunctionChanged);
+    connect(m_noneRadio, &QRadioButton::toggled, this, &CurrentSourceWaveformDialog::onFunctionChanged);
+    connect(m_pulseRadio, &QRadioButton::toggled, this, &CurrentSourceWaveformDialog::onFunctionChanged);
+    connect(m_sineRadio, &QRadioButton::toggled, this, &CurrentSourceWaveformDialog::onFunctionChanged);
+    connect(m_expRadio, &QRadioButton::toggled, this, &CurrentSourceWaveformDialog::onFunctionChanged);
+    connect(m_sffmRadio, &QRadioButton::toggled, this, &CurrentSourceWaveformDialog::onFunctionChanged);
+    connect(m_pwlRadio, &QRadioButton::toggled, this, &CurrentSourceWaveformDialog::onFunctionChanged);
+    connect(m_behavioralRadio, &QRadioButton::toggled, this, &CurrentSourceWaveformDialog::onFunctionChanged);
+    connect(m_customRadio, &QRadioButton::toggled, this, &CurrentSourceWaveformDialog::onFunctionChanged);
+    connect(m_pwlFileRadio, &QRadioButton::toggled, this, &CurrentSourceWaveformDialog::onFunctionChanged);
 
-    connect(okBtn, &QPushButton::clicked, this, &CurrentSourceAdvancedDialog::onAccepted);
+    connect(okBtn, &QPushButton::clicked, this, &CurrentSourceWaveformDialog::onAccepted);
     connect(cancelBtn, &QPushButton::clicked, this, &QDialog::reject);
-    connect(m_pwlDrawBtn, &QPushButton::clicked, this, &CurrentSourceAdvancedDialog::onCustomDraw);
+    connect(m_pwlDrawBtn, &QPushButton::clicked, this, &CurrentSourceWaveformDialog::onCustomDraw);
 
     m_behavioralCompleter = new QCompleter(this);
     m_behavioralCompleter->setCaseSensitivity(Qt::CaseInsensitive);
@@ -359,7 +359,7 @@ void CurrentSourceAdvancedDialog::setupUi() {
     updateBehavioralUi();
 }
 
-void CurrentSourceAdvancedDialog::onFunctionChanged() {
+void CurrentSourceWaveformDialog::onFunctionChanged() {
     // Only proceed if this is the radio button being CHECKED
     QRadioButton* rb = qobject_cast<QRadioButton*>(sender());
     if (rb && !rb->isChecked()) return;
@@ -378,7 +378,7 @@ void CurrentSourceAdvancedDialog::onFunctionChanged() {
     else if (m_pwlFileRadio->isChecked()) m_paramStack->setCurrentIndex(0);
 }
 
-void CurrentSourceAdvancedDialog::onPwlBrowse() {
+void CurrentSourceWaveformDialog::onPwlBrowse() {
     QString fileName = QFileDialog::getOpenFileName(this, "Select PWL File", "", "Data Files (*.txt *.csv *.dat);;All Files (*)");
     if (!fileName.isEmpty()) {
         m_pwlFile->setText(fileName);
@@ -386,7 +386,7 @@ void CurrentSourceAdvancedDialog::onPwlBrowse() {
     }
 }
 
-void CurrentSourceAdvancedDialog::onCustomDraw() {
+void CurrentSourceWaveformDialog::onCustomDraw() {
     static bool isDrawing = false;
     if (isDrawing) return;
     isDrawing = true;
@@ -416,7 +416,7 @@ void CurrentSourceAdvancedDialog::onCustomDraw() {
     isDrawing = false;
 }
 
-void CurrentSourceAdvancedDialog::loadFromItem() {
+void CurrentSourceWaveformDialog::loadFromItem() {
     m_noneRadio->setChecked(m_item->sourceType() == CurrentSourceItem::DC);
     m_pulseRadio->setChecked(m_item->sourceType() == CurrentSourceItem::Pulse);
     m_sineRadio->setChecked(m_item->sourceType() == CurrentSourceItem::Sine);
@@ -477,14 +477,14 @@ void CurrentSourceAdvancedDialog::loadFromItem() {
     m_parasiticVisible->setChecked(m_item->isParasiticVisible());
 }
 
-void CurrentSourceAdvancedDialog::onAccepted() {
+void CurrentSourceWaveformDialog::onAccepted() {
     saveToItem();
     accept();
 }
 
-void CurrentSourceAdvancedDialog::saveToItem() {
+void CurrentSourceWaveformDialog::saveToItem() {
     if (m_undoStack) {
-        m_undoStack->beginMacro("Update Current Source (Advanced Dialog)");
+        m_undoStack->beginMacro("Update Current Source (Waveform Dialog)");
     }
 
     CurrentSourceItem::SourceType type = CurrentSourceItem::DC;
@@ -556,7 +556,7 @@ void CurrentSourceAdvancedDialog::saveToItem() {
     m_item->update();
 }
 
-bool CurrentSourceAdvancedDialog::eventFilter(QObject* obj, QEvent* event) {
+bool CurrentSourceWaveformDialog::eventFilter(QObject* obj, QEvent* event) {
     if (obj == m_behavioralExpr) {
         if (event->type() == QEvent::KeyPress) {
             auto* keyEvent = static_cast<QKeyEvent*>(event);

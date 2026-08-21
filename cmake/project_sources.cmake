@@ -243,14 +243,14 @@ set(SCHEMATIC_SOURCES
     schematic/dialogs/behavioral_current_source_dialog.h
     schematic/dialogs/current_source_properties_dialog.cpp
     schematic/dialogs/current_source_properties_dialog.h
-    schematic/dialogs/current_source_advanced_dialog.cpp
-    schematic/dialogs/current_source_advanced_dialog.h
+    schematic/dialogs/current_source_waveform_dialog.cpp
+    schematic/dialogs/current_source_waveform_dialog.h
     schematic/dialogs/oscilloscope_properties_dialog.cpp
     schematic/dialogs/oscilloscope_properties_dialog.h
     schematic/dialogs/voltage_source_properties_dialog.cpp
     schematic/dialogs/voltage_source_properties_dialog.h
-    schematic/dialogs/voltage_source_advanced_dialog.cpp
-    schematic/dialogs/voltage_source_advanced_dialog.h
+    schematic/dialogs/voltage_source_waveform_dialog.cpp
+    schematic/dialogs/voltage_source_waveform_dialog.h
     schematic/dialogs/voltage_source_custom_waveform_dialog.cpp
     schematic/dialogs/voltage_source_custom_waveform_dialog.h
     schematic/dialogs/waveform_draw_widget.cpp

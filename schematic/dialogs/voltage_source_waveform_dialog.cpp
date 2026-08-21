@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include "voltage_source_advanced_dialog.h"
+#include "voltage_source_waveform_dialog.h"
 #include "voltage_source_custom_waveform_dialog.h"
 #include <QVBoxLayout>
 #include <QHBoxLayout>
@@ -291,7 +291,7 @@ private:
     QRegularExpression m_opPattern;
 };
 
-VoltageSourceAdvancedDialog::VoltageSourceAdvancedDialog(VoltageSourceItem* item, QUndoStack* undoStack, QGraphicsScene* scene, const QString& projectDir, QWidget* parent)
+VoltageSourceWaveformDialog::VoltageSourceWaveformDialog(VoltageSourceItem* item, QUndoStack* undoStack, QGraphicsScene* scene, const QString& projectDir, QWidget* parent)
     : QDialog(parent), m_item(item), m_undoStack(undoStack), m_scene(scene), m_projectDir(projectDir) {
     
     setWindowTitle("Independent Voltage Source - " + item->reference());
@@ -299,7 +299,7 @@ VoltageSourceAdvancedDialog::VoltageSourceAdvancedDialog(VoltageSourceItem* item
     loadFromItem();
 }
 
-void VoltageSourceAdvancedDialog::setupUi() {
+void VoltageSourceWaveformDialog::setupUi() {
     auto* mainLayout = new QHBoxLayout(this);
 
     // --- Left Column: Functions ---
@@ -335,7 +335,7 @@ void VoltageSourceAdvancedDialog::setupUi() {
     pwlFileLayout->addWidget(pwlBrowseBtn);
     functionsLayout->addLayout(pwlFileLayout);
 
-    connect(pwlBrowseBtn, &QPushButton::clicked, this, &VoltageSourceAdvancedDialog::onPwlBrowse);
+    connect(pwlBrowseBtn, &QPushButton::clicked, this, &VoltageSourceWaveformDialog::onPwlBrowse);
 
     auto* waveFileRadioLayout = new QHBoxLayout();
     waveFileRadioLayout->addWidget(m_waveFileRadio);
@@ -345,7 +345,7 @@ void VoltageSourceAdvancedDialog::setupUi() {
     waveFileRadioLayout->addWidget(waveBrowseBtn);
     functionsLayout->addLayout(waveFileRadioLayout);
 
-    connect(waveBrowseBtn, &QPushButton::clicked, this, &VoltageSourceAdvancedDialog::onWaveBrowse);
+    connect(waveBrowseBtn, &QPushButton::clicked, this, &VoltageSourceWaveformDialog::onWaveBrowse);
 
     // Function Parameters (Stacked)
     m_paramStack = new QStackedWidget();
@@ -517,8 +517,8 @@ void VoltageSourceAdvancedDialog::setupUi() {
 
     waveFileLayout->addStretch();
 
-    connect(waveFileBrowseBtn, &QPushButton::clicked, this, &VoltageSourceAdvancedDialog::onWaveBrowse);
-    connect(m_waveFile, &QLineEdit::textChanged, this, &VoltageSourceAdvancedDialog::onWaveFileChanged);
+    connect(waveFileBrowseBtn, &QPushButton::clicked, this, &VoltageSourceWaveformDialog::onWaveBrowse);
+    connect(m_waveFile, &QLineEdit::textChanged, this, &VoltageSourceWaveformDialog::onWaveFileChanged);
 
     m_paramStack->addWidget(waveFilePage);
 
@@ -572,20 +572,20 @@ void VoltageSourceAdvancedDialog::setupUi() {
     mainLayout->addLayout(leftCol);
     mainLayout->addLayout(rightCol);
 
-    connect(m_noneRadio, &QRadioButton::toggled, this, &VoltageSourceAdvancedDialog::onFunctionChanged);
-    connect(m_pulseRadio, &QRadioButton::toggled, this, &VoltageSourceAdvancedDialog::onFunctionChanged);
-    connect(m_sineRadio, &QRadioButton::toggled, this, &VoltageSourceAdvancedDialog::onFunctionChanged);
-    connect(m_expRadio, &QRadioButton::toggled, this, &VoltageSourceAdvancedDialog::onFunctionChanged);
-    connect(m_sffmRadio, &QRadioButton::toggled, this, &VoltageSourceAdvancedDialog::onFunctionChanged);
-    connect(m_pwlRadio, &QRadioButton::toggled, this, &VoltageSourceAdvancedDialog::onFunctionChanged);
-    connect(m_behavioralRadio, &QRadioButton::toggled, this, &VoltageSourceAdvancedDialog::onFunctionChanged);
-    connect(m_customRadio, &QRadioButton::toggled, this, &VoltageSourceAdvancedDialog::onFunctionChanged);
-    connect(m_pwlFileRadio, &QRadioButton::toggled, this, &VoltageSourceAdvancedDialog::onFunctionChanged);
-    connect(m_waveFileRadio, &QRadioButton::toggled, this, &VoltageSourceAdvancedDialog::onFunctionChanged);
+    connect(m_noneRadio, &QRadioButton::toggled, this, &VoltageSourceWaveformDialog::onFunctionChanged);
+    connect(m_pulseRadio, &QRadioButton::toggled, this, &VoltageSourceWaveformDialog::onFunctionChanged);
+    connect(m_sineRadio, &QRadioButton::toggled, this, &VoltageSourceWaveformDialog::onFunctionChanged);
+    connect(m_expRadio, &QRadioButton::toggled, this, &VoltageSourceWaveformDialog::onFunctionChanged);
+    connect(m_sffmRadio, &QRadioButton::toggled, this, &VoltageSourceWaveformDialog::onFunctionChanged);
+    connect(m_pwlRadio, &QRadioButton::toggled, this, &VoltageSourceWaveformDialog::onFunctionChanged);
+    connect(m_behavioralRadio, &QRadioButton::toggled, this, &VoltageSourceWaveformDialog::onFunctionChanged);
+    connect(m_customRadio, &QRadioButton::toggled, this, &VoltageSourceWaveformDialog::onFunctionChanged);
+    connect(m_pwlFileRadio, &QRadioButton::toggled, this, &VoltageSourceWaveformDialog::onFunctionChanged);
+    connect(m_waveFileRadio, &QRadioButton::toggled, this, &VoltageSourceWaveformDialog::onFunctionChanged);
 
-    connect(okBtn, &QPushButton::clicked, this, &VoltageSourceAdvancedDialog::onAccepted);
+    connect(okBtn, &QPushButton::clicked, this, &VoltageSourceWaveformDialog::onAccepted);
     connect(cancelBtn, &QPushButton::clicked, this, &QDialog::reject);
-    connect(m_pwlDrawBtn, &QPushButton::clicked, this, &VoltageSourceAdvancedDialog::onCustomDraw);
+    connect(m_pwlDrawBtn, &QPushButton::clicked, this, &VoltageSourceWaveformDialog::onCustomDraw);
 
     m_behavioralCompleter = new QCompleter(this);
     m_behavioralCompleter->setCaseSensitivity(Qt::CaseInsensitive);
@@ -731,7 +731,7 @@ void VoltageSourceAdvancedDialog::setupUi() {
     updateBehavioralUi();
 }
 
-void VoltageSourceAdvancedDialog::onFunctionChanged() {
+void VoltageSourceWaveformDialog::onFunctionChanged() {
     // Only proceed if this is the radio button being CHECKED
     QRadioButton* rb = qobject_cast<QRadioButton*>(sender());
     if (rb && !rb->isChecked()) return;
@@ -754,7 +754,7 @@ void VoltageSourceAdvancedDialog::onFunctionChanged() {
     else if (m_waveFileRadio->isChecked()) m_paramStack->setCurrentIndex(7);
 }
 
-void VoltageSourceAdvancedDialog::onPwlBrowse() {
+void VoltageSourceWaveformDialog::onPwlBrowse() {
     QString fileName = QFileDialog::getOpenFileName(this, "Select PWL File", "", "Data Files (*.txt *.csv *.dat);;All Files (*)");
     if (!fileName.isEmpty()) {
         m_pwlFile->setText(fileName);
@@ -762,7 +762,7 @@ void VoltageSourceAdvancedDialog::onPwlBrowse() {
     }
 }
 
-void VoltageSourceAdvancedDialog::onWaveBrowse() {
+void VoltageSourceWaveformDialog::onWaveBrowse() {
     const QString wavPath = QFileDialog::getOpenFileName(this, "Select WAV Audio File", m_projectDir, "WAV Audio Files (*.wav);;All Files (*)");
     if (wavPath.isEmpty()) {
         return;
@@ -779,11 +779,11 @@ void VoltageSourceAdvancedDialog::onWaveBrowse() {
     m_waveFileRadio->setChecked(true);
 }
 
-void VoltageSourceAdvancedDialog::onWaveFileChanged() {
+void VoltageSourceWaveformDialog::onWaveFileChanged() {
     updateWaveFileInfo();
 }
 
-void VoltageSourceAdvancedDialog::updateWaveFileInfo() {
+void VoltageSourceWaveformDialog::updateWaveFileInfo() {
     QString path = m_waveFile->text().trimmed();
     double scale = m_waveScaleSpin ? m_waveScaleSpin->value() : 1.0;
     if (path.isEmpty()) {
@@ -866,7 +866,7 @@ void VoltageSourceAdvancedDialog::updateWaveFileInfo() {
     );
 }
 
-void VoltageSourceAdvancedDialog::onWavBrowse() {
+void VoltageSourceWaveformDialog::onWavBrowse() {
     const QString wavPath = QFileDialog::getOpenFileName(this, "Import WAV Audio", m_projectDir, "WAV Audio (*.wav)");
     if (wavPath.isEmpty()) {
         return;
@@ -937,7 +937,7 @@ void VoltageSourceAdvancedDialog::onWavBrowse() {
                              QString("Audio was converted to a PWL file for ngspice.\n\nOutput: %1").arg(pwlPath));
 }
 
-void VoltageSourceAdvancedDialog::onCustomDraw() {
+void VoltageSourceWaveformDialog::onCustomDraw() {
     static bool isDrawing = false;
     if (isDrawing) return;
     isDrawing = true;
@@ -967,7 +967,7 @@ void VoltageSourceAdvancedDialog::onCustomDraw() {
     isDrawing = false;
 }
 
-void VoltageSourceAdvancedDialog::loadFromItem() {
+void VoltageSourceWaveformDialog::loadFromItem() {
     // Functions
     m_noneRadio->setChecked(m_item->sourceType() == VoltageSourceItem::DC);
     m_pulseRadio->setChecked(m_item->sourceType() == VoltageSourceItem::Pulse);
@@ -1056,14 +1056,14 @@ void VoltageSourceAdvancedDialog::loadFromItem() {
     m_parasiticVisible->setChecked(m_item->isParasiticVisible());
 }
 
-void VoltageSourceAdvancedDialog::onAccepted() {
+void VoltageSourceWaveformDialog::onAccepted() {
     saveToItem();
     accept();
 }
 
-void VoltageSourceAdvancedDialog::saveToItem() {
+void VoltageSourceWaveformDialog::saveToItem() {
     if (m_undoStack) {
-        m_undoStack->beginMacro("Update Voltage Source (Advanced Dialog)");
+        m_undoStack->beginMacro("Update Voltage Source (Waveform Dialog)");
     }
 
     // Capture state
@@ -1155,7 +1155,7 @@ void VoltageSourceAdvancedDialog::saveToItem() {
     m_item->update();
 }
 
-bool VoltageSourceAdvancedDialog::eventFilter(QObject* obj, QEvent* event) {
+bool VoltageSourceWaveformDialog::eventFilter(QObject* obj, QEvent* event) {
     if (obj == m_behavioralExpr && m_behavioralCompleter) {
         if (event->type() == QEvent::KeyPress) {
             auto* keyEvent = static_cast<QKeyEvent*>(event);

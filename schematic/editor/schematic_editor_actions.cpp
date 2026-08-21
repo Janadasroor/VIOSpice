@@ -52,11 +52,11 @@
 #include "../dialogs/generic_symbol_properties_dialog.h"
 #include "../dialogs/schematic_text_properties_dialog.h"
 #include "../dialogs/voltage_source_properties_dialog.h"
-#include "../dialogs/voltage_source_advanced_dialog.h"
+#include "../dialogs/voltage_source_waveform_dialog.h"
 #include "../dialogs/current_source_properties_dialog.h"
 #include "../dialogs/behavioral_current_source_dialog.h"
 #include "../items/behavioral_current_source_item.h"
-#include "../dialogs/current_source_advanced_dialog.h"
+#include "../dialogs/current_source_waveform_dialog.h"
 #include "../dialogs/spice_directive_dialog.h"
 #include "../dialogs/spice_subcircuit_import_dialog.h"
 #include "../dialogs/signal_generator_properties_dialog.h"
@@ -1155,14 +1155,14 @@ void SchematicEditor::onItemDoubleClicked(SchematicItem* item) {
                     vSrc->setValue(val);
                 }
             } else {
-                VoltageSourceAdvancedDialog dlg(vSrc, m_undoStack, m_scene, m_projectDir, this);
+                VoltageSourceWaveformDialog dlg(vSrc, m_undoStack, m_scene, m_projectDir, this);
                 dlg.exec();
             }
             return;
         }
     } else if (item->itemType() == SchematicItem::CurrentSourceType) {
         if (auto* cSrc = dynamic_cast<CurrentSourceItem*>(item)) {
-            CurrentSourceAdvancedDialog dlg(cSrc, m_undoStack, m_scene, m_projectDir, this);
+            CurrentSourceWaveformDialog dlg(cSrc, m_undoStack, m_scene, m_projectDir, this);
             dlg.exec();
             return;
         }
