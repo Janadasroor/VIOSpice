@@ -78,6 +78,16 @@ public:
 
     void exportToCsv(const QString& filePath) const;
 
+    struct TraceStats {
+        double minV = 0.0;
+        double maxV = 0.0;
+        double minT = 0.0;
+        double maxT = 0.0;
+        bool hasData = false;
+    };
+    TraceStats getTraceStats(const QString& channelName) const;
+    TraceStats getOverallTraceStats() const;
+
     void zoomToFit();
     void fitYAxis();
 

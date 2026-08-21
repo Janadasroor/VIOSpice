@@ -422,95 +422,129 @@ static QString cleanNetName(const QString& s) {
 }
 
 void OscilloscopeWindow::autoScaleChannels() {
-    if (!m_hasCachedResults) {
-        if (m_scopeDisplay) m_scopeDisplay->fitYAxis();
-        return;
-    }
-
     int count = m_config.channelCount;
     bool changed = false;
 
-    for (int i = 0; i < count && i < m_config.channels.size(); ++i) {
-        if (!m_config.channels[i].enabled) continue;
+    if (m_hasCachedResults) {
+        for (int i = 0; i < count && i < m_config.channels.size(); ++i) {
+            if (!m_config.channels[i].enabled) continue;
 
-        QString posNet, negNet;
-        if (m_cachedItem && m_lastNetManager) {
-            const auto pts = m_cachedItem->connectionPoints();
-            if (i < pts.size()) posNet = m_lastNetManager->findNetAtPoint(m_cachedItem->mapToScene(pts[i]));
-            if (count + i < pts.size()) negNet = m_lastNetManager->findNetAtPoint(m_cachedItem->mapToScene(pts[count + i]));
-        }
-
-        if (posNet.isEmpty()) {
-            continue;
-        }
-
-        auto matchWave = [](const SimWaveform& wave, const QString& targetNet) -> bool {
-            if (targetNet.isEmpty()) return false;
-            const QString wName = QString::fromStdString(wave.name);
-            const QString cTarget = cleanNetName(targetNet);
-            const QString cWave = cleanNetName(wName);
-
-            if (cTarget.compare(cWave, Qt::CaseInsensitive) == 0) return true;
-            if (wName.compare(targetNet, Qt::CaseInsensitive) == 0) return true;
-            if (wName.compare("V(" + targetNet + ")", Qt::CaseInsensitive) == 0) return true;
-            if (wName.endsWith("(" + targetNet + ")", Qt::CaseInsensitive)) return true;
-            return false;
-        };
-
-        const SimWaveform* pWave = nullptr;
-        const SimWaveform* nWave = nullptr;
-
-        for (const auto& wave : m_cachedResults.waveforms) {
-            if (!pWave && matchWave(wave, posNet)) pWave = &wave;
-            else if (!nWave && matchWave(wave, negNet)) nWave = &wave;
-        }
-
-        if (pWave && !pWave->yData.empty()) {
-            double minY = pWave->yData[0];
-            double maxY = pWave->yData[0];
-            bool floating = m_config.channels[i].floatingGround;
-
-            for (size_t s = 0; s < pWave->yData.size(); ++s) {
-                double v = pWave->yData[s];
-                if (floating && nWave && s < nWave->yData.size()) v -= nWave->yData[s];
-                minY = std::min(minY, v);
-                maxY = std::max(maxY, v);
+            QString posNet, negNet;
+            if (m_cachedItem && m_lastNetManager) {
+                const auto pts = m_cachedItem->connectionPoints();
+                if (i < pts.size()) posNet = m_lastNetManager->findNetAtPoint(m_cachedItem->mapToScene(pts[i]));
+                if (count + i < pts.size()) negNet = m_lastNetManager->findNetAtPoint(m_cachedItem->mapToScene(pts[count + i]));
             }
 
-            double vpp = std::max(1e-4, maxY - minY);
-            // 8 vertical divisions total on real CRT scope; fit signal nicely within ~5 to 6 divisions
-            double idealVdiv = vpp / 6.0;
+            if (posNet.isEmpty()) {
+                continue;
+            }
 
-            // Pick 1-2-5 standard scope sequence
-            double exponent = std::floor(std::log10(idealVdiv));
-            double mantissa = idealVdiv / std::pow(10.0, exponent);
-            double standardMantissa = 1.0;
-            if (mantissa > 5.0) standardMantissa = 10.0;
-            else if (mantissa > 2.0) standardMantissa = 5.0;
-            else if (mantissa > 1.0) standardMantissa = 2.0;
+            auto matchWave = [](const SimWaveform& wave, const QString& targetNet) -> bool {
+                if (targetNet.isEmpty()) return false;
+                const QString wName = QString::fromStdString(wave.name);
+                const QString cTarget = cleanNetName(targetNet);
+                const QString cWave = cleanNetName(wName);
 
-            double niceVdiv = standardMantissa * std::pow(10.0, exponent);
-            niceVdiv = std::clamp(niceVdiv, 0.001, 1000.0);
+                if (cTarget.compare(cWave, Qt::CaseInsensitive) == 0) return true;
+                if (wName.compare(targetNet, Qt::CaseInsensitive) == 0) return true;
+                if (wName.compare("V(" + targetNet + ")", Qt::CaseInsensitive) == 0) return true;
+                if (wName.endsWith("(" + targetNet + ")", Qt::CaseInsensitive)) return true;
+                return false;
+            };
 
-            // Channel scale is 1.0 / niceVdiv (1 Volt = 1 Division)
-            // Center the waveform on the central grid line (Offset in divisions)
-            double midV = (minY + maxY) / 2.0;
-            double idealOffsetDivs = -midV / niceVdiv;
+            const SimWaveform* pWave = nullptr;
+            const SimWaveform* nWave = nullptr;
 
-            m_config.channels[i].scale = 1.0 / niceVdiv;
-            m_config.channels[i].offset = idealOffsetDivs;
-            changed = true;
+            for (const auto& wave : m_cachedResults.waveforms) {
+                if (!pWave && matchWave(wave, posNet)) pWave = &wave;
+                else if (!nWave && matchWave(wave, negNet)) nWave = &wave;
+            }
 
-            if (i < m_channelUIs.size()) {
-                if (m_channelUIs[i].voltsDiv) {
-                    m_channelUIs[i].voltsDiv->blockSignals(true);
-                    m_channelUIs[i].voltsDiv->setValue(niceVdiv);
-                    m_channelUIs[i].voltsDiv->blockSignals(false);
+            if (pWave && !pWave->yData.empty()) {
+                double minY = pWave->yData[0];
+                double maxY = pWave->yData[0];
+                bool floating = m_config.channels[i].floatingGround;
+
+                for (size_t s = 0; s < pWave->yData.size(); ++s) {
+                    double v = pWave->yData[s];
+                    if (floating && nWave && s < nWave->yData.size()) v -= nWave->yData[s];
+                    minY = std::min(minY, v);
+                    maxY = std::max(maxY, v);
                 }
-                if (m_channelUIs[i].offset) {
-                    m_channelUIs[i].offset->blockSignals(true);
-                    m_channelUIs[i].offset->setValue(idealOffsetDivs);
-                    m_channelUIs[i].offset->blockSignals(false);
+
+                double vpp = std::max(1e-4, maxY - minY);
+                double idealVdiv = vpp / 6.0;
+
+                double exponent = std::floor(std::log10(idealVdiv));
+                double mantissa = idealVdiv / std::pow(10.0, exponent);
+                double standardMantissa = 1.0;
+                if (mantissa > 5.0) standardMantissa = 10.0;
+                else if (mantissa > 2.0) standardMantissa = 5.0;
+                else if (mantissa > 1.0) standardMantissa = 2.0;
+
+                double niceVdiv = standardMantissa * std::pow(10.0, exponent);
+                niceVdiv = std::clamp(niceVdiv, 0.001, 1000.0);
+
+                double midV = (minY + maxY) / 2.0;
+                double idealOffsetDivs = -midV / niceVdiv;
+
+                m_config.channels[i].scale = 1.0 / niceVdiv;
+                m_config.channels[i].offset = idealOffsetDivs;
+                changed = true;
+
+                if (i < m_channelUIs.size()) {
+                    if (m_channelUIs[i].voltsDiv) {
+                        m_channelUIs[i].voltsDiv->blockSignals(true);
+                        m_channelUIs[i].voltsDiv->setValue(niceVdiv);
+                        m_channelUIs[i].voltsDiv->blockSignals(false);
+                    }
+                    if (m_channelUIs[i].offset) {
+                        m_channelUIs[i].offset->blockSignals(true);
+                        m_channelUIs[i].offset->setValue(idealOffsetDivs);
+                        m_channelUIs[i].offset->blockSignals(false);
+                    }
+                }
+            }
+        }
+    } else if (m_scopeDisplay) {
+        // Live simulation mode: compute directly from m_scopeDisplay trace stats
+        for (int i = 0; i < count && i < m_config.channels.size(); ++i) {
+            if (!m_config.channels[i].enabled) continue;
+            QString chKey = QString("CH%1").arg(i + 1);
+            auto stats = m_scopeDisplay->getTraceStats(chKey);
+            if (stats.hasData && stats.maxV > stats.minV) {
+                double vpp = std::max(1e-4, stats.maxV - stats.minV);
+                double idealVdiv = vpp / 6.0;
+
+                double exponent = std::floor(std::log10(idealVdiv));
+                double mantissa = idealVdiv / std::pow(10.0, exponent);
+                double standardMantissa = 1.0;
+                if (mantissa > 5.0) standardMantissa = 10.0;
+                else if (mantissa > 2.0) standardMantissa = 5.0;
+                else if (mantissa > 1.0) standardMantissa = 2.0;
+
+                double niceVdiv = standardMantissa * std::pow(10.0, exponent);
+                niceVdiv = std::clamp(niceVdiv, 0.001, 1000.0);
+
+                double midV = (stats.minV + stats.maxV) / 2.0;
+                double idealOffsetDivs = -midV / niceVdiv;
+
+                m_config.channels[i].scale = 1.0 / niceVdiv;
+                m_config.channels[i].offset = idealOffsetDivs;
+                changed = true;
+
+                if (i < m_channelUIs.size()) {
+                    if (m_channelUIs[i].voltsDiv) {
+                        m_channelUIs[i].voltsDiv->blockSignals(true);
+                        m_channelUIs[i].voltsDiv->setValue(niceVdiv);
+                        m_channelUIs[i].voltsDiv->blockSignals(false);
+                    }
+                    if (m_channelUIs[i].offset) {
+                        m_channelUIs[i].offset->blockSignals(true);
+                        m_channelUIs[i].offset->setValue(idealOffsetDivs);
+                        m_channelUIs[i].offset->blockSignals(false);
+                    }
                 }
             }
         }
@@ -519,7 +553,9 @@ void OscilloscopeWindow::autoScaleChannels() {
     if (changed) {
         Q_EMIT configChanged(m_itemId, m_config);
     }
-    reprocessTraces();
+    if (m_hasCachedResults) {
+        reprocessTraces();
+    }
 }
 
 void OscilloscopeWindow::fitYAxis() {
@@ -531,41 +567,47 @@ void OscilloscopeWindow::zoomToFit() {
     autoScaleChannels();
 
     // 2. Auto-scale timebase based on simulation waveform duration or active traces
+    double maxSpan = 0.0;
     if (m_hasCachedResults) {
-        double maxSpan = 0.0;
         for (const auto& wave : m_cachedResults.waveforms) {
             if (wave.xData.size() > 1) {
                 double tSpan = wave.xData.back() - wave.xData.front();
                 if (tSpan > maxSpan) maxSpan = tSpan;
             }
         }
-
-        if (maxSpan > 1e-12) {
-            double idealTdiv = maxSpan / 10.0;
-            double exp = std::floor(std::log10(idealTdiv));
-            double mant = idealTdiv / std::pow(10.0, exp);
-            double stdMant = 1.0;
-            if (mant > 5.0) stdMant = 10.0;
-            else if (mant > 2.0) stdMant = 5.0;
-            else if (mant > 1.0) stdMant = 2.0;
-
-            double niceTdiv = stdMant * std::pow(10.0, exp);
-            niceTdiv = std::clamp(niceTdiv, 1e-9, 10.0);
-
-            m_config.timebase = niceTdiv;
-            if (m_timebaseSpin) {
-                m_timebaseSpin->blockSignals(true);
-                m_timebaseSpin->setValue(niceTdiv);
-                m_timebaseSpin->blockSignals(false);
-            }
-            if (m_scopeDisplay) {
-                m_scopeDisplay->setTimebase(niceTdiv);
-            }
-            Q_EMIT configChanged(m_itemId, m_config);
-        }
-        reprocessTraces();
     } else if (m_scopeDisplay) {
-        m_scopeDisplay->zoomToFit();
+        auto overall = m_scopeDisplay->getOverallTraceStats();
+        if (overall.hasData && overall.maxT > overall.minT) {
+            maxSpan = overall.maxT - overall.minT;
+        }
+    }
+
+    if (maxSpan > 1e-12) {
+        double idealTdiv = maxSpan / 10.0;
+        double exp = std::floor(std::log10(idealTdiv));
+        double mant = idealTdiv / std::pow(10.0, exp);
+        double stdMant = 1.0;
+        if (mant > 5.0) stdMant = 10.0;
+        else if (mant > 2.0) stdMant = 5.0;
+        else if (mant > 1.0) stdMant = 2.0;
+
+        double niceTdiv = stdMant * std::pow(10.0, exp);
+        niceTdiv = std::clamp(niceTdiv, 1e-9, 10.0);
+
+        m_config.timebase = niceTdiv;
+        if (m_timebaseSpin) {
+            m_timebaseSpin->blockSignals(true);
+            m_timebaseSpin->setValue(niceTdiv);
+            m_timebaseSpin->blockSignals(false);
+        }
+        if (m_scopeDisplay) {
+            m_scopeDisplay->setTimebase(niceTdiv);
+        }
+        Q_EMIT configChanged(m_itemId, m_config);
+    }
+
+    if (m_hasCachedResults) {
+        reprocessTraces();
     }
 }
 

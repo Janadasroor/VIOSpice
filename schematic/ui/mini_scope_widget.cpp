@@ -109,6 +109,43 @@ static const QColor s_scopeDefaultColors[8] = {
     QColor(255, 165, 0), QColor(147, 112, 219), QColor(255, 105, 180), QColor(0, 191, 255)
 };
 
+MiniScopeWidget::TraceStats MiniScopeWidget::getTraceStats(const QString& channelName) const {
+    TraceStats stats;
+    if (m_traces.contains(channelName)) {
+        const auto& tr = m_traces[channelName];
+        if (!tr.points.isEmpty()) {
+            stats.minV = tr.minV;
+            stats.maxV = tr.maxV;
+            stats.minT = tr.points.first().x();
+            stats.maxT = tr.points.last().x();
+            stats.hasData = true;
+        }
+    }
+    return stats;
+}
+
+MiniScopeWidget::TraceStats MiniScopeWidget::getOverallTraceStats() const {
+    TraceStats stats;
+    bool first = true;
+    for (const auto& tr : m_traces) {
+        if (tr.points.isEmpty()) continue;
+        if (first) {
+            stats.minV = tr.minV;
+            stats.maxV = tr.maxV;
+            stats.minT = tr.points.first().x();
+            stats.maxT = tr.points.last().x();
+            stats.hasData = true;
+            first = false;
+        } else {
+            stats.minV = std::min(stats.minV, tr.minV);
+            stats.maxV = std::max(stats.maxV, tr.maxV);
+            stats.minT = std::min(stats.minT, tr.points.first().x());
+            stats.maxT = std::max(stats.maxT, tr.points.last().x());
+        }
+    }
+    return stats;
+}
+
 void MiniScopeWidget::appendMultiTraceData(const QMap<QString, QVector<QPointF>>& traces, const QMap<QString, QColor>& colors) {
     for (auto it = traces.begin(); it != traces.end(); ++it) {
         if (it.value().isEmpty()) continue;
@@ -133,10 +170,15 @@ void MiniScopeWidget::appendMultiTraceData(const QMap<QString, QVector<QPointF>>
         auto& target = m_traces[it.key()];
         const auto& newPts = it.value();
 
-        // 1. If time went backwards or restarted at t=0, reset the target buffer
+        // 1. If new simulation started at t=0, reset the buffer
         if (!target.points.isEmpty() && !newPts.isEmpty()) {
-            if (newPts.first().x() < target.points.last().x()) {
+            if (newPts.first().x() < 1e-12 && target.points.last().x() > 1e-9) {
                 target.points.clear();
+            } else {
+                // Overwrite any speculative points from solver step retries
+                while (!target.points.isEmpty() && target.points.last().x() >= newPts.first().x()) {
+                    target.points.removeLast();
+                }
             }
         }
 
@@ -147,21 +189,23 @@ void MiniScopeWidget::appendMultiTraceData(const QMap<QString, QVector<QPointF>>
             }
         }
 
-        // 3. Keep sliding window points within reasonable buffer size
-        const int maxMiniPoints = 10000;
+        // 3. Keep ring buffer bounded
+        const int maxMiniPoints = 25000;
         if (target.points.size() > maxMiniPoints) {
-            target.points.remove(0, target.points.size() - 5000);
+            target.points.remove(0, target.points.size() - 15000);
         }
 
         calculateMeasurements(it.key(), target.points);
     }
 
-    // Determine latest time in live stream
+    // Determine latest and earliest times in live stream
     double latestTime = 0.0;
+    double earliestTime = 1e30;
     bool hasPoints = false;
     for (const auto& trace : m_traces) {
         if (!trace.points.isEmpty()) {
             latestTime = std::max(latestTime, trace.points.last().x());
+            earliestTime = std::min(earliestTime, trace.points.first().x());
             hasPoints = true;
         }
     }
@@ -170,11 +214,14 @@ void MiniScopeWidget::appendMultiTraceData(const QMap<QString, QVector<QPointF>>
         double windowSpan = m_timebase * 10.0; // 10 horizontal divisions
         if (windowSpan < 1e-9) windowSpan = 1e-3;
         
-        // Scope trigger / scroll window: display [latestTime - windowSpan, latestTime]
-        m_maxX = latestTime;
-        m_minX = std::max(0.0, latestTime - windowSpan);
-        if (m_maxX - m_minX < windowSpan) {
-            m_maxX = m_minX + windowSpan;
+        // While simulation is filling the initial screen window, start at earliestTime and draw left-to-right.
+        // Once data extends past the screen, smoothly slide the window with latestTime.
+        if (latestTime <= earliestTime + windowSpan) {
+            m_minX = earliestTime;
+            m_maxX = earliestTime + windowSpan;
+        } else {
+            m_maxX = latestTime;
+            m_minX = std::max(earliestTime, latestTime - windowSpan);
         }
     }
 
@@ -800,10 +847,10 @@ void MiniScopeWidget::contextMenuEvent(QContextMenuEvent* event) {
 
     // View & Scaling Actions
     menu.addAction("Zoom to Fit", [this]() {
-        zoomToFit();
+        Q_EMIT zoomToFitRequested();
     });
     menu.addAction("Fit Axis Y", [this]() {
-        fitYAxis();
+        Q_EMIT fitYAxisRequested();
     });
 
     menu.addSeparator();
@@ -842,24 +889,9 @@ void MiniScopeWidget::contextMenuEvent(QContextMenuEvent* event) {
 }
 
 void MiniScopeWidget::zoomToFit() {
-    double minXData = 0.0;
-    double maxXData = 0.0;
-    bool hasX = false;
-    for (const auto& tr : m_traces) {
-        if (!tr.points.isEmpty()) {
-            if (!hasX) {
-                minXData = tr.points.first().x();
-                maxXData = tr.points.last().x();
-                hasX = true;
-            } else {
-                minXData = std::min(minXData, tr.points.first().x());
-                maxXData = std::max(maxXData, tr.points.last().x());
-            }
-        }
-    }
-
-    if (hasX) {
-        double tSpan = std::max(1e-12, maxXData - minXData);
+    auto overall = getOverallTraceStats();
+    if (overall.hasData && overall.maxT > overall.minT) {
+        double tSpan = std::max(1e-12, overall.maxT - overall.minT);
         double idealTdiv = tSpan / 10.0;
         double exp = std::floor(std::log10(idealTdiv));
         double mant = idealTdiv / std::pow(10.0, exp);
@@ -872,16 +904,13 @@ void MiniScopeWidget::zoomToFit() {
         niceTdiv = std::clamp(niceTdiv, 1e-9, 10.0);
 
         m_timebase = niceTdiv;
-        m_minX = minXData;
-        m_maxX = minXData + (niceTdiv * 10.0);
+        m_minX = overall.minT;
+        m_maxX = overall.minT + (niceTdiv * 10.0);
         Q_EMIT timebaseChanged(m_timebase);
     }
-
-    Q_EMIT zoomToFitRequested();
     update();
 }
 
 void MiniScopeWidget::fitYAxis() {
-    Q_EMIT fitYAxisRequested();
     update();
 }
