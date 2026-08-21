@@ -107,7 +107,12 @@ private:
     QLabel* m_cursorFreqLabel = nullptr;
     QLabel* m_cursorDeltaVoltLabel = nullptr;
 
+    void reprocessTraces();
+
     NetManager* m_lastNetManager = nullptr;
+    SimResults m_cachedResults;
+    bool m_hasCachedResults = false;
+    class SchematicItem* m_cachedItem = nullptr;
 };
 
 #endif // OSCILLOSCOPE_WINDOW_H

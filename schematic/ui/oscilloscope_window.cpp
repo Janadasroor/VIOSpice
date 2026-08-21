@@ -342,6 +342,15 @@ void OscilloscopeWindow::updateRealTimeData(const std::vector<double>& times, co
 
 void OscilloscopeWindow::updateResults(const SimResults& results, NetManager* netManager, SchematicItem* item) {
     m_lastNetManager = netManager;
+    m_cachedResults = results;
+    m_hasCachedResults = true;
+    m_cachedItem = item;
+
+    reprocessTraces();
+}
+
+void OscilloscopeWindow::reprocessTraces() {
+    if (!m_hasCachedResults || !m_scopeDisplay) return;
 
     QMap<QString, QVector<QPointF>> visibleTraces;
     QMap<QString, QColor> traceColors;
@@ -354,13 +363,13 @@ void OscilloscopeWindow::updateResults(const SimResults& results, NetManager* ne
         if (!m_config.channels[i].enabled) continue;
         
         QString posNet, negNet;
-        if (item && m_lastNetManager) {
-            const auto pts = item->connectionPoints();
+        if (m_cachedItem && m_lastNetManager) {
+            const auto pts = m_cachedItem->connectionPoints();
             if (i < pts.size()) {
-                posNet = m_lastNetManager->findNetAtPoint(item->mapToScene(pts[i]));
+                posNet = m_lastNetManager->findNetAtPoint(m_cachedItem->mapToScene(pts[i]));
             }
             if (count + i < pts.size()) {
-                negNet = m_lastNetManager->findNetAtPoint(item->mapToScene(pts[count + i]));
+                negNet = m_lastNetManager->findNetAtPoint(m_cachedItem->mapToScene(pts[count + i]));
             }
         }
 
@@ -386,7 +395,7 @@ void OscilloscopeWindow::updateResults(const SimResults& results, NetManager* ne
         const QString fbLegacy = QString("V(%1_%2)").arg(m_itemName).arg(i);
         const QString fbNeg = QString("V(%1_%2_N)").arg(m_itemName).arg(i);
 
-        for (const auto& wave : results.waveforms) {
+        for (const auto& wave : m_cachedResults.waveforms) {
             if (!pWave && (matchWave(wave, posNet, fbPos) || matchWave(wave, posNet, fbLegacy))) {
                 pWave = &wave;
             } else if (!nWave && matchWave(wave, negNet, fbNeg)) {
@@ -451,6 +460,7 @@ void OscilloscopeWindow::updateResults(const SimResults& results, NetManager* ne
 }
 
 void OscilloscopeWindow::clear() {
+    m_hasCachedResults = false;
     m_scopeDisplay->clear();
 }
 
@@ -466,6 +476,7 @@ void OscilloscopeWindow::closeEvent(QCloseEvent* event) {
 void OscilloscopeWindow::onChannelToggled(int ch, bool checked) {
     if (ch >= 0 && ch < m_config.channels.size()) {
         m_config.channels[ch].enabled = checked;
+        reprocessTraces();
         Q_EMIT configChanged(m_itemId, m_config);
     }
 }
@@ -473,18 +484,21 @@ void OscilloscopeWindow::onChannelToggled(int ch, bool checked) {
 void OscilloscopeWindow::onFloatingToggled(int ch, bool checked) {
     if (ch >= 0 && ch < m_config.channels.size()) {
         m_config.channels[ch].floatingGround = checked;
+        reprocessTraces();
         Q_EMIT configChanged(m_itemId, m_config);
     }
 }
 
 void OscilloscopeWindow::onTimebaseChanged(double value) {
     m_config.timebase = value;
+    reprocessTraces();
     Q_EMIT configChanged(m_itemId, m_config);
 }
 
 void OscilloscopeWindow::onVoltsDivChanged(int ch, double value) {
     if (value > 0 && ch >= 0 && ch < m_config.channels.size()) {
         m_config.channels[ch].scale = 1.0 / value;
+        reprocessTraces();
         Q_EMIT configChanged(m_itemId, m_config);
     }
 }
@@ -492,17 +506,20 @@ void OscilloscopeWindow::onVoltsDivChanged(int ch, double value) {
 void OscilloscopeWindow::onOffsetChanged(int ch, double value) {
     if (ch >= 0 && ch < m_config.channels.size()) {
         m_config.channels[ch].offset = value;
+        reprocessTraces();
         Q_EMIT configChanged(m_itemId, m_config);
     }
 }
 
 void OscilloscopeWindow::onTriggerSourceChanged(int index) {
     m_config.triggerSource = QString("CH%1").arg(index + 1);
+    reprocessTraces();
     Q_EMIT configChanged(m_itemId, m_config);
 }
 
 void OscilloscopeWindow::onTriggerLevelChanged(double value) {
     m_config.triggerLevel = value;
+    reprocessTraces();
     Q_EMIT configChanged(m_itemId, m_config);
 }
 
