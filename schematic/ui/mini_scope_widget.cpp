@@ -73,6 +73,14 @@ void MiniScopeWidget::setCursorMode(CursorMode mode) {
     update();
 }
 
+void MiniScopeWidget::setTimebase(double t) {
+    if (t > 1e-12) {
+        m_timebase = t;
+        m_useTimebaseWindow = true;
+        update();
+    }
+}
+
 static const QColor s_scopeDefaultColors[8] = {
     Qt::yellow, Qt::cyan, Qt::magenta, QColor(0, 255, 100),
     QColor(255, 165, 0), QColor(147, 112, 219), QColor(255, 105, 180), QColor(0, 191, 255)
@@ -87,7 +95,6 @@ void MiniScopeWidget::appendMultiTraceData(const QMap<QString, QVector<QPointF>>
             if (colors.contains(it.key())) {
                 data.color = colors[it.key()];
             } else {
-                // Determine channel index from key like "CH1", "CH2"
                 int chNum = 1;
                 if (it.key().startsWith("CH", Qt::CaseInsensitive)) {
                     chNum = it.key().mid(2).toInt();
@@ -103,7 +110,7 @@ void MiniScopeWidget::appendMultiTraceData(const QMap<QString, QVector<QPointF>>
         auto& target = m_traces[it.key()];
         target.points.append(it.value());
 
-        // Prune for performance (MiniScope is for preview)
+        // Prune for real-time ring buffer (max 10000 points)
         const int maxMiniPoints = 10000;
         if (target.points.size() > maxMiniPoints) {
             target.points.remove(0, target.points.size() - 5000);
@@ -112,32 +119,26 @@ void MiniScopeWidget::appendMultiTraceData(const QMap<QString, QVector<QPointF>>
         calculateMeasurements(it.key(), target.points);
     }
 
-    // Recalculate global bounds
-    bool first = true;
+    // Determine latest time in live stream
+    double latestTime = 0.0;
+    bool hasPoints = false;
     for (const auto& trace : m_traces) {
-        if (trace.points.isEmpty()) continue;
-        if (first) {
-            m_globalMinY = trace.minV;
-            m_globalMaxY = trace.maxV;
-            m_minX = trace.points.first().x();
-            m_maxX = trace.points.last().x();
-            first = false;
-        } else {
-            m_globalMinY = std::min(m_globalMinY, trace.minV);
-            m_globalMaxY = std::max(m_globalMaxY, trace.maxV);
-            m_minX = std::min(m_minX, trace.points.first().x());
-            m_maxX = std::max(m_maxX, trace.points.last().x());
+        if (!trace.points.isEmpty()) {
+            latestTime = std::max(latestTime, trace.points.last().x());
+            hasPoints = true;
         }
     }
 
-    // Add padding
-    double range = m_globalMaxY - m_globalMinY;
-    if (range < 0.1) {
-        m_globalMinY -= 0.5;
-        m_globalMaxY += 0.5;
-    } else {
-        m_globalMinY -= range * 0.1;
-        m_globalMaxY += range * 0.1;
+    if (hasPoints) {
+        double windowSpan = m_timebase * 10.0; // 10 horizontal divisions
+        if (windowSpan < 1e-9) windowSpan = 1e-3;
+        
+        // Scope trigger / scroll window: display [latestTime - windowSpan, latestTime]
+        m_maxX = latestTime;
+        m_minX = std::max(0.0, latestTime - windowSpan);
+        if (m_maxX - m_minX < windowSpan) {
+            m_maxX = m_minX + windowSpan;
+        }
     }
 
     update();
@@ -204,24 +205,18 @@ void MiniScopeWidget::setMultiTraceData(const QMap<QString, QVector<QPointF>>& t
         m_traces[it.key()] = data;
     }
 
-    // Add padding if we have valid bounds
     if (!first) {
-        double range = m_globalMaxY - m_globalMinY;
-        if (range < 0.1) {
-            m_globalMinY -= 0.5;
-            m_globalMaxY += 0.5;
-        } else {
-            m_globalMinY -= range * 0.1;
-            m_globalMaxY += range * 0.1;
-        }
+        double windowSpan = m_timebase * 10.0;
+        if (windowSpan < 1e-9) windowSpan = 1e-3;
+        m_minX = 0.0;
+        m_maxX = windowSpan;
 
         if (!m_cursorsInitialized) {
             double timeSpan = std::max(1e-9, m_maxX - m_minX);
             m_timeCursorA = m_minX + 0.25 * timeSpan;
             m_timeCursorB = m_minX + 0.75 * timeSpan;
-            double voltSpan = std::max(1e-9, m_globalMaxY - m_globalMinY);
-            m_voltCursorA = m_globalMinY + 0.75 * voltSpan;
-            m_voltCursorB = m_globalMinY + 0.25 * voltSpan;
+            m_voltCursorA = 1.5;
+            m_voltCursorB = -1.5;
             m_cursorsInitialized = true;
         }
     }
@@ -503,14 +498,19 @@ void MiniScopeWidget::renderToPainter(QPainter& painter, const QSize& targetSize
         painter.drawText(QRectF(10, h / 2 - 10, 80, 20), Qt::AlignCenter, vHud);
     }
     
-    // Global Axis Labels
-    painter.setPen(QColor(160, 160, 160));
-    QString globalUnit = "V";
-    if (!m_traces.isEmpty()) {
-        globalUnit = unitForTrace(m_traces.begin().key());
-    }
-    painter.drawText(6, 14, formatValueSI(m_globalMaxY, globalUnit));
-    painter.drawText(6, h - 6, formatValueSI(m_globalMinY, globalUnit));
+    // Graticule Divisions & Timebase Label
+    painter.setPen(QColor(130, 150, 130));
+    QFont fontDiv = painter.font();
+    fontDiv.setPointSize(7);
+    painter.setFont(fontDiv);
+    painter.drawText(6, 14, "+4 Div");
+    painter.drawText(6, h / 2 - 2, " 0 Div");
+    painter.drawText(6, h - 6, "-4 Div");
+    
+    // Bottom Timebase Display (e.g. "TB: 1.00ms/Div (10.00ms)")
+    double tbSpan = m_timebase * 10.0;
+    QString tbText = QString("T/Div: %1 (%2 Screen)").arg(formatValueSI(m_timebase, "s"), formatValueSI(tbSpan, "s"));
+    painter.drawText(QRect(0, h - 16, graphW - 6, 14), Qt::AlignRight, tbText);
 }
 
 void MiniScopeWidget::mousePressEvent(QMouseEvent* event) {

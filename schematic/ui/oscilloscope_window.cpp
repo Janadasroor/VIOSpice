@@ -298,6 +298,7 @@ void OscilloscopeWindow::updateRealTimeData(const std::vector<double>& times, co
                     }
                 }
             }
+            // Only fallback if explicit fallback name matches
             if (!fallback.isEmpty()) {
                 for (int idx = 0; idx < names.size(); ++idx) {
                     if (names[idx].compare(fallback, Qt::CaseInsensitive) == 0) return idx;
@@ -305,6 +306,11 @@ void OscilloscopeWindow::updateRealTimeData(const std::vector<double>& times, co
             }
             return -1;
         };
+
+        // If the pin is not connected to a net, do not pick arbitrary waveforms
+        if (posNet.isEmpty()) {
+            continue;
+        }
 
         int posIdx = findWaveIdx(posNet, QString("V(%1_%2_P)").arg(m_itemName).arg(i));
         if (posIdx < 0) posIdx = findWaveIdx(posNet, QString("V(%1_%2)").arg(m_itemName).arg(i));
@@ -337,8 +343,11 @@ void OscilloscopeWindow::updateRealTimeData(const std::vector<double>& times, co
         traceColors[QString("CH%1").arg(i + 1)] = m_config.channels[i].color;
     }
 
-    if (!visibleTraces.isEmpty()) {
-        m_scopeDisplay->appendMultiTraceData(visibleTraces, traceColors);
+    if (m_scopeDisplay) {
+        m_scopeDisplay->setTimebase(m_config.timebase);
+        if (!visibleTraces.isEmpty()) {
+            m_scopeDisplay->appendMultiTraceData(visibleTraces, traceColors);
+        }
     }
 }
 
@@ -634,6 +643,9 @@ void OscilloscopeWindow::onFloatingToggled(int ch, bool checked) {
 
 void OscilloscopeWindow::onTimebaseChanged(double value) {
     m_config.timebase = value;
+    if (m_scopeDisplay) {
+        m_scopeDisplay->setTimebase(value);
+    }
     reprocessTraces();
     Q_EMIT configChanged(m_itemId, m_config);
 }

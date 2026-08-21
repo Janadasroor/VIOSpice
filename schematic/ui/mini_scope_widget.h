@@ -40,6 +40,15 @@ public:
     
     void clear();
 
+    double timebase() const { return m_timebase; }
+    void setTimebase(double t);
+
+    void setTrigger(const QString& source, double level) {
+        m_triggerSource = source;
+        m_triggerLevel = level;
+        update();
+    }
+
     /**
      * @brief Render the oscilloscope waveform screen to an image (used for CLI, export, or AI visual inspection).
      */
@@ -103,6 +112,10 @@ private:
     double m_globalMaxY = 1.0;
     double m_minX = 0.0;
     double m_maxX = 0.02;
+    double m_timebase = 1e-3; // 1ms per division (10 divisions total = 10ms screen)
+    QString m_triggerSource = "CH1";
+    double m_triggerLevel = 0.0;
+    bool m_useTimebaseWindow = true;
 
     // Cursors state
     CursorMode m_cursorMode = CursorNone;
