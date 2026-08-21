@@ -109,7 +109,6 @@ jobs:
           brew install cmake curl python@3.12 ccache libedit autoconf automake libtool bison flex
 
       - name: Setup ccache
-        if: runner.os != 'Windows'
         uses: hendrikmuhs/ccache-action@v1.2
         with:
           key: ${{ runner.os }}-${{ runner.arch }}
@@ -124,6 +123,8 @@ jobs:
             base-devel
             mingw-w64-x86_64-gcc
             mingw-w64-x86_64-make
+            mingw-w64-x86_64-ninja
+            mingw-w64-x86_64-ccache
             mingw-w64-x86_64-cmake
             mingw-w64-x86_64-curl
             mingw-w64-x86_64-python

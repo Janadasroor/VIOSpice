@@ -57,10 +57,10 @@
             "description": "Windows MinGW64 build",
             "inherits": "release",
             "binaryDir": "${sourceDir}/build",
-            "generator": "MSYS Makefiles",
+            "generator": "Ninja",
             "cacheVariables": {
-                "CMAKE_C_COMPILER_LAUNCHER": "",
-                "CMAKE_CXX_COMPILER_LAUNCHER": "",
+                "CMAKE_C_COMPILER_LAUNCHER": "ccache",
+                "CMAKE_CXX_COMPILER_LAUNCHER": "ccache",
                 "BUILD_TESTING": "ON",
                 "VIOSPICE_BUILD_FLUXSCRIPT": "ON",
                 "SLANG_USE_MIMALLOC": "OFF",
