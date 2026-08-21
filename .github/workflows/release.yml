@@ -205,8 +205,10 @@ jobs:
           export WANT_AUTOCONF=2.71
           export WANT_AUTOMAKE=1.16
           PYPATH=$(cygpath -w /mingw64/bin/python.exe)
+          EIGEN_PATH=$(cygpath -m /mingw64/include/eigen3)
           cmake --preset msys2-mingw64 \
             -DPython3_EXECUTABLE="$PYPATH" -DPython_EXECUTABLE="$PYPATH" \
+            -DEIGEN3_INCLUDE_DIR="$EIGEN_PATH" \
             -DVIOSPICE_BUNDLED_LIB="$HOME/viora-libs"
       - name: Build (Linux)
         if: runner.os == 'Linux'

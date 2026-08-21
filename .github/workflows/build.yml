@@ -186,7 +186,8 @@ jobs:
           # Pin the MSYS2 wrapper to the known-good combo (Ubuntu 24.04).
           export WANT_AUTOCONF=2.71
           export WANT_AUTOMAKE=1.16
-          cmake --preset msys2-mingw64
+          EIGEN_PATH="$(cygpath -m /mingw64/include/eigen3)"
+          cmake --preset msys2-mingw64 -DEIGEN3_INCLUDE_DIR="$EIGEN_PATH"
 
       - name: Build (Linux / macOS)
         if: runner.os != 'Windows'

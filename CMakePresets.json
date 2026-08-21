@@ -63,8 +63,7 @@
                 "CMAKE_CXX_COMPILER_LAUNCHER": "ccache",
                 "BUILD_TESTING": "ON",
                 "VIOSPICE_BUILD_FLUXSCRIPT": "ON",
-                "SLANG_USE_MIMALLOC": "OFF",
-                "EIGEN3_INCLUDE_DIR": "/mingw64/include/eigen3"
+                "SLANG_USE_MIMALLOC": "OFF"
             }
         }
     ],
