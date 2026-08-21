@@ -2643,6 +2643,7 @@ void SymbolLibraryManager::createDefaultBuiltInLibrary() {
     addSym(blinkLed);
 
     QString baseDir = QDir::homePath() + "/ViospiceLib/sym";
+    QDir().mkpath(baseDir);
     for (auto it = catLibs.begin(); it != catLibs.end(); ++it) {
         QString cat = it.key();
         SymbolLibrary* lib = it.value();
