@@ -1800,8 +1800,17 @@ void SchematicEditor::onSimulationResultsReady(const SimResults& results) {
         win->updateData(results);
     }
 
-    for (auto* win : m_oscilloscopeWindows) {
-        win->updateResults(results, m_netManager);
+    for (auto it = m_oscilloscopeWindows.begin(); it != m_oscilloscopeWindows.end(); ++it) {
+        SchematicItem* targetItem = nullptr;
+        for (auto* gi : m_scene->items()) {
+            if (auto* s = dynamic_cast<SchematicItem*>(gi)) {
+                if (s->id() == it.key()) {
+                    targetItem = s;
+                    break;
+                }
+            }
+        }
+        it.value()->updateResults(results, m_netManager, targetItem);
     }
 
     updateVirtualTerminals(results, &vtNets);
@@ -1816,8 +1825,17 @@ void SchematicEditor::onRealTimeDataBatchReceived(const std::vector<double>& tim
     if (times.empty() || values.empty()) return;
     
 
-    for (auto* win : m_oscilloscopeWindows) {
-        win->updateRealTimeData(times, values, names);
+    for (auto it = m_oscilloscopeWindows.begin(); it != m_oscilloscopeWindows.end(); ++it) {
+        SchematicItem* targetItem = nullptr;
+        for (auto* gi : m_scene->items()) {
+            if (auto* s = dynamic_cast<SchematicItem*>(gi)) {
+                if (s->id() == it.key()) {
+                    targetItem = s;
+                    break;
+                }
+            }
+        }
+        it.value()->updateRealTimeData(times, values, names, targetItem);
     }
 
     // --- Update Schematic Item States (LEDs, 7-Segments, etc) ---
