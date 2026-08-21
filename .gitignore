@@ -122,6 +122,7 @@ simulator/TODO.md
 .flux_cache/
 .fluxcache/
 .pytest_cache/
+.mimocode/
 .qtcreator/
 nanobanana-output/
 final_smoke_tests/
@@ -135,6 +136,9 @@ test_out/
 reference_designs/
 scratch/
 output/
+jlcpcb_gerbers/
+tmp/
+todo/
 
 # Generated Artifacts
 *.out
@@ -147,6 +151,9 @@ output/
 *.step
 *.stp
 *.igs
+*~
+*.flxsch~
+*.flxpcb~
 
 # Generated export/scratch files
 flasher_ipc2581.xml
@@ -164,4 +171,8 @@ CPackSourceConfig.cmake
 *_Installer.exe
 VioraEDA-*-windows-x86_64.exe
 VioraEDA-*.zip
+*.tar.gz
+*.deb
+*.rpm
+*.dmg
 
