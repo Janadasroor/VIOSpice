@@ -41,6 +41,8 @@
 #include "simulator/bridge/model_library_manager.h"
 #include "../ui/waveform_viewer.h"
 #include "../schematic/ui/simulation/simulation_panel.h"
+#include "schematic/ui/oscilloscope_window.h"
+#include "schematic/ui/mini_scope_widget.h"
 #include "simulator/bridge/slang_manager.h"
 #include "flux/schematic/editor/schematic_api.h"
 #include "flux/schematic/factories/schematic_item_registry.h"
@@ -1822,9 +1824,12 @@ public:
 class ViewCommand : public CLICommand {
 public:
     QString name() const override { return "view"; }
-    QString description() const override { return "View raw simulation waveforms in GUI."; }
+    QString description() const override { return "View raw simulation waveforms in GUI or render to image."; }
     void setupParser(QCommandLineParser& parser) override {
         parser.addOption(QCommandLineOption("type", "Viewer type (plot|osc)", "type", "plot"));
+        parser.addOption(QCommandLineOption("render-image", "Render oscilloscope or waveform directly to image file", "file"));
+        parser.addOption(QCommandLineOption("width", "Render image width (default: 1000)", "px", "1000"));
+        parser.addOption(QCommandLineOption("height", "Render image height (default: 600)", "px", "600"));
     }
     QJsonObject inputSchema() const override {
         return QJsonObject{};
@@ -1834,40 +1839,74 @@ public:
     }
     int execute(const QStringList& args, const QCommandLineParser& parser) override {
         if (args.isEmpty()) {
-            std::cerr << "Usage: viora view <file.raw> [--type plot|osc]" << std::endl;
+            std::cerr << "Usage: viora view <file.raw> [--type plot|osc] [--render-image <output.png>]" << std::endl;
             return 1;
         }
         QString filePath = args.at(0);
         QString viewType = parser.value("type").toLower();
-        
-        bool ok = false;
+        QString renderImageFile = parser.value("render-image");
+        int width = parser.value("width").toInt();
+        int height = parser.value("height").toInt();
+        if (width <= 0) width = 1000;
+        if (height <= 0) height = 600;
+
+        RawData data;
+        if (!RawDataParser::loadRawAscii(filePath.toStdString(), &data)) {
+            std::cerr << "Error: Failed to load raw file: " << filePath.toStdString() << std::endl;
+            return 1;
+        }
+
         if (viewType == "osc" || viewType == "oscilloscope") {
-            RawData data;
-            if (!RawDataParser::loadRawAscii(filePath.toStdString(), &data)) {
-                std::cerr << "Error: Failed to load raw file: " << filePath.toStdString() << std::endl;
-                return 1;
+            auto* oscWin = new OscilloscopeWindow(QUuid::createUuid(), QFileInfo(filePath).baseName());
+            
+            // Build SimResults from RawData
+            SimResults simRes;
+            for (size_t i = 1; i < data.varNames.size(); ++i) {
+                if (i - 1 < data.y.size()) {
+                    SimWaveform wave;
+                    wave.name = data.varNames[i];
+                    wave.xData = data.x;
+                    wave.yData = data.y[i - 1];
+                    simRes.waveforms.push_back(wave);
+                }
             }
 
-            QMainWindow* window = new QMainWindow();
-            window->setWindowTitle(QString("VioSpice Analog Oscilloscope - %1").arg(QFileInfo(filePath).fileName()));
-            window->resize(1200, 800);
+            // Map variables into Oscilloscope channel traces
+            QMap<QString, QVector<QPointF>> traces;
+            for (size_t i = 1; i < data.varNames.size() && i <= 8; ++i) {
+                if (i - 1 < data.y.size()) {
+                    QVector<QPointF> pts;
+                    pts.reserve(data.x.size());
+                    for (size_t s = 0; s < data.x.size(); ++s) {
+                        pts.append(QPointF(data.x[s], data.y[i - 1][s]));
+                    }
+                    QString chName = QString("CH%1 (%2)").arg(i).arg(QString::fromStdString(data.varNames[i]));
+                    traces[chName] = pts;
+                }
+            }
 
-            SimulationPanel* panel = new SimulationPanel(nullptr, nullptr, "");
-            window->setCentralWidget(panel);
+            if (!renderImageFile.isEmpty()) {
+                MiniScopeWidget scopeWidget;
+                scopeWidget.setMultiTraceData(traces);
+                QImage img = scopeWidget.renderToImage(QSize(width, height));
+                if (img.save(renderImageFile)) {
+                    std::cout << "Rendered oscilloscope image to: " << renderImageFile.toStdString() << std::endl;
+                    delete oscWin;
+                    return 0;
+                } else {
+                    std::cerr << "Error: Failed to save rendered image to " << renderImageFile.toStdString() << std::endl;
+                    delete oscWin;
+                    return 1;
+                }
+            }
 
-            panel->plotResultsFromRaw(filePath);
-            window->show();
-            ok = true;
+            oscWin->resize(width, height);
+            oscWin->show();
+            return qApp->exec();
         } else {
-            RawData data;
-            if (!RawDataParser::loadRawAscii(filePath.toStdString(), &data)) {
-                std::cerr << "Error: Failed to load raw file: " << filePath.toStdString() << std::endl;
-                return 1;
-            }
-
             QMainWindow* window = new QMainWindow();
             window->setWindowTitle(QString("VioSpice Waveform Viewer - %1").arg(QFileInfo(filePath).fileName()));
-            window->resize(1000, 600);
+            window->resize(width, height);
 
             WaveformViewer* viewer = new WaveformViewer(window);
             window->setCentralWidget(viewer);
@@ -1886,14 +1925,25 @@ public:
             viewer->endBatchUpdate();
             viewer->zoomFit();
 
+            if (!renderImageFile.isEmpty()) {
+                QImage img(QSize(width, height), QImage::Format_ARGB32_Premultiplied);
+                img.fill(Qt::black);
+                QPainter painter(&img);
+                viewer->render(&painter);
+                if (img.save(renderImageFile)) {
+                    std::cout << "Rendered waveform image to: " << renderImageFile.toStdString() << std::endl;
+                    delete window;
+                    return 0;
+                } else {
+                    std::cerr << "Error: Failed to save rendered image to " << renderImageFile.toStdString() << std::endl;
+                    delete window;
+                    return 1;
+                }
+            }
+
             window->show();
-            ok = true;
-        }
-        
-        if (ok) {
             return qApp->exec();
         }
-        return 1;
     }
 };
 

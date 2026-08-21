@@ -17,10 +17,12 @@
 #include <QDoubleSpinBox>
 #include <QComboBox>
 #include <QPushButton>
+#include <QScrollArea>
 #include <QCloseEvent>
 #include <QDebug>
 #include <QJsonArray>
 #include <QDateTime>
+#include <algorithm>
 #include "net_manager.h"
 
 OscilloscopeWindow::OscilloscopeWindow(const QUuid& itemId, const QString& itemName, QWidget* parent)
@@ -28,26 +30,38 @@ OscilloscopeWindow::OscilloscopeWindow(const QUuid& itemId, const QString& itemN
     
     setWindowTitle(QString("Oscilloscope: %1").arg(itemName));
     setObjectName("OscilloscopeWindow");
-    setMinimumSize(800, 500);
+    setMinimumSize(850, 520);
     
     // Default initial config
-    m_config.timebase = 1e-3;
-    m_config.triggerSource = "CH1";
-    m_config.triggerLevel = 0.0;
-    for (int i = 0; i < 4; ++i) {
-        m_config.channels[i].enabled = true;
-        m_config.channels[i].scale = 1.0;
-        m_config.channels[i].offset = 0.0;
-    }
-    m_config.channels[0].color = Qt::yellow;
-    m_config.channels[1].color = Qt::cyan;
-    m_config.channels[2].color = Qt::magenta;
-    m_config.channels[3].color = QColor(0, 255, 100);
+    m_config = OscilloscopeItem::Config();
 
     setupUI();
 }
 
 OscilloscopeWindow::~OscilloscopeWindow() {}
+
+void OscilloscopeWindow::setConfig(const OscilloscopeItem::Config& cfg) {
+    m_config = cfg;
+    
+    // Update trigger source combo choices
+    m_triggerSourceCombo->blockSignals(true);
+    m_triggerSourceCombo->clear();
+    for (int i = 1; i <= m_config.channelCount; ++i) {
+        m_triggerSourceCombo->addItem(QString("CH%1").arg(i));
+    }
+    m_triggerSourceCombo->setCurrentText(m_config.triggerSource);
+    m_triggerSourceCombo->blockSignals(false);
+
+    m_timebaseSpin->blockSignals(true);
+    m_timebaseSpin->setValue(m_config.timebase);
+    m_timebaseSpin->blockSignals(false);
+
+    m_triggerLevelSpin->blockSignals(true);
+    m_triggerLevelSpin->setValue(m_config.triggerLevel);
+    m_triggerLevelSpin->blockSignals(false);
+
+    rebuildChannelControls();
+}
 
 void OscilloscopeWindow::setupUI() {
     QWidget* central = new QWidget(this);
@@ -59,40 +73,25 @@ void OscilloscopeWindow::setupUI() {
     m_scopeDisplay = new MiniScopeWidget(this);
     mainLayout->addWidget(m_scopeDisplay, 3);
     
-    // 2. Control Panel (Fixed Width to prevent window growth)
+    // 2. Control Panel
     QWidget* controlPanel = new QWidget(this);
-    controlPanel->setFixedWidth(220);
+    controlPanel->setFixedWidth(240);
     QVBoxLayout* controlLayout = new QVBoxLayout(controlPanel);
     controlLayout->setContentsMargins(5, 5, 5, 5);
     mainLayout->addWidget(controlPanel);
-    
-    // Channel Groups
-    for (int i = 0; i < 4; ++i) {
-        QGroupBox* chGroup = new QGroupBox(QString("CH%1").arg(i + 1), this);
-        QGridLayout* gl = new QGridLayout(chGroup);
-        
-        m_channelUI[i].enabled = new QCheckBox("Enabled", this);
-        m_channelUI[i].enabled->setChecked(m_config.channels[i].enabled);
-        gl->addWidget(m_channelUI[i].enabled, 0, 0, 1, 2);
-        
-        gl->addWidget(new QLabel("V/Div:", this), 1, 0);
-        m_channelUI[i].voltsDiv = new QDoubleSpinBox(this);
-        m_channelUI[i].voltsDiv->setRange(0.001, 1000.0);
-        m_channelUI[i].voltsDiv->setValue(1.0 / m_config.channels[i].scale);
-        gl->addWidget(m_channelUI[i].voltsDiv, 1, 1);
-        
-        gl->addWidget(new QLabel("Offset:", this), 2, 0);
-        m_channelUI[i].offset = new QDoubleSpinBox(this);
-        m_channelUI[i].offset->setRange(-1000.0, 1000.0);
-        m_channelUI[i].offset->setValue(m_config.channels[i].offset);
-        gl->addWidget(m_channelUI[i].offset, 2, 1);
-        
-        controlLayout->addWidget(chGroup);
-        
-        connect(m_channelUI[i].enabled, &QCheckBox::toggled, [this, i](bool c) { onChannelToggled(i, c); });
-        connect(m_channelUI[i].voltsDiv, QOverload<double>::of(&QDoubleSpinBox::valueChanged), [this, i](double v) { onVoltsDivChanged(i, v); });
-        connect(m_channelUI[i].offset, QOverload<double>::of(&QDoubleSpinBox::valueChanged), [this, i](double v) { onOffsetChanged(i, v); });
-    }
+
+    // Scroll Area for dynamic channels
+    QScrollArea* scrollArea = new QScrollArea(this);
+    scrollArea->setWidgetResizable(true);
+    scrollArea->setFrameShape(QFrame::NoFrame);
+    QWidget* channelsContainer = new QWidget(scrollArea);
+    m_channelsContainerLayout = new QVBoxLayout(channelsContainer);
+    m_channelsContainerLayout->setContentsMargins(0, 0, 0, 0);
+    m_channelsContainerLayout->setSpacing(4);
+    scrollArea->setWidget(channelsContainer);
+    controlLayout->addWidget(scrollArea, 1);
+
+    rebuildChannelControls();
     
     // Horizontal / Trigger Group
     QGroupBox* hGroup = new QGroupBox("Horizontal / Trigger", this);
@@ -107,7 +106,10 @@ void OscilloscopeWindow::setupUI() {
     
     hGl->addWidget(new QLabel("Trig Src:", this), 1, 0);
     m_triggerSourceCombo = new QComboBox(this);
-    m_triggerSourceCombo->addItems({"CH1", "CH2", "CH3", "CH4"});
+    for (int i = 1; i <= m_config.channelCount; ++i) {
+        m_triggerSourceCombo->addItem(QString("CH%1").arg(i));
+    }
+    m_triggerSourceCombo->setCurrentText(m_config.triggerSource);
     hGl->addWidget(m_triggerSourceCombo, 1, 1);
     
     hGl->addWidget(new QLabel("Trig Lvl:", this), 2, 0);
@@ -119,30 +121,27 @@ void OscilloscopeWindow::setupUI() {
     controlLayout->addWidget(hGroup);
 
     // Waveform Memory Group
-    QGroupBox* memGroup = new QGroupBox("Waveform Memory", this);
+    QGroupBox* memGroup = new QGroupBox("Waveform Controls", this);
     QVBoxLayout* memVl = new QVBoxLayout(memGroup);
     m_freezeBtn = new QPushButton("📸 Freeze Traces", this);
     m_freezeBtn->setStyleSheet(
-        "QPushButton { background-color: #2563eb; color: white; font-weight: bold; padding: 8px; border-radius: 4px; }"
+        "QPushButton { background-color: #2563eb; color: white; font-weight: bold; padding: 6px; border-radius: 4px; }"
         "QPushButton:hover { background-color: #1d4ed8; }"
     );
     m_clearMemBtn = new QPushButton("🗑️ Clear Memories", this);
     m_clearMemBtn->setStyleSheet(
-        "QPushButton { background-color: #3f3f46; color: #d1d5db; padding: 5px; border-radius: 4px; }"
+        "QPushButton { background-color: #3f3f46; color: #d1d5db; padding: 4px; border-radius: 4px; }"
         "QPushButton:hover { background-color: #52525b; }"
     );
     memVl->addWidget(m_freezeBtn);
     memVl->addWidget(m_clearMemBtn);
     controlLayout->addWidget(memGroup);
     
-    QPushButton* propBtn = new QPushButton("Properties...", this);
-    propBtn->setStyleSheet("background-color: #3b3b3b; color: #fff; border: 1px solid #555; padding: 5px;");
+    QPushButton* propBtn = new QPushButton("⚙️ Instrument Properties...", this);
+    propBtn->setStyleSheet("background-color: #3b3b3b; color: #fff; border: 1px solid #555; padding: 6px; border-radius: 4px;");
     controlLayout->addWidget(propBtn);
     
-    controlLayout->addStretch();
-    
     connect(propBtn, &QPushButton::clicked, [this]() { Q_EMIT propertiesRequested(m_itemId); });
-    
     connect(m_timebaseSpin, QOverload<double>::of(&QDoubleSpinBox::valueChanged), this, &OscilloscopeWindow::onTimebaseChanged);
     connect(m_triggerSourceCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &OscilloscopeWindow::onTriggerSourceChanged);
     connect(m_triggerLevelSpin, QOverload<double>::of(&QDoubleSpinBox::valueChanged), this, &OscilloscopeWindow::onTriggerLevelChanged);
@@ -150,33 +149,93 @@ void OscilloscopeWindow::setupUI() {
     connect(m_clearMemBtn, &QPushButton::clicked, this, &OscilloscopeWindow::onClearMemoriesClicked);
 }
 
+void OscilloscopeWindow::rebuildChannelControls() {
+    if (!m_channelsContainerLayout) return;
+
+    // Clear old UI
+    QLayoutItem* item;
+    while ((item = m_channelsContainerLayout->takeAt(0)) != nullptr) {
+        delete item->widget();
+        delete item;
+    }
+    m_channelUIs.clear();
+
+    int count = m_config.channelCount;
+    m_channelUIs.resize(count);
+
+    for (int i = 0; i < count; ++i) {
+        const auto& ch = (i < m_config.channels.size()) ? m_config.channels[i] : OscilloscopeItem::ChannelConfig();
+        
+        QGroupBox* chGroup = new QGroupBox(QString("CH%1 (+/- Probes)").arg(i + 1), this);
+        chGroup->setStyleSheet(QString("QGroupBox::title { color: %1; font-weight: bold; }").arg(ch.color.name()));
+        QGridLayout* gl = new QGridLayout(chGroup);
+        gl->setContentsMargins(4, 4, 4, 4);
+
+        m_channelUIs[i].group = chGroup;
+
+        m_channelUIs[i].enabled = new QCheckBox("Active", this);
+        m_channelUIs[i].enabled->setChecked(ch.enabled);
+        gl->addWidget(m_channelUIs[i].enabled, 0, 0);
+
+        m_channelUIs[i].floating = new QCheckBox("Floating Ref", this);
+        m_channelUIs[i].floating->setToolTip("Measure (CH+ - CH-) across floating nodes");
+        m_channelUIs[i].floating->setChecked(ch.floatingGround);
+        gl->addWidget(m_channelUIs[i].floating, 0, 1);
+
+        gl->addWidget(new QLabel("V/Div:", this), 1, 0);
+        m_channelUIs[i].voltsDiv = new QDoubleSpinBox(this);
+        m_channelUIs[i].voltsDiv->setRange(0.001, 1000.0);
+        m_channelUIs[i].voltsDiv->setValue(ch.scale > 0 ? (1.0 / ch.scale) : 1.0);
+        gl->addWidget(m_channelUIs[i].voltsDiv, 1, 1);
+
+        gl->addWidget(new QLabel("Offset:", this), 2, 0);
+        m_channelUIs[i].offset = new QDoubleSpinBox(this);
+        m_channelUIs[i].offset->setRange(-1000.0, 1000.0);
+        m_channelUIs[i].offset->setValue(ch.offset);
+        gl->addWidget(m_channelUIs[i].offset, 2, 1);
+
+        m_channelsContainerLayout->addWidget(chGroup);
+
+        connect(m_channelUIs[i].enabled, &QCheckBox::toggled, [this, i](bool c) { onChannelToggled(i, c); });
+        connect(m_channelUIs[i].floating, &QCheckBox::toggled, [this, i](bool c) { onFloatingToggled(i, c); });
+        connect(m_channelUIs[i].voltsDiv, QOverload<double>::of(&QDoubleSpinBox::valueChanged), [this, i](double v) { onVoltsDivChanged(i, v); });
+        connect(m_channelUIs[i].offset, QOverload<double>::of(&QDoubleSpinBox::valueChanged), [this, i](double v) { onOffsetChanged(i, v); });
+    }
+}
+
 void OscilloscopeWindow::updateRealTimeData(const std::vector<double>& times, const std::vector<std::vector<double>>& values, const QStringList& names) {
     if (times.empty() || values.empty() || names.isEmpty()) return;
 
     QMap<QString, QVector<QPointF>> visibleTraces;
+    int count = m_config.channelCount;
     
-    for (int i = 0; i < 4; ++i) {
+    for (int i = 0; i < count && i < m_config.channels.size(); ++i) {
         if (!m_config.channels[i].enabled) continue;
         
-        QString traceName = QString("V(%1_%2)").arg(m_itemName).arg(i); 
-        int vectorIdx = -1;
-        for (int n = 0; n < names.size(); ++n) {
-            if (names[n] == traceName) {
-                vectorIdx = n;
-                break;
-            }
-        }
+        QString posName = QString("V(%1_%2_P)").arg(m_itemName).arg(i); 
+        QString negName = QString("V(%1_%2_N)").arg(m_itemName).arg(i); 
 
-        if (vectorIdx >= 0 && vectorIdx < (int)values.size()) {
-            const auto& vec = values[vectorIdx];
+        int posIdx = names.indexOf(posName);
+        if (posIdx < 0) posIdx = names.indexOf(QString("V(%1_%2)").arg(m_itemName).arg(i)); // Legacy backward compat
+        int negIdx = names.indexOf(negName);
+
+        if (posIdx >= 0 && posIdx < (int)values.size()) {
+            const auto& pVec = values[posIdx];
+            const auto* nVec = (negIdx >= 0 && negIdx < (int)values.size()) ? &values[negIdx] : nullptr;
+
             QVector<QPointF> points;
             points.reserve(times.size());
 
             double scale = m_config.channels[i].scale;
             double offset = m_config.channels[i].offset;
+            bool floating = m_config.channels[i].floatingGround;
 
             for (size_t s = 0; s < times.size(); ++s) {
-                points.append(QPointF(times[s], (vec[s] * scale) + offset));
+                double v = pVec[s];
+                if (floating && nVec && s < nVec->size()) {
+                    v -= (*nVec)[s];
+                }
+                points.append(QPointF(times[s], (v * scale) + offset));
             }
             visibleTraces[QString("CH%1").arg(i+1)] = points;
         }
@@ -188,46 +247,58 @@ void OscilloscopeWindow::updateRealTimeData(const std::vector<double>& times, co
 }
 
 void OscilloscopeWindow::updateResults(const SimResults& results, NetManager* netManager) {
-    if (!netManager) return;
     m_lastNetManager = netManager;
 
     QMap<QString, QVector<QPointF>> visibleTraces;
     QJsonObject remoteData;
     QJsonArray remoteTraces;
+    int count = m_config.channelCount;
     
-    for (int i = 0; i < 4; ++i) {
+    for (int i = 0; i < count && i < m_config.channels.size(); ++i) {
         if (!m_config.channels[i].enabled) continue;
         
-        QString traceName = QString("V(%1_%2)").arg(m_itemName).arg(i); 
+        QString posName = QString("V(%1_%2_P)").arg(m_itemName).arg(i); 
+        QString negName = QString("V(%1_%2_N)").arg(m_itemName).arg(i); 
         
-        const SimWaveform* targetWave = nullptr;
+        const SimWaveform* pWave = nullptr;
+        const SimWaveform* nWave = nullptr;
+
         for (const auto& wave : results.waveforms) {
-            if (QString::fromStdString(wave.name) == traceName) {
-                targetWave = &wave;
-                break;
+            QString wName = QString::fromStdString(wave.name);
+            if (wName == posName || wName == QString("V(%1_%2)").arg(m_itemName).arg(i)) {
+                pWave = &wave;
+            } else if (wName == negName) {
+                nWave = &wave;
             }
         }
         
-        if (targetWave) {
+        if (pWave) {
             QVector<QPointF> points;
-            points.reserve(targetWave->xData.size());
+            points.reserve(pWave->xData.size());
             
             QJsonArray xArray;
             QJsonArray yArray;
 
             double scale = m_config.channels[i].scale;
             double offset = m_config.channels[i].offset;
+            bool floating = m_config.channels[i].floatingGround;
 
-            // Downsample for remote display if needed (max 500 points)
-            size_t total = targetWave->xData.size();
+            size_t total = pWave->xData.size();
             size_t step = (total > 500) ? total / 500 : 1;
             
-            for (size_t s = 0; s < total; s += step) {
-                double x = targetWave->xData[s];
-                double y = (targetWave->yData[s] * scale) + offset;
+            for (size_t s = 0; s < total; ++s) {
+                double x = pWave->xData[s];
+                double v = pWave->yData[s];
+                if (floating && nWave && s < nWave->yData.size()) {
+                    v -= nWave->yData[s];
+                }
+                double y = (v * scale) + offset;
                 points.append(QPointF(x, y));
-                xArray.append(x);
-                yArray.append(y);
+
+                if (s % step == 0) {
+                    xArray.append(x);
+                    yArray.append(y);
+                }
             }
             visibleTraces[QString("CH%1").arg(i+1)] = points;
 
@@ -261,14 +332,27 @@ void OscilloscopeWindow::clear() {
     m_scopeDisplay->clear();
 }
 
+QImage OscilloscopeWindow::renderToImage(const QSize& size) {
+    return m_scopeDisplay->renderToImage(size);
+}
+
 void OscilloscopeWindow::closeEvent(QCloseEvent* event) {
     Q_EMIT windowClosing(m_itemId);
     event->accept();
 }
 
 void OscilloscopeWindow::onChannelToggled(int ch, bool checked) {
-    m_config.channels[ch].enabled = checked;
-    Q_EMIT configChanged(m_itemId, m_config);
+    if (ch >= 0 && ch < m_config.channels.size()) {
+        m_config.channels[ch].enabled = checked;
+        Q_EMIT configChanged(m_itemId, m_config);
+    }
+}
+
+void OscilloscopeWindow::onFloatingToggled(int ch, bool checked) {
+    if (ch >= 0 && ch < m_config.channels.size()) {
+        m_config.channels[ch].floatingGround = checked;
+        Q_EMIT configChanged(m_itemId, m_config);
+    }
 }
 
 void OscilloscopeWindow::onTimebaseChanged(double value) {
@@ -277,13 +361,17 @@ void OscilloscopeWindow::onTimebaseChanged(double value) {
 }
 
 void OscilloscopeWindow::onVoltsDivChanged(int ch, double value) {
-    if (value > 0) m_config.channels[ch].scale = 1.0 / value;
-    Q_EMIT configChanged(m_itemId, m_config);
+    if (value > 0 && ch >= 0 && ch < m_config.channels.size()) {
+        m_config.channels[ch].scale = 1.0 / value;
+        Q_EMIT configChanged(m_itemId, m_config);
+    }
 }
 
 void OscilloscopeWindow::onOffsetChanged(int ch, double value) {
-    m_config.channels[ch].offset = value;
-    Q_EMIT configChanged(m_itemId, m_config);
+    if (ch >= 0 && ch < m_config.channels.size()) {
+        m_config.channels[ch].offset = value;
+        Q_EMIT configChanged(m_itemId, m_config);
+    }
 }
 
 void OscilloscopeWindow::onTriggerSourceChanged(int index) {

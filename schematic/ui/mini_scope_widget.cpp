@@ -257,36 +257,49 @@ void MiniScopeWidget::clear() {
 
 void MiniScopeWidget::paintEvent(QPaintEvent*) {
     QPainter painter(this);
+    renderToPainter(painter, size());
+}
+
+QImage MiniScopeWidget::renderToImage(const QSize& size) {
+    QImage image(size, QImage::Format_ARGB32_Premultiplied);
+    image.fill(QColor(10, 10, 10));
+    QPainter painter(&image);
+    renderToPainter(painter, size);
+    return image;
+}
+
+void MiniScopeWidget::renderToPainter(QPainter& painter, const QSize& targetSize) {
     painter.setRenderHint(QPainter::Antialiasing);
 
-    int w = width();
-    int h = height();
-    int graphW = w - 100; // Leave space for legend
+    int w = targetSize.width();
+    int h = targetSize.height();
+    int graphW = w - 120; // Space for measurement legend
+
+    // Background
+    painter.fillRect(0, 0, w, h, QColor(10, 10, 10));
 
     // Draw Grid (Professional Scope Style)
-    painter.setPen(QPen(QColor(40, 50, 40), 1));
-    // Vertical lines
+    painter.setPen(QPen(QColor(35, 45, 35), 1));
     for (int i = 0; i <= 10; ++i) {
         int x = i * graphW / 10;
         painter.drawLine(x, 0, x, h);
     }
-    // Horizontal lines
     for (int i = 0; i <= 8; ++i) {
         int y = i * h / 8;
         painter.drawLine(0, y, graphW, y);
     }
 
-    // Centered crosshairs (brighter)
-    painter.setPen(QPen(QColor(60, 80, 60), 1, Qt::DashLine));
+    // Centered crosshairs (brighter dotted)
+    painter.setPen(QPen(QColor(55, 75, 55), 1, Qt::DashLine));
     painter.drawLine(0, h / 2, graphW, h / 2);
     painter.drawLine(graphW / 2, 0, graphW / 2, h);
     
-    painter.setPen(QPen(QColor(80, 80, 80), 2));
+    painter.setPen(QPen(QColor(70, 70, 70), 2));
     painter.drawLine(graphW, 0, graphW, h);
 
     if (m_traces.isEmpty()) {
         painter.setPen(QColor(100, 100, 100));
-        painter.drawText(QRect(0, 0, graphW, h), Qt::AlignCenter, "No Signal");
+        painter.drawText(QRect(0, 0, graphW, h), Qt::AlignCenter, "No Signal Connected");
         return;
     }
 
@@ -318,20 +331,20 @@ void MiniScopeWidget::paintEvent(QPaintEvent*) {
     }
 
     // Draw Live Traces
-    int legendY = 15;
+    int legendY = 18;
     for (auto it = m_traces.begin(); it != m_traces.end(); ++it) {
         const auto& data = it.value();
+        if (data.points.isEmpty()) continue;
+
         QPainterPath path;
         path.moveTo(mapX(data.points[0].x()), mapY(data.points[0].y()));
         for (int i = 1; i < data.points.size(); ++i) {
             path.lineTo(mapX(data.points[i].x()), mapY(data.points[i].y()));
         }
 
-        painter.setPen(QPen(data.color, 1.8));
-        
-        // Add a subtle outer glow for a phosphor effect
+        // Phosphor glow effect
         QColor glowColor = data.color;
-        glowColor.setAlpha(60);
+        glowColor.setAlpha(55);
         painter.setPen(QPen(glowColor, 4.0));
         painter.drawPath(path);
         
@@ -340,35 +353,36 @@ void MiniScopeWidget::paintEvent(QPaintEvent*) {
 
         // Draw Legend & Measurements
         painter.setPen(data.color);
-        painter.drawRect(graphW + 5, legendY - 8, 8, 8);
+        painter.drawRect(graphW + 8, legendY - 8, 8, 8);
         
         painter.setPen(Qt::white);
-        QFont f = font();
-        f.setPointSize(7);
+        QFont f = painter.font();
+        f.setPointSize(8);
         f.setBold(true);
         painter.setFont(f);
-        painter.drawText(graphW + 18, legendY, it.key().toUpper());
+        painter.drawText(graphW + 22, legendY, it.key().toUpper());
         
         f.setBold(false);
+        f.setPointSize(7);
         painter.setFont(f);
         painter.setPen(QColor(180, 180, 180));
         const QString unit = unitForTrace(it.key());
-        painter.drawText(graphW + 10, legendY + 15, QString("Pk-Pk: %1").arg(formatValueSI(data.maxV - data.minV, unit)));
-        painter.drawText(graphW + 10, legendY + 28, QString("RMS:   %1").arg(formatValueSI(data.rms, unit)));
+        painter.drawText(graphW + 10, legendY + 15, QString("Vpp:  %1").arg(formatValueSI(data.maxV - data.minV, unit)));
+        painter.drawText(graphW + 10, legendY + 28, QString("RMS:  %1").arg(formatValueSI(data.rms, unit)));
         if (data.freq > 0) {
             QString freqStr = formatValueSI(data.freq, "Hz");
-            painter.drawText(graphW + 10, legendY + 41, QString("Freq:  %1").arg(freqStr));
+            painter.drawText(graphW + 10, legendY + 41, QString("Freq: %1").arg(freqStr));
         }
         
-        legendY += 60;
+        legendY += 58;
     }
     
-    // Global Labels
-    painter.setPen(QColor(150, 150, 150));
+    // Global Axis Labels
+    painter.setPen(QColor(160, 160, 160));
     QString globalUnit = "V";
     if (!m_traces.isEmpty()) {
         globalUnit = unitForTrace(m_traces.begin().key());
     }
-    painter.drawText(5, 12, formatValueSI(m_globalMaxY, globalUnit));
-    painter.drawText(5, h - 5, formatValueSI(m_globalMinY, globalUnit));
+    painter.drawText(6, 14, formatValueSI(m_globalMaxY, globalUnit));
+    painter.drawText(6, h - 6, formatValueSI(m_globalMinY, globalUnit));
 }

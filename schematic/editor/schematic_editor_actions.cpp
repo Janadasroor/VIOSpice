@@ -1721,6 +1721,12 @@ void SchematicEditor::onSelectionDoubleClicked(const QList<SchematicItem*>& item
                 openLogicEditor(smart);
             }
             return;
+        } else if (items.first()->itemTypeName() == "OscilloscopeInstrument" || items.first()->itemTypeName() == "Oscilloscope") {
+            if (auto* osc = dynamic_cast<OscilloscopeItem*>(items.first())) {
+                OscilloscopePropertiesDialog dlg(osc, m_undoStack, m_scene, this);
+                dlg.exec();
+            }
+            return;
         }
     }
 
@@ -1758,6 +1764,14 @@ void SchematicEditor::openItemProperties(SchematicItem* item) {
     if (item->itemType() == SchematicItem::SmartSignalType) {
         if (auto* smart = dynamic_cast<SmartSignalItem*>(item)) {
             openLogicEditor(smart);
+        }
+        return;
+    }
+
+    if (item->itemTypeName() == "OscilloscopeInstrument" || item->itemTypeName() == "Oscilloscope") {
+        if (auto* osc = dynamic_cast<OscilloscopeItem*>(item)) {
+            OscilloscopePropertiesDialog dlg(osc, m_undoStack, m_scene, this);
+            dlg.exec();
         }
         return;
     }

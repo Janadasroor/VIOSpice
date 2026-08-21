@@ -9,6 +9,7 @@
 #include <QMainWindow>
 #include <QUuid>
 #include <QMap>
+#include <QVector>
 #include "mini_scope_widget.h"
 #include "../items/oscilloscope_item.h"
 #include "../../simulator/core/sim_results.h"
@@ -18,6 +19,8 @@ class QComboBox;
 class QCheckBox;
 class QPushButton;
 class QLabel;
+class QGroupBox;
+class QVBoxLayout;
 class NetManager;
 
 /**
@@ -31,6 +34,9 @@ public:
 
     QUuid itemId() const { return m_itemId; }
 
+    OscilloscopeItem::Config config() const { return m_config; }
+    void setConfig(const OscilloscopeItem::Config& cfg);
+
     /**
      * @brief Updates the window with new simulation results.
      * Filters for nets connected specifically to this instrument.
@@ -43,6 +49,11 @@ public:
      */
     void clear();
 
+    /**
+     * @brief Render the current oscilloscope display to an image.
+     */
+    QImage renderToImage(const QSize& size = QSize(1000, 600));
+
 Q_SIGNALS:
     void windowClosing(const QUuid& id);
     void configChanged(const QUuid& id, const OscilloscopeItem::Config& cfg);
@@ -53,6 +64,7 @@ protected:
 
 private Q_SLOTS:
     void onChannelToggled(int ch, bool checked);
+    void onFloatingToggled(int ch, bool checked);
     void onTimebaseChanged(double value);
     void onVoltsDivChanged(int ch, double value);
     void onOffsetChanged(int ch, double value);
@@ -63,8 +75,7 @@ private Q_SLOTS:
 
 private:
     void setupUI();
-    void updateInstrumentConfig();
-    void applyConfigToUI();
+    void rebuildChannelControls();
 
     QUuid m_itemId;
     QString m_itemName;
@@ -72,14 +83,17 @@ private:
 
     // UI Components
     MiniScopeWidget* m_scopeDisplay;
+    QVBoxLayout* m_channelsContainerLayout;
     
     // Channel Controls
     struct ChannelUI {
-        QCheckBox* enabled;
-        QDoubleSpinBox* voltsDiv;
-        QDoubleSpinBox* offset;
-        QLabel* label;
-    } m_channelUI[4];
+        QGroupBox* group = nullptr;
+        QCheckBox* enabled = nullptr;
+        QCheckBox* floating = nullptr;
+        QDoubleSpinBox* voltsDiv = nullptr;
+        QDoubleSpinBox* offset = nullptr;
+    };
+    QVector<ChannelUI> m_channelUIs;
 
     QDoubleSpinBox* m_timebaseSpin;
     QComboBox* m_triggerSourceCombo;

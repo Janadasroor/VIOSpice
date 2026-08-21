@@ -40,6 +40,12 @@ public:
     
     void clear();
 
+    /**
+     * @brief Render the oscilloscope waveform screen to an image (used for CLI, export, or AI visual inspection).
+     */
+    void renderToPainter(QPainter& painter, const QSize& size);
+    QImage renderToImage(const QSize& size = QSize(1000, 600));
+
 protected:
     void paintEvent(QPaintEvent* event) override;
 

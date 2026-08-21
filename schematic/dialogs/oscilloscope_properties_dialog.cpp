@@ -13,81 +13,87 @@ OscilloscopePropertiesDialog::OscilloscopePropertiesDialog(OscilloscopeItem* ite
     
     OscilloscopeItem::Config cfg = item->config();
 
-    PropertyTab channelsTab;
-    channelsTab.title = "Channels";
+    // General & Channel Setup Tab
+    PropertyTab generalTab;
+    generalTab.title = "Instrument Setup";
     
-    for (int i = 1; i <= 4; ++i) {
-        const auto& ch = cfg.channels[i-1];
-        
-        PropertyField chEnable;
-        chEnable.name = QString("ch%1_enable").arg(i);
-        chEnable.label = QString("Channel %1 Enable").arg(i);
-        chEnable.type = PropertyField::Boolean;
-        channelsTab.fields.append(chEnable);
-        
-        PropertyField chScale;
-        chScale.name = QString("ch%1_scale").arg(i);
-        chScale.label = QString("  Scale (V/div)");
-        chScale.type = PropertyField::Double;
-        channelsTab.fields.append(chScale);
+    PropertyField chCountField;
+    chCountField.name = "channel_count";
+    chCountField.label = "Number of Channels";
+    chCountField.type = PropertyField::Choice;
+    chCountField.choices = {"1", "2", "3", "4", "5", "6", "7", "8"};
+    generalTab.fields.append(chCountField);
 
-        PropertyField chOffset;
-        chOffset.name = QString("ch%1_offset").arg(i);
-        chOffset.label = QString("  Offset (V)");
-        chOffset.type = PropertyField::Double;
-        channelsTab.fields.append(chOffset);
-    }
-    
-    addTab(channelsTab);
-    
-    PropertyTab timebaseTab;
-    timebaseTab.title = "Timebase & Trigger";
-    
-    timebaseTab.fields.append({"time_div", "Time/div", PropertyField::EngineeringValue, "1ms", {}, "s"});
+    generalTab.fields.append({"time_div", "Time/div (Horizontal)", PropertyField::EngineeringValue, "1ms", {}, "s"});
     
     PropertyField trigSource;
     trigSource.name = "trig_source";
     trigSource.label = "Trigger Source";
     trigSource.type = PropertyField::Choice;
-    trigSource.choices = {"CH1", "CH2", "CH3", "CH4", "External"};
-    timebaseTab.fields.append(trigSource);
+    trigSource.choices = {"CH1", "CH2", "CH3", "CH4", "CH5", "CH6", "CH7", "CH8", "External"};
+    generalTab.fields.append(trigSource);
 
     PropertyField trigLevel;
     trigLevel.name = "trig_level";
     trigLevel.label = "Trigger Level";
     trigLevel.type = PropertyField::Double;
     trigLevel.unit = "V";
-    timebaseTab.fields.append(trigLevel);
-    
-    addTab(timebaseTab);
+    generalTab.fields.append(trigLevel);
 
-    PropertyTab simTab;
-    simTab.title = "Simulation Control";
-    
-    PropertyField simType;
-    simType.name = "sim_type";
-    simType.label = "Update Analysis Settings";
-    simType.type = PropertyField::Choice;
-    simType.choices = {"None", "Transient", "AC Sweep"};
-    simTab.fields.append(simType);
+    addTab(generalTab);
 
-    simTab.fields.append({"t_stop", "Transient Stop Time", PropertyField::EngineeringValue, "10ms", {}, "s"});
-    simTab.fields.append({"f_start", "AC Start Freq", PropertyField::EngineeringValue, "10Hz", {}, "Hz"});
-    simTab.fields.append({"f_stop", "AC Stop Freq", PropertyField::EngineeringValue, "1MHz", {}, "Hz"});
-
-    addTab(simTab);
+    // Channels Details Tab
+    PropertyTab channelsTab;
+    channelsTab.title = "Channels & Probes";
     
-    // Initialize values from current config
-    for (int i = 1; i <= 4; ++i) {
-        const auto& ch = cfg.channels[i-1];
-        setPropertyValue(QString("ch%1_enable").arg(i), ch.enabled);
-        setPropertyValue(QString("ch%1_scale").arg(i), ch.scale);
-        setPropertyValue(QString("ch%1_offset").arg(i), ch.offset);
+    for (int i = 1; i <= 8; ++i) {
+        PropertyField chEnable;
+        chEnable.name = QString("ch%1_enable").arg(i);
+        chEnable.label = QString("CH%1 Active").arg(i);
+        chEnable.type = PropertyField::Boolean;
+        channelsTab.fields.append(chEnable);
+        
+        PropertyField chScale;
+        chScale.name = QString("ch%1_scale").arg(i);
+        chScale.label = QString("  CH%1 Scale (V/div)").arg(i);
+        chScale.type = PropertyField::Double;
+        channelsTab.fields.append(chScale);
+
+        PropertyField chOffset;
+        chOffset.name = QString("ch%1_offset").arg(i);
+        chOffset.label = QString("  CH%1 Offset (V)").arg(i);
+        chOffset.type = PropertyField::Double;
+        channelsTab.fields.append(chOffset);
+
+        PropertyField chFloating;
+        chFloating.name = QString("ch%1_floating").arg(i);
+        chFloating.label = QString("  CH%1 Floating Ref (CH- pin)").arg(i);
+        chFloating.type = PropertyField::Boolean;
+        channelsTab.fields.append(chFloating);
     }
+    
+    addTab(channelsTab);
+
+    // Initialize values from current config
+    setPropertyValue("channel_count", QString::number(cfg.channelCount));
     setPropertyValue("time_div", QString::number(cfg.timebase)); 
     setPropertyValue("trig_source", cfg.triggerSource);
     setPropertyValue("trig_level", cfg.triggerLevel);
-    setPropertyValue("sim_type", "None");
+
+    for (int i = 1; i <= 8; ++i) {
+        if (i <= cfg.channels.size()) {
+            const auto& ch = cfg.channels[i-1];
+            setPropertyValue(QString("ch%1_enable").arg(i), ch.enabled);
+            setPropertyValue(QString("ch%1_scale").arg(i), ch.scale);
+            setPropertyValue(QString("ch%1_offset").arg(i), ch.offset);
+            setPropertyValue(QString("ch%1_floating").arg(i), ch.floatingGround);
+        } else {
+            setPropertyValue(QString("ch%1_enable").arg(i), i <= cfg.channelCount);
+            setPropertyValue(QString("ch%1_scale").arg(i), 1.0);
+            setPropertyValue(QString("ch%1_offset").arg(i), 0.0);
+            setPropertyValue(QString("ch%1_floating").arg(i), false);
+        }
+    }
 }
 
 void OscilloscopePropertiesDialog::onApply() {
@@ -95,10 +101,16 @@ void OscilloscopePropertiesDialog::onApply() {
     if (!m_undoStack) return;
 
     OscilloscopeItem::Config newCfg = m_item->config();
-    for (int i = 1; i <= 4; ++i) {
+    newCfg.channelCount = getPropertyValue("channel_count").toString().toInt();
+    if (newCfg.channelCount < 1) newCfg.channelCount = 1;
+    if (newCfg.channelCount > 8) newCfg.channelCount = 8;
+    newCfg.channels.resize(newCfg.channelCount);
+
+    for (int i = 1; i <= newCfg.channelCount; ++i) {
         newCfg.channels[i-1].enabled = getPropertyValue(QString("ch%1_enable").arg(i)).toBool();
         newCfg.channels[i-1].scale = getPropertyValue(QString("ch%1_scale").arg(i)).toDouble();
         newCfg.channels[i-1].offset = getPropertyValue(QString("ch%1_offset").arg(i)).toDouble();
+        newCfg.channels[i-1].floatingGround = getPropertyValue(QString("ch%1_floating").arg(i)).toBool();
     }
     
     double tdiv = 0.001;
@@ -109,21 +121,20 @@ void OscilloscopePropertiesDialog::onApply() {
     newCfg.triggerLevel = getPropertyValue("trig_level").toDouble();
 
     m_undoStack->push(new ChangeOscilloscopeConfigCommand(m_item, m_item->config(), newCfg));
-
-    // Handle Auto-Setup Analysis
-    QString simType = getPropertyValue("sim_type").toString();
-    if (simType != "None") {
-        // Logic to update global simulation settings would go here.
-        // Usually via a signal to the editor or updating SimulationManager directly.
-    }
 }
 
 void OscilloscopePropertiesDialog::applyPreview() {
     OscilloscopeItem::Config previewCfg = m_item->config();
-    for (int i = 1; i <= 4; ++i) {
+    previewCfg.channelCount = getPropertyValue("channel_count").toString().toInt();
+    if (previewCfg.channelCount < 1) previewCfg.channelCount = 1;
+    if (previewCfg.channelCount > 8) previewCfg.channelCount = 8;
+    previewCfg.channels.resize(previewCfg.channelCount);
+
+    for (int i = 1; i <= previewCfg.channelCount; ++i) {
         previewCfg.channels[i-1].enabled = getPropertyValue(QString("ch%1_enable").arg(i)).toBool();
         previewCfg.channels[i-1].scale = getPropertyValue(QString("ch%1_scale").arg(i)).toDouble();
         previewCfg.channels[i-1].offset = getPropertyValue(QString("ch%1_offset").arg(i)).toDouble();
+        previewCfg.channels[i-1].floatingGround = getPropertyValue(QString("ch%1_floating").arg(i)).toBool();
     }
     
     double tdiv = 0.001;
