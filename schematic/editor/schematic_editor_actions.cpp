@@ -1064,16 +1064,13 @@ void SchematicEditor::onItemDoubleClicked(SchematicItem* item) {
             dlg.exec();
             return;
         }
-    } else if (item->itemType() == SchematicItem::ComponentType) {
-        if (auto* comp = dynamic_cast<GenericComponentItem*>(item)) {
-            SchematicTextItem* labelItem = comp->referenceLabelItem();
-            if (!labelItem) return;
-            openTextLabelPropertiesDialog(labelItem);
-            return;
+    } else if (item->itemTypeName() == "OscilloscopeInstrument" || item->itemTypeName() == "Oscilloscope") {
+        if (auto* osc = dynamic_cast<OscilloscopeItem*>(item)) {
+            OscilloscopePropertiesDialog dlg(osc, m_undoStack, m_scene, this);
+            dlg.exec();
+        } else {
+            openOscilloscopeWindow(item);
         }
-    } else if (item->itemTypeName() == "OscilloscopeInstrument") {
-        // Support both specialized OscilloscopeItem and InstrumentProbeItem(Oscilloscope)
-        openOscilloscopeWindow(item);
         return;
     } else if (item->itemTypeName() == "TuningSlider") {
         if (auto* slider = dynamic_cast<TuningSliderSymbolItem*>(item)) {
