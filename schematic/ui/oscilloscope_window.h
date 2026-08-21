@@ -36,13 +36,14 @@ public:
 
     OscilloscopeItem::Config config() const { return m_config; }
     void setConfig(const OscilloscopeItem::Config& cfg);
+    void setNetManager(NetManager* nm) { m_lastNetManager = nm; }
 
     /**
      * @brief Updates the window with new simulation results.
      * Filters for nets connected specifically to this instrument.
      */
     void updateResults(const SimResults& results, NetManager* netManager, class SchematicItem* item = nullptr);
-    void updateRealTimeData(const std::vector<double>& times, const std::vector<std::vector<double>>& values, const QStringList& names, class SchematicItem* item = nullptr);
+    void updateRealTimeData(const std::vector<double>& times, const std::vector<std::vector<double>>& values, const QStringList& names, class SchematicItem* item = nullptr, NetManager* netManager = nullptr);
 
     /**
      * @brief Clear existing traces.

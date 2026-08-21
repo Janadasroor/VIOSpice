@@ -77,6 +77,25 @@ void MiniScopeWidget::setTimebase(double t) {
     if (t > 1e-12) {
         m_timebase = t;
         m_useTimebaseWindow = true;
+
+        double minXData = 0.0;
+        bool hasX = false;
+        for (const auto& tr : m_traces) {
+            if (!tr.points.isEmpty()) {
+                if (!hasX) {
+                    minXData = tr.points.first().x();
+                    hasX = true;
+                } else {
+                    minXData = std::min(minXData, tr.points.first().x());
+                }
+            }
+        }
+
+        if (hasX) {
+            double windowSpan = m_timebase * 10.0;
+            m_minX = minXData;
+            m_maxX = minXData + windowSpan;
+        }
         update();
     }
 }
@@ -170,12 +189,22 @@ void MiniScopeWidget::setMultiTraceData(const QMap<QString, QVector<QPointF>>& t
         }
     }
 
+    double minXData = 0.0;
+    bool hasX = false;
+
     for (auto it = traces.begin(); it != traces.end(); ++it) {
         if (it.value().isEmpty()) continue;
 
         TraceData data;
         data.points = it.value();
         
+        if (!hasX) {
+            minXData = data.points.first().x();
+            hasX = true;
+        } else {
+            minXData = std::min(minXData, data.points.first().x());
+        }
+
         if (colors.contains(it.key())) {
             data.color = colors[it.key()];
         } else {
@@ -205,11 +234,11 @@ void MiniScopeWidget::setMultiTraceData(const QMap<QString, QVector<QPointF>>& t
         m_traces[it.key()] = data;
     }
 
-    if (!first) {
+    if (hasX) {
         double windowSpan = m_timebase * 10.0;
         if (windowSpan < 1e-9) windowSpan = 1e-3;
-        m_minX = 0.0;
-        m_maxX = windowSpan;
+        m_minX = minXData;
+        m_maxX = minXData + windowSpan;
 
         if (!m_cursorsInitialized) {
             double timeSpan = std::max(1e-9, m_maxX - m_minX);
@@ -378,6 +407,10 @@ void MiniScopeWidget::renderToPainter(QPainter& painter, const QSize& targetSize
         return (h / 2.0) - (divY * divHeight);
     };
 
+    // Set clipping for CRT graticule area so waveforms don't spill into right legends
+    painter.save();
+    painter.setClipRect(0, 0, graphW, h);
+
     // Draw Memories (Ghost traces: dashed, transparent)
     for (const auto& mem : m_memories) {
         for (const auto& data : mem) {
@@ -396,7 +429,6 @@ void MiniScopeWidget::renderToPainter(QPainter& painter, const QSize& targetSize
     }
 
     // Draw Live Traces
-    int legendY = 18;
     for (auto it = m_traces.begin(); it != m_traces.end(); ++it) {
         const auto& data = it.value();
         if (data.points.isEmpty()) continue;
@@ -415,8 +447,15 @@ void MiniScopeWidget::renderToPainter(QPainter& painter, const QSize& targetSize
         
         painter.setPen(QPen(data.color, 1.8));
         painter.drawPath(path);
+    }
+    painter.restore();
 
-        // Draw Legend & Measurements
+    // Draw Legend & Measurements (outside graticule clipping)
+    int legendY = 18;
+    for (auto it = m_traces.begin(); it != m_traces.end(); ++it) {
+        const auto& data = it.value();
+        if (data.points.isEmpty()) continue;
+
         painter.setBrush(data.color);
         painter.setPen(QPen(data.color.lighter(130), 1));
         painter.drawRoundedRect(graphW + 8, legendY - 8, 8, 8, 2, 2);

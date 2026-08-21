@@ -267,73 +267,76 @@ void OscilloscopeWindow::rebuildChannelControls() {
     }
 }
 
-void OscilloscopeWindow::updateRealTimeData(const std::vector<double>& times, const std::vector<std::vector<double>>& values, const QStringList& names, SchematicItem* item) {
+void OscilloscopeWindow::updateRealTimeData(const std::vector<double>& times, const std::vector<std::vector<double>>& values, const QStringList& names, SchematicItem* item, NetManager* netManager) {
     if (times.empty() || values.empty() || names.isEmpty()) return;
+
+    if (netManager) {
+        m_lastNetManager = netManager;
+    }
+    if (item) {
+        m_cachedItem = item;
+    }
 
     QMap<QString, QVector<QPointF>> visibleTraces;
     int count = m_config.channelCount;
     
+    auto findWaveIdx = [&](const QString& net) -> int {
+        if (net.isEmpty()) return -1;
+        for (int idx = 0; idx < names.size(); ++idx) {
+            const QString& n = names[idx];
+            if (n.compare(net, Qt::CaseInsensitive) == 0 ||
+                n.compare("V(" + net + ")", Qt::CaseInsensitive) == 0 ||
+                n.endsWith("(" + net + ")", Qt::CaseInsensitive)) {
+                return idx;
+            }
+        }
+        return -1;
+    };
+
     for (int i = 0; i < count && i < m_config.channels.size(); ++i) {
         if (!m_config.channels[i].enabled) continue;
         
         QString posNet, negNet;
-        if (item && m_lastNetManager) {
-            const auto pts = item->connectionPoints();
+        if (m_cachedItem && m_lastNetManager) {
+            const auto pts = m_cachedItem->connectionPoints();
             if (i < pts.size()) {
-                posNet = m_lastNetManager->findNetAtPoint(item->mapToScene(pts[i]));
+                posNet = m_lastNetManager->findNetAtPoint(m_cachedItem->mapToScene(pts[i]));
             }
             if (count + i < pts.size()) {
-                negNet = m_lastNetManager->findNetAtPoint(item->mapToScene(pts[count + i]));
+                negNet = m_lastNetManager->findNetAtPoint(m_cachedItem->mapToScene(pts[count + i]));
             }
         }
-
-        auto findWaveIdx = [&](const QString& net, const QString& fallback) -> int {
-            if (!net.isEmpty()) {
-                for (int idx = 0; idx < names.size(); ++idx) {
-                    const QString& n = names[idx];
-                    if (n.compare(net, Qt::CaseInsensitive) == 0 ||
-                        n.compare("V(" + net + ")", Qt::CaseInsensitive) == 0 ||
-                        n.endsWith("(" + net + ")", Qt::CaseInsensitive)) {
-                        return idx;
-                    }
-                }
-            }
-            // Only fallback if explicit fallback name matches
-            if (!fallback.isEmpty()) {
-                for (int idx = 0; idx < names.size(); ++idx) {
-                    if (names[idx].compare(fallback, Qt::CaseInsensitive) == 0) return idx;
-                }
-            }
-            return -1;
-        };
 
         // If the pin is not connected to a net, do not pick arbitrary waveforms
         if (posNet.isEmpty()) {
             continue;
         }
 
-        int posIdx = findWaveIdx(posNet, QString("V(%1_%2_P)").arg(m_itemName).arg(i));
-        if (posIdx < 0) posIdx = findWaveIdx(posNet, QString("V(%1_%2)").arg(m_itemName).arg(i));
-        int negIdx = findWaveIdx(negNet, QString("V(%1_%2_N)").arg(m_itemName).arg(i));
+        int posIdx = findWaveIdx(posNet);
+        if (posIdx < 0) continue;
 
-        if (posIdx >= 0 && posIdx < (int)values.size()) {
-            const auto& pVec = values[posIdx];
-            const auto* nVec = (negIdx >= 0 && negIdx < (int)values.size()) ? &values[negIdx] : nullptr;
+        int negIdx = findWaveIdx(negNet);
 
-            QVector<QPointF> points;
-            points.reserve(times.size());
+        QVector<QPointF> points;
+        points.reserve(times.size());
 
-            double scale = m_config.channels[i].scale;
-            double offset = m_config.channels[i].offset;
-            bool floating = m_config.channels[i].floatingGround;
+        double scale = m_config.channels[i].scale;
+        double offset = m_config.channels[i].offset;
+        bool floating = m_config.channels[i].floatingGround;
 
-            for (size_t s = 0; s < times.size(); ++s) {
-                double v = pVec[s];
-                if (floating && nVec && s < nVec->size()) {
-                    v -= (*nVec)[s];
-                }
-                points.append(QPointF(times[s], (v * scale) + offset));
+        for (size_t s = 0; s < times.size(); ++s) {
+            if (s >= values.size()) break;
+            const auto& row = values[s];
+            if (posIdx >= (int)row.size()) break;
+
+            double v = row[posIdx];
+            if (floating && negIdx >= 0 && negIdx < (int)row.size()) {
+                v -= row[negIdx];
             }
+            points.append(QPointF(times[s], (v * scale) + offset));
+        }
+
+        if (!points.isEmpty()) {
             visibleTraces[QString("CH%1").arg(i+1)] = points;
         }
     }
@@ -359,7 +362,7 @@ void OscilloscopeWindow::updateResults(const SimResults& results, NetManager* ne
 
     if (!m_initialFitDone) {
         m_initialFitDone = true;
-        autoScaleChannels();
+        zoomToFit();
     } else {
         reprocessTraces();
     }
@@ -381,26 +384,26 @@ void OscilloscopeWindow::autoScaleChannels() {
             if (count + i < pts.size()) negNet = m_lastNetManager->findNetAtPoint(m_cachedItem->mapToScene(pts[count + i]));
         }
 
-        auto matchWave = [](const SimWaveform& wave, const QString& targetNet, const QString& fallback) -> bool {
+        if (posNet.isEmpty()) {
+            continue;
+        }
+
+        auto matchWave = [](const SimWaveform& wave, const QString& targetNet) -> bool {
             const QString wName = QString::fromStdString(wave.name);
             if (!targetNet.isEmpty()) {
                 if (wName.compare(targetNet, Qt::CaseInsensitive) == 0 ||
                     wName.compare("V(" + targetNet + ")", Qt::CaseInsensitive) == 0 ||
                     wName.endsWith("(" + targetNet + ")", Qt::CaseInsensitive)) return true;
             }
-            if (!fallback.isEmpty() && wName.compare(fallback, Qt::CaseInsensitive) == 0) return true;
             return false;
         };
 
         const SimWaveform* pWave = nullptr;
         const SimWaveform* nWave = nullptr;
-        const QString fbPos = QString("V(%1_%2_P)").arg(m_itemName).arg(i);
-        const QString fbLegacy = QString("V(%1_%2)").arg(m_itemName).arg(i);
-        const QString fbNeg = QString("V(%1_%2_N)").arg(m_itemName).arg(i);
 
         for (const auto& wave : m_cachedResults.waveforms) {
-            if (!pWave && (matchWave(wave, posNet, fbPos) || matchWave(wave, posNet, fbLegacy))) pWave = &wave;
-            else if (!nWave && matchWave(wave, negNet, fbNeg)) nWave = &wave;
+            if (!pWave && matchWave(wave, posNet)) pWave = &wave;
+            else if (!nWave && matchWave(wave, negNet)) nWave = &wave;
         }
 
         if (pWave && !pWave->yData.empty()) {
@@ -493,6 +496,9 @@ void OscilloscopeWindow::zoomToFit() {
                     m_timebaseSpin->setValue(niceTdiv);
                     m_timebaseSpin->blockSignals(false);
                 }
+                if (m_scopeDisplay) {
+                    m_scopeDisplay->setTimebase(niceTdiv);
+                }
                 Q_EMIT configChanged(m_itemId, m_config);
                 break;
             }
@@ -525,7 +531,11 @@ void OscilloscopeWindow::reprocessTraces() {
             }
         }
 
-        auto matchWave = [](const SimWaveform& wave, const QString& targetNet, const QString& fallback) -> bool {
+        if (posNet.isEmpty()) {
+            continue;
+        }
+
+        auto matchWave = [](const SimWaveform& wave, const QString& targetNet) -> bool {
             const QString wName = QString::fromStdString(wave.name);
             if (!targetNet.isEmpty()) {
                 if (wName.compare(targetNet, Qt::CaseInsensitive) == 0 ||
@@ -534,23 +544,16 @@ void OscilloscopeWindow::reprocessTraces() {
                     return true;
                 }
             }
-            if (!fallback.isEmpty() && wName.compare(fallback, Qt::CaseInsensitive) == 0) {
-                return true;
-            }
             return false;
         };
 
         const SimWaveform* pWave = nullptr;
         const SimWaveform* nWave = nullptr;
 
-        const QString fbPos = QString("V(%1_%2_P)").arg(m_itemName).arg(i);
-        const QString fbLegacy = QString("V(%1_%2)").arg(m_itemName).arg(i);
-        const QString fbNeg = QString("V(%1_%2_N)").arg(m_itemName).arg(i);
-
         for (const auto& wave : m_cachedResults.waveforms) {
-            if (!pWave && (matchWave(wave, posNet, fbPos) || matchWave(wave, posNet, fbLegacy))) {
+            if (!pWave && matchWave(wave, posNet)) {
                 pWave = &wave;
-            } else if (!nWave && matchWave(wave, negNet, fbNeg)) {
+            } else if (!nWave && matchWave(wave, negNet)) {
                 nWave = &wave;
             }
         }

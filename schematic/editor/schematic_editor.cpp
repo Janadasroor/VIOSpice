@@ -1835,7 +1835,7 @@ void SchematicEditor::onRealTimeDataBatchReceived(const std::vector<double>& tim
                 }
             }
         }
-        it.value()->updateRealTimeData(times, values, names, targetItem);
+        it.value()->updateRealTimeData(times, values, names, targetItem, m_netManager);
     }
 
     // --- Update Schematic Item States (LEDs, 7-Segments, etc) ---
@@ -2003,6 +2003,7 @@ void SchematicEditor::openOscilloscopeWindow(SchematicItem* item) {
     }
 
     auto* win = new OscilloscopeWindow(id, item->reference(), this);
+    win->setNetManager(m_netManager);
     m_oscilloscopeWindows[id] = win;
     
     connect(win, &OscilloscopeWindow::windowClosing, this, &SchematicEditor::onOscilloscopeWindowClosing);

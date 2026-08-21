@@ -2039,6 +2039,11 @@ void SchematicEditor::connectSimulationSignals() {
                 }
             }
         }
+
+        // Clear active traces from open oscilloscope windows for fresh simulation run
+        for (auto* oscWin : m_oscilloscopeWindows) {
+            if (oscWin) oscWin->clear();
+        }
     });
 
     connect(&sim, &SimManager::simulationFinished, this, [this](const SimResults& results) {
