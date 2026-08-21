@@ -687,7 +687,7 @@ void SchematicMenuRegistry::initializeDefaultActions() {
     };
 
     ContextAction openScope;
-    openScope.label = "🖥️ Open Oscilloscope Display";
+    openScope.label = "Open Oscilloscope Display";
     openScope.priority = 110;
     openScope.isVisible = isOscItem;
     openScope.handler = [](SchematicView* view, const auto& items) {
@@ -698,7 +698,7 @@ void SchematicMenuRegistry::initializeDefaultActions() {
     registerGlobalAction(openScope);
 
     ContextAction scopeProps;
-    scopeProps.label = "⚙️ Oscilloscope Properties...";
+    scopeProps.label = "Oscilloscope Properties...";
     scopeProps.priority = 109;
     scopeProps.isVisible = isOscItem;
     scopeProps.handler = [](SchematicView* view, const auto& items) {

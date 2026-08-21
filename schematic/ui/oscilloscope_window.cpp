@@ -123,12 +123,12 @@ void OscilloscopeWindow::setupUI() {
     // Waveform Memory Group
     QGroupBox* memGroup = new QGroupBox("Waveform Controls", this);
     QVBoxLayout* memVl = new QVBoxLayout(memGroup);
-    m_freezeBtn = new QPushButton("📸 Freeze Traces", this);
+    m_freezeBtn = new QPushButton("Freeze Traces", this);
     m_freezeBtn->setStyleSheet(
         "QPushButton { background-color: #2563eb; color: white; font-weight: bold; padding: 6px; border-radius: 4px; }"
         "QPushButton:hover { background-color: #1d4ed8; }"
     );
-    m_clearMemBtn = new QPushButton("🗑️ Clear Memories", this);
+    m_clearMemBtn = new QPushButton("Clear Memories", this);
     m_clearMemBtn->setStyleSheet(
         "QPushButton { background-color: #3f3f46; color: #d1d5db; padding: 4px; border-radius: 4px; }"
         "QPushButton:hover { background-color: #52525b; }"
@@ -137,7 +137,7 @@ void OscilloscopeWindow::setupUI() {
     memVl->addWidget(m_clearMemBtn);
     controlLayout->addWidget(memGroup);
     
-    QPushButton* propBtn = new QPushButton("⚙️ Instrument Properties...", this);
+    QPushButton* propBtn = new QPushButton("Instrument Properties...", this);
     propBtn->setStyleSheet("background-color: #3b3b3b; color: #fff; border: 1px solid #555; padding: 6px; border-radius: 4px;");
     controlLayout->addWidget(propBtn);
     
