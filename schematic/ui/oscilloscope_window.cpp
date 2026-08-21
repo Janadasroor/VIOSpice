@@ -318,13 +318,20 @@ void OscilloscopeWindow::updateRealTimeData(const std::vector<double>& times, co
     QMap<QString, QVector<QPointF>> visibleTraces;
     int count = m_config.channelCount;
     
+    auto cleanNetName = [](const QString& s) -> QString {
+        QString t = s.trimmed();
+        if (t.startsWith("v(", Qt::CaseInsensitive) && t.endsWith(")")) {
+            t = t.mid(2, t.length() - 3).trimmed();
+        }
+        return t;
+    };
+
     auto findWaveIdx = [&](const QString& net) -> int {
         if (net.isEmpty()) return -1;
+        const QString cNet = cleanNetName(net);
         for (int idx = 0; idx < names.size(); ++idx) {
-            const QString& n = names[idx];
-            if (n.compare(net, Qt::CaseInsensitive) == 0 ||
-                n.compare("V(" + net + ")", Qt::CaseInsensitive) == 0 ||
-                n.endsWith("(" + net + ")", Qt::CaseInsensitive)) {
+            const QString cName = cleanNetName(names[idx]);
+            if (cName.compare(cNet, Qt::CaseInsensitive) == 0) {
                 return idx;
             }
         }

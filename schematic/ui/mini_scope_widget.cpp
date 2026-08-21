@@ -131,9 +131,23 @@ void MiniScopeWidget::appendMultiTraceData(const QMap<QString, QVector<QPointF>>
         }
 
         auto& target = m_traces[it.key()];
-        target.points.append(it.value());
+        const auto& newPts = it.value();
 
-        // Prune for real-time ring buffer (max 10000 points)
+        // 1. If time went backwards or restarted at t=0, reset the target buffer
+        if (!target.points.isEmpty() && !newPts.isEmpty()) {
+            if (newPts.first().x() < target.points.last().x()) {
+                target.points.clear();
+            }
+        }
+
+        // 2. Append new points, ensuring strictly non-decreasing time
+        for (const auto& pt : newPts) {
+            if (target.points.isEmpty() || pt.x() >= target.points.last().x()) {
+                target.points.append(pt);
+            }
+        }
+
+        // 3. Keep sliding window points within reasonable buffer size
         const int maxMiniPoints = 10000;
         if (target.points.size() > maxMiniPoints) {
             target.points.remove(0, target.points.size() - 5000);
@@ -420,9 +434,17 @@ void MiniScopeWidget::renderToPainter(QPainter& painter, const QSize& targetSize
         for (const auto& data : mem) {
             if (data.points.isEmpty()) continue;
             QPainterPath path;
-            path.moveTo(mapX(data.points[0].x()), mapY(data.points[0].y()));
-            for (int i = 1; i < data.points.size(); ++i) {
-                path.lineTo(mapX(data.points[i].x()), mapY(data.points[i].y()));
+            bool started = false;
+            double lastX = -1e30;
+            for (int i = 0; i < data.points.size(); ++i) {
+                const QPointF& pt = data.points[i];
+                if (!started || pt.x() < lastX) {
+                    path.moveTo(mapX(pt.x()), mapY(pt.y()));
+                    started = true;
+                } else {
+                    path.lineTo(mapX(pt.x()), mapY(pt.y()));
+                }
+                lastX = pt.x();
             }
             
             QColor ghostColor = data.color;
@@ -438,9 +460,17 @@ void MiniScopeWidget::renderToPainter(QPainter& painter, const QSize& targetSize
         if (data.points.isEmpty()) continue;
 
         QPainterPath path;
-        path.moveTo(mapX(data.points[0].x()), mapY(data.points[0].y()));
-        for (int i = 1; i < data.points.size(); ++i) {
-            path.lineTo(mapX(data.points[i].x()), mapY(data.points[i].y()));
+        bool started = false;
+        double lastX = -1e30;
+        for (int i = 0; i < data.points.size(); ++i) {
+            const QPointF& pt = data.points[i];
+            if (!started || pt.x() < lastX) {
+                path.moveTo(mapX(pt.x()), mapY(pt.y()));
+                started = true;
+            } else {
+                path.lineTo(mapX(pt.x()), mapY(pt.y()));
+            }
+            lastX = pt.x();
         }
 
         // Phosphor glow effect
