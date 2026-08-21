@@ -29,7 +29,27 @@ AvrMicrocontrollerDialog::AvrMicrocontrollerDialog(AvrMicrocontrollerItem* item,
     : QDialog(parent)
     , m_item(item) {
     setWindowTitle("AVR Microcontroller Properties");
-    setMinimumSize(580, 560);
+    setMinimumSize(640, 580);
+
+    setStyleSheet(
+        "QDialog { background-color: #1e1e24; color: #f0f0f0; font-family: 'Inter', 'Segoe UI', sans-serif; }"
+        "QTabWidget::pane { border: 1px solid #383842; background: #23232b; border-radius: 6px; }"
+        "QTabBar::tab { background: #1a1a20; padding: 8px 16px; border-top-left-radius: 6px; border-top-right-radius: 6px; margin-right: 4px; color: #a0a0b0; font-weight: 600; font-size: 12px; }"
+        "QTabBar::tab:selected { background: #23232b; border-bottom: 2px solid #3b82f6; color: #60a5fa; }"
+        "QTabBar::tab:hover { background: #282834; color: #e2e8f0; }"
+        "QLabel { color: #cbd5e1; font-weight: 500; font-size: 12px; }"
+        "QLineEdit, QDoubleSpinBox, QSpinBox, QComboBox { background: #121218; border: 1px solid #475569; border-radius: 4px; color: #ffffff; padding: 6px 10px; font-size: 12px; min-height: 22px; }"
+        "QLineEdit:focus, QDoubleSpinBox:focus, QSpinBox:focus, QComboBox:focus { border: 1px solid #3b82f6; background: #1a1a24; }"
+        "QListWidget { background: #121218; alternate-background-color: #1a1a24; border: 1px solid #475569; border-radius: 4px; color: #ffffff; }"
+        "QListWidget::item { padding: 4px 8px; color: #ffffff; }"
+        "QListWidget::item:selected { background: #2563eb; color: #ffffff; }"
+        "QCheckBox, QRadioButton { color: #f8fafc; font-size: 12px; font-weight: 500; spacing: 6px; }"
+        "QPushButton { background: #334155; color: #f8fafc; border: 1px solid #475569; padding: 6px 14px; border-radius: 4px; font-weight: 600; font-size: 12px; min-width: 65px; }"
+        "QPushButton:hover { background: #475569; }"
+        "QPushButton:pressed { background: #1e293b; }"
+        "QDialogButtonBox QPushButton[text='OK'], QDialogButtonBox QPushButton[text='&OK'] { background: #2563eb; border-color: #3b82f6; color: white; }"
+        "QDialogButtonBox QPushButton[text='OK']:hover, QDialogButtonBox QPushButton[text='&OK']:hover { background: #1d4ed8; }"
+    );
 
     auto* mainLayout = new QVBoxLayout(this);
     mainLayout->setSpacing(8);
