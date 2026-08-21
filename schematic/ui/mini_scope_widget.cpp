@@ -14,6 +14,7 @@
 #include <QTextStream>
 #include <QApplication>
 #include <QClipboard>
+#include <QRubberBand>
 #include <algorithm>
 #include <cmath>
 #include <QRegularExpression>
@@ -55,6 +56,9 @@ MiniScopeWidget::MiniScopeWidget(QWidget* parent) : QWidget(parent) {
     setMinimumSize(400, 250);
     setMouseTracking(true);
     setStyleSheet("background-color: #0a0a0a; border: 2px solid #333; border-radius: 2px;");
+
+    m_rubberBand = new QRubberBand(QRubberBand::Rectangle, this);
+    m_rubberBand->setStyleSheet("border: 1px dashed #00f0ff; background-color: rgba(0, 240, 255, 45);");
 }
 
 void MiniScopeWidget::setCursorMode(CursorMode mode) {
@@ -553,24 +557,28 @@ void MiniScopeWidget::renderToPainter(QPainter& painter, const QSize& targetSize
 }
 
 void MiniScopeWidget::mousePressEvent(QMouseEvent* event) {
+    int graphW = width() - 120;
+    int h = height();
+    if (graphW <= 0 || h <= 0) {
+        QWidget::mousePressEvent(event);
+        return;
+    }
+
+    auto mapX = [&](double x) {
+        double range = std::max(1e-9, m_maxX - m_minX);
+        return (x - m_minX) / range * graphW;
+    };
+    auto mapY = [&](double divY) {
+        double divHeight = (double)h / 8.0;
+        return (h / 2.0) - (divY * divHeight);
+    };
+
+    const double tol = 8.0;
+    const double mouseX = event->pos().x();
+    const double mouseY = event->pos().y();
+
+    // Check if dragging precision cursors
     if (event->button() == Qt::LeftButton && m_cursorMode != CursorNone) {
-        int graphW = width() - 120;
-        int h = height();
-        if (graphW <= 0 || h <= 0) return;
-
-        auto mapX = [&](double x) {
-            double range = std::max(1e-9, m_maxX - m_minX);
-            return (x - m_minX) / range * graphW;
-        };
-        auto mapY = [&](double divY) {
-            double divHeight = (double)h / 8.0;
-            return (h / 2.0) - (divY * divHeight);
-        };
-
-        const double tol = 8.0;
-        const double mouseX = event->pos().x();
-        const double mouseY = event->pos().y();
-
         if (m_cursorMode == CursorTime || m_cursorMode == CursorBoth) {
             if (std::abs(mouseX - mapX(m_timeCursorA)) <= tol) {
                 m_activeDrag = DragTimeA;
@@ -593,13 +601,28 @@ void MiniScopeWidget::mousePressEvent(QMouseEvent* event) {
             }
         }
     }
+
+    // Start rubber band zoom if clicking in graticule area with Left Button
+    if (event->button() == Qt::LeftButton && mouseX <= graphW) {
+        m_rubberBandActive = true;
+        m_rubberBandOrigin = event->pos();
+        if (m_rubberBand) {
+            m_rubberBand->setGeometry(QRect(m_rubberBandOrigin, QSize()));
+            m_rubberBand->show();
+        }
+        return;
+    }
+
     QWidget::mousePressEvent(event);
 }
 
 void MiniScopeWidget::mouseMoveEvent(QMouseEvent* event) {
     int graphW = width() - 120;
     int h = height();
-    if (graphW <= 0 || h <= 0) return;
+    if (graphW <= 0 || h <= 0) {
+        QWidget::mouseMoveEvent(event);
+        return;
+    }
 
     auto unmapX = [&](double px) {
         double range = std::max(1e-9, m_maxX - m_minX);
@@ -609,6 +632,13 @@ void MiniScopeWidget::mouseMoveEvent(QMouseEvent* event) {
         double divHeight = (double)h / 8.0;
         return ((h / 2.0) - py) / divHeight;
     };
+
+    if (m_rubberBandActive && m_rubberBand) {
+        QRect rect = QRect(m_rubberBandOrigin, event->pos()).normalized();
+        rect = rect.intersected(QRect(0, 0, graphW, h));
+        m_rubberBand->setGeometry(rect);
+        return;
+    }
 
     if (m_activeDrag != DragNone) {
         if (m_activeDrag == DragTimeA) {
@@ -661,6 +691,46 @@ void MiniScopeWidget::mouseMoveEvent(QMouseEvent* event) {
 }
 
 void MiniScopeWidget::mouseReleaseEvent(QMouseEvent* event) {
+    if (m_rubberBandActive && event->button() == Qt::LeftButton) {
+        m_rubberBandActive = false;
+        if (m_rubberBand) m_rubberBand->hide();
+
+        int graphW = width() - 120;
+        int h = height();
+        if (graphW > 0 && h > 0) {
+            QRect rect = QRect(m_rubberBandOrigin, event->pos()).normalized();
+            rect = rect.intersected(QRect(0, 0, graphW, h));
+
+            auto unmapX = [&](double px) {
+                double range = std::max(1e-9, m_maxX - m_minX);
+                return m_minX + (px / graphW) * range;
+            };
+            auto unmapY = [&](double py) {
+                double divHeight = (double)h / 8.0;
+                return ((h / 2.0) - py) / divHeight;
+            };
+
+            if (rect.width() > 8) {
+                double newMinX = unmapX(rect.left());
+                double newMaxX = unmapX(rect.right());
+                if (newMaxX > newMinX) {
+                    m_minX = newMinX;
+                    m_maxX = newMaxX;
+                    m_timebase = (newMaxX - newMinX) / 10.0;
+                    Q_EMIT timebaseChanged(m_timebase);
+                }
+
+                if (rect.height() > 8) {
+                    double topDiv = unmapY(rect.top());
+                    double botDiv = unmapY(rect.bottom());
+                    Q_EMIT rubberBandZoomCompleted(m_minX, m_maxX, botDiv, topDiv);
+                }
+                update();
+                return;
+            }
+        }
+    }
+
     m_activeDrag = DragNone;
     QWidget::mouseReleaseEvent(event);
 }
@@ -742,6 +812,41 @@ void MiniScopeWidget::contextMenuEvent(QContextMenuEvent* event) {
 }
 
 void MiniScopeWidget::zoomToFit() {
+    double minXData = 0.0;
+    double maxXData = 0.0;
+    bool hasX = false;
+    for (const auto& tr : m_traces) {
+        if (!tr.points.isEmpty()) {
+            if (!hasX) {
+                minXData = tr.points.first().x();
+                maxXData = tr.points.last().x();
+                hasX = true;
+            } else {
+                minXData = std::min(minXData, tr.points.first().x());
+                maxXData = std::max(maxXData, tr.points.last().x());
+            }
+        }
+    }
+
+    if (hasX) {
+        double tSpan = std::max(1e-12, maxXData - minXData);
+        double idealTdiv = tSpan / 10.0;
+        double exp = std::floor(std::log10(idealTdiv));
+        double mant = idealTdiv / std::pow(10.0, exp);
+        double stdMant = 1.0;
+        if (mant > 5.0) stdMant = 10.0;
+        else if (mant > 2.0) stdMant = 5.0;
+        else if (mant > 1.0) stdMant = 2.0;
+
+        double niceTdiv = stdMant * std::pow(10.0, exp);
+        niceTdiv = std::clamp(niceTdiv, 1e-9, 10.0);
+
+        m_timebase = niceTdiv;
+        m_minX = minXData;
+        m_maxX = minXData + (niceTdiv * 10.0);
+        Q_EMIT timebaseChanged(m_timebase);
+    }
+
     Q_EMIT zoomToFitRequested();
     update();
 }

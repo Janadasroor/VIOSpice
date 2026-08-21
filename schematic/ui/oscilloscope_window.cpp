@@ -165,10 +165,48 @@ void OscilloscopeWindow::setupUI() {
     propBtn->setStyleSheet("background-color: #3b3b3b; color: #fff; border: 1px solid #555; padding: 6px; border-radius: 4px;");
     controlLayout->addWidget(propBtn);
     
-    connect(propBtn, &QPushButton::clicked, [this]() { Q_EMIT propertiesRequested(m_itemId); });
-    connect(m_scopeDisplay, &MiniScopeWidget::propertiesRequested, [this]() { Q_EMIT propertiesRequested(m_itemId); });
     connect(m_scopeDisplay, &MiniScopeWidget::zoomToFitRequested, this, &OscilloscopeWindow::zoomToFit);
     connect(m_scopeDisplay, &MiniScopeWidget::fitYAxisRequested, this, &OscilloscopeWindow::fitYAxis);
+    connect(m_scopeDisplay, &MiniScopeWidget::timebaseChanged, this, [this](double tb) {
+        m_config.timebase = tb;
+        if (m_timebaseSpin) {
+            m_timebaseSpin->blockSignals(true);
+            m_timebaseSpin->setValue(tb);
+            m_timebaseSpin->blockSignals(false);
+        }
+        Q_EMIT configChanged(m_itemId, m_config);
+    });
+    connect(m_scopeDisplay, &MiniScopeWidget::rubberBandZoomCompleted, this, [this](double /*tMin*/, double /*tMax*/, double yMinDiv, double yMaxDiv) {
+        double divSpan = std::abs(yMaxDiv - yMinDiv);
+        if (divSpan > 0.3) {
+            double centerDiv = (yMinDiv + yMaxDiv) / 2.0;
+            double zoomFactor = 8.0 / divSpan;
+            int count = m_config.channelCount;
+            for (int i = 0; i < count && i < m_config.channels.size(); ++i) {
+                if (!m_config.channels[i].enabled) continue;
+                double oldScale = m_config.channels[i].scale;
+                double oldOffset = m_config.channels[i].offset;
+                double newScale = oldScale * zoomFactor;
+                double newOffset = (oldOffset - centerDiv) * zoomFactor;
+                m_config.channels[i].scale = newScale;
+                m_config.channels[i].offset = newOffset;
+                if (i < m_channelUIs.size()) {
+                    if (m_channelUIs[i].voltsDiv) {
+                        m_channelUIs[i].voltsDiv->blockSignals(true);
+                        m_channelUIs[i].voltsDiv->setValue(1.0 / std::max(1e-6, newScale));
+                        m_channelUIs[i].voltsDiv->blockSignals(false);
+                    }
+                    if (m_channelUIs[i].offset) {
+                        m_channelUIs[i].offset->blockSignals(true);
+                        m_channelUIs[i].offset->setValue(newOffset);
+                        m_channelUIs[i].offset->blockSignals(false);
+                    }
+                }
+            }
+            Q_EMIT configChanged(m_itemId, m_config);
+            reprocessTraces();
+        }
+    });
     
     connect(m_cursorModeCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this](int idx) {
         m_scopeDisplay->setCursorMode(static_cast<MiniScopeWidget::CursorMode>(idx));
@@ -368,8 +406,19 @@ void OscilloscopeWindow::updateResults(const SimResults& results, NetManager* ne
     }
 }
 
+static QString cleanNetName(const QString& s) {
+    QString t = s.trimmed();
+    if (t.startsWith("v(", Qt::CaseInsensitive) && t.endsWith(")")) {
+        t = t.mid(2, t.length() - 3).trimmed();
+    }
+    return t;
+}
+
 void OscilloscopeWindow::autoScaleChannels() {
-    if (!m_hasCachedResults) return;
+    if (!m_hasCachedResults) {
+        if (m_scopeDisplay) m_scopeDisplay->fitYAxis();
+        return;
+    }
 
     int count = m_config.channelCount;
     bool changed = false;
@@ -389,12 +438,15 @@ void OscilloscopeWindow::autoScaleChannels() {
         }
 
         auto matchWave = [](const SimWaveform& wave, const QString& targetNet) -> bool {
+            if (targetNet.isEmpty()) return false;
             const QString wName = QString::fromStdString(wave.name);
-            if (!targetNet.isEmpty()) {
-                if (wName.compare(targetNet, Qt::CaseInsensitive) == 0 ||
-                    wName.compare("V(" + targetNet + ")", Qt::CaseInsensitive) == 0 ||
-                    wName.endsWith("(" + targetNet + ")", Qt::CaseInsensitive)) return true;
-            }
+            const QString cTarget = cleanNetName(targetNet);
+            const QString cWave = cleanNetName(wName);
+
+            if (cTarget.compare(cWave, Qt::CaseInsensitive) == 0) return true;
+            if (wName.compare(targetNet, Qt::CaseInsensitive) == 0) return true;
+            if (wName.compare("V(" + targetNet + ")", Qt::CaseInsensitive) == 0) return true;
+            if (wName.endsWith("(" + targetNet + ")", Qt::CaseInsensitive)) return true;
             return false;
         };
 
@@ -468,43 +520,46 @@ void OscilloscopeWindow::fitYAxis() {
 }
 
 void OscilloscopeWindow::zoomToFit() {
-    if (!m_hasCachedResults) return;
-
-    // First auto-scale channel vertical ranges
+    // 1. Auto-scale channel vertical ranges
     autoScaleChannels();
 
-    // Auto-scale timebase based on simulation waveform duration
-    for (const auto& wave : m_cachedResults.waveforms) {
-        if (!wave.xData.empty()) {
-            double tSpan = wave.xData.back() - wave.xData.front();
-            if (tSpan > 1e-12) {
-                // Standard scope has 10 horizontal divisions
-                double idealTdiv = tSpan / 10.0;
-                double exp = std::floor(std::log10(idealTdiv));
-                double mant = idealTdiv / std::pow(10.0, exp);
-                double stdMant = 1.0;
-                if (mant > 5.0) stdMant = 10.0;
-                else if (mant > 2.0) stdMant = 5.0;
-                else if (mant > 1.0) stdMant = 2.0;
-
-                double niceTdiv = stdMant * std::pow(10.0, exp);
-                niceTdiv = std::clamp(niceTdiv, 1e-9, 10.0);
-
-                m_config.timebase = niceTdiv;
-                if (m_timebaseSpin) {
-                    m_timebaseSpin->blockSignals(true);
-                    m_timebaseSpin->setValue(niceTdiv);
-                    m_timebaseSpin->blockSignals(false);
-                }
-                if (m_scopeDisplay) {
-                    m_scopeDisplay->setTimebase(niceTdiv);
-                }
-                Q_EMIT configChanged(m_itemId, m_config);
-                break;
+    // 2. Auto-scale timebase based on simulation waveform duration or active traces
+    if (m_hasCachedResults) {
+        double maxSpan = 0.0;
+        for (const auto& wave : m_cachedResults.waveforms) {
+            if (wave.xData.size() > 1) {
+                double tSpan = wave.xData.back() - wave.xData.front();
+                if (tSpan > maxSpan) maxSpan = tSpan;
             }
         }
+
+        if (maxSpan > 1e-12) {
+            double idealTdiv = maxSpan / 10.0;
+            double exp = std::floor(std::log10(idealTdiv));
+            double mant = idealTdiv / std::pow(10.0, exp);
+            double stdMant = 1.0;
+            if (mant > 5.0) stdMant = 10.0;
+            else if (mant > 2.0) stdMant = 5.0;
+            else if (mant > 1.0) stdMant = 2.0;
+
+            double niceTdiv = stdMant * std::pow(10.0, exp);
+            niceTdiv = std::clamp(niceTdiv, 1e-9, 10.0);
+
+            m_config.timebase = niceTdiv;
+            if (m_timebaseSpin) {
+                m_timebaseSpin->blockSignals(true);
+                m_timebaseSpin->setValue(niceTdiv);
+                m_timebaseSpin->blockSignals(false);
+            }
+            if (m_scopeDisplay) {
+                m_scopeDisplay->setTimebase(niceTdiv);
+            }
+            Q_EMIT configChanged(m_itemId, m_config);
+        }
+        reprocessTraces();
+    } else if (m_scopeDisplay) {
+        m_scopeDisplay->zoomToFit();
     }
-    reprocessTraces();
 }
 
 void OscilloscopeWindow::reprocessTraces() {
@@ -536,14 +591,15 @@ void OscilloscopeWindow::reprocessTraces() {
         }
 
         auto matchWave = [](const SimWaveform& wave, const QString& targetNet) -> bool {
+            if (targetNet.isEmpty()) return false;
             const QString wName = QString::fromStdString(wave.name);
-            if (!targetNet.isEmpty()) {
-                if (wName.compare(targetNet, Qt::CaseInsensitive) == 0 ||
-                    wName.compare("V(" + targetNet + ")", Qt::CaseInsensitive) == 0 ||
-                    wName.endsWith("(" + targetNet + ")", Qt::CaseInsensitive)) {
-                    return true;
-                }
-            }
+            const QString cTarget = cleanNetName(targetNet);
+            const QString cWave = cleanNetName(wName);
+
+            if (cTarget.compare(cWave, Qt::CaseInsensitive) == 0) return true;
+            if (wName.compare(targetNet, Qt::CaseInsensitive) == 0) return true;
+            if (wName.compare("V(" + targetNet + ")", Qt::CaseInsensitive) == 0) return true;
+            if (wName.endsWith("(" + targetNet + ")", Qt::CaseInsensitive)) return true;
             return false;
         };
 

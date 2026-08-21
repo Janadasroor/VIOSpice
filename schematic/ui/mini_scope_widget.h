@@ -86,6 +86,8 @@ Q_SIGNALS:
     void propertiesRequested();
     void zoomToFitRequested();
     void fitYAxisRequested();
+    void timebaseChanged(double newTimebase);
+    void rubberBandZoomCompleted(double tMin, double tMax, double yMinDiv, double yMaxDiv);
 
 protected:
     void paintEvent(QPaintEvent* event) override;
@@ -116,6 +118,11 @@ private:
     QString m_triggerSource = "CH1";
     double m_triggerLevel = 0.0;
     bool m_useTimebaseWindow = true;
+
+    // Rubber band zoom state
+    class QRubberBand* m_rubberBand = nullptr;
+    QPoint m_rubberBandOrigin;
+    bool m_rubberBandActive = false;
 
     // Cursors state
     CursorMode m_cursorMode = CursorNone;
