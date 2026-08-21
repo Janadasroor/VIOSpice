@@ -120,6 +120,30 @@ void OscilloscopeWindow::setupUI() {
     
     controlLayout->addWidget(hGroup);
 
+    // Cursors & Measurements Group
+    QGroupBox* curGroup = new QGroupBox("Precision Cursors", this);
+    QVBoxLayout* curVl = new QVBoxLayout(curGroup);
+    curVl->setSpacing(4);
+
+    QHBoxLayout* curModeHl = new QHBoxLayout();
+    curModeHl->addWidget(new QLabel("Mode:", this));
+    m_cursorModeCombo = new QComboBox(this);
+    m_cursorModeCombo->addItems({"Off", "Time (X1, X2)", "Voltage (Y1, Y2)", "Both (X & Y)"});
+    curModeHl->addWidget(m_cursorModeCombo, 1);
+    curVl->addLayout(curModeHl);
+
+    m_cursorDeltaTimeLabel = new QLabel("ΔX: --", this);
+    m_cursorDeltaTimeLabel->setStyleSheet("color: #00f0ff; font-family: monospace; font-size: 10px; font-weight: bold;");
+    m_cursorFreqLabel = new QLabel("1/ΔX: --", this);
+    m_cursorFreqLabel->setStyleSheet("color: #00f0ff; font-family: monospace; font-size: 10px; font-weight: bold;");
+    m_cursorDeltaVoltLabel = new QLabel("ΔY: --", this);
+    m_cursorDeltaVoltLabel->setStyleSheet("color: #ff78dc; font-family: monospace; font-size: 10px; font-weight: bold;");
+
+    curVl->addWidget(m_cursorDeltaTimeLabel);
+    curVl->addWidget(m_cursorFreqLabel);
+    curVl->addWidget(m_cursorDeltaVoltLabel);
+    controlLayout->addWidget(curGroup);
+
     // Waveform Memory Group
     QGroupBox* memGroup = new QGroupBox("Waveform Controls", this);
     QVBoxLayout* memVl = new QVBoxLayout(memGroup);
@@ -142,6 +166,44 @@ void OscilloscopeWindow::setupUI() {
     controlLayout->addWidget(propBtn);
     
     connect(propBtn, &QPushButton::clicked, [this]() { Q_EMIT propertiesRequested(m_itemId); });
+    connect(m_scopeDisplay, &MiniScopeWidget::propertiesRequested, [this]() { Q_EMIT propertiesRequested(m_itemId); });
+    
+    connect(m_cursorModeCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this](int idx) {
+        m_scopeDisplay->setCursorMode(static_cast<MiniScopeWidget::CursorMode>(idx));
+        bool hasTime = (idx == 1 || idx == 3);
+        bool hasVolt = (idx == 2 || idx == 3);
+        m_cursorDeltaTimeLabel->setVisible(hasTime);
+        m_cursorFreqLabel->setVisible(hasTime);
+        m_cursorDeltaVoltLabel->setVisible(hasVolt);
+    });
+
+    connect(m_scopeDisplay, &MiniScopeWidget::cursorsChanged, this, [this](double dt, double f, double dv) {
+        auto formatValueSI = [](double val, const QString& unit) {
+            const double absVal = std::abs(val);
+            if (absVal < 1e-18) return "0" + unit;
+            static const struct { double mult; const char* sym; } suffixes[] = {
+                {1e12, "T"}, {1e9, "G"}, {1e6, "Meg"}, {1e3, "k"},
+                {1.0, ""},
+                {1e-3, "m"}, {1e-6, "u"}, {1e-9, "n"}, {1e-12, "p"}, {1e-15, "f"}
+            };
+            for (const auto& s : suffixes) {
+                if (absVal >= s.mult * 0.999) {
+                    QString num = QString::number(val / s.mult, 'f', 2);
+                    return num + s.sym + unit;
+                }
+            }
+            return QString::number(val, 'g', 4) + unit;
+        };
+
+        m_cursorDeltaTimeLabel->setText("ΔX:   " + formatValueSI(dt, "s"));
+        m_cursorFreqLabel->setText("1/ΔX: " + formatValueSI(f, "Hz"));
+        m_cursorDeltaVoltLabel->setText("ΔY:   " + formatValueSI(dv, "V"));
+    });
+
+    m_cursorDeltaTimeLabel->hide();
+    m_cursorFreqLabel->hide();
+    m_cursorDeltaVoltLabel->hide();
+
     connect(m_timebaseSpin, QOverload<double>::of(&QDoubleSpinBox::valueChanged), this, &OscilloscopeWindow::onTimebaseChanged);
     connect(m_triggerSourceCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &OscilloscopeWindow::onTriggerSourceChanged);
     connect(m_triggerLevelSpin, QOverload<double>::of(&QDoubleSpinBox::valueChanged), this, &OscilloscopeWindow::onTriggerLevelChanged);

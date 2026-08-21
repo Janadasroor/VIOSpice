@@ -101,6 +101,12 @@ private:
     QPushButton* m_freezeBtn;
     QPushButton* m_clearMemBtn;
 
+    // Cursors UI
+    QComboBox* m_cursorModeCombo = nullptr;
+    QLabel* m_cursorDeltaTimeLabel = nullptr;
+    QLabel* m_cursorFreqLabel = nullptr;
+    QLabel* m_cursorDeltaVoltLabel = nullptr;
+
     NetManager* m_lastNetManager = nullptr;
 };
 

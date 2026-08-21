@@ -46,8 +46,39 @@ public:
     void renderToPainter(QPainter& painter, const QSize& size);
     QImage renderToImage(const QSize& size = QSize(1000, 600));
 
+public:
+    enum CursorMode {
+        CursorNone = 0,
+        CursorTime = 1,       // Vertical cursors measuring dt, 1/dt
+        CursorVoltage = 2,    // Horizontal cursors measuring dV
+        CursorBoth = 3
+    };
+
+    CursorMode cursorMode() const { return m_cursorMode; }
+    void setCursorMode(CursorMode mode);
+    
+    double cursorTimeA() const { return m_timeCursorA; }
+    double cursorTimeB() const { return m_timeCursorB; }
+    double cursorVoltA() const { return m_voltCursorA; }
+    double cursorVoltB() const { return m_voltCursorB; }
+    
+    void setCursorTimeA(double t) { m_timeCursorA = t; update(); }
+    void setCursorTimeB(double t) { m_timeCursorB = t; update(); }
+    void setCursorVoltA(double v) { m_voltCursorA = v; update(); }
+    void setCursorVoltB(double v) { m_voltCursorB = v; update(); }
+
+    void exportToCsv(const QString& filePath) const;
+
+Q_SIGNALS:
+    void cursorsChanged(double dt, double freq, double dv);
+    void propertiesRequested();
+
 protected:
     void paintEvent(QPaintEvent* event) override;
+    void mousePressEvent(QMouseEvent* event) override;
+    void mouseMoveEvent(QMouseEvent* event) override;
+    void mouseReleaseEvent(QMouseEvent* event) override;
+    void contextMenuEvent(QContextMenuEvent* event) override;
 
 private:
     struct TraceData {
@@ -67,6 +98,23 @@ private:
     double m_globalMaxY = 1.0;
     double m_minX = 0.0;
     double m_maxX = 0.02;
+
+    // Cursors state
+    CursorMode m_cursorMode = CursorNone;
+    double m_timeCursorA = 0.0;
+    double m_timeCursorB = 0.0;
+    double m_voltCursorA = 0.0;
+    double m_voltCursorB = 0.0;
+    bool m_cursorsInitialized = false;
+
+    enum ActiveDrag {
+        DragNone,
+        DragTimeA,
+        DragTimeB,
+        DragVoltA,
+        DragVoltB
+    };
+    ActiveDrag m_activeDrag = DragNone;
 };
 
 #endif // MINI_SCOPE_WIDGET_H

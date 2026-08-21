@@ -6,8 +6,15 @@
 #include "mini_scope_widget.h"
 #include <QPainter>
 #include <QPainterPath>
+#include <QMouseEvent>
+#include <QContextMenuEvent>
+#include <QMenu>
+#include <QFileDialog>
+#include <QFile>
+#include <QTextStream>
+#include <QApplication>
+#include <QClipboard>
 #include <algorithm>
-
 #include <cmath>
 #include <QRegularExpression>
 
@@ -46,7 +53,24 @@ MiniScopeWidget::MiniScopeWidget(QWidget* parent) : QWidget(parent) {
     setBackgroundRole(QPalette::Base);
     setAutoFillBackground(true);
     setMinimumSize(400, 250);
+    setMouseTracking(true);
     setStyleSheet("background-color: #0a0a0a; border: 2px solid #333; border-radius: 2px;");
+}
+
+void MiniScopeWidget::setCursorMode(CursorMode mode) {
+    m_cursorMode = mode;
+    if (m_cursorMode != CursorNone && !m_cursorsInitialized) {
+        // Initialize cursors at 25% and 75% of current screen
+        double timeSpan = std::max(1e-9, m_maxX - m_minX);
+        m_timeCursorA = m_minX + 0.25 * timeSpan;
+        m_timeCursorB = m_minX + 0.75 * timeSpan;
+
+        double voltSpan = std::max(1e-9, m_globalMaxY - m_globalMinY);
+        m_voltCursorA = m_globalMinY + 0.75 * voltSpan;
+        m_voltCursorB = m_globalMinY + 0.25 * voltSpan;
+        m_cursorsInitialized = true;
+    }
+    update();
 }
 
 void MiniScopeWidget::appendMultiTraceData(const QMap<QString, QVector<QPointF>>& traces) {
@@ -155,46 +179,53 @@ void MiniScopeWidget::setMultiTraceData(const QMap<QString, QVector<QPointF>>& t
         data.color = palette[colorIdx % palette.size()];
         colorIdx++;
 
-        calculateMeasurements(it.key(), it.value());
-        
-        // Use the calculated min/max
-        double localMin = m_traces[it.key()].minV;
-        double localMax = m_traces[it.key()].maxV;
+        calculateMeasurements(it.key(), data.points);
 
         if (first) {
-            m_globalMinY = localMin;
-            m_globalMaxY = localMax;
+            m_globalMinY = data.minV;
+            m_globalMaxY = data.maxV;
             m_minX = data.points.first().x();
             m_maxX = data.points.last().x();
             first = false;
         } else {
-            m_globalMinY = std::min(m_globalMinY, localMin);
-            m_globalMaxY = std::max(m_globalMaxY, localMax);
+            m_globalMinY = std::min(m_globalMinY, data.minV);
+            m_globalMaxY = std::max(m_globalMaxY, data.maxV);
             m_minX = std::min(m_minX, data.points.first().x());
             m_maxX = std::max(m_maxX, data.points.last().x());
         }
-        
-        m_traces[it.key()].points = data.points;
-        m_traces[it.key()].color = data.color;
+
+        m_traces[it.key()] = data;
     }
 
-    // Add padding
-    double range = m_globalMaxY - m_globalMinY;
-    if (range < 0.1) {
-        m_globalMinY -= 0.5;
-        m_globalMaxY += 0.5;
-    } else {
-        m_globalMinY -= range * 0.1;
-        m_globalMaxY += range * 0.1;
+    // Add padding if we have valid bounds
+    if (!first) {
+        double range = m_globalMaxY - m_globalMinY;
+        if (range < 0.1) {
+            m_globalMinY -= 0.5;
+            m_globalMaxY += 0.5;
+        } else {
+            m_globalMinY -= range * 0.1;
+            m_globalMaxY += range * 0.1;
+        }
+
+        if (!m_cursorsInitialized) {
+            double timeSpan = std::max(1e-9, m_maxX - m_minX);
+            m_timeCursorA = m_minX + 0.25 * timeSpan;
+            m_timeCursorB = m_minX + 0.75 * timeSpan;
+            double voltSpan = std::max(1e-9, m_globalMaxY - m_globalMinY);
+            m_voltCursorA = m_globalMinY + 0.75 * voltSpan;
+            m_voltCursorB = m_globalMinY + 0.25 * voltSpan;
+            m_cursorsInitialized = true;
+        }
     }
 
     update();
 }
 
 void MiniScopeWidget::setData(const QVector<QPointF>& points) {
-    QMap<QString, QVector<QPointF>> t;
-    t["out"] = points;
-    setMultiTraceData(t);
+    QMap<QString, QVector<QPointF>> traces;
+    traces["CH1"] = points;
+    setMultiTraceData(traces);
 }
 
 void MiniScopeWidget::calculateMeasurements(const QString& name, const QVector<QPointF>& points) {
@@ -237,7 +268,7 @@ void MiniScopeWidget::freezeCurrentTraces() {
     // Store deep copy of current traces as a new memory layer
     m_memories.append(m_traces);
     
-    // Cap memory layers (e.g. max 5)
+    // Cap memory layers (max 5)
     while (m_memories.size() > 5) {
         m_memories.removeFirst();
     }
@@ -253,6 +284,37 @@ void MiniScopeWidget::clearMemories() {
 void MiniScopeWidget::clear() {
     m_traces.clear();
     update();
+}
+
+void MiniScopeWidget::exportToCsv(const QString& filePath) const {
+    if (filePath.isEmpty() || m_traces.isEmpty()) return;
+
+    QFile file(filePath);
+    if (!file.open(QIODevice::WriteOnly | QIODevice::Text)) return;
+
+    QTextStream out(&file);
+    QStringList header;
+    header << "Time (s)";
+    for (auto it = m_traces.begin(); it != m_traces.end(); ++it) {
+        header << it.key();
+    }
+    out << header.join(",") << "\n";
+
+    if (!m_traces.isEmpty()) {
+        const auto& firstPts = m_traces.begin().value().points;
+        for (int i = 0; i < firstPts.size(); ++i) {
+            QStringList row;
+            row << QString::number(firstPts[i].x(), 'g', 10);
+            for (auto it = m_traces.begin(); it != m_traces.end(); ++it) {
+                if (i < it.value().points.size()) {
+                    row << QString::number(it.value().points[i].y(), 'g', 8);
+                } else {
+                    row << "0";
+                }
+            }
+            out << row.join(",") << "\n";
+        }
+    }
 }
 
 void MiniScopeWidget::paintEvent(QPaintEvent*) {
@@ -376,6 +438,61 @@ void MiniScopeWidget::renderToPainter(QPainter& painter, const QSize& targetSize
         
         legendY += 58;
     }
+
+    // --- Draw Interactive Cursors ---
+    if (m_cursorMode == CursorTime || m_cursorMode == CursorBoth) {
+        double pxA = mapX(m_timeCursorA);
+        double pxB = mapX(m_timeCursorB);
+
+        // Cursor A (Cyan dashed)
+        painter.setPen(QPen(QColor(0, 220, 255), 1.5, Qt::DashLine));
+        painter.drawLine(pxA, 0, pxA, h);
+        painter.drawText(pxA + 3, 14, "X1");
+
+        // Cursor B (Yellow dashed)
+        painter.setPen(QPen(QColor(255, 220, 0), 1.5, Qt::DashLine));
+        painter.drawLine(pxB, 0, pxB, h);
+        painter.drawText(pxB + 3, 14, "X2");
+
+        // Delta-T readout box
+        double dt = std::abs(m_timeCursorB - m_timeCursorA);
+        double curFreq = (dt > 1e-15) ? (1.0 / dt) : 0.0;
+        QString hudText = QString("ΔX: %1 | 1/ΔX: %2").arg(formatValueSI(dt, "s"), formatValueSI(curFreq, "Hz"));
+        
+        painter.setPen(Qt::NoPen);
+        painter.setBrush(QColor(0, 0, 0, 180));
+        painter.drawRoundedRect(QRectF(graphW / 2 - 90, h - 26, 180, 20), 4, 4);
+
+        painter.setPen(QColor(0, 240, 255));
+        painter.setFont(QFont("Inter", 8, QFont::Bold));
+        painter.drawText(QRectF(graphW / 2 - 90, h - 26, 180, 20), Qt::AlignCenter, hudText);
+    }
+
+    if (m_cursorMode == CursorVoltage || m_cursorMode == CursorBoth) {
+        double pyA = mapY(m_voltCursorA);
+        double pyB = mapY(m_voltCursorB);
+
+        // Voltage Cursor A (Magenta dashed)
+        painter.setPen(QPen(QColor(255, 0, 220), 1.5, Qt::DashDotLine));
+        painter.drawLine(0, pyA, graphW, pyA);
+        painter.drawText(6, pyA - 3, "Y1: " + formatValueSI(m_voltCursorA, "V"));
+
+        // Voltage Cursor B (Greenish dashed)
+        painter.setPen(QPen(QColor(0, 255, 120), 1.5, Qt::DashDotLine));
+        painter.drawLine(0, pyB, graphW, pyB);
+        painter.drawText(6, pyB - 3, "Y2: " + formatValueSI(m_voltCursorB, "V"));
+
+        double dv = std::abs(m_voltCursorA - m_voltCursorB);
+        QString vHud = QString("ΔY: %1").arg(formatValueSI(dv, "V"));
+        
+        painter.setPen(Qt::NoPen);
+        painter.setBrush(QColor(0, 0, 0, 180));
+        painter.drawRoundedRect(QRectF(10, h / 2 - 10, 80, 20), 4, 4);
+
+        painter.setPen(QColor(255, 120, 220));
+        painter.setFont(QFont("Inter", 8, QFont::Bold));
+        painter.drawText(QRectF(10, h / 2 - 10, 80, 20), Qt::AlignCenter, vHud);
+    }
     
     // Global Axis Labels
     painter.setPen(QColor(160, 160, 160));
@@ -385,4 +502,183 @@ void MiniScopeWidget::renderToPainter(QPainter& painter, const QSize& targetSize
     }
     painter.drawText(6, 14, formatValueSI(m_globalMaxY, globalUnit));
     painter.drawText(6, h - 6, formatValueSI(m_globalMinY, globalUnit));
+}
+
+void MiniScopeWidget::mousePressEvent(QMouseEvent* event) {
+    if (event->button() == Qt::LeftButton && m_cursorMode != CursorNone) {
+        int graphW = width() - 120;
+        int h = height();
+        if (graphW <= 0 || h <= 0) return;
+
+        auto mapX = [&](double x) {
+            double range = std::max(1e-9, m_maxX - m_minX);
+            return (x - m_minX) / range * graphW;
+        };
+        auto mapY = [&](double y) {
+            double range = std::max(1e-9, m_globalMaxY - m_globalMinY);
+            return h - ((y - m_globalMinY) / range * h);
+        };
+
+        const double tol = 8.0;
+        const double mouseX = event->pos().x();
+        const double mouseY = event->pos().y();
+
+        if (m_cursorMode == CursorTime || m_cursorMode == CursorBoth) {
+            if (std::abs(mouseX - mapX(m_timeCursorA)) <= tol) {
+                m_activeDrag = DragTimeA;
+                return;
+            }
+            if (std::abs(mouseX - mapX(m_timeCursorB)) <= tol) {
+                m_activeDrag = DragTimeB;
+                return;
+            }
+        }
+
+        if (m_cursorMode == CursorVoltage || m_cursorMode == CursorBoth) {
+            if (std::abs(mouseY - mapY(m_voltCursorA)) <= tol) {
+                m_activeDrag = DragVoltA;
+                return;
+            }
+            if (std::abs(mouseY - mapY(m_voltCursorB)) <= tol) {
+                m_activeDrag = DragVoltB;
+                return;
+            }
+        }
+    }
+    QWidget::mousePressEvent(event);
+}
+
+void MiniScopeWidget::mouseMoveEvent(QMouseEvent* event) {
+    int graphW = width() - 120;
+    int h = height();
+    if (graphW <= 0 || h <= 0) return;
+
+    auto unmapX = [&](double px) {
+        double range = std::max(1e-9, m_maxX - m_minX);
+        return m_minX + (px / graphW) * range;
+    };
+    auto unmapY = [&](double py) {
+        double range = std::max(1e-9, m_globalMaxY - m_globalMinY);
+        return m_globalMinY + ((h - py) / h) * range;
+    };
+
+    if (m_activeDrag != DragNone) {
+        if (m_activeDrag == DragTimeA) {
+            m_timeCursorA = std::clamp(unmapX(event->pos().x()), m_minX, m_maxX);
+        } else if (m_activeDrag == DragTimeB) {
+            m_timeCursorB = std::clamp(unmapX(event->pos().x()), m_minX, m_maxX);
+        } else if (m_activeDrag == DragVoltA) {
+            m_voltCursorA = unmapY(event->pos().y());
+        } else if (m_activeDrag == DragVoltB) {
+            m_voltCursorB = unmapY(event->pos().y());
+        }
+        
+        double dt = std::abs(m_timeCursorB - m_timeCursorA);
+        double f = (dt > 1e-15) ? 1.0 / dt : 0.0;
+        double dv = std::abs(m_voltCursorA - m_voltCursorB);
+        Q_EMIT cursorsChanged(dt, f, dv);
+        update();
+        return;
+    }
+
+    // Update Hover Cursor
+    if (m_cursorMode != CursorNone) {
+        auto mapX = [&](double x) {
+            double range = std::max(1e-9, m_maxX - m_minX);
+            return (x - m_minX) / range * graphW;
+        };
+        auto mapY = [&](double y) {
+            double range = std::max(1e-9, m_globalMaxY - m_globalMinY);
+            return h - ((y - m_globalMinY) / range * h);
+        };
+
+        const double tol = 8.0;
+        const double mouseX = event->pos().x();
+        const double mouseY = event->pos().y();
+
+        if ((m_cursorMode == CursorTime || m_cursorMode == CursorBoth) &&
+            (std::abs(mouseX - mapX(m_timeCursorA)) <= tol || std::abs(mouseX - mapX(m_timeCursorB)) <= tol)) {
+            setCursor(Qt::SizeHorCursor);
+        } else if ((m_cursorMode == CursorVoltage || m_cursorMode == CursorBoth) &&
+                   (std::abs(mouseY - mapY(m_voltCursorA)) <= tol || std::abs(mouseY - mapY(m_voltCursorB)) <= tol)) {
+            setCursor(Qt::SizeVerCursor);
+        } else {
+            setCursor(Qt::CrossCursor);
+        }
+    } else {
+        setCursor(Qt::ArrowCursor);
+    }
+
+    QWidget::mouseMoveEvent(event);
+}
+
+void MiniScopeWidget::mouseReleaseEvent(QMouseEvent* event) {
+    m_activeDrag = DragNone;
+    QWidget::mouseReleaseEvent(event);
+}
+
+void MiniScopeWidget::contextMenuEvent(QContextMenuEvent* event) {
+    QMenu menu(this);
+    menu.setStyleSheet(
+        "QMenu { background-color: #1e1e24; color: #f0f0f0; border: 1px solid #444; padding: 4px; }"
+        "QMenu::item { padding: 6px 24px; border-radius: 3px; }"
+        "QMenu::item:selected { background-color: #2563eb; color: #ffffff; }"
+        "QMenu::separator { height: 1px; background: #333; margin: 4px 8px; }"
+    );
+
+    // Cursors Submenu
+    QMenu* cursorMenu = menu.addMenu("Cursors");
+    QAction* actCurOff = cursorMenu->addAction("Off");
+    QAction* actCurTime = cursorMenu->addAction("Time (X Cursors)");
+    QAction* actCurVolt = cursorMenu->addAction("Voltage (Y Cursors)");
+    QAction* actCurBoth = cursorMenu->addAction("Both (X & Y Cursors)");
+
+    actCurOff->setCheckable(true);
+    actCurTime->setCheckable(true);
+    actCurVolt->setCheckable(true);
+    actCurBoth->setCheckable(true);
+
+    actCurOff->setChecked(m_cursorMode == CursorNone);
+    actCurTime->setChecked(m_cursorMode == CursorTime);
+    actCurVolt->setChecked(m_cursorMode == CursorVoltage);
+    actCurBoth->setChecked(m_cursorMode == CursorBoth);
+
+    connect(actCurOff, &QAction::triggered, [this]() { setCursorMode(CursorNone); });
+    connect(actCurTime, &QAction::triggered, [this]() { setCursorMode(CursorTime); });
+    connect(actCurVolt, &QAction::triggered, [this]() { setCursorMode(CursorVoltage); });
+    connect(actCurBoth, &QAction::triggered, [this]() { setCursorMode(CursorBoth); });
+
+    menu.addSeparator();
+
+    // Memory Snapshot Actions
+    menu.addAction("Freeze Traces", [this]() { freezeCurrentTraces(); });
+    menu.addAction("Clear Memories", [this]() { clearMemories(); });
+
+    menu.addSeparator();
+
+    // Export Actions
+    menu.addAction("Copy Image to Clipboard", [this]() {
+        QImage img = renderToImage(size());
+        QApplication::clipboard()->setImage(img);
+    });
+
+    menu.addAction("Export Waveforms (CSV)...", [this]() {
+        QString path = QFileDialog::getSaveFileName(this, "Export Waveforms CSV", QString(), "CSV Files (*.csv)");
+        if (!path.isEmpty()) exportToCsv(path);
+    });
+
+    menu.addAction("Save Display Image...", [this]() {
+        QString path = QFileDialog::getSaveFileName(this, "Save Scope Screenshot", QString(), "PNG Images (*.png);;JPEG Images (*.jpg)");
+        if (!path.isEmpty()) {
+            QImage img = renderToImage(QSize(1200, 720));
+            img.save(path);
+        }
+    });
+
+    menu.addSeparator();
+    menu.addAction("Instrument Properties...", [this]() {
+        Q_EMIT propertiesRequested();
+    });
+
+    menu.exec(event->globalPos());
 }
