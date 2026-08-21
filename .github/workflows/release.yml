@@ -570,6 +570,15 @@ jobs:
           # Bundle Qt DLLs
           windeployqt --dir staging/bin staging/bin/VioraEDA.exe
           
+          # Copy all Qt platform plugins (including qoffscreen.dll and qminimal.dll for headless CLI)
+          for pdir in /mingw64/share/qt6/plugins /mingw64/plugins /mingw64/lib/qt6/plugins; do
+            if [ -d "$pdir/platforms" ]; then
+              mkdir -p staging/bin/platforms
+              cp -v "$pdir/platforms/"*.dll staging/bin/platforms/ 2>&1 || true
+              break
+            fi
+          done
+          
           # Auto-discover and bundle missing MinGW / local DLLs from transitive dependencies
           shopt -s nocasematch
           unset SCANNED
