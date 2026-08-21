@@ -677,4 +677,32 @@ void SchematicMenuRegistry::initializeDefaultActions() {
         Q_EMIT view->syncSheetRequested(static_cast<SchematicSheetItem*>(items.first()));
     };
     registerAction(SchematicItem::SheetType, syncPins);
+
+    // --- Oscilloscope Actions ---
+    auto isOscItem = [](const QList<SchematicItem*>& items) {
+        if (items.size() != 1 || !items.first()) return false;
+        const QString type = items.first()->itemTypeName();
+        return type == "Oscilloscope" || type == "Oscilloscope Instrument" || 
+               type == "OscilloscopeInstrument" || (dynamic_cast<OscilloscopeItem*>(items.first()) != nullptr);
+    };
+
+    ContextAction openScope;
+    openScope.label = "🖥️ Open Oscilloscope Display";
+    openScope.priority = 110;
+    openScope.isVisible = isOscItem;
+    openScope.handler = [](SchematicView* view, const auto& items) {
+        if (auto* editor = qobject_cast<SchematicEditor*>(view->window())) {
+            editor->openOscilloscopeWindow(items.first());
+        }
+    };
+    registerGlobalAction(openScope);
+
+    ContextAction scopeProps;
+    scopeProps.label = "⚙️ Oscilloscope Properties...";
+    scopeProps.priority = 109;
+    scopeProps.isVisible = isOscItem;
+    scopeProps.handler = [](SchematicView* view, const auto& items) {
+        Q_EMIT view->itemDoubleClicked(items.first());
+    };
+    registerGlobalAction(scopeProps);
 }
