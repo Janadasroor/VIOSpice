@@ -27,7 +27,18 @@ void RemoteDisplayServer::start() {
     m_server = new QWebSocketServer(QStringLiteral("VioSpice Remote"),
                                     QWebSocketServer::NonSecureMode, this);
 
-    if (m_server->listen(QHostAddress::Any, m_port)) {
+    quint16 port = m_port;
+    bool bound = false;
+    for (int attempt = 0; attempt < 5; ++attempt) {
+        if (m_server->listen(QHostAddress::Any, port)) {
+            m_port = port;
+            bound = true;
+            break;
+        }
+        port++;
+    }
+
+    if (bound) {
         qDebug() << "Remote Display Server started on port" << m_port;
         connect(m_server, &QWebSocketServer::newConnection,
                 this, &RemoteDisplayServer::onNewConnection);

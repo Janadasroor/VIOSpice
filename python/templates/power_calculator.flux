@@ -5,4 +5,7 @@
 # INPUTS: voltage, current
 # OUTPUTS: power
 
-voltage * current
+let v = inputs[0] in
+let i = inputs[1] in
+v * i
+
