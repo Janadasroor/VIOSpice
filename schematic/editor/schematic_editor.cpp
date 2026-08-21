@@ -2009,14 +2009,18 @@ void SchematicEditor::openOscilloscopeWindow(SchematicItem* item) {
     connect(win, &OscilloscopeWindow::configChanged, this, &SchematicEditor::onOscilloscopeConfigChanged);
     connect(win, &OscilloscopeWindow::propertiesRequested, this, &SchematicEditor::onOscilloscopePropertiesRequested);
     
-    // For specific OscilloscopeItem, we can synchronize config if needed
+    // For specific OscilloscopeItem, synchronize config
     if (auto* osc = dynamic_cast<OscilloscopeItem*>(item)) {
-        // Initial config sync
-        // win->setConfig(osc->config()); 
+        win->setConfig(osc->config()); 
     }
 
     // Auto-close window if the item is deleted from the schematic
     connect(item, &QObject::destroyed, win, &QWidget::close);
+
+    // If simulation results already exist, immediately show waveforms
+    if (m_lastSimResults) {
+        win->updateResults(*m_lastSimResults, m_netManager, item);
+    }
 
     win->show();
 }

@@ -73,24 +73,31 @@ void MiniScopeWidget::setCursorMode(CursorMode mode) {
     update();
 }
 
-void MiniScopeWidget::appendMultiTraceData(const QMap<QString, QVector<QPointF>>& traces) {
-    QList<QColor> palette = {
-        QColor(34, 197, 94),  // Green
-        QColor(59, 130, 246), // Blue
-        QColor(249, 115, 22), // Orange
-        QColor(168, 85, 247), // Purple
-        QColor(236, 72, 153)  // Pink
-    };
-    static int colorIdxOffset = 0;
+static const QColor s_scopeDefaultColors[8] = {
+    Qt::yellow, Qt::cyan, Qt::magenta, QColor(0, 255, 100),
+    QColor(255, 165, 0), QColor(147, 112, 219), QColor(255, 105, 180), QColor(0, 191, 255)
+};
 
+void MiniScopeWidget::appendMultiTraceData(const QMap<QString, QVector<QPointF>>& traces, const QMap<QString, QColor>& colors) {
     for (auto it = traces.begin(); it != traces.end(); ++it) {
         if (it.value().isEmpty()) continue;
 
         if (!m_traces.contains(it.key())) {
             TraceData data;
-            data.color = palette[colorIdxOffset % palette.size()];
-            colorIdxOffset++;
+            if (colors.contains(it.key())) {
+                data.color = colors[it.key()];
+            } else {
+                // Determine channel index from key like "CH1", "CH2"
+                int chNum = 1;
+                if (it.key().startsWith("CH", Qt::CaseInsensitive)) {
+                    chNum = it.key().mid(2).toInt();
+                    if (chNum < 1) chNum = 1;
+                }
+                data.color = s_scopeDefaultColors[(chNum - 1) % 8];
+            }
             m_traces[it.key()] = data;
+        } else if (colors.contains(it.key())) {
+            m_traces[it.key()].color = colors[it.key()];
         }
 
         auto& target = m_traces[it.key()];
@@ -136,17 +143,8 @@ void MiniScopeWidget::appendMultiTraceData(const QMap<QString, QVector<QPointF>>
     update();
 }
 
-void MiniScopeWidget::setMultiTraceData(const QMap<QString, QVector<QPointF>>& traces) {
+void MiniScopeWidget::setMultiTraceData(const QMap<QString, QVector<QPointF>>& traces, const QMap<QString, QColor>& colors) {
     m_traces.clear();
-    
-    QList<QColor> palette = {
-        QColor(34, 197, 94),  // Green
-        QColor(59, 130, 246), // Blue
-        QColor(249, 115, 22), // Orange
-        QColor(168, 85, 247), // Purple
-        QColor(236, 72, 153)  // Pink
-    };
-    int colorIdx = 0;
 
     m_globalMinY = 0;
     m_globalMaxY = 0;
@@ -176,8 +174,17 @@ void MiniScopeWidget::setMultiTraceData(const QMap<QString, QVector<QPointF>>& t
 
         TraceData data;
         data.points = it.value();
-        data.color = palette[colorIdx % palette.size()];
-        colorIdx++;
+        
+        if (colors.contains(it.key())) {
+            data.color = colors[it.key()];
+        } else {
+            int chNum = 1;
+            if (it.key().startsWith("CH", Qt::CaseInsensitive)) {
+                chNum = it.key().mid(2).toInt();
+                if (chNum < 1) chNum = 1;
+            }
+            data.color = s_scopeDefaultColors[(chNum - 1) % 8];
+        }
 
         calculateMeasurements(it.key(), data.points);
 
@@ -414,10 +421,11 @@ void MiniScopeWidget::renderToPainter(QPainter& painter, const QSize& targetSize
         painter.drawPath(path);
 
         // Draw Legend & Measurements
-        painter.setPen(data.color);
-        painter.drawRect(graphW + 8, legendY - 8, 8, 8);
+        painter.setBrush(data.color);
+        painter.setPen(QPen(data.color.lighter(130), 1));
+        painter.drawRoundedRect(graphW + 8, legendY - 8, 8, 8, 2, 2);
         
-        painter.setPen(Qt::white);
+        painter.setPen(data.color);
         QFont f = painter.font();
         f.setPointSize(8);
         f.setBold(true);

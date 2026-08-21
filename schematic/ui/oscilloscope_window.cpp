@@ -330,8 +330,13 @@ void OscilloscopeWindow::updateRealTimeData(const std::vector<double>& times, co
         }
     }
 
+    QMap<QString, QColor> traceColors;
+    for (int i = 0; i < count && i < m_config.channels.size(); ++i) {
+        traceColors[QString("CH%1").arg(i + 1)] = m_config.channels[i].color;
+    }
+
     if (!visibleTraces.isEmpty()) {
-        m_scopeDisplay->appendMultiTraceData(visibleTraces);
+        m_scopeDisplay->appendMultiTraceData(visibleTraces, traceColors);
     }
 }
 
@@ -339,11 +344,13 @@ void OscilloscopeWindow::updateResults(const SimResults& results, NetManager* ne
     m_lastNetManager = netManager;
 
     QMap<QString, QVector<QPointF>> visibleTraces;
+    QMap<QString, QColor> traceColors;
     QJsonObject remoteData;
     QJsonArray remoteTraces;
     int count = m_config.channelCount;
     
     for (int i = 0; i < count && i < m_config.channels.size(); ++i) {
+        traceColors[QString("CH%1").arg(i + 1)] = m_config.channels[i].color;
         if (!m_config.channels[i].enabled) continue;
         
         QString posNet, negNet;
@@ -426,7 +433,7 @@ void OscilloscopeWindow::updateResults(const SimResults& results, NetManager* ne
         }
     }
     
-    m_scopeDisplay->setMultiTraceData(visibleTraces);
+    m_scopeDisplay->setMultiTraceData(visibleTraces, traceColors);
 
     // Broadcast to remote clients
     remoteData["traces"] = remoteTraces;
