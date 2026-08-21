@@ -11,7 +11,7 @@
 #include "../items/schematic_spice_directive_item.h"
 #include "passes/connectivity_evaluator.h"
 #include "passes/xspice_block_translator.h"
-#include "passes/lt_rewriter.h"
+#include "passes/spice_compat_rewriter.h"
 #include "passes/model_injector.h"
 #include "passes/component_extractor.h"
 #include "../../symbols/symbol_library.h"
@@ -841,7 +841,7 @@ void ComponentFormatter::format(const ECOComponent& comp,
             }
         }
 
-        value = LtRewriter::inlinePwlFileIfNeeded(value, projectDir, nullptr);
+        value = SpiceCompatRewriter::inlinePwlFileIfNeeded(value, projectDir, nullptr);
         value = formatPwlValueForNetlist(value);
         QString instanceSuffix;
         QStringList nodes;
@@ -1312,7 +1312,7 @@ void ComponentFormatter::format(const ECOComponent& comp,
             VoltageParasitics paras = stripVoltageParasitics(value);
             value = paras.value;
             QString rewrittenCurrentSource;
-            if (LtRewriter::rewriteLtCurrentSourceSpecial(ref, nodes.value(0, "0"), nodes.value(1, "0"), value, projectDir,
+            if (SpiceCompatRewriter::rewriteLtCurrentSourceSpecial(ref, nodes.value(0, "0"), nodes.value(1, "0"), value, projectDir,
                                                    &rewrittenCurrentSource, &directiveWarnings)) {
                 netlist += rewrittenCurrentSource + "\n";
                 return;

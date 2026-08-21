@@ -100,7 +100,7 @@ void ERCDiagnosticsPanel::updateLibraryInfo() {
     QString icon = isVioMatrix ? "🔧" : "⚙️";
     QString type = isVioMatrix ? "VioMATRIXC (Custom Fork)" : "System ngspice";
     QString color = isVioMatrix ? "#4ade80" : "#fbbf24";
-    QString status = isVioMatrix ? "✅ Full feature set (WAV, LTspice compat, XSPICE)" : "⚠️ Standard features only";
+    QString status = isVioMatrix ? "✅ Full feature set (WAV, Extended SPICE, XSPICE)" : "⚠️ Standard features only";
 
     if (libPath.isEmpty()) {
         libPath = "Not loaded";

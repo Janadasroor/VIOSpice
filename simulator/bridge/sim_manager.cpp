@@ -547,7 +547,7 @@ QList<SimManager::PendingStepRun> buildStepRuns(const QString& netlistContent, Q
     sortFirstStepDimensionValues(&specs);
     QString stepStripped = netlistContent;
     stepStripped.replace(QRegularExpression("^\\s*\\*?\\s*\\.step.*$", QRegularExpression::CaseInsensitiveOption | QRegularExpression::MultilineOption),
-                         "* LTspice .step sweep handled by VioSpice sweep runner");
+                         "* Parametric .step sweep handled by VioSpice sweep runner");
     buildStepRunCartesian(specs, 0, stepStripped, {}, &runs, error);
     return runs;
 }
@@ -969,13 +969,13 @@ void SimManager::runNetlistText(const QString& netlistContent) {
     m_activeStepLabel.clear();
     m_completedStepRuns = 0;
     if (!stepError.isEmpty()) {
-        Q_EMIT logMessage(QString("LTspice .step emulation error: %1").arg(stepError));
+        Q_EMIT logMessage(QString("Parametric .step emulation error: %1").arg(stepError));
         Q_EMIT errorOccurred(stepError);
         Q_EMIT simulationFinished(SimResults());
         return;
     }
     if (!m_pendingStepRuns.isEmpty()) {
-        Q_EMIT logMessage(QString("Running LTspice .step sweep emulation with %1 run(s).").arg(m_pendingStepRuns.size()));
+        Q_EMIT logMessage(QString("Running Parametric .step sweep emulation with %1 run(s).").arg(m_pendingStepRuns.size()));
         startNextStepSweepRun();
         return;
     }
@@ -1058,13 +1058,13 @@ void SimManager::runNgspiceSimulation(const QString& netlist, const SimAnalysisC
     m_activeStepLabel.clear();
     m_completedStepRuns = 0;
     if (!stepError.isEmpty()) {
-        Q_EMIT logMessage(QString("LTspice .step emulation error: %1").arg(stepError));
+        Q_EMIT logMessage(QString("Parametric .step emulation error: %1").arg(stepError));
         Q_EMIT errorOccurred(stepError);
         Q_EMIT simulationFinished(SimResults());
         return;
     }
     if (!m_pendingStepRuns.isEmpty()) {
-        Q_EMIT logMessage(QString("Running LTspice .step sweep emulation with %1 run(s).").arg(m_pendingStepRuns.size()));
+        Q_EMIT logMessage(QString("Running Parametric .step sweep emulation with %1 run(s).").arg(m_pendingStepRuns.size()));
         startNextStepSweepRun();
         return;
     }

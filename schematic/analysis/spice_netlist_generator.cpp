@@ -10,7 +10,7 @@
 #include "passes/connectivity_evaluator.h"
 #include "passes/model_injector.h"
 #include "passes/netlist_formatter.h"
-#include "passes/lt_rewriter.h"
+#include "passes/spice_compat_rewriter.h"
 #include "../items/schematic_item.h"
 #include "../items/smart_signal_item.h"
 #include "../items/virtual_terminal_item.h"
@@ -235,7 +235,7 @@ UserSpiceContentSummary summarizeUserSpiceText(const QString& text, const QStrin
         ".disto", ".meas", ".step", ".sens", ".sp", ".net"
     };
 
-    const QStringList lines = LtRewriter::collapseSpiceContinuationLines(text);
+    const QStringList lines = SpiceCompatRewriter::collapseSpiceContinuationLines(text);
     QSet<QString> analysisSeen;
     QMap<QString, int> modelSeen;
     QMap<QString, int> refSeen;
@@ -357,7 +357,7 @@ UserSpiceContentSummary summarizeUserSpiceText(const QString& text, const QStrin
 
         summary.hasElementCards = true;
         const bool emulateStartupOnLine = summary.hasLtStartup && subcktStack.isEmpty();
-        const QString rewrittenLine = LtRewriter::rewriteLtDirectiveLine(line, &summary.warnings, emulateStartupOnLine, projectDir);
+        const QString rewrittenLine = SpiceCompatRewriter::rewriteLtDirectiveLine(line, &summary.warnings, emulateStartupOnLine, projectDir);
         if (rewrittenLine.contains("if(", Qt::CaseInsensitive)) {
             summary.warnings.append(QString("LT-style if(...) expression remains in line %1 and may fail in ngspice.").arg(lineNo));
         }
@@ -505,7 +505,7 @@ SpiceNetlistGenerator::GeneratedNetlist SpiceNetlistGenerator::generate(QGraphic
                         hasNetDirective = hasNetDirective || summary.hasNetDirective;
                         isSParameterDirective = isSParameterDirective || summary.isSParameter;
 
-                        const QStringList cmdLines = LtRewriter::collapseSpiceContinuationLines(cmd);
+                        const QStringList cmdLines = SpiceCompatRewriter::collapseSpiceContinuationLines(cmd);
                         int subcktDepth = 0;
                         for (const QString& rawCmdLine : cmdLines) {
                             const QString trimmedCmdLine = rawCmdLine.trimmed();
@@ -531,7 +531,7 @@ SpiceNetlistGenerator::GeneratedNetlist SpiceNetlistGenerator::generate(QGraphic
                             }
 
                             const bool emulateStartupOnLine = summary.hasLtStartup && subcktDepth == 0;
-                            QString lineToWrite = LtRewriter::rewriteLtDirectiveLine(trimmedCmdLine, &directiveWarnings, emulateStartupOnLine, projectDir);
+                            QString lineToWrite = SpiceCompatRewriter::rewriteLtDirectiveLine(trimmedCmdLine, &directiveWarnings, emulateStartupOnLine, projectDir);
 
                             // Resolve relative .include/.lib/.inc paths to absolute so ngspice can always
                             // find them regardless of its CWD.
@@ -559,7 +559,7 @@ SpiceNetlistGenerator::GeneratedNetlist SpiceNetlistGenerator::generate(QGraphic
             if (converted != trimmedCmdLine) {
                 netlist += "* " + trimmedCmdLine + "\n";
                 netlist += converted + "\n";
-                LtRewriter::updateSubcktDepthForLine(trimmedCmdLine, subcktDepth);
+                SpiceCompatRewriter::updateSubcktDepthForLine(trimmedCmdLine, subcktDepth);
                 continue;
             }
         }
@@ -567,7 +567,7 @@ SpiceNetlistGenerator::GeneratedNetlist SpiceNetlistGenerator::generate(QGraphic
         if (trimmedCmdLine.startsWith(".step", Qt::CaseInsensitive)) {
             netlist += "* " + trimmedCmdLine + "\n";
             netlist += "* LT .step omitted: this ngspice configuration reports .step as unimplemented\n";
-            LtRewriter::updateSubcktDepthForLine(trimmedCmdLine, subcktDepth);
+            SpiceCompatRewriter::updateSubcktDepthForLine(trimmedCmdLine, subcktDepth);
             continue;
         }
 
@@ -579,7 +579,7 @@ SpiceNetlistGenerator::GeneratedNetlist SpiceNetlistGenerator::generate(QGraphic
                                 netlist += "* LT rewrite: " + trimmedCmdLine + "\n";
                             }
                             netlist += lineToWrite + "\n";
-                            LtRewriter::updateSubcktDepthForLine(trimmedCmdLine, subcktDepth);
+                            SpiceCompatRewriter::updateSubcktDepthForLine(trimmedCmdLine, subcktDepth);
                         }
                     }
                 }
@@ -819,7 +819,7 @@ QString SpiceNetlistGenerator::generateCompatibilityLayer(const QString& rawNetl
             continue;
         }
 
-        line = LtRewriter::rewriteLtDirectiveLine(line, &warnings);
+        line = SpiceCompatRewriter::rewriteLtDirectiveLine(line, &warnings);
 
         outLines << line;
     }

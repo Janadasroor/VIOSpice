@@ -3,15 +3,15 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#ifndef LT_REWRITER_H
-#define LT_REWRITER_H
+#ifndef SPICE_COMPAT_REWRITER_H
+#define SPICE_COMPAT_REWRITER_H
 
 #include <QString>
 #include <QStringList>
 #include <QMap>
 #include <QSet>
 
-class LtRewriter {
+class SpiceCompatRewriter {
 public:
     static bool convertLtConditionToStepExpr(const QString& condition, QString* stepExpr);
     static void updateSubcktDepthForLine(const QString& line, int& subcktDepth);
@@ -44,4 +44,4 @@ public:
     static int findMatchingParen(const QString& text, int openIndex);
 };
 
-#endif // LT_REWRITER_H
+#endif // SPICE_COMPAT_REWRITER_H

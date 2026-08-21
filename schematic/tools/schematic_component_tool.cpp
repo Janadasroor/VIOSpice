@@ -162,7 +162,7 @@ void SchematicComponentTool::mousePressEvent(QMouseEvent* event) {
             AddItemCommand* addCompCmd = new AddItemCommand(view()->scene(), component);
             view()->undoStack()->push(addCompCmd);
 
-            // 2. Perform Auto-Cut logic (LTSpice style)
+            // 2. Perform Auto-Cut logic
             SchematicWireUtils::splitWiresByComponent(component, view()->scene(), view()->undoStack());
 
             view()->undoStack()->endMacro();

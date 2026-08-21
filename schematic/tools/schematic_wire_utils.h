@@ -20,7 +20,7 @@ class SchematicWireUtils {
 public:
     /**
      * @brief Automatically split wires that are crossed by a component's pins.
-     * Matches LTSpice/KiCad behavior where dropping a component on a wire "breaks" the wire.
+     * Auto-splits wire when dropping a component on a wire "breaks" the wire.
      * @param excludeWires Wires to skip (e.g. wires already attached to moved component pins).
      */
     static void splitWiresByComponent(

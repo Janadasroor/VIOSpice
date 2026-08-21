@@ -134,7 +134,7 @@ QStringList collapseSpiceContinuationLines(const QString& text) {
     return collapsed;
 }
 
-QString rewritePreviewLtspiceBehavioralIf(const QString& line, QStringList* fixes = nullptr) {
+QString rewritePreviewBehavioralIf(const QString& line, QStringList* fixes = nullptr) {
     QString out = line;
     static const QRegularExpression ifZeroRe(
         "\\bif\\s*\\(\\s*([^,]+?)\\s*([<>]=?)\\s*([^,]+?)\\s*,\\s*([^,]+?)\\s*,\\s*(0|0\\.0*)\\s*\\)",
@@ -172,7 +172,7 @@ QString rewritePreviewLtspiceBehavioralIf(const QString& line, QStringList* fixe
 QString rewritePreviewDirectiveLine(const QString& line, QStringList* fixes = nullptr) {
     QString out = line;
     if (out.contains("if(", Qt::CaseInsensitive) && out.contains(" V={", Qt::CaseInsensitive)) {
-        out = rewritePreviewLtspiceBehavioralIf(out, fixes);
+        out = rewritePreviewBehavioralIf(out, fixes);
     }
     if (out.contains(" V={", Qt::CaseInsensitive)) {
         const QString original = out;
@@ -268,7 +268,7 @@ void SpiceDirectiveDialog::setupUi() {
 
     QVBoxLayout* mainLayout = new QVBoxLayout(this);
 
-    QLabel* infoLabel = new QLabel("Enter SPICE commands or LTspice-style netlist blocks:\n"
+    QLabel* infoLabel = new QLabel("Enter SPICE commands or behavioral netlist blocks:\n"
         ".tran .ac .op .dc .noise .four .tf .disto .sens\n"
         ".model .param .subckt .ends .include .lib .endl\n"
         ".func .global .ic .nodeset .options .temp .step .meas .print\n\n"
@@ -375,7 +375,7 @@ void SpiceDirectiveDialog::openMutualCouplingBuilder() {
     dlg.setWindowTitle("Mutual Inductor Coupling");
     QVBoxLayout* layout = new QVBoxLayout(&dlg);
     QLabel* info = new QLabel(
-        "Generate an LTspice/ngspice mutual coupling line.\n"
+        "Generate a SPICE mutual coupling line.\n"
         "Example: K1 L1 L2 L3 0.99", &dlg);
     info->setWordWrap(true);
     layout->addWidget(info);
@@ -544,7 +544,7 @@ void SpiceDirectiveDialog::validateDirectiveText() {
 
                 if (line.contains(" D(", Qt::CaseInsensitive) &&
                     (line.contains("Ron=", Qt::CaseInsensitive) || line.contains("Roff=", Qt::CaseInsensitive) || line.contains("Vfwd=", Qt::CaseInsensitive))) {
-                    warnings << QString("Line %1: LTspice-style diode model parameters Ron/Roff/Vfwd may fail in ngspice.").arg(lineNo);
+                    warnings << QString("Line %1: Diode model parameters Ron/Roff/Vfwd may require compatibility translation.").arg(lineNo);
                 }
             }
 
@@ -559,23 +559,23 @@ void SpiceDirectiveDialog::validateDirectiveText() {
                 warnings << QString("Line %1: I(R...) style .meas current expressions may not be portable to ngspice.").arg(lineNo);
             }
             if (card == ".meas" && line.contains(" PARAM ", Qt::CaseInsensitive)) {
-                warnings << QString("Line %1: .meas PARAM was kept as-is; verify LTspice/ngspice compatibility.").arg(lineNo);
+                warnings << QString("Line %1: .meas PARAM was kept as-is; verify solver compatibility.").arg(lineNo);
             }
             if (card == ".meas" && line.contains(" FIND ", Qt::CaseInsensitive) && line.contains(" AT=", Qt::CaseInsensitive)) {
-                warnings << QString("Line %1: .meas FIND ... AT= may differ between LTspice and ngspice.").arg(lineNo);
+                warnings << QString("Line %1: .meas FIND ... AT= syntax may vary across SPICE solvers.").arg(lineNo);
             }
             if ((card == ".meas" || card == ".func" || card == ".param") && line.contains("table(", Qt::CaseInsensitive)) {
-                warnings << QString("Line %1: table(...) may behave differently between LTspice and ngspice.").arg(lineNo);
+                warnings << QString("Line %1: table(...) syntax may vary across SPICE solvers.").arg(lineNo);
             }
 
             continue;
         }
 
         if (line.contains("if(", Qt::CaseInsensitive)) {
-            warnings << QString("Line %1: LTspice-style if(...) may fail in ngspice; prefer u(...) or let VioSpice rewrite simple cases during netlist generation.").arg(lineNo);
+            warnings << QString("Line %1: Behavioral if(...) detected; prefer u(...) or let VioSpice rewrite automatically during netlist generation.").arg(lineNo);
         }
         if ((line.contains("&&") || line.contains("||") || line.contains('&') || line.contains('|')) && line.contains("V={", Qt::CaseInsensitive)) {
-            warnings << QString("Line %1: LTspice-style boolean operators may need compatibility rewriting for ngspice.").arg(lineNo);
+            warnings << QString("Line %1: C-style boolean operators (&&/||) may need compatibility rewriting for ngspice.").arg(lineNo);
         }
         if (line.contains("table(", Qt::CaseInsensitive)) {
             warnings << QString("Line %1: table(...) expression detected; verify ngspice compatibility.").arg(lineNo);

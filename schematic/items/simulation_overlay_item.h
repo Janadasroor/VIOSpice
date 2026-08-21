@@ -32,7 +32,7 @@ public:
         
         painter->setRenderHint(QPainter::Antialiasing);
         
-        // LTSpice Style: Light yellow for voltage, light green for current
+        // Light yellow for voltage, light green for current
         QColor bgColor = (m_type == Voltage) ? QColor(255, 255, 200) : QColor(200, 255, 200);
         QColor borderColor = (m_type == Voltage) ? QColor(180, 180, 100) : QColor(100, 180, 100);
         

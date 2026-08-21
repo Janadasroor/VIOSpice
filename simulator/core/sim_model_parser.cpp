@@ -282,7 +282,7 @@ int mapSubcktNodeToken(
 bool isLikelyEncrypted(const std::string& content) {
     if (content.empty()) return false;
     
-    // Check for common LTspice encrypted headers or binary markers
+    // Check for proprietary encrypted headers or binary markers
     if (content.find("<Binary File>") != std::string::npos) return true;
     if (content.find("* LTspice Encrypted File") != std::string::npos) return true;
     

@@ -89,7 +89,7 @@ void SchematicNetLabelTool::mouseReleaseEvent(QMouseEvent* event) {
     if (!res.accepted) return;
 
     if (m_scope == NetLabelItem::Local) {
-        // Place a visible pin-like port for local labels (LTspice-style pin marker).
+        // Place a visible pin-like port for local labels.
         auto* item = new HierarchicalPortItem(snappedPos, res.label, res.portType);
         view()->undoStack()->push(new AddItemCommand(view()->scene(), item));
     } else {

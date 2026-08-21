@@ -10,7 +10,7 @@
 #include "../items/voltage_source_item.h"
 
 /**
- * @brief Professional properties dialog for voltage sources (LTspice style).
+ * @brief Professional properties dialog for voltage sources.
  */
 class VoltageSourcePropertiesDialog : public SmartPropertiesDialog {
     Q_OBJECT

@@ -899,7 +899,7 @@ void SchematicEditor::createToolBar() {
 
     mainToolbar->addSeparator();
 
-    // Professional Simulation Control Group (LTspice style: Run/Pause toggle + Stop)
+    // Professional Simulation Control Group Run/Pause toggle + Stop)
     QWidget* simGroup = new QWidget();
     QHBoxLayout* simLayout = new QHBoxLayout(simGroup);
     simLayout->setContentsMargins(0, 0, 0, 0);

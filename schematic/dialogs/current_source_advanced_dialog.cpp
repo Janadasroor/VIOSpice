@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include "current_source_ltspice_dialog.h"
+#include "current_source_advanced_dialog.h"
 #include "voltage_source_custom_waveform_dialog.h"
 #include <QVBoxLayout>
 #include <QHBoxLayout>
@@ -95,7 +95,7 @@ private:
     QRegularExpression m_opPattern;
 };
 
-CurrentSourceLTSpiceDialog::CurrentSourceLTSpiceDialog(CurrentSourceItem* item, QUndoStack* undoStack, QGraphicsScene* scene, const QString& projectDir, QWidget* parent)
+CurrentSourceAdvancedDialog::CurrentSourceAdvancedDialog(CurrentSourceItem* item, QUndoStack* undoStack, QGraphicsScene* scene, const QString& projectDir, QWidget* parent)
     : QDialog(parent), m_item(item), m_undoStack(undoStack), m_scene(scene), m_projectDir(projectDir) {
     
     setWindowTitle("Independent Current Source - " + item->reference());
@@ -103,7 +103,7 @@ CurrentSourceLTSpiceDialog::CurrentSourceLTSpiceDialog(CurrentSourceItem* item, 
     loadFromItem();
 }
 
-void CurrentSourceLTSpiceDialog::setupUi() {
+void CurrentSourceAdvancedDialog::setupUi() {
     auto* mainLayout = new QHBoxLayout(this);
 
     auto* leftCol = new QVBoxLayout();
@@ -137,7 +137,7 @@ void CurrentSourceLTSpiceDialog::setupUi() {
     pwlFileLayout->addWidget(browseBtn);
     functionsLayout->addLayout(pwlFileLayout);
     
-    connect(browseBtn, &QPushButton::clicked, this, &CurrentSourceLTSpiceDialog::onPwlBrowse);
+    connect(browseBtn, &QPushButton::clicked, this, &CurrentSourceAdvancedDialog::onPwlBrowse);
 
     m_paramStack = new QStackedWidget();
     
@@ -281,19 +281,19 @@ void CurrentSourceLTSpiceDialog::setupUi() {
     mainLayout->addLayout(leftCol);
     mainLayout->addLayout(rightCol);
 
-    connect(m_noneRadio, &QRadioButton::toggled, this, &CurrentSourceLTSpiceDialog::onFunctionChanged);
-    connect(m_pulseRadio, &QRadioButton::toggled, this, &CurrentSourceLTSpiceDialog::onFunctionChanged);
-    connect(m_sineRadio, &QRadioButton::toggled, this, &CurrentSourceLTSpiceDialog::onFunctionChanged);
-    connect(m_expRadio, &QRadioButton::toggled, this, &CurrentSourceLTSpiceDialog::onFunctionChanged);
-    connect(m_sffmRadio, &QRadioButton::toggled, this, &CurrentSourceLTSpiceDialog::onFunctionChanged);
-    connect(m_pwlRadio, &QRadioButton::toggled, this, &CurrentSourceLTSpiceDialog::onFunctionChanged);
-    connect(m_behavioralRadio, &QRadioButton::toggled, this, &CurrentSourceLTSpiceDialog::onFunctionChanged);
-    connect(m_customRadio, &QRadioButton::toggled, this, &CurrentSourceLTSpiceDialog::onFunctionChanged);
-    connect(m_pwlFileRadio, &QRadioButton::toggled, this, &CurrentSourceLTSpiceDialog::onFunctionChanged);
+    connect(m_noneRadio, &QRadioButton::toggled, this, &CurrentSourceAdvancedDialog::onFunctionChanged);
+    connect(m_pulseRadio, &QRadioButton::toggled, this, &CurrentSourceAdvancedDialog::onFunctionChanged);
+    connect(m_sineRadio, &QRadioButton::toggled, this, &CurrentSourceAdvancedDialog::onFunctionChanged);
+    connect(m_expRadio, &QRadioButton::toggled, this, &CurrentSourceAdvancedDialog::onFunctionChanged);
+    connect(m_sffmRadio, &QRadioButton::toggled, this, &CurrentSourceAdvancedDialog::onFunctionChanged);
+    connect(m_pwlRadio, &QRadioButton::toggled, this, &CurrentSourceAdvancedDialog::onFunctionChanged);
+    connect(m_behavioralRadio, &QRadioButton::toggled, this, &CurrentSourceAdvancedDialog::onFunctionChanged);
+    connect(m_customRadio, &QRadioButton::toggled, this, &CurrentSourceAdvancedDialog::onFunctionChanged);
+    connect(m_pwlFileRadio, &QRadioButton::toggled, this, &CurrentSourceAdvancedDialog::onFunctionChanged);
 
-    connect(okBtn, &QPushButton::clicked, this, &CurrentSourceLTSpiceDialog::onAccepted);
+    connect(okBtn, &QPushButton::clicked, this, &CurrentSourceAdvancedDialog::onAccepted);
     connect(cancelBtn, &QPushButton::clicked, this, &QDialog::reject);
-    connect(m_pwlDrawBtn, &QPushButton::clicked, this, &CurrentSourceLTSpiceDialog::onCustomDraw);
+    connect(m_pwlDrawBtn, &QPushButton::clicked, this, &CurrentSourceAdvancedDialog::onCustomDraw);
 
     m_behavioralCompleter = new QCompleter(this);
     m_behavioralCompleter->setCaseSensitivity(Qt::CaseInsensitive);
@@ -359,7 +359,7 @@ void CurrentSourceLTSpiceDialog::setupUi() {
     updateBehavioralUi();
 }
 
-void CurrentSourceLTSpiceDialog::onFunctionChanged() {
+void CurrentSourceAdvancedDialog::onFunctionChanged() {
     // Only proceed if this is the radio button being CHECKED
     QRadioButton* rb = qobject_cast<QRadioButton*>(sender());
     if (rb && !rb->isChecked()) return;
@@ -378,7 +378,7 @@ void CurrentSourceLTSpiceDialog::onFunctionChanged() {
     else if (m_pwlFileRadio->isChecked()) m_paramStack->setCurrentIndex(0);
 }
 
-void CurrentSourceLTSpiceDialog::onPwlBrowse() {
+void CurrentSourceAdvancedDialog::onPwlBrowse() {
     QString fileName = QFileDialog::getOpenFileName(this, "Select PWL File", "", "Data Files (*.txt *.csv *.dat);;All Files (*)");
     if (!fileName.isEmpty()) {
         m_pwlFile->setText(fileName);
@@ -386,7 +386,7 @@ void CurrentSourceLTSpiceDialog::onPwlBrowse() {
     }
 }
 
-void CurrentSourceLTSpiceDialog::onCustomDraw() {
+void CurrentSourceAdvancedDialog::onCustomDraw() {
     static bool isDrawing = false;
     if (isDrawing) return;
     isDrawing = true;
@@ -416,7 +416,7 @@ void CurrentSourceLTSpiceDialog::onCustomDraw() {
     isDrawing = false;
 }
 
-void CurrentSourceLTSpiceDialog::loadFromItem() {
+void CurrentSourceAdvancedDialog::loadFromItem() {
     m_noneRadio->setChecked(m_item->sourceType() == CurrentSourceItem::DC);
     m_pulseRadio->setChecked(m_item->sourceType() == CurrentSourceItem::Pulse);
     m_sineRadio->setChecked(m_item->sourceType() == CurrentSourceItem::Sine);
@@ -477,14 +477,14 @@ void CurrentSourceLTSpiceDialog::loadFromItem() {
     m_parasiticVisible->setChecked(m_item->isParasiticVisible());
 }
 
-void CurrentSourceLTSpiceDialog::onAccepted() {
+void CurrentSourceAdvancedDialog::onAccepted() {
     saveToItem();
     accept();
 }
 
-void CurrentSourceLTSpiceDialog::saveToItem() {
+void CurrentSourceAdvancedDialog::saveToItem() {
     if (m_undoStack) {
-        m_undoStack->beginMacro("Update Current Source (LTspice Dialog)");
+        m_undoStack->beginMacro("Update Current Source (Advanced Dialog)");
     }
 
     CurrentSourceItem::SourceType type = CurrentSourceItem::DC;
@@ -556,7 +556,7 @@ void CurrentSourceLTSpiceDialog::saveToItem() {
     m_item->update();
 }
 
-bool CurrentSourceLTSpiceDialog::eventFilter(QObject* obj, QEvent* event) {
+bool CurrentSourceAdvancedDialog::eventFilter(QObject* obj, QEvent* event) {
     if (obj == m_behavioralExpr) {
         if (event->type() == QEvent::KeyPress) {
             auto* keyEvent = static_cast<QKeyEvent*>(event);

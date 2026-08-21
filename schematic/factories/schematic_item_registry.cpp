@@ -177,7 +177,7 @@ void SchematicItemRegistry::registerBuiltInItems() {
         return new TransistorItem(pos, value, TransistorItem::PMOS, parent);
     });
 
-    // Register LTspice JFET symbols
+    // Register standard JFET symbols
     factory.registerItemType("njf", [makeGenericFromLibrary](QPointF pos, const QJsonObject& properties, QGraphicsItem* parent) -> SchematicItem* {
         const QString value = properties.value("value").toString("2N3819");
         if (auto* item = makeGenericFromLibrary("njf", pos, value, parent)) return item;
@@ -190,7 +190,7 @@ void SchematicItemRegistry::registerBuiltInItems() {
         return new TransistorItem(pos, value, TransistorItem::PMOS, parent);
     });
 
-    // Register LTspice BJT aliases
+    // Register standard BJT aliases
     auto addBjtAlias = [&](const QString& alias, bool pnp, const QString& defaultModel) {
         factory.registerItemType(alias, [makeGenericFromLibrary, alias, pnp, defaultModel](QPointF pos, const QJsonObject& properties, QGraphicsItem* parent) -> SchematicItem* {
             const QString value = properties.value("value").toString(defaultModel);
@@ -208,7 +208,7 @@ void SchematicItemRegistry::registerBuiltInItems() {
     addBjtAlias("pnp4", true, "2N3906");
     addBjtAlias("lpnp", true, "2N3906");
 
-    // Register LTspice MOSFET aliases
+    // Register standard MOSFET aliases
     auto addMosAlias = [&](const QString& alias, bool pmos, const QString& defaultModel) {
         factory.registerItemType(alias, [makeGenericFromLibrary, alias, pmos, defaultModel](QPointF pos, const QJsonObject& properties, QGraphicsItem* parent) -> SchematicItem* {
             const QString value = properties.value("value").toString(defaultModel);
@@ -275,7 +275,7 @@ void SchematicItemRegistry::registerBuiltInItems() {
     });
     addMosAlias("pmos4", true, "BS250");
 
-    // Register LTspice MESFET
+    // Register standard MESFET
     factory.registerItemType("mesfet", [makeGenericFromLibrary](QPointF pos, const QJsonObject& properties, QGraphicsItem* parent) -> SchematicItem* {
         const QString value = properties.value("value").toString("MyMesfet");
         if (auto* item = makeGenericFromLibrary("mesfet", pos, value, parent)) return item;

@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include "lt_rewriter.h"
+#include "spice_compat_rewriter.h"
 #include "../../../simulator/core/sim_value_parser.h"
 #include "model_injector.h"
 #include "xspice_block_translator.h"
@@ -221,7 +221,7 @@ QString buildStepApproxPwl(const QString& initialValue, const QStringList& stepV
 bool appendPwlPointList(const QString& listText, double timeScale, double valueScale, double baseTime, QList<PwlPoint>* points,
                         QString* error) {
     if (!points) return false;
-    const QStringList items = LtRewriter::splitTopLevelSpiceArgs(listText);
+    const QStringList items = SpiceCompatRewriter::splitTopLevelSpiceArgs(listText);
     if (items.size() < 2 || (items.size() % 2) != 0) {
         if (error) *error = "LT PWL point list must contain time/value pairs.";
         return false;
@@ -391,7 +391,7 @@ bool appendExpandedPwlSpecs(const QStringList& tokens, int* index, double timeSc
 
 } // namespace
 
-bool LtRewriter::rewriteLtCurrentSourceSpecial(const QString& ref, const QString& nplus, const QString& nminus,
+bool SpiceCompatRewriter::rewriteLtCurrentSourceSpecial(const QString& ref, const QString& nplus, const QString& nminus,
                                                         const QString& value, const QString& projectDir,
                                                         QString* replacement, QStringList* warnings) {
     if (!replacement) return false;
@@ -415,7 +415,7 @@ bool LtRewriter::rewriteLtCurrentSourceSpecial(const QString& ref, const QString
             QString spec = m.captured(1).trimmed();
             QStringList args;
             if (spec.startsWith('(') && spec.endsWith(')')) {
-                args = LtRewriter::splitTopLevelSpiceArgs(spec.mid(1, spec.size() - 2));
+                args = SpiceCompatRewriter::splitTopLevelSpiceArgs(spec.mid(1, spec.size() - 2));
             } else if ((spec.startsWith('"') && spec.endsWith('"')) || (!spec.contains(',') && !spec.contains('(') && !spec.contains('{'))) {
                 QString error;
                 if (!loadCurrentTablePairsFromFile(spec, projectDir, &args, &error)) {
@@ -428,7 +428,7 @@ bool LtRewriter::rewriteLtCurrentSourceSpecial(const QString& ref, const QString
             }
 
             QString error;
-            const QString expr = LtRewriter::buildCurrentTableExpr(QString("V(%1,%2)").arg(nplus, nminus), args, &error);
+            const QString expr = SpiceCompatRewriter::buildCurrentTableExpr(QString("V(%1,%2)").arg(nplus, nminus), args, &error);
             if (expr.isEmpty()) {
                 if (warnings && !error.isEmpty()) warnings->append(error);
                 return false;
@@ -446,7 +446,7 @@ bool LtRewriter::rewriteLtCurrentSourceSpecial(const QString& ref, const QString
         const QRegularExpressionMatch m = stepRe.match(trimmed);
         if (m.hasMatch()) {
             const QString baseValue = m.captured(1).trimmed();
-            const QStringList stepValues = LtRewriter::splitTopLevelSpiceArgs(m.captured(2));
+            const QStringList stepValues = SpiceCompatRewriter::splitTopLevelSpiceArgs(m.captured(2));
             if (!stepValues.isEmpty()) {
                 *replacement = QString("%1 %2 %3 %4").arg(ref, nplus, nminus, buildStepApproxPwl(baseValue, stepValues));
                 if (warnings) warnings->append(QString("Approximated LT current-source step(...) on %1 with a heuristic PWL load sequence; LT steady-state step timing is not fully reproduced.").arg(ref));
@@ -458,7 +458,7 @@ bool LtRewriter::rewriteLtCurrentSourceSpecial(const QString& ref, const QString
     return false;
 }
 
-QString LtRewriter::inlinePwlFileIfNeeded(const QString& value, const QString& projectDir, QStringList* warnings) {
+QString SpiceCompatRewriter::inlinePwlFileIfNeeded(const QString& value, const QString& projectDir, QStringList* warnings) {
     const QString v = value.trimmed();
     if (!v.contains("PWL", Qt::CaseInsensitive)) return value;
 
@@ -532,7 +532,7 @@ QString LtRewriter::inlinePwlFileIfNeeded(const QString& value, const QString& p
     return result;
 }
 
-bool LtRewriter::convertLtConditionToStepExpr(const QString& condition, QString* stepExpr) {
+bool SpiceCompatRewriter::convertLtConditionToStepExpr(const QString& condition, QString* stepExpr) {
     if (!stepExpr) return false;
 
     int parenDepth = 0;
@@ -575,7 +575,7 @@ bool LtRewriter::convertLtConditionToStepExpr(const QString& condition, QString*
     return !condition.trimmed().isEmpty();
 }
 
-void LtRewriter::updateSubcktDepthForLine(const QString& line, int& subcktDepth) {
+void SpiceCompatRewriter::updateSubcktDepthForLine(const QString& line, int& subcktDepth) {
     const QString trimmed = line.trimmed();
     if (!trimmed.startsWith('.')) return;
     const QString card = trimmed.section(QRegularExpression("\\s+"), 0, 0).trimmed().toLower();
@@ -586,7 +586,7 @@ void LtRewriter::updateSubcktDepthForLine(const QString& line, int& subcktDepth)
     }
 }
 
-QString LtRewriter::rewriteLtBehavioralIf(const QString& line, QStringList* warnings) {
+QString SpiceCompatRewriter::rewriteLtBehavioralIf(const QString& line, QStringList* warnings) {
     QString out = line;
 
     auto findTopLevelComparison = [](const QString& text, int* opPos, QString* op) {
@@ -668,7 +668,7 @@ QString LtRewriter::rewriteLtBehavioralIf(const QString& line, QStringList* warn
     return out;
 }
 
-QString LtRewriter::rewriteLtVoltageSourceExtras(const QString& line, QStringList* warnings) {
+QString SpiceCompatRewriter::rewriteLtVoltageSourceExtras(const QString& line, QStringList* warnings) {
     QString out = line;
 
     static const QRegularExpression voltageSourceExtrasRe(
@@ -724,7 +724,7 @@ QString LtRewriter::rewriteLtVoltageSourceExtras(const QString& line, QStringLis
     return out;
 }
 
-QString LtRewriter::rewriteLtTriggeredPulseSource(const QString& line, QStringList* warnings) {
+QString SpiceCompatRewriter::rewriteLtTriggeredPulseSource(const QString& line, QStringList* warnings) {
     static const QRegularExpression sourceRe(
         "^\\s*(V\\S*)\\s+(\\S+)\\s+(\\S+)\\s+(.+)$",
         QRegularExpression::CaseInsensitiveOption);
@@ -772,7 +772,7 @@ QString LtRewriter::rewriteLtTriggeredPulseSource(const QString& line, QStringLi
     return rewrittenLines.join("\n");
 }
 
-QString LtRewriter::rewriteLtTriggeredPwlSource(const QString& line, QStringList* warnings) {
+QString SpiceCompatRewriter::rewriteLtTriggeredPwlSource(const QString& line, QStringList* warnings) {
     static const QRegularExpression sourceRe(
         "^\\s*(V\\S*)\\s+(\\S+)\\s+(\\S+)\\s+(.+)$",
         QRegularExpression::CaseInsensitiveOption);
@@ -812,7 +812,7 @@ QString LtRewriter::rewriteLtTriggeredPwlSource(const QString& line, QStringList
     return rewrittenLines.join("\n");
 }
 
-QString LtRewriter::rewriteLtTriggeredWaveSource(const QString& line, const QString& kind, QStringList* warnings) {
+QString SpiceCompatRewriter::rewriteLtTriggeredWaveSource(const QString& line, const QString& kind, QStringList* warnings) {
     static const QRegularExpression sourceRe(
         "^\\s*(V\\S*)\\s+(\\S+)\\s+(\\S+)\\s+(.+)$",
         QRegularExpression::CaseInsensitiveOption);
@@ -852,7 +852,7 @@ QString LtRewriter::rewriteLtTriggeredWaveSource(const QString& line, const QStr
     return rewrittenLines.join("\n");
 }
 
-QString LtRewriter::rewriteLtBehavioralFunctions(const QString& line, QStringList* warnings) {
+QString SpiceCompatRewriter::rewriteLtBehavioralFunctions(const QString& line, QStringList* warnings) {
     struct RewriteRule {
         QString name;
         int minArgs;
@@ -926,11 +926,11 @@ QString LtRewriter::rewriteLtBehavioralFunctions(const QString& line, QStringLis
     return out;
 }
 
-QStringList LtRewriter::tokenizeLtOtaLine(const QString& line) {
+QStringList SpiceCompatRewriter::tokenizeLtOtaLine(const QString& line) {
     return line.simplified().split(' ', Qt::SkipEmptyParts);
 }
 
-QString LtRewriter::buildNgspiceOtaTranslation(const QString& line) {
+QString SpiceCompatRewriter::buildNgspiceOtaTranslation(const QString& line) {
     const QStringList tokens = tokenizeLtOtaLine(line);
     if (tokens.size() < 10) return QString();
     if (tokens.at(9).compare("OTA", Qt::CaseInsensitive) != 0) return QString();
@@ -1014,7 +1014,7 @@ QString LtRewriter::buildNgspiceOtaTranslation(const QString& line) {
     return lines.join('\n');
 }
 
-QString LtRewriter::rewriteUnsupportedLtBehavioralTimeFunctions(const QString& line, QStringList* warnings) {
+QString SpiceCompatRewriter::rewriteUnsupportedLtBehavioralTimeFunctions(const QString& line, QStringList* warnings) {
     QString out = line;
     struct FuncSpec { QString name; int minArgs; int maxArgs; };
     const QList<FuncSpec> funcs = {
@@ -1053,7 +1053,7 @@ QString LtRewriter::rewriteUnsupportedLtBehavioralTimeFunctions(const QString& l
     return out;
 }
 
-QString LtRewriter::rewriteUnsupportedLtTableFunction(const QString& line, QStringList* warnings) {
+QString SpiceCompatRewriter::rewriteUnsupportedLtTableFunction(const QString& line, QStringList* warnings) {
     QString out = line;
     bool changed = false;
 
@@ -1095,7 +1095,7 @@ QString LtRewriter::rewriteUnsupportedLtTableFunction(const QString& line, QStri
     return out;
 }
 
-QString LtRewriter::buildCurrentTableExpr(const QString& xExpr, const QStringList& args, QString* error) {
+QString SpiceCompatRewriter::buildCurrentTableExpr(const QString& xExpr, const QStringList& args, QString* error) {
     if (args.size() < 2 || (args.size() % 2) != 0) {
         if (error) *error = "Current-source table requires voltage/current pairs.";
         return QString();
@@ -1117,7 +1117,7 @@ QString LtRewriter::buildCurrentTableExpr(const QString& xExpr, const QStringLis
     return expr;
 }
 
-QString LtRewriter::rewriteUnsupportedLtStochasticFunctions(const QString& line, QStringList* warnings) {
+QString SpiceCompatRewriter::rewriteUnsupportedLtStochasticFunctions(const QString& line, QStringList* warnings) {
     QString out = line;
     struct FuncSpec { QString name; int minArgs; int maxArgs; QString replacement; };
     const QList<FuncSpec> funcs = {
@@ -1154,7 +1154,7 @@ QString LtRewriter::rewriteUnsupportedLtStochasticFunctions(const QString& line,
     return out;
 }
 
-QString LtRewriter::rewriteLtBSourceLaplaceOptions(const QString& line, QStringList* warnings) {
+QString SpiceCompatRewriter::rewriteLtBSourceLaplaceOptions(const QString& line, QStringList* warnings) {
     static const QRegularExpression bSourceRe(
         "^\\s*(B\\S+)\\s+\\S+\\s+\\S+\\s+(?:V|I|R|P)\\s*=.*$",
         QRegularExpression::CaseInsensitiveOption);
@@ -1186,7 +1186,7 @@ QString LtRewriter::rewriteLtBSourceLaplaceOptions(const QString& line, QStringL
     return out;
 }
 
-QString LtRewriter::rewriteLtBehavioralSourceRpar(const QString& line, QStringList* warnings) {
+QString SpiceCompatRewriter::rewriteLtBehavioralSourceRpar(const QString& line, QStringList* warnings) {
     static const QRegularExpression bSourceRe(
         "^\\s*(B\\S+)\\s+(\\S+)\\s+(\\S+)\\s+([IR])\\s*=\\s*(.+)$",
         QRegularExpression::CaseInsensitiveOption);
@@ -1220,7 +1220,7 @@ QString LtRewriter::rewriteLtBehavioralSourceRpar(const QString& line, QStringLi
     return out;
 }
 
-QString LtRewriter::rewriteLtSourceTripOptions(const QString& line, QStringList* warnings) {
+QString SpiceCompatRewriter::rewriteLtSourceTripOptions(const QString& line, QStringList* warnings) {
     static const QRegularExpression sourceRe(
         "^\\s*([VI]\\S*)\\s+(\\S+)\\s+(\\S+)\\s+(.+)$",
         QRegularExpression::CaseInsensitiveOption);
@@ -1259,7 +1259,7 @@ QString LtRewriter::rewriteLtSourceTripOptions(const QString& line, QStringList*
     return out;
 }
 
-QString LtRewriter::rewriteLtBSourceTripOptions(const QString& line, QStringList* warnings) {
+QString SpiceCompatRewriter::rewriteLtBSourceTripOptions(const QString& line, QStringList* warnings) {
     static const QRegularExpression bSourceRe(
         "^\\s*(B\\S+)\\s+(\\S+)\\s+(\\S+)\\s+([VIRP])\\s*=\\s*(.+)$",
         QRegularExpression::CaseInsensitiveOption);
@@ -1293,7 +1293,7 @@ QString LtRewriter::rewriteLtBSourceTripOptions(const QString& line, QStringList
     return out;
 }
 
-void LtRewriter::appendLtBSourceOptionWarnings(const QString& line, QStringList* warnings) {
+void SpiceCompatRewriter::appendLtBSourceOptionWarnings(const QString& line, QStringList* warnings) {
     if (!warnings) return;
 
     static const QRegularExpression bSourceRe(
@@ -1320,7 +1320,7 @@ void LtRewriter::appendLtBSourceOptionWarnings(const QString& line, QStringList*
     }
 }
 
-void LtRewriter::appendLtSourceOptionWarnings(const QString& line, QStringList* warnings) {
+void SpiceCompatRewriter::appendLtSourceOptionWarnings(const QString& line, QStringList* warnings) {
     if (!warnings) return;
 
     static const QRegularExpression sourceRe(
@@ -1356,7 +1356,7 @@ void LtRewriter::appendLtSourceOptionWarnings(const QString& line, QStringList* 
     }
 }
 
-QString LtRewriter::rewriteLtStartupSourceLine(const QString& line, QStringList* warnings) {
+QString SpiceCompatRewriter::rewriteLtStartupSourceLine(const QString& line, QStringList* warnings) {
     static const QString startupScaleExpr = "min(1,max(0,time/20u))";
     static const QRegularExpression simpleValueRe(
         "^(?:DC\\s+)?(\\{[^}]+\\}|[-+]?\\d+(?:\\.\\d+)?(?:[eE][-+]?\\d+)?[a-zA-Z]*)$",
@@ -1412,7 +1412,7 @@ QString LtRewriter::rewriteLtStartupSourceLine(const QString& line, QStringList*
     return rewritten;
 }
 
-QString LtRewriter::rewriteLtDirectiveLine(const QString& line, QStringList* warnings, bool emulateStartup, const QString& projectDir) {
+QString SpiceCompatRewriter::rewriteLtDirectiveLine(const QString& line, QStringList* warnings, bool emulateStartup, const QString& projectDir) {
     QString out = line;
 
     appendLtBSourceOptionWarnings(out, warnings);
@@ -1774,7 +1774,7 @@ QString LtRewriter::rewriteLtDirectiveLine(const QString& line, QStringList* war
     return out;
 }
 
-QStringList LtRewriter::collapseSpiceContinuationLines(const QString& text) {
+QStringList SpiceCompatRewriter::collapseSpiceContinuationLines(const QString& text) {
     QStringList collapsed;
     QString current;
 
@@ -1804,7 +1804,7 @@ QStringList LtRewriter::collapseSpiceContinuationLines(const QString& text) {
     return collapsed;
 }
 
-QStringList LtRewriter::splitTopLevelSpiceArgs(const QString& text) {
+QStringList SpiceCompatRewriter::splitTopLevelSpiceArgs(const QString& text) {
     QStringList args;
     QString current;
     int parenDepth = 0;
@@ -1826,7 +1826,7 @@ QStringList LtRewriter::splitTopLevelSpiceArgs(const QString& text) {
     return args;
 }
 
-int LtRewriter::findMatchingParen(const QString& text, int openIndex) {
+int SpiceCompatRewriter::findMatchingParen(const QString& text, int openIndex) {
     if (openIndex < 0 || openIndex >= text.size() || text.at(openIndex) != '(') return -1;
     int depth = 0;
     for (int i = openIndex; i < text.size(); ++i) {

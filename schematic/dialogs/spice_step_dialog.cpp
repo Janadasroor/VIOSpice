@@ -203,7 +203,7 @@ SpiceStepDialog::SpiceStepDialog(const QString& initialCommand, QGraphicsScene* 
     auto* mainLayout = new QVBoxLayout(this);
 
     auto* hero = new QLabel(
-        "Build LTspice-style <b>.step</b> directives with supported VioSpice sweep forms. "
+        "Build parametric <b>.step</b> directives with supported sweep forms. "
         "Use this for parameter, temperature, source, or model stepping.",
         this);
     hero->setWordWrap(true);
@@ -264,7 +264,7 @@ SpiceStepDialog::SpiceStepDialog(const QString& initialCommand, QGraphicsScene* 
     auto* tempPage = new QWidget(this);
     auto* tempLayout = new QHBoxLayout(tempPage);
     tempLayout->setContentsMargins(0, 0, 0, 0);
-    auto* tempInfo = new QLabel("Temperature sweeps target LTspice 'temp'.", tempPage);
+    auto* tempInfo = new QLabel("Temperature sweeps target standard parameter 'temp'.", tempPage);
     tempInfo->setStyleSheet(QString("color: %1;").arg(textSecondary));
     tempLayout->addWidget(tempInfo);
     m_targetStack->addWidget(tempPage);
@@ -850,7 +850,7 @@ void SpiceStepDialog::updatePreview() {
     const QString validation = validationMessage();
     if (m_validationLabel) {
         m_validationLabel->setText(validation.isEmpty()
-            ? QString("Supported by VioSpice LTspice emulation. The generated directive is ready to use.")
+            ? QString("Supported by VioSpice parametric engine. The generated directive is ready to use.")
             : validation);
         m_validationLabel->setStyleSheet(validation.isEmpty()
             ? "color: #10b981; font-size: 11px;"

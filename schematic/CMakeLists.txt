@@ -71,8 +71,8 @@ target_sources(VioSchematic PRIVATE
     analysis/passes/xspice_block_translator.h
     analysis/passes/netlist_formatter.cpp
     analysis/passes/netlist_formatter.h
-    analysis/passes/lt_rewriter.cpp
-    analysis/passes/lt_rewriter.h
+    analysis/passes/spice_compat_rewriter.cpp
+    analysis/passes/spice_compat_rewriter.h
     models/schematic_schema.h
 )
 

@@ -115,7 +115,7 @@ QString extractRefPrefix(const QString& ref) {
     return out;
 }
 
-QSet<QString> ltspiceRootBuiltinNames() {
+QSet<QString> standardRootBuiltinNames() {
     static const QSet<QString> names = {
         "FerriteBead",
         "FerriteBead2",
@@ -735,7 +735,7 @@ MappingResult mapComponentToSimType(const ECOComponent& comp) {
                 return r;
             }
             if (comp.type == SchematicItem::CustomType) {
-                const QSet<QString> ltBuiltins = ltspiceRootBuiltinNames();
+                const QSet<QString> ltBuiltins = standardRootBuiltinNames();
                 if (!ltBuiltins.isEmpty() && ltBuiltins.contains(comp.typeName)) {
                     const QString refPrefix = extractRefPrefix(comp.reference);
                     const QString nameLower = comp.typeName.toLower();

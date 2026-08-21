@@ -76,18 +76,18 @@ QStringList preferredFiles(PassiveModelPickerDialog::Kind kind) {
     if (kind == PassiveModelPickerDialog::Kind::Resistor) {
         return {
             home + "/ViospiceLib/lib/resistors_standard.lib",
-            home + "/Documents/ltspice/cmp/standard.res"
+            home + "/Documents/spice/cmp/standard.res"
         };
     }
     if (kind == PassiveModelPickerDialog::Kind::Capacitor) {
         return {
             home + "/ViospiceLib/lib/capacitors_standard.lib",
-            home + "/Documents/ltspice/cmp/standard.cap"
+            home + "/Documents/spice/cmp/standard.cap"
         };
     }
     return {
         home + "/ViospiceLib/lib/inductors_standard.lib",
-        home + "/Documents/ltspice/cmp/standard.ind"
+        home + "/Documents/spice/cmp/standard.ind"
     };
 }
 

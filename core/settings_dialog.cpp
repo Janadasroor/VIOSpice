@@ -233,7 +233,7 @@ void SettingsDialog::setupUI() {
     laySyms->addWidget(m_symbolPathsEdit);
     layLibs->addWidget(grpSyms);
 
-    QGroupBox* grpRoots = new QGroupBox("Library Root Paths (LTspice-style)");
+    QGroupBox* grpRoots = new QGroupBox("Library Root Paths (Standard Model Folders)");
     QVBoxLayout* layRoots = new QVBoxLayout(grpRoots);
     m_libraryRootsEdit = new QTextEdit();
     layRoots->addWidget(m_libraryRootsEdit);

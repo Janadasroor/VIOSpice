@@ -45,45 +45,45 @@ private Q_SLOTS:
     void generatesWarningsAndHonorsManualDirectives();
     void reportsDuplicateElementsAndUnclosedSubckts();
     void honorsExplicitSaveDirective();
-    void rewritesSimpleLtspiceIfExpressions();
+    void rewritesSimpleIfExpressions();
     void rewritesIfWithTrueAndFalseBranches();
-    void rewritesNestedLtspiceIfInDirectiveElement();
+    void rewritesNestedIfInDirectiveElement();
     void acceptsLm555BehavioralSubcktDirective();
     void simulatesLm555BehavioralSubcktDirective();
-    void rewritesLtspiceBooleanOperators();
+    void rewritesBooleanOperators();
     void rewritesIdtWithInitialConditionAndReset();
-    void rewritesLtspiceBehavioralHelperFunctions();
+    void rewritesBehavioralHelperFunctions();
     void approximatesUnsupportedBehavioralTimeFunctions();
-    void approximatesLtspiceTableFunction();
-    void warnsAboutLtspiceStepFourAndWaveDirectives();
-    void warnsAboutLtspiceFuncDynamicScoping();
-    void warnsAboutLtspiceWavefileSources();
-    void warnsAboutLtspiceBehavioralAndTriggeredSourceOptions();
-    void warnsAboutLtspiceMeasForms();
+    void approximatesTableFunction();
+    void warnsAboutStepFourAndWaveDirectives();
+    void warnsAboutFuncDynamicScoping();
+    void warnsAboutWavefileSources();
+    void warnsAboutBehavioralAndTriggeredSourceOptions();
+    void warnsAboutMeasForms();
     void rewritesVoltageSourceInstanceExtras();
-    void rewritesAdvancedLtspicePwlForms();
-    void rewritesLtspicePwlScopedataAndNestedRepeat();
-    void rewritesLtspicePwlRelativeBraceTimes();
-    void warnsAboutIllFormedLtspicePwlRepeat();
-    void rewritesLtspiceCurrentSourceSpecialForms();
+    void rewritesAdvancedPwlForms();
+    void rewritesPwlScopedataAndNestedRepeat();
+    void rewritesPwlRelativeBraceTimes();
+    void warnsAboutIllFormedPwlRepeat();
+    void rewritesCurrentSourceSpecialForms();
     void preservesMutualInductorDirectives();
     void preservesMultiInductorMutualCouplingDirectives();
     void expandsInductorParasiticsForNgspiceCompatibility();
-    void loadsBoostConverterLtspiceDirectiveInNgspice();
-    void emulatesLtspiceStepParamList();
-    void emulatesLtspiceStepParamFileList();
-    void emulatesLtspiceStepSourceFileList();
-    void sortsFirstLtspiceStepDimensionIncreasing();
-    void emulatesLtspiceStepModelParameterList();
-    void emulatesLtspiceStepModelParameterFileList();
-    void emulatesLtspiceStepModelParameterOnContinuedModelCard();
+    void loadsBoostConverterDirectiveInNgspice();
+    void emulatesStepParamList();
+    void emulatesStepParamFileList();
+    void emulatesStepSourceFileList();
+    void sortsFirstStepDimensionIncreasing();
+    void emulatesStepModelParameterList();
+    void emulatesStepModelParameterFileList();
+    void emulatesStepModelParameterOnContinuedModelCard();
     void boostConverterFeedbackDoesNotRunAway();
-    void evaluatesLtspiceMeasStatements();
-    void evaluatesLtspiceMeasParamAndTrigTargIntervals();
-    void evaluatesLtspiceMeasExpressionConditions();
-    void evaluatesLtspiceAcMeasStatements();
-    void evaluatesLtspiceNetOnePortStatements();
-    void evaluatesLtspiceNetTwoPortStatements();
+    void evaluatesMeasStatements();
+    void evaluatesMeasParamAndTrigTargIntervals();
+    void evaluatesMeasExpressionConditions();
+    void evaluatesAcMeasStatements();
+    void evaluatesNetOnePortStatements();
+    void evaluatesNetTwoPortStatements();
     void mixedModeManagerInsertsAdcAndDacBridges();
     void logicComponentGeneratesVectorizedSubcircuit();
     void symbolDefinitionResolvesExplicitPinMetadata();
@@ -168,7 +168,7 @@ void SpiceDirectiveNetlistTest::honorsExplicitSaveDirective() {
     QVERIFY2(!netlist.contains(".save all"), qPrintable(netlist));
 }
 
-void SpiceDirectiveNetlistTest::rewritesSimpleLtspiceIfExpressions() {
+void SpiceDirectiveNetlistTest::rewritesSimpleIfExpressions() {
     QGraphicsScene scene;
 
     auto* directive = new SchematicSpiceDirectiveItem(
@@ -213,7 +213,7 @@ void SpiceDirectiveNetlistTest::rewritesIfWithTrueAndFalseBranches() {
     QVERIFY2(netlist.contains("BDRV G 0 V={((12)*(u((V(IN))-(0.5))) + (-3)*(1-(u((V(IN))-(0.5)))))"), qPrintable(netlist));
 }
 
-void SpiceDirectiveNetlistTest::rewritesNestedLtspiceIfInDirectiveElement() {
+void SpiceDirectiveNetlistTest::rewritesNestedIfInDirectiveElement() {
     QGraphicsScene scene;
 
     auto* directive = new SchematicSpiceDirectiveItem(
@@ -244,7 +244,7 @@ void SpiceDirectiveNetlistTest::acceptsLm555BehavioralSubcktDirective() {
     QGraphicsScene scene;
 
     auto* directive = new SchematicSpiceDirectiveItem(
-        "* LM555 Timer Behavioral Subcircuit for LTspice (Named Pins & Convergence Fixed)\n"
+        "* LM555 Timer Behavioral Subcircuit for  (Named Pins & Convergence Fixed)\n"
         "* Based on Texas Instruments LM555 Datasheet\n"
         "*\n"
         "* Port Order matches the auto-generated symbol pins\n"
@@ -382,7 +382,7 @@ void SpiceDirectiveNetlistTest::simulatesLm555BehavioralSubcktDirective() {
     QVERIFY2(sawDisch, "Expected discharge waveform V(DISCH) from LM555 simulation.");
 }
 
-void SpiceDirectiveNetlistTest::rewritesLtspiceBooleanOperators() {
+void SpiceDirectiveNetlistTest::rewritesBooleanOperators() {
     QGraphicsScene scene;
 
     auto* directive = new SchematicSpiceDirectiveItem(
@@ -432,7 +432,7 @@ void SpiceDirectiveNetlistTest::rewritesIdtWithInitialConditionAndReset() {
     QVERIFY2(netlist.contains("BSDT ps 0 V={V(BSDT__idt)}"), qPrintable(netlist));
 }
 
-void SpiceDirectiveNetlistTest::rewritesLtspiceBehavioralHelperFunctions() {
+void SpiceDirectiveNetlistTest::rewritesBehavioralHelperFunctions() {
     QGraphicsScene scene;
 
     auto* directive = new SchematicSpiceDirectiveItem(
@@ -506,7 +506,7 @@ void SpiceDirectiveNetlistTest::approximatesUnsupportedBehavioralTimeFunctions()
     QVERIFY2(netlist.contains("Approximated LT absdelay(...) by passing through its input expression because this ngspice configuration does not support absdelay(...)."), qPrintable(netlist));
 }
 
-void SpiceDirectiveNetlistTest::approximatesLtspiceTableFunction() {
+void SpiceDirectiveNetlistTest::approximatesTableFunction() {
     QGraphicsScene scene;
 
     auto* directive = new SchematicSpiceDirectiveItem(
@@ -527,7 +527,7 @@ void SpiceDirectiveNetlistTest::approximatesLtspiceTableFunction() {
     QVERIFY2(netlist.contains("Approximated LT table(...) with nested conditional interpolation for ngspice compatibility"), qPrintable(netlist));
 }
 
-void SpiceDirectiveNetlistTest::warnsAboutLtspiceStepFourAndWaveDirectives() {
+void SpiceDirectiveNetlistTest::warnsAboutStepFourAndWaveDirectives() {
     QGraphicsScene scene;
 
     auto* directive = new SchematicSpiceDirectiveItem(
@@ -552,7 +552,7 @@ void SpiceDirectiveNetlistTest::warnsAboutLtspiceStepFourAndWaveDirectives() {
     QVERIFY2(netlist.contains("LT .wave detected in line 3; ngspice does not support LT WAV export directives."), qPrintable(netlist));
 }
 
-void SpiceDirectiveNetlistTest::warnsAboutLtspiceFuncDynamicScoping() {
+void SpiceDirectiveNetlistTest::warnsAboutFuncDynamicScoping() {
     QGraphicsScene scene;
 
     auto* directive = new SchematicSpiceDirectiveItem(
@@ -577,7 +577,7 @@ void SpiceDirectiveNetlistTest::warnsAboutLtspiceFuncDynamicScoping() {
     QVERIFY2(netlist.contains("LT .func detected in line 2; user-defined functions may rely on LT dynamic scoping, so verify ngspice compatibility when referenced inside subcircuits or with local .param overrides."), qPrintable(netlist));
 }
 
-void SpiceDirectiveNetlistTest::warnsAboutLtspiceWavefileSources() {
+void SpiceDirectiveNetlistTest::warnsAboutWavefileSources() {
     QGraphicsScene scene;
 
     auto* directive = new SchematicSpiceDirectiveItem(
@@ -600,7 +600,7 @@ void SpiceDirectiveNetlistTest::warnsAboutLtspiceWavefileSources() {
     QVERIFY2(netlist.contains("LT chan= option for wavefile-backed sources detected in line 2; verify channel-selection compatibility manually."), qPrintable(netlist));
 }
 
-void SpiceDirectiveNetlistTest::warnsAboutLtspiceBehavioralAndTriggeredSourceOptions() {
+void SpiceDirectiveNetlistTest::warnsAboutBehavioralAndTriggeredSourceOptions() {
     QGraphicsScene scene;
 
     auto* directive = new SchematicSpiceDirectiveItem(
@@ -678,7 +678,7 @@ void SpiceDirectiveNetlistTest::warnsAboutLtspiceBehavioralAndTriggeredSourceOpt
     QVERIFY2(netlist.contains("B__TRIGBUF_VSFFM out6 0 V={(u((V(mod))-(0.5)))*V(VSFFM__trigger_src,0)}"), qPrintable(netlist));
 }
 
-void SpiceDirectiveNetlistTest::warnsAboutLtspiceMeasForms() {
+void SpiceDirectiveNetlistTest::warnsAboutMeasForms() {
     QGraphicsScene scene;
 
     auto* directive = new SchematicSpiceDirectiveItem(
@@ -737,12 +737,12 @@ void SpiceDirectiveNetlistTest::rewritesVoltageSourceInstanceExtras() {
     QVERIFY2(!netlist.contains(QRegularExpression("^\\.tran.*\\bstartup\\b", QRegularExpression::CaseInsensitiveOption | QRegularExpression::MultilineOption)), qPrintable(netlist));
 }
 
-void SpiceDirectiveNetlistTest::rewritesAdvancedLtspicePwlForms() {
+void SpiceDirectiveNetlistTest::rewritesAdvancedPwlForms() {
     QGraphicsScene scene;
 
     QTemporaryFile pwlFile;
     pwlFile.setAutoRemove(true);
-    QVERIFY2(pwlFile.open(), "Failed to create LTspice PWL file fixture.");
+    QVERIFY2(pwlFile.open(), "Failed to create  PWL file fixture.");
     QTextStream out(&pwlFile);
     out << "* comment\n";
     out << "0.5u, 4\n";
@@ -771,12 +771,12 @@ void SpiceDirectiveNetlistTest::rewritesAdvancedLtspicePwlForms() {
     QVERIFY2(!netlist.contains("\nVREP out1 0 PWL REPEAT FOR", Qt::CaseInsensitive), qPrintable(netlist));
 }
 
-void SpiceDirectiveNetlistTest::rewritesLtspicePwlScopedataAndNestedRepeat() {
+void SpiceDirectiveNetlistTest::rewritesPwlScopedataAndNestedRepeat() {
     QGraphicsScene scene;
 
     QTemporaryFile scopeFile;
     scopeFile.setAutoRemove(true);
-    QVERIFY2(scopeFile.open(), "Failed to create LTspice SCOPEDATA fixture.");
+    QVERIFY2(scopeFile.open(), "Failed to create  SCOPEDATA fixture.");
     QTextStream out(&scopeFile);
     out << "-1 7\n";
     out << "0 2\n";
@@ -807,7 +807,7 @@ void SpiceDirectiveNetlistTest::rewritesLtspicePwlScopedataAndNestedRepeat() {
     QVERIFY2(netlist.contains("LT PWL REPEAT FOREVER is not fully supported by VioSpice; keeping a single waveform period."), qPrintable(netlist));
 }
 
-void SpiceDirectiveNetlistTest::rewritesLtspicePwlRelativeBraceTimes() {
+void SpiceDirectiveNetlistTest::rewritesPwlRelativeBraceTimes() {
     QGraphicsScene scene;
 
     auto* directive = new SchematicSpiceDirectiveItem(
@@ -826,7 +826,7 @@ void SpiceDirectiveNetlistTest::rewritesLtspicePwlRelativeBraceTimes() {
     QVERIFY2(netlist.contains("VREL out 0 PWL(1e-06 1 {1e-06+(2u/2)} 2 {{1e-06+(2u/2)}+(3u-1u)} 3)"), qPrintable(netlist));
 }
 
-void SpiceDirectiveNetlistTest::warnsAboutIllFormedLtspicePwlRepeat() {
+void SpiceDirectiveNetlistTest::warnsAboutIllFormedPwlRepeat() {
     QGraphicsScene scene;
 
     auto* directive = new SchematicSpiceDirectiveItem(
@@ -846,7 +846,7 @@ void SpiceDirectiveNetlistTest::warnsAboutIllFormedLtspicePwlRepeat() {
     QVERIFY2(netlist.contains("Ill-formed LT PWL REPEAT block: first repeated time is zero but first and last values differ."), qPrintable(netlist));
 }
 
-void SpiceDirectiveNetlistTest::rewritesLtspiceCurrentSourceSpecialForms() {
+void SpiceDirectiveNetlistTest::rewritesCurrentSourceSpecialForms() {
     QGraphicsScene scene;
 
     auto* directive = new SchematicSpiceDirectiveItem(
@@ -980,7 +980,7 @@ void SpiceDirectiveNetlistTest::preservesMultiInductorMutualCouplingDirectives()
     QCOMPARE(netlist.count(".tran "), 1);
 }
 
-void SpiceDirectiveNetlistTest::loadsBoostConverterLtspiceDirectiveInNgspice() {
+void SpiceDirectiveNetlistTest::loadsBoostConverterDirectiveInNgspice() {
     if (!isSimulationAvailable()) {
         QSKIP("Ngspice is not available in this build.");
     }
@@ -1065,7 +1065,7 @@ void SpiceDirectiveNetlistTest::loadsBoostConverterLtspiceDirectiveInNgspice() {
     QVERIFY2(SimulationManager::instance().validateNetlist(temp.fileName(), &error), qPrintable(error));
 }
 
-void SpiceDirectiveNetlistTest::emulatesLtspiceStepParamList() {
+void SpiceDirectiveNetlistTest::emulatesStepParamList() {
     if (!isSimulationAvailable()) {
         QSKIP("Ngspice is not available in this build.");
     }
@@ -1079,7 +1079,7 @@ void SpiceDirectiveNetlistTest::emulatesLtspiceStepParamList() {
         "C1 out 0 1u\n"
         ".tran 100u 4m\n"
         "* .step param RLOAD LIST 1k 2k\n"
-        "* LTspice .step omitted: this ngspice configuration reports .step as unimplemented\n"
+        "*  .step omitted: this ngspice configuration reports .step as unimplemented\n"
         ".end\n";
 
     SimResults results;
@@ -1117,7 +1117,7 @@ void SpiceDirectiveNetlistTest::emulatesLtspiceStepParamList() {
     QVERIFY2(!results.diagnostics.empty(), "Expected step sweep diagnostics.");
 }
 
-void SpiceDirectiveNetlistTest::emulatesLtspiceStepParamFileList() {
+void SpiceDirectiveNetlistTest::emulatesStepParamFileList() {
     if (!isSimulationAvailable()) {
         QSKIP("Ngspice is not available in this build.");
     }
@@ -1126,7 +1126,7 @@ void SpiceDirectiveNetlistTest::emulatesLtspiceStepParamFileList() {
     valuesFile.setAutoRemove(true);
     QVERIFY2(valuesFile.open(), "Failed to create .step values file.");
     QTextStream out(&valuesFile);
-    out << "* LTspice .step values\n";
+    out << "*  .step values\n";
     out << "1k, 2k\n";
     out << "; trailing comment\n";
     out.flush();
@@ -1140,7 +1140,7 @@ void SpiceDirectiveNetlistTest::emulatesLtspiceStepParamFileList() {
         "C1 out 0 1u\n"
         ".tran 0.1m 2m\n" +
         QString("* .step param RLOAD file=\"%1\"\n").arg(valuesFile.fileName()) +
-        "* LTspice .step omitted: this ngspice configuration reports .step as unimplemented\n"
+        "*  .step omitted: this ngspice configuration reports .step as unimplemented\n"
         ".end\n";
 
     SimResults results;
@@ -1177,7 +1177,7 @@ void SpiceDirectiveNetlistTest::emulatesLtspiceStepParamFileList() {
     QVERIFY2(saw2k, "Missing waveform set for RLOAD=2k file sweep case.");
 }
 
-void SpiceDirectiveNetlistTest::emulatesLtspiceStepSourceFileList() {
+void SpiceDirectiveNetlistTest::emulatesStepSourceFileList() {
     if (!isSimulationAvailable()) {
         QSKIP("Ngspice is not available in this build.");
     }
@@ -1197,7 +1197,7 @@ void SpiceDirectiveNetlistTest::emulatesLtspiceStepSourceFileList() {
         "R1 in 0 1k\n"
         ".op\n" +
         QString("* .step V1 file=\"%1\"\n").arg(valuesFile.fileName()) +
-        "* LTspice .step omitted: this ngspice configuration reports .step as unimplemented\n"
+        "*  .step omitted: this ngspice configuration reports .step as unimplemented\n"
         ".end\n";
 
     SimResults results;
@@ -1237,7 +1237,7 @@ void SpiceDirectiveNetlistTest::emulatesLtspiceStepSourceFileList() {
              "Expected source file sweep to produce operating-point results.");
 }
 
-void SpiceDirectiveNetlistTest::sortsFirstLtspiceStepDimensionIncreasing() {
+void SpiceDirectiveNetlistTest::sortsFirstStepDimensionIncreasing() {
     if (!isSimulationAvailable()) {
         QSKIP("Ngspice is not available in this build.");
     }
@@ -1251,7 +1251,7 @@ void SpiceDirectiveNetlistTest::sortsFirstLtspiceStepDimensionIncreasing() {
         ".op\n"
         "* .step param A LIST 3 1 2\n"
         "* .step param B LIST 9 8\n"
-        "* LTspice .step omitted: this ngspice configuration reports .step as unimplemented\n"
+        "*  .step omitted: this ngspice configuration reports .step as unimplemented\n"
         ".end\n";
 
     SimResults results;
@@ -1293,7 +1293,7 @@ void SpiceDirectiveNetlistTest::sortsFirstLtspiceStepDimensionIncreasing() {
     QVERIFY2(d6.contains("A=3") && d6.contains("B=8"), qPrintable(d6));
 }
 
-void SpiceDirectiveNetlistTest::emulatesLtspiceStepModelParameterList() {
+void SpiceDirectiveNetlistTest::emulatesStepModelParameterList() {
     if (!isSimulationAvailable()) {
         QSKIP("Ngspice is not available in this build.");
     }
@@ -1307,7 +1307,7 @@ void SpiceDirectiveNetlistTest::emulatesLtspiceStepModelParameterList() {
         "Q1 collector base 0 QDRV\n"
         ".op\n"
         "* .step NPN QDRV(Bf) LIST 50 200\n"
-        "* LTspice .step omitted: this ngspice configuration reports .step as unimplemented\n"
+        "*  .step omitted: this ngspice configuration reports .step as unimplemented\n"
         ".end\n";
 
     SimResults results;
@@ -1358,7 +1358,7 @@ void SpiceDirectiveNetlistTest::emulatesLtspiceStepModelParameterList() {
                             .arg(vc200)));
 }
 
-void SpiceDirectiveNetlistTest::emulatesLtspiceStepModelParameterFileList() {
+void SpiceDirectiveNetlistTest::emulatesStepModelParameterFileList() {
     if (!isSimulationAvailable()) {
         QSKIP("Ngspice is not available in this build.");
     }
@@ -1380,7 +1380,7 @@ void SpiceDirectiveNetlistTest::emulatesLtspiceStepModelParameterFileList() {
         "Q1 collector base 0 QDRV\n"
         ".op\n" +
         QString("* .step NPN QDRV(Bf) file=\"%1\"\n").arg(valuesFile.fileName()) +
-        "* LTspice .step omitted: this ngspice configuration reports .step as unimplemented\n"
+        "*  .step omitted: this ngspice configuration reports .step as unimplemented\n"
         ".end\n";
 
     SimResults results;
@@ -1419,7 +1419,7 @@ void SpiceDirectiveNetlistTest::emulatesLtspiceStepModelParameterFileList() {
     QVERIFY2(saw200, "Missing operating-point result for QDRV(Bf)=200 file sweep case.");
 }
 
-void SpiceDirectiveNetlistTest::emulatesLtspiceStepModelParameterOnContinuedModelCard() {
+void SpiceDirectiveNetlistTest::emulatesStepModelParameterOnContinuedModelCard() {
     if (!isSimulationAvailable()) {
         QSKIP("Ngspice is not available in this build.");
     }
@@ -1434,7 +1434,7 @@ void SpiceDirectiveNetlistTest::emulatesLtspiceStepModelParameterOnContinuedMode
         "Q1 collector base 0 QDRV\n"
         ".op\n"
         "* .step NPN QDRV(Bf) LIST 50 200\n"
-        "* LTspice .step omitted: this ngspice configuration reports .step as unimplemented\n"
+        "*  .step omitted: this ngspice configuration reports .step as unimplemented\n"
         ".end\n";
 
     SimResults results;
@@ -1473,7 +1473,7 @@ void SpiceDirectiveNetlistTest::emulatesLtspiceStepModelParameterOnContinuedMode
     QVERIFY2(saw200, "Missing waveform set for QDRV(Bf)=200 on continued .model card.");
 }
 
-void SpiceDirectiveNetlistTest::evaluatesLtspiceMeasStatements() {
+void SpiceDirectiveNetlistTest::evaluatesMeasStatements() {
     SimResults results;
     results.analysisType = SimAnalysisType::Transient;
     SimWaveform vin;
@@ -1509,7 +1509,7 @@ void SpiceDirectiveNetlistTest::evaluatesLtspiceMeasStatements() {
              qPrintable(QString("Expected t15 ~= 1.5ms, got %1").arg(values.at("t15"))));
 }
 
-void SpiceDirectiveNetlistTest::evaluatesLtspiceMeasParamAndTrigTargIntervals() {
+void SpiceDirectiveNetlistTest::evaluatesMeasParamAndTrigTargIntervals() {
     SimResults results;
     results.analysisType = SimAnalysisType::Transient;
 
@@ -1552,7 +1552,7 @@ void SpiceDirectiveNetlistTest::evaluatesLtspiceMeasParamAndTrigTargIntervals() 
              qPrintable(QString("Expected p2 ~= 2.001, got %1").arg(values.at("p2"))));
 }
 
-void SpiceDirectiveNetlistTest::evaluatesLtspiceMeasExpressionConditions() {
+void SpiceDirectiveNetlistTest::evaluatesMeasExpressionConditions() {
     SimResults results;
     results.analysisType = SimAnalysisType::Transient;
 
@@ -1624,7 +1624,7 @@ void SpiceDirectiveNetlistTest::evaluatesLtspiceMeasExpressionConditions() {
              qPrintable(QString("Expected expravg ~= 2.25, got %1").arg(values.at("expravg"))));
 }
 
-void SpiceDirectiveNetlistTest::evaluatesLtspiceAcMeasStatements() {
+void SpiceDirectiveNetlistTest::evaluatesAcMeasStatements() {
     SimResults results;
     results.analysisType = SimAnalysisType::AC;
 
@@ -1667,7 +1667,7 @@ void SpiceDirectiveNetlistTest::evaluatesLtspiceAcMeasStatements() {
              qPrintable(QString("Expected re3k ~= 4, got %1").arg(values.at("re3k"))));
 }
 
-void SpiceDirectiveNetlistTest::evaluatesLtspiceNetOnePortStatements() {
+void SpiceDirectiveNetlistTest::evaluatesNetOnePortStatements() {
     SimResults results;
     results.analysisType = SimAnalysisType::AC;
 
@@ -1710,7 +1710,7 @@ void SpiceDirectiveNetlistTest::evaluatesLtspiceNetOnePortStatements() {
     QVERIFY2(std::abs(yin.yData.at(0) - 0.2) < 1e-6, qPrintable(QString::number(yin.yData.at(0))));
 }
 
-void SpiceDirectiveNetlistTest::evaluatesLtspiceNetTwoPortStatements() {
+void SpiceDirectiveNetlistTest::evaluatesNetTwoPortStatements() {
     SimResults results;
     results.analysisType = SimAnalysisType::AC;
 

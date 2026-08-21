@@ -15,9 +15,9 @@
 #include "../items/schematic_sheet_item.h"
 #include "schematic_commands.h"
 #include "../../symbols/items/symbol_primitive_item.h"
-#include "../dialogs/voltage_source_ltspice_dialog.h"
+#include "../dialogs/voltage_source_advanced_dialog.h"
 #include "../dialogs/spice_directive_dialog.h"
-#include "../dialogs/current_source_ltspice_dialog.h"
+#include "../dialogs/current_source_advanced_dialog.h"
 #include "../dialogs/batch_edit_dialog.h"
 #include "../dialogs/cccs_properties_dialog.h"
 #include "../dialogs/ccvs_properties_dialog.h"
@@ -624,7 +624,7 @@ void SchematicView::mousePressEvent(QMouseEvent *event) {
             return;
         }
 
-        // --- LTspice Style: Interactive Probing ---
+        // --- Interactive Probing ---
         bool toolIsInstrument = m_currentTool && (m_currentTool->name().contains("meter", Qt::CaseInsensitive) || m_currentTool->name().contains("probe", Qt::CaseInsensitive));
         if (!toolIsInstrument && (m_simulationRunning || m_probingEnabled)) {
             m_probeClickActive = true;
@@ -849,7 +849,7 @@ void SchematicView::mouseMoveEvent(QMouseEvent *event) {
         stopAutoScroll();
     }
 
-    // --- LTspice Style: Probe cursor BEFORE tool forwarding ---
+    // --- Probe cursor BEFORE tool forwarding ---
     // This must run before the tool forwarding because the Select tool
     // always accepts the mouseMoveEvent, which would prevent this code
     // from executing if placed after.

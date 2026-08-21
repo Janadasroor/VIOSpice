@@ -136,7 +136,7 @@ QStringList waveformNetAliases(const QString& netName) {
 
     QStringList aliases{trimmed};
     
-    // Add LTspice to NGSpice aliases for Current and Power
+    // Add alias mappings for Current and Power
     if (trimmed.startsWith("I(", Qt::CaseInsensitive) && trimmed.endsWith(")")) {
         QString comp = trimmed.mid(2, trimmed.size() - 3).trimmed();
         aliases << QString("@%1[i]").arg(comp) << QString("@%1[I]").arg(comp);
