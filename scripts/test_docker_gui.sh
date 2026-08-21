@@ -154,6 +154,7 @@ case "$DISTRO" in
         INSTALL_DEPS="
             apt-get update -qq && DEBIAN_FRONTEND=noninteractive apt-get install -y -qq \
                 tar gzip ca-certificates \
+                fonts-dejavu-core fonts-freefont-ttf \
                 libgl1 libegl1 libopengl0 libglx-mesa0 libgl1-mesa-dri \
                 libxkbcommon-x11-0 libfontconfig1 libfreetype6 libdbus-1-3 \
                 libxcb-cursor0 libxcb-icccm4 libxcb-image0 libxcb-keysyms1 \
@@ -167,6 +168,7 @@ case "$DISTRO" in
         INSTALL_DEPS="
             apt-get update -qq && DEBIAN_FRONTEND=noninteractive apt-get install -y -qq \
                 tar gzip ca-certificates \
+                fonts-dejavu-core fonts-freefont-ttf \
                 libgl1 libegl1 libopengl0 libglx-mesa0 libgl1-mesa-dri \
                 libxkbcommon-x11-0 libfontconfig1 libfreetype6 libdbus-1-3 \
                 libxcb-cursor0 libxcb-icccm4 libxcb-image0 libxcb-keysyms1 \
@@ -180,6 +182,7 @@ case "$DISTRO" in
         INSTALL_DEPS="
             dnf install -y -q \
                 tar gzip ca-certificates findutils \
+                dejavu-sans-fonts dejavu-serif-fonts dejavu-sans-mono-fonts \
                 mesa-libGL mesa-libEGL mesa-dri-drivers \
                 libxkbcommon-x11 fontconfig freetype dbus-libs \
                 xcb-util-cursor xcb-util-wm xcb-util-image xcb-util-keysyms xcb-util-renderutil \
@@ -192,6 +195,7 @@ case "$DISTRO" in
         INSTALL_DEPS="
             pacman -Syu --noconfirm --quiet \
                 tar gzip ca-certificates \
+                ttf-dejavu ttf-liberation noto-fonts \
                 mesa libglvnd \
                 libxkbcommon-x11 fontconfig freetype2 dbus \
                 xcb-util-cursor xcb-util-wm xcb-util-image xcb-util-keysyms xcb-util-renderutil \
@@ -204,6 +208,7 @@ case "$DISTRO" in
         INSTALL_DEPS="
             zypper --non-interactive install --no-recommends -y \
                 tar gzip ca-certificates \
+                dejavu-fonts \
                 Mesa-libGL1 libglvnd \
                 libxkbcommon-x11-0 fontconfig libfreetype6 dbus-1 \
                 libxcb-cursor0 libxcb-image0 libxcb-keysyms1 libxcb-render-util0 \
@@ -217,6 +222,7 @@ case "$DISTRO" in
             dnf install -y -q --allowerasing \
                 tar gzip ca-certificates epel-release findutils >/dev/null 2>&1 || true
             dnf install -y -q --allowerasing \
+                dejavu-sans-fonts \
                 mesa-libGL mesa-libEGL mesa-dri-drivers \
                 libxkbcommon-x11 fontconfig freetype dbus-libs \
                 libX11-xcb libXrandr libXinerama libXi libXfixes \
@@ -227,6 +233,7 @@ case "$DISTRO" in
         IMAGE="${CUSTOM_IMAGE:-alpine:latest}"
         INSTALL_DEPS="
             apk add --no-cache bash tar gzip ca-certificates \
+                font-dejavu \
                 mesa-gl mesa-egl libxkbcommon fontconfig freetype dbus \
                 libxcb xcb-util-cursor xcb-util-wm xcb-util-image xcb-util-keysyms xcb-util-renderutil \
                 libx11 libxrandr libxinerama libxi libxfixes >/dev/null 2>&1
@@ -327,6 +334,7 @@ case "$MODE" in
                 apt-get update -qq
                 DEBIAN_FRONTEND=noninteractive apt-get install -y -qq \
                     /pkg/$DEB_NAME \
+                    fonts-dejavu-core fonts-freefont-ttf \
                     libgl1 libegl1 libopengl0 libglx-mesa0 libgl1-mesa-dri \
                     libxkbcommon-x11-0 libfontconfig1 libfreetype6 libdbus-1-3 \
                     libxcb-cursor0 libxcb-icccm4 libxcb-image0 libxcb-keysyms1 \

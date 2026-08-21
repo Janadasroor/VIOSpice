@@ -278,6 +278,7 @@ Version: ${VERSION#v}
 Section: electronics
 Priority: optional
 Architecture: amd64
+Depends: libc6, libgl1, libxkbcommon-x11-0, fontconfig, fonts-dejavu-core | fonts-freefont-ttf
 Maintainer: Janada Sroor <janada@vioraeda.io>
 Description: Electronic Design Automation Suite & SPICE Simulator
  VioraEDA is a high-performance EDA suite integrating schematic capture,
