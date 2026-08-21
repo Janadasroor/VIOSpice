@@ -54,6 +54,13 @@ public:
      */
     QImage renderToImage(const QSize& size = QSize(1000, 600));
 
+    /**
+     * @brief Automatically calculate V/Div for active channels so waveforms fit the screen.
+     */
+    void autoScaleChannels();
+    void zoomToFit();
+    void fitYAxis();
+
 Q_SIGNALS:
     void windowClosing(const QUuid& id);
     void configChanged(const QUuid& id, const OscilloscopeItem::Config& cfg);
@@ -112,6 +119,7 @@ private:
     NetManager* m_lastNetManager = nullptr;
     SimResults m_cachedResults;
     bool m_hasCachedResults = false;
+    bool m_initialFitDone = false;
     class SchematicItem* m_cachedItem = nullptr;
 };
 

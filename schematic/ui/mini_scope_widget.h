@@ -69,9 +69,14 @@ public:
 
     void exportToCsv(const QString& filePath) const;
 
+    void zoomToFit();
+    void fitYAxis();
+
 Q_SIGNALS:
     void cursorsChanged(double dt, double freq, double dv);
     void propertiesRequested();
+    void zoomToFitRequested();
+    void fitYAxisRequested();
 
 protected:
     void paintEvent(QPaintEvent* event) override;

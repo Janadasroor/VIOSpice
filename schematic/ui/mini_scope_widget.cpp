@@ -658,6 +658,16 @@ void MiniScopeWidget::contextMenuEvent(QContextMenuEvent* event) {
 
     menu.addSeparator();
 
+    // View & Scaling Actions
+    menu.addAction("Zoom to Fit", [this]() {
+        zoomToFit();
+    });
+    menu.addAction("Fit Axis Y", [this]() {
+        fitYAxis();
+    });
+
+    menu.addSeparator();
+
     // Memory Snapshot Actions
     menu.addAction("Freeze Traces", [this]() { freezeCurrentTraces(); });
     menu.addAction("Clear Memories", [this]() { clearMemories(); });
@@ -689,4 +699,14 @@ void MiniScopeWidget::contextMenuEvent(QContextMenuEvent* event) {
     });
 
     menu.exec(event->globalPos());
+}
+
+void MiniScopeWidget::zoomToFit() {
+    Q_EMIT zoomToFitRequested();
+    update();
+}
+
+void MiniScopeWidget::fitYAxis() {
+    Q_EMIT fitYAxisRequested();
+    update();
 }
