@@ -31,28 +31,39 @@ static const QColor s_defaultColors[8] = {
 OscilloscopePropertiesDialog::OscilloscopePropertiesDialog(OscilloscopeItem* item, QUndoStack* undoStack, QGraphicsScene* scene, QWidget* parent)
     : QDialog(parent), m_item(item), m_undoStack(undoStack), m_scene(scene) {
     setWindowTitle(QString("Oscilloscope Properties — %1").arg(item->reference()));
-    setMinimumWidth(680);
-    setMinimumHeight(600);
+    setMinimumWidth(720);
+    setMinimumHeight(640);
 
     m_config = item->config();
 
     setStyleSheet(
-        "QDialog { background-color: #1a1a24; color: #f8fafc; font-family: 'Inter', 'Segoe UI', sans-serif; }"
-        "QGroupBox { border: 1.5px solid #334155; border-radius: 6px; margin-top: 18px; padding-top: 14px; background: #222634; }"
-        "QGroupBox::title { subcontrol-origin: margin; subcontrol-position: top left; left: 12px; padding: 2px 8px; color: #60a5fa; font-weight: bold; font-size: 12px; background: #1a1a24; border: 1px solid #334155; border-radius: 4px; }"
-        "QLabel { color: #cbd5e1; font-weight: 600; font-size: 12px; }"
-        "QLineEdit, QSpinBox, QDoubleSpinBox, QComboBox { background: #0f111a; border: 1.5px solid #475569; border-radius: 4px; color: #ffffff; padding: 6px 10px; font-size: 13px; min-height: 24px; }"
-        "QLineEdit:focus, QSpinBox:focus, QDoubleSpinBox:focus, QComboBox:focus { border-color: #3b82f6; background: #151824; }"
-        "QComboBox::drop-down { border: none; width: 22px; }"
-        "QComboBox QAbstractItemView { background: #1e2230; color: #f8fafc; selection-background-color: #3b82f6; selection-color: white; border: 1px solid #475569; }"
-        "QCheckBox { color: #f8fafc; font-size: 12px; font-weight: 600; spacing: 8px; }"
-        "QCheckBox::indicator { width: 18px; height: 18px; border: 1.5px solid #64748b; border-radius: 4px; background: #0f111a; }"
-        "QCheckBox::indicator:checked { background: #3b82f6; border-color: #3b82f6; }"
-        "QPushButton { background: #334155; color: #ffffff; border: 1px solid #475569; padding: 7px 16px; border-radius: 5px; font-weight: 600; font-size: 12px; min-width: 80px; }"
-        "QPushButton:hover { background: #475569; border-color: #64748b; }"
-        "QPushButton:pressed { background: #1e293b; }"
-        "QPushButton#okBtn, QPushButton#applyBtn { background: #2563eb; border-color: #3b82f6; color: white; }"
-        "QPushButton#okBtn:hover, QPushButton#applyBtn:hover { background: #1d4ed8; }"
+        "QDialog { background-color: #1e1e24; color: #f0f0f0; }"
+        "QGroupBox { font-weight: bold; border: 1px solid #444; border-radius: 6px; margin-top: 12px; padding-top: 14px; background-color: #262630; }"
+        "QGroupBox::title { subcontrol-origin: margin; left: 10px; padding: 0 5px; color: #60a5fa; }"
+        "QLabel { color: #e0e0e0; font-size: 12px; }"
+        "QLineEdit, QSpinBox, QDoubleSpinBox, QComboBox {"
+        "    background-color: #121218;"
+        "    color: #ffffff;"
+        "    border: 1px solid #555;"
+        "    border-radius: 4px;"
+        "    padding: 5px 8px;"
+        "    min-height: 22px;"
+        "    font-size: 12px;"
+        "}"
+        "QLineEdit:focus, QSpinBox:focus, QDoubleSpinBox:focus, QComboBox:focus {"
+        "    border: 1px solid #3b82f6;"
+        "    background-color: #181822;"
+        "}"
+        "QComboBox::drop-down { border: none; width: 20px; }"
+        "QComboBox QAbstractItemView { background-color: #1e1e28; color: #ffffff; selection-background-color: #3b82f6; }"
+        "QCheckBox { color: #ffffff; font-size: 12px; spacing: 6px; }"
+        "QPushButton { background-color: #334155; color: #ffffff; border: 1px solid #475569; padding: 6px 14px; border-radius: 4px; font-weight: bold; min-width: 70px; }"
+        "QPushButton:hover { background-color: #475569; }"
+        "QPushButton:pressed { background-color: #1e293b; }"
+        "QPushButton#okBtn { background-color: #2563eb; color: white; border: none; }"
+        "QPushButton#okBtn:hover { background-color: #1d4ed8; }"
+        "QPushButton#applyBtn { background-color: #0d9488; color: white; border: none; }"
+        "QPushButton#applyBtn:hover { background-color: #0f766e; }"
     );
 
     setupUI();

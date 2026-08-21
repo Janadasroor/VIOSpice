@@ -324,11 +324,12 @@ if [ "$DEB_ONLY" -eq 0 ] && [ "$TAR_ONLY" -eq 0 ]; then
     mkdir -p "$APPDIR/usr"
 
     # Copy files into AppDir
-    cp -rf "$STAGE_DIR/bin" "$APPDIR/usr/"
-    cp -rf "$STAGE_DIR/lib" "$APPDIR/usr/"
-    cp -rf "$STAGE_DIR/plugins" "$APPDIR/usr/"
-    cp -rf "$STAGE_DIR/resources" "$APPDIR/usr/"
-    cp -rf "$STAGE_DIR/share" "$APPDIR/usr/"
+    [ -d "$STAGE_DIR/bin" ] && cp -rf "$STAGE_DIR/bin" "$APPDIR/usr/"
+    [ -d "$STAGE_DIR/lib" ] && cp -rf "$STAGE_DIR/lib" "$APPDIR/usr/"
+    [ -d "$STAGE_DIR/plugins" ] && cp -rf "$STAGE_DIR/plugins" "$APPDIR/usr/"
+    [ -d "$STAGE_DIR/resources" ] && cp -rf "$STAGE_DIR/resources" "$APPDIR/usr/"
+    [ -d "$STAGE_DIR/share" ] && cp -rf "$STAGE_DIR/share" "$APPDIR/usr/"
+    [ -d "$STAGE_DIR/qml" ] && cp -rf "$STAGE_DIR/qml" "$APPDIR/usr/"
     cp -f "$ROOT/resources/installer/linux/vioraeda.desktop" "$APPDIR/"
     cp -f "$ROOT/resources/installer/linux/icons/hicolor/scalable/apps/vioraeda.svg" "$APPDIR/vioraeda.svg"
     cp -f "$ROOT/resources/installer/linux/icons/hicolor/256x256/apps/vioraeda.png" "$APPDIR/vioraeda.png"

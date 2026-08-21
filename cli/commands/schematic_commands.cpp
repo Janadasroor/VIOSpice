@@ -25,7 +25,11 @@
 #include "simulator/core/raw_data_parser.h"
 #include "schematic/items/oscilloscope_item.h"
 #include "schematic/items/generic_component_item.h"
+#include "schematic/items/voltage_source_item.h"
+#include "schematic/items/avr_microcontroller_item.h"
 #include "schematic/dialogs/oscilloscope_properties_dialog.h"
+#include "schematic/dialogs/voltage_source_ltspice_dialog.h"
+#include "schematic/dialogs/avr_microcontroller_dialog.h"
 #include "schematic/dialogs/component_properties_dialog.h"
 #include "schematic/dialogs/generic_symbol_properties_dialog.h"
 
@@ -1046,11 +1050,19 @@ public:
 
         QDialog* dlg = nullptr;
         std::unique_ptr<OscilloscopeItem> oscItem;
+        std::unique_ptr<VoltageSourceItem> vSrcItem;
+        std::unique_ptr<AvrMicrocontrollerItem> avrItem;
         std::unique_ptr<GenericComponentItem> genItem;
 
         if (type == "osc" || type == "oscilloscope") {
             oscItem = std::make_unique<OscilloscopeItem>();
             dlg = new OscilloscopePropertiesDialog(oscItem.get());
+        } else if (type == "voltage" || type == "voltagesource") {
+            vSrcItem = std::make_unique<VoltageSourceItem>();
+            dlg = new VoltageSourceLTSpiceDialog(vSrcItem.get(), nullptr, nullptr, "");
+        } else if (type == "avr" || type == "mcu") {
+            avrItem = std::make_unique<AvrMicrocontrollerItem>("ATmega328P");
+            dlg = new AvrMicrocontrollerDialog(avrItem.get());
         } else if (type == "component") {
             Flux::Model::SymbolDefinition sym("U1");
             genItem = std::make_unique<GenericComponentItem>(sym);
