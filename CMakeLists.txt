@@ -938,6 +938,20 @@ if(BUILD_VIOSPICE_APP)
         WIN32_EXECUTABLE TRUE
     )
 
+    if(APPLE)
+        set_target_properties(VioraEDA PROPERTIES
+            MACOSX_BUNDLE TRUE
+            MACOSX_BUNDLE_BUNDLE_NAME "VioraEDA"
+            MACOSX_BUNDLE_GUI_IDENTIFIER "io.viora.VioraEDA"
+            MACOSX_BUNDLE_INFO_PLIST "${CMAKE_SOURCE_DIR}/resources/installer/macos/Info.plist.in"
+            MACOSX_BUNDLE_ICON_FILE "vioraeda.icns"
+        )
+        set_source_files_properties(resources/installer/macos/vioraeda.icns PROPERTIES
+            MACOSX_PACKAGE_LOCATION "Resources"
+        )
+        target_sources(VioraEDA PRIVATE resources/installer/macos/vioraeda.icns)
+    endif()
+
     if(QT_VERSION_MAJOR EQUAL 6)
         qt_finalize_executable(VioraEDA)
     endif()

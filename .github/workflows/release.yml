@@ -190,6 +190,14 @@ jobs:
           mkdir -p build/fluxscript-prebuilt/lib
           cp -v $(brew --prefix zstd)/lib/libzstd*.dylib build/fluxscript-prebuilt/lib/ 2>/dev/null || true
 
+      - name: Fetch ViospiceLib for bundling (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          if [ ! -d "$HOME/viora-libs" ]; then
+            git clone --depth 1 https://github.com/Janadasroor/viora-libs.git "$HOME/viora-libs"
+          fi
+          echo "Library size: $(du -sh "$HOME/viora-libs" | cut -f1)"
+
       - name: Fetch ViospiceLib for bundling (Linux)
         if: runner.os == 'Linux'
         run: |
@@ -462,30 +470,9 @@ jobs:
       - name: Package (macOS)
         if: runner.os == 'macOS'
         run: |
-          mkdir -p staging/bin staging/cm staging/lib
-          cp build/VioraEDA.app/Contents/MacOS/VioraEDA staging/bin/ 2>/dev/null || \
-          cp build/VioraEDA staging/bin/ 2>/dev/null || true
-          cp build/viora staging/bin/ 2>/dev/null || true
-          cp build/flux_runner staging/bin/ 2>/dev/null || echo "no flux_runner"
-          find build -name "vioavr" -exec cp {} staging/bin/ \; 2>/dev/null || echo "no vioavr"
-          # Code models (.cm)
-          cp -r build/cm/. staging/cm/ 2>/dev/null || true
-          if [ -z "$(ls -A staging/cm 2>/dev/null)" ]; then
-            for f in build/viomatrixc-prebuilt/lib/ngspice/*.cm; do
-              [ -f "$f" ] && cp "$f" staging/cm/
-            done
-          fi
-          cp build/viomatrixc-prebuilt/lib/*.dylib staging/lib/ 2>/dev/null || true
-          # Copy smart block templates
-          cp -r templates staging/
-          mkdir -p staging/python staging/templates/flux
-          cp -r python/templates staging/python/ 2>/dev/null || true
-          cp -r python/templates/*.flux staging/templates/flux/ 2>/dev/null || true
-          tar czf VioraEDA-${{ github.ref_name }}-macos-arm64.tar.gz -C staging .
-
-      - name: Package DMG (macOS)
-        if: runner.os == 'macOS'
-        run: cd build && cpack -G DragNDrop -B "${{ github.workspace }}/dmg-pkg" || echo "DMG packaging skipped"
+          export VERSION="${{ github.ref_name }}"
+          bash scripts/package_macos.sh --lib "$HOME/viora-libs"
+          ls -lh build/installer/
 
       - name: Package (Windows)
         if: runner.os == 'Windows'
@@ -638,10 +625,12 @@ jobs:
             build/installer/VioraEDA-*-linux-x86_64.tar.gz
             build/installer/VioraEDA-*-linux-x86_64.AppImage
             build/installer/VioraEDA-*-linux-x86_64.deb
+            build/installer/VioraEDA-*-macos-*.dmg
+            build/installer/VioraEDA-*-macos-*.tar.gz
             VioraEDA-*-linux-x86_64.tar.gz
             VioraEDA-*-linux-x86_64.AppImage
             deb-pkg/*.deb
-            VioraEDA-*-macos-arm64.tar.gz
+            VioraEDA-*-macos-*.tar.gz
             dmg-pkg/*.dmg
             VioraEDA-*-windows-x86_64.zip
             VioraEDA-*-windows-x86_64-Setup.exe
