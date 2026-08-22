@@ -574,6 +574,9 @@ jobs:
               zip_name="$GITHUB_WORKSPACE/staging/bin/python${py_ver_short}.zip"
               echo "Packaging Python standard library into $zip_name..."
               (cd "$py_lib" && /mingw64/bin/python3 -m zipfile -c "$zip_name" .) || true
+              mkdir -p staging/lib
+              cp -v "$zip_name" staging/lib/ || true
+              printf "python%s.zip\n.\nimport site\n" "$py_ver_short" > "staging/bin/python${py_ver_short}._pth"
               break
             fi
           done

@@ -24,6 +24,20 @@
 
 void initEmbeddedPython() {
     QString appDir = QCoreApplication::applicationDirPath();
+
+#ifdef _WIN32
+    // Ensure PYTHONHOME and PYTHONPATH point to the installation directory if not set
+    if (qEnvironmentVariableIsEmpty("PYTHONHOME")) {
+        QString baseDir = QDir(appDir).absoluteFilePath("..");
+        if (QFile::exists(appDir + "/python314.zip")) {
+            qputenv("PYTHONHOME", appDir.toLocal8Bit());
+            qputenv("PYTHONPATH", (appDir + "/python314.zip").toLocal8Bit());
+        } else if (QFile::exists(baseDir + "/lib/python314.zip")) {
+            qputenv("PYTHONHOME", baseDir.toLocal8Bit());
+            qputenv("PYTHONPATH", (baseDir + "/lib/python314.zip").toLocal8Bit());
+        }
+    }
+#endif
     
     PyConfig config;
     PyConfig_InitIsolatedConfig(&config);
