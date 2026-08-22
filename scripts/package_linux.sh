@@ -69,7 +69,8 @@ info "Build jobs   : $JOBS"
 info "Building VioraEDA, CLI, setup installer, and utilities..."
 cmake --build "$BUILD_DIR" -j"$JOBS" --target VioraEDA viora flux_runner flux-lsp VioraEDA_Setup
 
-VERSION="0.2.0-beta"
+VERSION="${VERSION:-0.2.0-beta}"
+VERSION="${VERSION#v}"
 PKG_NAME="VioraEDA-${VERSION}-linux-x86_64"
 STAGE_DIR="$BUILD_DIR/stage/$PKG_NAME"
 
@@ -91,6 +92,7 @@ cp -f "$BUILD_DIR/viora" "$STAGE_DIR/bin/" 2>/dev/null || true
 cp -f "$BUILD_DIR/flux_runner" "$STAGE_DIR/bin/" 2>/dev/null || true
 cp -f "$BUILD_DIR/flux-lsp" "$STAGE_DIR/bin/" 2>/dev/null || true
 cp -f "$BUILD_DIR/VioraEDA_Setup" "$STAGE_DIR/bin/" 2>/dev/null || true
+find "$BUILD_DIR" -name "vioavr" -type f -exec cp -f {} "$STAGE_DIR/bin/" \; 2>/dev/null || true
 
 # Copy library/model assets
 if [ -d "$ROOT/models" ]; then
@@ -104,18 +106,39 @@ if [ -d "$ROOT/templates" ]; then
     mkdir -p "$STAGE_DIR/templates"
     cp -rf "$ROOT/templates/"* "$STAGE_DIR/templates/" 2>/dev/null || true
 fi
+if [ -d "$ROOT/python/templates" ]; then
+    mkdir -p "$STAGE_DIR/templates/flux"
+    cp -rf "$ROOT/python/templates/"*.flux "$STAGE_DIR/templates/flux/" 2>/dev/null || true
+fi
 if [ -n "$LIB_SRC" ] && [ -d "$LIB_SRC" ]; then
     mkdir -p "$STAGE_DIR/ViospiceLib"
     cp -rf "$LIB_SRC/"* "$STAGE_DIR/ViospiceLib/"
 elif [ -d "$HOME/ViospiceLib" ]; then
     mkdir -p "$STAGE_DIR/ViospiceLib"
     cp -rf "$HOME/ViospiceLib/"* "$STAGE_DIR/ViospiceLib/"
+elif [ -d "$ROOT/ViospiceLib" ]; then
+    mkdir -p "$STAGE_DIR/ViospiceLib"
+    cp -rf "$ROOT/ViospiceLib/"* "$STAGE_DIR/ViospiceLib/"
 fi
 
 # Bundle Qt runtime libraries & plugins for fully standalone offline execution
-QT_DIR="/home/jnd/Qt/6.11.0/gcc_64"
-if [ -d "$QT_DIR/lib" ]; then
-    info "Bundling Qt6 shared libraries, plugins, and QML modules for offline execution..."
+if [ -z "${QT_DIR:-}" ]; then
+    if [ -n "${Qt6_DIR:-}" ] && [ -d "$Qt6_DIR/../../.." ]; then
+        QT_DIR="$(cd "$Qt6_DIR/../../.." && pwd)"
+    elif [ -d "/home/jnd/Qt/6.11.0/gcc_64" ]; then
+        QT_DIR="/home/jnd/Qt/6.11.0/gcc_64"
+    elif [ -d "/home/jnd/Qt/6.10.0/gcc_64" ]; then
+        QT_DIR="/home/jnd/Qt/6.10.0/gcc_64"
+    else
+        QT_PREFIX="$(qmake6 -query QT_INSTALL_PREFIX 2>/dev/null || qmake -query QT_INSTALL_PREFIX 2>/dev/null || true)"
+        if [ -n "$QT_PREFIX" ] && [ -d "$QT_PREFIX" ]; then
+            QT_DIR="$QT_PREFIX"
+        fi
+    fi
+fi
+
+if [ -n "${QT_DIR:-}" ] && [ -d "$QT_DIR/lib" ]; then
+    info "Bundling Qt6 ($QT_DIR) shared libraries, plugins, and QML modules for offline execution..."
     cp -P "$QT_DIR/lib/"libQt6*.so* "$STAGE_DIR/lib/" 2>/dev/null || true
     cp -P "$QT_DIR/lib/"libicu*.so* "$STAGE_DIR/lib/" 2>/dev/null || true
     # Platform, database, tls, and image format plugins
@@ -173,6 +196,11 @@ if [ -d "$BUILD_DIR/cm" ]; then
     mkdir -p "$STAGE_DIR/cm"
     cp -rf "$BUILD_DIR/cm/"* "$STAGE_DIR/cm/" 2>/dev/null || true
 fi
+if [ -z "$(ls -A "$STAGE_DIR/cm" 2>/dev/null)" ] && [ -d "$BUILD_DIR/viomatrixc-prebuilt/lib/ngspice" ]; then
+    for f in "$BUILD_DIR"/viomatrixc-prebuilt/lib/ngspice/*.cm; do
+        [ -f "$f" ] && cp "$f" "$STAGE_DIR/cm/" 2>/dev/null || true
+    done
+fi
 
 # Bundle FluxScript engine library
 if [ -f "$BUILD_DIR/FluxScript/libFluxScript.so" ]; then
@@ -181,6 +209,12 @@ if [ -f "$BUILD_DIR/FluxScript/libFluxScript.so" ]; then
 elif [ -f "$BUILD_DIR/fluxscript-prebuilt/lib/libFluxScript.so" ]; then
     info "Bundling FluxScript prebuilt library..."
     cp -P "$BUILD_DIR/fluxscript-prebuilt/lib/libFluxScript.so"* "$STAGE_DIR/lib/" 2>/dev/null || true
+fi
+
+# Bundle LLVM shared libraries if present in build tree
+if compgen -G "$BUILD_DIR/libLLVM*.so*" > /dev/null; then
+    info "Bundling LLVM runtime libraries..."
+    cp -P "$BUILD_DIR"/libLLVM*.so* "$STAGE_DIR/lib/" 2>/dev/null || true
 fi
 
 # Create launch wrapper script for VioraEDA and VioraEDA_Setup to set LD_LIBRARY_PATH and QT_PLUGIN_PATH
@@ -207,7 +241,7 @@ EOF
 chmod +x "$STAGE_DIR/bin/viora_env_wrapper.sh"
 
 # Wrap entrypoints
-for b in VioraEDA viora flux_runner VioraEDA_Setup; do
+for b in VioraEDA viora flux_runner VioraEDA_Setup vioavr; do
     if [ -f "$STAGE_DIR/bin/$b" ]; then
         mv "$STAGE_DIR/bin/$b" "$STAGE_DIR/bin/${b}.bin"
         cat <<EOF > "$STAGE_DIR/bin/$b"
@@ -264,6 +298,8 @@ if [ "$TAR_ONLY" = "0" ] && command -v dpkg-deb >/dev/null 2>&1; then
     ln -sf "/opt/VioraEDA/bin/VioraEDA" "$DEB_STAGE/usr/bin/VioraEDA"
     ln -sf "/opt/VioraEDA/bin/viora" "$DEB_STAGE/usr/bin/viora"
     ln -sf "/opt/VioraEDA/bin/flux_runner" "$DEB_STAGE/usr/bin/flux_runner"
+    ln -sf "/opt/VioraEDA/bin/VioraEDA_Setup" "$DEB_STAGE/usr/bin/VioraEDA_Setup"
+    [ -f "$STAGE_DIR/bin/vioavr" ] && ln -sf "/opt/VioraEDA/bin/vioavr" "$DEB_STAGE/usr/bin/vioavr" || true
 
     # Install desktop, mime, metainfo, and icons
     cp -f "$ROOT/resources/installer/linux/vioraeda.desktop" "$DEB_STAGE/usr/share/applications/"
@@ -306,7 +342,7 @@ EOF
     cat <<'EOF' > "$DEB_STAGE/DEBIAN/prerm"
 #!/bin/sh
 set -e
-rm -f /usr/bin/VioraEDA /usr/bin/viora /usr/bin/flux_runner
+rm -f /usr/bin/VioraEDA /usr/bin/viora /usr/bin/flux_runner /usr/bin/VioraEDA_Setup /usr/bin/vioavr
 exit 0
 EOF
     chmod 755 "$DEB_STAGE/DEBIAN/prerm"
@@ -331,6 +367,12 @@ if [ "$DEB_ONLY" -eq 0 ] && [ "$TAR_ONLY" -eq 0 ]; then
     [ -d "$STAGE_DIR/resources" ] && cp -rf "$STAGE_DIR/resources" "$APPDIR/usr/"
     [ -d "$STAGE_DIR/share" ] && cp -rf "$STAGE_DIR/share" "$APPDIR/usr/"
     [ -d "$STAGE_DIR/qml" ] && cp -rf "$STAGE_DIR/qml" "$APPDIR/usr/"
+    [ -d "$STAGE_DIR/models" ] && cp -rf "$STAGE_DIR/models" "$APPDIR/usr/"
+    [ -d "$STAGE_DIR/templates" ] && cp -rf "$STAGE_DIR/templates" "$APPDIR/usr/"
+    [ -d "$STAGE_DIR/python" ] && cp -rf "$STAGE_DIR/python" "$APPDIR/usr/"
+    [ -d "$STAGE_DIR/cm" ] && cp -rf "$STAGE_DIR/cm" "$APPDIR/usr/"
+    [ -d "$STAGE_DIR/ViospiceLib" ] && cp -rf "$STAGE_DIR/ViospiceLib" "$APPDIR/usr/"
+
     cp -f "$ROOT/resources/installer/linux/vioraeda.desktop" "$APPDIR/"
     cp -f "$ROOT/resources/installer/linux/icons/hicolor/scalable/apps/vioraeda.svg" "$APPDIR/vioraeda.svg"
     cp -f "$ROOT/resources/installer/linux/icons/hicolor/256x256/apps/vioraeda.png" "$APPDIR/vioraeda.png"
@@ -341,11 +383,11 @@ if [ "$DEB_ONLY" -eq 0 ] && [ "$TAR_ONLY" -eq 0 ]; then
 #!/bin/bash
 HERE="$(dirname "$(readlink -f "${0}")")"
 export PATH="${HERE}/usr/bin:${PATH}"
-export LD_LIBRARY_PATH="${HERE}/usr/lib:${HERE}/usr/lib/x86_64-linux-gnu:${LD_LIBRARY_PATH}"
-export QT_PLUGIN_PATH="${HERE}/usr/plugins:${QT_PLUGIN_PATH}"
-export QML2_IMPORT_PATH="${HERE}/usr/qml:${QML2_IMPORT_PATH}"
-export VIORA_LIB_DIR="${HERE}/usr/share/viospice"
-export FLUX_STDLIB_PATH="${HERE}/usr/share/flux/stdlib"
+export LD_LIBRARY_PATH="${HERE}/usr/lib:${HERE}/usr/lib/x86_64-linux-gnu:${LD_LIBRARY_PATH:-}"
+export QT_PLUGIN_PATH="${HERE}/usr/plugins:${QT_PLUGIN_PATH:-}"
+export QML2_IMPORT_PATH="${HERE}/usr/qml:${QML2_IMPORT_PATH:-}"
+export VIOSPICE_HOME="${VIOSPICE_HOME:-$HERE/usr}"
+export SPICE_LIB_DIR="${SPICE_LIB_DIR:-$HERE/usr/models}"
 exec "${HERE}/usr/bin/VioraEDA" "$@"
 EOF
     chmod 755 "$APPDIR/AppRun"
@@ -355,7 +397,7 @@ EOF
     if ! command -v appimagetool >/dev/null 2>&1; then
         if [ ! -f "$AI_TOOL" ]; then
             info "Fetching appimagetool..."
-            curl -fsSL -o "$AI_TOOL" "https://github.com/AppImage/AppImageKit/releases/download/13/appimagetool-x86_64.AppImage" 2>/dev/null || true
+            curl -fsSL -o "$AI_TOOL" "https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage" 2>/dev/null || true
             [ -f "$AI_TOOL" ] && chmod +x "$AI_TOOL" || true
         fi
     else
@@ -363,9 +405,8 @@ EOF
     fi
 
     if [ -x "$AI_TOOL" ] || command -v appimagetool >/dev/null 2>&1; then
-        ARCH=x86_64 "$AI_TOOL" "$APPDIR" "$OUT_DIR/${PKG_NAME}.AppImage" >/dev/null 2>&1 || {
-            # Fallback with --appimage-extract-and-run if FUSE is not available
-            ARCH=x86_64 "$AI_TOOL" --appimage-extract-and-run "$APPDIR" "$OUT_DIR/${PKG_NAME}.AppImage" >/dev/null 2>&1 || warn "AppImage generation skipped (appimagetool requires FUSE)"
+        ARCH=x86_64 "$AI_TOOL" --appimage-extract-and-run "$APPDIR" "$OUT_DIR/${PKG_NAME}.AppImage" >/dev/null 2>&1 || {
+            warn "AppImage generation skipped (appimagetool could not package $APPDIR)"
         }
         [ -f "$OUT_DIR/${PKG_NAME}.AppImage" ] && ok "Created $OUT_DIR/${PKG_NAME}.AppImage"
     else
@@ -377,4 +418,5 @@ echo ""
 ok "Linux packaging complete."
 echo "Installer packages generated in $OUT_DIR:"
 ls -lh "$OUT_DIR" | grep "VioraEDA" | sed 's/^/  /'
+
 

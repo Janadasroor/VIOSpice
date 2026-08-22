@@ -138,7 +138,8 @@ jobs:
             libgssapi3-heimdal \
             llvm-21-dev \
             python3 python3-dev \
-            ngspice
+            ngspice \
+            file zsync dpkg-dev
           # Prebuilt ngspice deps (compiled on older Ubuntu): libssl1.1, libldap-2.4
           for pkg in \
             http://archive.ubuntu.com/ubuntu/pool/main/o/openssl/libssl1.1_1.1.1f-1ubuntu2_amd64.deb \
@@ -436,72 +437,19 @@ jobs:
       - name: Package (Linux)
         if: runner.os == 'Linux'
         run: |
-          mkdir -p staging/bin staging/cm staging/lib
-          cp build/VioraEDA staging/bin/
-          cp build/viora staging/bin/ 2>/dev/null || true
-          cp build/flux_runner staging/bin/ 2>/dev/null || echo "no flux_runner"
-          find build -name "vioavr" -exec cp {} staging/bin/ \; 2>/dev/null || echo "no vioavr"
-          cp build/libLLVM.so.21.1 staging/lib/ 2>/dev/null || true
-          # Code models (.cm)
-          cp -r build/cm/. staging/cm/ 2>/dev/null || true
-          if [ -z "$(ls -A staging/cm 2>/dev/null)" ]; then
-            for f in build/viomatrixc-prebuilt/lib/ngspice/*.cm; do
-              [ -f "$f" ] && cp "$f" staging/cm/
-            done
-          fi
-          # Bundle engine libs
-          if [ -d "build/viomatrixc-prebuilt/lib" ]; then
-            cp build/viomatrixc-prebuilt/lib/*.so* staging/lib/ 2>/dev/null || true
-          fi
-          # Copy smart block templates
-          cp -r templates staging/
-          mkdir -p staging/python staging/templates/flux
-          cp -r python/templates staging/python/ 2>/dev/null || true
-          cp -r python/templates/*.flux staging/templates/flux/ 2>/dev/null || true
-          tar czf VioraEDA-${{ github.ref_name }}-linux-x86_64.tar.gz -C staging .
+          export QT_DIR="${{ runner.temp }}/Qt/6.10.0/gcc_64"
+          export VERSION="${{ github.ref_name }}"
+          bash scripts/package_linux.sh
+          ls -lh build/installer/
 
-      - name: Build AppImage (Linux)
+      - name: Verify package contents (Linux)
         if: runner.os == 'Linux'
-        continue-on-error: true
         run: |
-          # Download AppImage tools at build time
-          wget -q https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage -O /tmp/linuxdeploy
-          wget -q https://github.com/linuxdeploy/linuxdeploy-plugin-qt/releases/download/continuous/linuxdeploy-plugin-qt-x86_64.AppImage -O /tmp/linuxdeploy-plugin-qt
-          chmod +x /tmp/linuxdeploy /tmp/linuxdeploy-plugin-qt
-
-          # Build AppDir structure
-          export VERSION=${{ github.ref_name }}
-          mkdir -p AppDir/usr/bin AppDir/usr/lib AppDir/usr/share/applications AppDir/usr/share/icons/hicolor/256x256/apps
-          cp build/VioraEDA AppDir/usr/bin/
-          cp build/viora AppDir/usr/bin/ 2>/dev/null || true
-          # Code models
-          mkdir -p AppDir/usr/lib/cm
-          cp -r build/cm/. AppDir/usr/lib/cm/ 2>/dev/null || true
-          # Engine libs
-          if [ -d "build/viomatrixc-prebuilt/lib" ]; then
-            cp build/viomatrixc-prebuilt/lib/*.so* AppDir/usr/lib/ 2>/dev/null || true
-          fi
-          cp build/libLLVM.so* AppDir/usr/lib/ 2>/dev/null || true
-          # Desktop file and icon
-          cp linux/viospice.desktop AppDir/usr/share/applications/viospice.desktop
-          cp resources/icons/logo_viospice.png AppDir/usr/share/icons/hicolor/256x256/apps/viospice.png
-          # Also put them at AppDir root for linuxdeploy
-          cp linux/viospice.desktop AppDir/
-          cp resources/icons/logo_viospice.png AppDir/
-
-          # Run linuxdeploy with Qt plugin
-          QMAKE="${{ runner.temp }}/Qt/6.10.0/gcc_64/bin/qmake" \
-          LINUXDEPLOY_QT_EXCLUDE_LIBRARY_PATTERNS="libmimerapi" \
-          /tmp/linuxdeploy --appdir AppDir --output appimage \
-            --plugin qt \
-            --desktop-file AppDir/viospice.desktop \
-            --icon-file AppDir/logo_viospice.png
-
-          mv VioraEDA-*.AppImage VioraEDA-${{ github.ref_name }}-x86_64.AppImage
-
-      - name: Package DEB (Linux)
-        if: runner.os == 'Linux'
-        run: cd build && cpack -G DEB -B "${{ github.workspace }}/deb-pkg" || echo "DEB packaging skipped"
+          set -e
+          ls -lh build/installer/
+          test -f build/installer/VioraEDA-*-linux-x86_64.tar.gz
+          test -f build/installer/VioraEDA-*-linux-x86_64.deb
+          test -f build/installer/VioraEDA-*-linux-x86_64.AppImage || echo "Note: AppImage file check"
 
       - name: Package (macOS)
         if: runner.os == 'macOS'
@@ -679,6 +627,9 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: |
+            build/installer/VioraEDA-*-linux-x86_64.tar.gz
+            build/installer/VioraEDA-*-linux-x86_64.AppImage
+            build/installer/VioraEDA-*-linux-x86_64.deb
             VioraEDA-*-linux-x86_64.tar.gz
             VioraEDA-*-linux-x86_64.AppImage
             deb-pkg/*.deb
