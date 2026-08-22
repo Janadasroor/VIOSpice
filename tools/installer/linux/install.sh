@@ -129,13 +129,21 @@ if [ ! -d "$ASSETS_DIR" ]; then
     ASSETS_DIR="$SCRIPT_DIR/resources/installer/linux"
 fi
 
+# Clean up legacy desktop launchers
+rm -f "$DESKTOP_DIR/viospice.desktop" "$DESKTOP_DIR/viora-eda.desktop" "$DESKTOP_DIR/viora.desktop"
+
 if [ -d "$ASSETS_DIR/icons/hicolor" ]; then
     cp -rf "$ASSETS_DIR/icons/hicolor/"* "$ICONS_BASE/" 2>/dev/null || true
+    # Also install to pixmaps for legacy/alternative window managers
+    PIXMAPS_DIR="${ICONS_BASE%/*}/pixmaps"
+    mkdir -p "$PIXMAPS_DIR"
+    [ -f "$ASSETS_DIR/icons/hicolor/256x256/apps/vioraeda.png" ] && cp -f "$ASSETS_DIR/icons/hicolor/256x256/apps/vioraeda.png" "$PIXMAPS_DIR/vioraeda.png" 2>/dev/null || true
+    [ -f "$ASSETS_DIR/icons/hicolor/scalable/apps/vioraeda.svg" ] && cp -f "$ASSETS_DIR/icons/hicolor/scalable/apps/vioraeda.svg" "$PIXMAPS_DIR/vioraeda.svg" 2>/dev/null || true
 fi
 
 # Install desktop file with replaced prefix
 if [ -f "$ASSETS_DIR/vioraeda.desktop" ]; then
-    sed "s|Exec=VioraEDA|Exec=$PREFIX/bin/VioraEDA|g" "$ASSETS_DIR/vioraeda.desktop" > "$DESKTOP_DIR/vioraeda.desktop"
+    sed "s|Exec=VioraEDA|Exec=$PREFIX/bin/VioraEDA|g; s|Icon=vioraeda|Icon=vioraeda|g" "$ASSETS_DIR/vioraeda.desktop" > "$DESKTOP_DIR/vioraeda.desktop"
     chmod +x "$DESKTOP_DIR/vioraeda.desktop"
 fi
 

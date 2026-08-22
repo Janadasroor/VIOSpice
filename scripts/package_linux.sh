@@ -331,6 +331,9 @@ if [ "$TAR_ONLY" = "0" ] && command -v dpkg-deb >/dev/null 2>&1; then
     cp -f "$ROOT/resources/installer/linux/vioraeda-mime.xml" "$DEB_STAGE/usr/share/mime/packages/"
     cp -f "$ROOT/resources/installer/linux/io.viora.VioraEDA.metainfo.xml" "$DEB_STAGE/usr/share/metainfo/"
     cp -rf "$ROOT/resources/installer/linux/icons/hicolor/"* "$DEB_STAGE/usr/share/icons/hicolor/"
+    mkdir -p "$DEB_STAGE/usr/share/pixmaps"
+    cp -f "$ROOT/resources/installer/linux/icons/hicolor/256x256/apps/vioraeda.png" "$DEB_STAGE/usr/share/pixmaps/vioraeda.png" 2>/dev/null || true
+    cp -f "$ROOT/resources/installer/linux/icons/hicolor/scalable/apps/vioraeda.svg" "$DEB_STAGE/usr/share/pixmaps/vioraeda.svg" 2>/dev/null || true
 
     # Write DEBIAN/control
     cat <<EOF > "$DEB_STAGE/DEBIAN/control"
@@ -350,6 +353,8 @@ EOF
     cat <<'EOF' > "$DEB_STAGE/DEBIAN/postinst"
 #!/bin/sh
 set -e
+# Clean up legacy desktop entries
+rm -f /usr/share/applications/viospice.desktop /usr/share/applications/viora-eda.desktop
 if command -v update-desktop-database >/dev/null 2>&1; then
     update-desktop-database /usr/share/applications || true
 fi
