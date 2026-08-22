@@ -193,10 +193,10 @@ jobs:
       - name: Fetch ViospiceLib for bundling (Linux)
         if: runner.os == 'Linux'
         run: |
-          if [ ! -d "$HOME/ViospiceLib" ]; then
-            git clone --depth 1 https://github.com/Janadasroor/viora-libs.git "$HOME/ViospiceLib"
+          if [ ! -d "$HOME/viora-libs" ]; then
+            git clone --depth 1 https://github.com/Janadasroor/viora-libs.git "$HOME/viora-libs"
           fi
-          echo "Library size: $(du -sh "$HOME/ViospiceLib" | cut -f1)"
+          echo "Library size: $(du -sh "$HOME/viora-libs" | cut -f1)"
 
       - name: Fetch ViospiceLib for bundling (Windows)
         if: runner.os == 'Windows'
@@ -447,7 +447,7 @@ jobs:
         run: |
           export QT_DIR="${{ runner.temp }}/Qt/6.10.0/gcc_64"
           export VERSION="${{ github.ref_name }}"
-          bash scripts/package_linux.sh
+          bash scripts/package_linux.sh --lib "$HOME/viora-libs"
           ls -lh build/installer/
 
       - name: Verify package contents (Linux)

@@ -67,7 +67,10 @@ info "Build jobs   : $JOBS"
 # 1) Build binaries
 # ---------------------------------------------------------------------------
 info "Building VioraEDA, CLI, setup installer, and utilities..."
-cmake --build "$BUILD_DIR" -j"$JOBS" --target VioraEDA viora flux_runner flux-lsp VioraEDA_Setup
+for tgt in VioraEDA viora flux_runner VioraEDA_Setup; do
+    cmake --build "$BUILD_DIR" -j"$JOBS" --target "$tgt"
+done
+cmake --build "$BUILD_DIR" -j"$JOBS" --target flux-lsp 2>/dev/null || true
 
 VERSION="${VERSION:-0.2.0-beta}"
 VERSION="${VERSION#v}"
@@ -114,14 +117,22 @@ if [ -n "$LIB_SRC" ] && [ -d "$LIB_SRC" ]; then
     info "Bundling ViospiceLib from custom source ($LIB_SRC)..."
     mkdir -p "$STAGE_DIR/ViospiceLib"
     cp -rf "$LIB_SRC/"* "$STAGE_DIR/ViospiceLib/"
+    rm -rf "$STAGE_DIR/ViospiceLib/.git"
+elif [ -d "$HOME/viora-libs" ]; then
+    info "Bundling ViospiceLib from $HOME/viora-libs..."
+    mkdir -p "$STAGE_DIR/ViospiceLib"
+    cp -rf "$HOME/viora-libs/"* "$STAGE_DIR/ViospiceLib/"
+    rm -rf "$STAGE_DIR/ViospiceLib/.git"
 elif [ -d "$HOME/ViospiceLib" ]; then
     info "Bundling ViospiceLib from $HOME/ViospiceLib..."
     mkdir -p "$STAGE_DIR/ViospiceLib"
     cp -rf "$HOME/ViospiceLib/"* "$STAGE_DIR/ViospiceLib/"
+    rm -rf "$STAGE_DIR/ViospiceLib/.git"
 elif [ -d "$ROOT/ViospiceLib" ]; then
     info "Bundling ViospiceLib from $ROOT/ViospiceLib..."
     mkdir -p "$STAGE_DIR/ViospiceLib"
     cp -rf "$ROOT/ViospiceLib/"* "$STAGE_DIR/ViospiceLib/"
+    rm -rf "$STAGE_DIR/ViospiceLib/.git"
 else
     info "Fetching ViospiceLib from remote repository (https://github.com/Janadasroor/viora-libs.git)..."
     LIB_CACHE="$BUILD_DIR/viora-libs"
