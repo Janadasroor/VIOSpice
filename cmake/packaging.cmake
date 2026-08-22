@@ -13,6 +13,7 @@
 # ---------------------------------------------------------------------------
 install(TARGETS VioraEDA VioraEDA_Setup viora flux_runner viospice-merge
     RUNTIME DESTINATION bin
+    BUNDLE DESTINATION .
 )
 
 if(TARGET flux-lsp)
