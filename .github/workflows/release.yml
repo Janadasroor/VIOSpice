@@ -440,6 +440,7 @@ jobs:
           cp build/VioraEDA staging/bin/
           cp build/viora staging/bin/ 2>/dev/null || true
           cp build/flux_runner staging/bin/ 2>/dev/null || echo "no flux_runner"
+          find build -name "vioavr" -exec cp {} staging/bin/ \; 2>/dev/null || echo "no vioavr"
           cp build/libLLVM.so.21.1 staging/lib/ 2>/dev/null || true
           # Code models (.cm)
           cp -r build/cm/. staging/cm/ 2>/dev/null || true
@@ -510,6 +511,7 @@ jobs:
           cp build/VioraEDA staging/bin/ 2>/dev/null || true
           cp build/viora staging/bin/ 2>/dev/null || true
           cp build/flux_runner staging/bin/ 2>/dev/null || echo "no flux_runner"
+          find build -name "vioavr" -exec cp {} staging/bin/ \; 2>/dev/null || echo "no vioavr"
           # Code models (.cm)
           cp -r build/cm/. staging/cm/ 2>/dev/null || true
           if [ -z "$(ls -A staging/cm 2>/dev/null)" ]; then
@@ -657,6 +659,7 @@ jobs:
           check_file "bin/VioraEDA.exe"
           check_file "bin/viora.exe"
           check_file "bin/flux_runner.exe"
+          check_file "bin/vioavr.exe"
           check_file "bin/libngspice-0.dll"
           check_file "bin/libgcc_s_seh-1.dll"
           check_file "bin/libstdc++-6.dll"
