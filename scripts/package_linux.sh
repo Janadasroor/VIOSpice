@@ -111,14 +111,28 @@ if [ -d "$ROOT/python/templates" ]; then
     cp -rf "$ROOT/python/templates/"*.flux "$STAGE_DIR/templates/flux/" 2>/dev/null || true
 fi
 if [ -n "$LIB_SRC" ] && [ -d "$LIB_SRC" ]; then
+    info "Bundling ViospiceLib from custom source ($LIB_SRC)..."
     mkdir -p "$STAGE_DIR/ViospiceLib"
     cp -rf "$LIB_SRC/"* "$STAGE_DIR/ViospiceLib/"
 elif [ -d "$HOME/ViospiceLib" ]; then
+    info "Bundling ViospiceLib from $HOME/ViospiceLib..."
     mkdir -p "$STAGE_DIR/ViospiceLib"
     cp -rf "$HOME/ViospiceLib/"* "$STAGE_DIR/ViospiceLib/"
 elif [ -d "$ROOT/ViospiceLib" ]; then
+    info "Bundling ViospiceLib from $ROOT/ViospiceLib..."
     mkdir -p "$STAGE_DIR/ViospiceLib"
     cp -rf "$ROOT/ViospiceLib/"* "$STAGE_DIR/ViospiceLib/"
+else
+    info "Fetching ViospiceLib from remote repository (https://github.com/Janadasroor/viora-libs.git)..."
+    LIB_CACHE="$BUILD_DIR/viora-libs"
+    if [ ! -d "$LIB_CACHE" ]; then
+        git clone --depth 1 https://github.com/Janadasroor/viora-libs.git "$LIB_CACHE" || warn "Could not clone viora-libs"
+    fi
+    if [ -d "$LIB_CACHE" ]; then
+        mkdir -p "$STAGE_DIR/ViospiceLib"
+        cp -rf "$LIB_CACHE/"* "$STAGE_DIR/ViospiceLib/"
+        rm -rf "$STAGE_DIR/ViospiceLib/.git"
+    fi
 fi
 
 # Bundle Qt runtime libraries & plugins for fully standalone offline execution

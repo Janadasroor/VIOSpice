@@ -32,6 +32,24 @@ if [ -d "$REPO_ROOT/python/templates" ]; then
     cp "$REPO_ROOT/python/templates/"*.flux "$STAGING_DIR/templates/flux/" 2>/dev/null || true
 fi
 
+# 2.5 Copy / Fetch ViospiceLib
+mkdir -p "$STAGING_DIR/ViospiceLib"
+if [ -d "$HOME/viora-libs" ]; then
+    cp -r "$HOME/viora-libs/"* "$STAGING_DIR/ViospiceLib/" 2>/dev/null || true
+    rm -rf "$STAGING_DIR/ViospiceLib/.git"
+elif [ -d "$HOME/ViospiceLib" ]; then
+    cp -r "$HOME/ViospiceLib/"* "$STAGING_DIR/ViospiceLib/" 2>/dev/null || true
+elif [ -d "$REPO_ROOT/ViospiceLib" ]; then
+    cp -r "$REPO_ROOT/ViospiceLib/"* "$STAGING_DIR/ViospiceLib/" 2>/dev/null || true
+else
+    echo "Fetching ViospiceLib from https://github.com/Janadasroor/viora-libs.git..."
+    git clone --depth 1 https://github.com/Janadasroor/viora-libs.git "$REPO_ROOT/$BUILD_DIR/viora-libs" 2>/dev/null || true
+    if [ -d "$REPO_ROOT/$BUILD_DIR/viora-libs" ]; then
+        cp -r "$REPO_ROOT/$BUILD_DIR/viora-libs/"* "$STAGING_DIR/ViospiceLib/" 2>/dev/null || true
+        rm -rf "$STAGING_DIR/ViospiceLib/.git"
+    fi
+fi
+
 # 3. Copy Executables
 cp "$REPO_ROOT/$BUILD_DIR/VioraEDA.exe" "$STAGING_DIR/bin/"
 cp "$REPO_ROOT/$BUILD_DIR/viora.exe" "$STAGING_DIR/bin/" 2>/dev/null || true

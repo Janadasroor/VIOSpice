@@ -190,6 +190,14 @@ jobs:
           mkdir -p build/fluxscript-prebuilt/lib
           cp -v $(brew --prefix zstd)/lib/libzstd*.dylib build/fluxscript-prebuilt/lib/ 2>/dev/null || true
 
+      - name: Fetch ViospiceLib for bundling (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          if [ ! -d "$HOME/ViospiceLib" ]; then
+            git clone --depth 1 https://github.com/Janadasroor/viora-libs.git "$HOME/ViospiceLib"
+          fi
+          echo "Library size: $(du -sh "$HOME/ViospiceLib" | cut -f1)"
+
       - name: Fetch ViospiceLib for bundling (Windows)
         if: runner.os == 'Windows'
         shell: msys2 {0}
