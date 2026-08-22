@@ -109,7 +109,7 @@ void SchematicEditor::onSettings() {
 void SchematicEditor::onAbout() {
     QMessageBox::about(this, "About viospice",
         "<h3>viospice Schematic Editor</h3>"
-        "<p>Version 0.1.0</p>"
+        "<p>Version 0.2.0-beta</p>"
         "<p>Professional Electronics Design Automation software.</p>"
         "<p>Copyright 2026 viospice Team</p>");
 }

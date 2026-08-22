@@ -721,7 +721,7 @@ QWidget* ProjectManager::createLauncherArea() {
         title->setObjectName("WelcomeTitle");
         logoRow->addWidget(title);
 
-        QLabel* chip = new QLabel("v0.1.0-beta");
+        QLabel* chip = new QLabel("v0.2.0-beta");
         chip->setObjectName("VersionChip");
         logoRow->addWidget(chip);
         logoRow->addStretch();
@@ -2008,7 +2008,7 @@ void ProjectManager::openCalculatorTools() {
 
 void ProjectManager::showAbout() {
     QMessageBox::about(this, "About VioraEDA",
-        "VioraEDA v0.1.0\n\n"
+        "VioraEDA v0.2.0-beta\n\n"
         "Professional Electronic Design Automation\n\n"
         "Open-source PCB design software");
 }

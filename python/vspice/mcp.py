@@ -313,7 +313,7 @@ def get_detailed_status() -> Dict[str, Any]:
     if status["viora_installed"]:
         try:
             res = subprocess.run([str(exe), "--version"], capture_output=True, text=True, timeout=2)
-            status["viora_version"] = res.stdout.strip() or res.stderr.strip() or "v0.1.0-beta"
+            status["viora_version"] = res.stdout.strip() or res.stderr.strip() or "v0.2.0-beta"
         except Exception:
             status["viora_version"] = "unknown"
             

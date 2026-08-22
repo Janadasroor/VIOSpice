@@ -308,6 +308,8 @@ int main(int argc, char *argv[])
 #endif
 
     QApplication a(argc, argv);
+    QApplication::setApplicationName("VioraEDA");
+    QApplication::setApplicationVersion("0.2.0-beta");
 
 #if defined(_WIN32) || defined(_WIN64)
     ensureWindowsFileAssociations();

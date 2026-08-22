@@ -640,7 +640,7 @@ QString VioraExtensionsDialog::detectedAppVersion() const {
     if (!version.isEmpty()) {
         return version;
     }
-    return "0.1.0-beta";
+    return "0.2.0-beta";
 }
 
 QStringList VioraExtensionsDialog::installedPluginIdCandidates() const {
