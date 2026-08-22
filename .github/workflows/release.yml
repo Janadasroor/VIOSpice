@@ -336,8 +336,12 @@ jobs:
           HOME: /tmp/viora-smoke2
         run: |
           set +e
-          mkdir -p "$HOME"
-          QT_QPA_PLATFORM=offscreen ./build/VioraEDA &
+          if [ -f "./build/VioraEDA.app/Contents/MacOS/VioraEDA" ]; then
+            EXE="./build/VioraEDA.app/Contents/MacOS/VioraEDA"
+          else
+            EXE="./build/VioraEDA"
+          fi
+          QT_QPA_PLATFORM=offscreen "$EXE" &
           pid=$!
           sleep 8
           kill $pid 2>/dev/null
