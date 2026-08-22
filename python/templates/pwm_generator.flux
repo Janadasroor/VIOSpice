@@ -11,4 +11,5 @@ let duty = if raw > 1.0 then 1.0 else (if raw < 0.0 then 0.0 else raw) in
 let freq = 1000.0 in
 let period = 1.0 / freq in
 let local_t = t - (floor(t / period) * period) in
-if local_t < (period * duty) then 5.0 else 0.0
+return if local_t < (period * duty) then 5.0 else 0.0;
+

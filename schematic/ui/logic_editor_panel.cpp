@@ -107,62 +107,90 @@ void LogicEditorPanel::setScene(QGraphicsScene* scene, NetManager* netManager, S
 void LogicEditorPanel::refreshTemplates() {
     m_templateList->clear();
     
-    // Resolve templates directory path
+    // Resolve templates directory path across all standard candidate locations
     const QString appPath = QCoreApplication::applicationDirPath();
     QStringList candidates = {
         QDir(appPath).absoluteFilePath("../python/templates"),
         QDir(appPath).absoluteFilePath("python/templates"),
+        QDir(appPath).absoluteFilePath("../templates/flux"),
+        QDir(appPath).absoluteFilePath("templates/flux"),
+        QDir(appPath).absoluteFilePath("../templates"),
+        QDir(appPath).absoluteFilePath("templates"),
+        "C:/VioraEDA/python/templates",
         "/opt/VioraEDA/python/templates",
         "/opt/VioraEDA/bin/python/templates",
         QDir::current().absoluteFilePath("python/templates")
     };
+    
     QString templatesPath;
     for (const QString& cand : candidates) {
         if (QDir(cand).exists()) {
-            templatesPath = cand;
-            break;
+            QDir d(cand);
+            if (!d.entryList({"*.flux", "*.py"}, QDir::Files).isEmpty()) {
+                templatesPath = cand;
+                break;
+            }
         }
     }
 
-    if (templatesPath.isEmpty() || !QDir(templatesPath).exists()) {
-        qWarning() << "[LogicIDE] Templates directory not found in candidates:" << candidates;
-        return;
+    if (!templatesPath.isEmpty() && QDir(templatesPath).exists()) {
+        QDir dir(templatesPath);
+        const QStringList files = dir.entryList({"*.flux", "*.py"}, QDir::Files | QDir::NoDotAndDotDot);
+        
+        for (const QString& fileName : files) {
+            const bool isFlux = fileName.endsWith(".flux", Qt::CaseInsensitive);
+            const QString baseName = fileName.section('.', 0, 0).replace('_', ' ').toUpper();
+            
+            auto* item = new QListWidgetItem(baseName + (isFlux ? "" : " (Legacy)"));
+            item->setData(Qt::UserRole, dir.absoluteFilePath(fileName));
+            item->setToolTip(QString("Double-click to load: %1").arg(fileName));
+            
+            if (isFlux) {
+                item->setForeground(QColor("#4ade80")); // Professional Green for Flux
+            } else {
+                item->setForeground(QColor("#94a3b8")); // Muted Gray for Python
+            }
+            m_templateList->addItem(item);
+        }
     }
 
-    // Discover templates
-    QDir dir(templatesPath);
-    const QStringList files = dir.entryList({"*.flux", "*.py"}, QDir::Files | QDir::NoDotAndDotDot);
-    
-    for (const QString& fileName : files) {
-        const bool isFlux = fileName.endsWith(".flux", Qt::CaseInsensitive);
-        const QString baseName = fileName.section('.', 0, 0).replace('_', ' ').toUpper();
-        
-        auto* item = new QListWidgetItem(baseName + (isFlux ? "" : " (Legacy)"));
-        item->setData(Qt::UserRole, dir.absoluteFilePath(fileName));
-        item->setToolTip(QString("Double-click to load: %1").arg(fileName));
-        
-        if (isFlux) {
-            item->setForeground(QColor("#4ade80")); // Professional Green for Flux
-            item->setIcon(QIcon(":/icons/tool_run.svg"));
-        } else {
-            item->setForeground(QColor("#94a3b8")); // Slate Gray for Legacy
+    // Built-in fallback templates if disk templates are not found
+    if (m_templateList->count() == 0) {
+        struct BuiltinTemplate { const char* name; const char* content; };
+        static const BuiltinTemplate builtins[] = {
+            {"LOGIC SHAPER", "# Logic Shaper Template\n# INPUTS: IN1, IN2, IN3, IN4\n# OUTPUTS: SUM\nreturn inputs[0] + inputs[1] + inputs[2] + inputs[3];\n"},
+            {"PID CONTROLLER", "# PID Controller Template\n# INPUTS: setpoint, feedback\n# OUTPUTS: out\nlet setpoint = inputs[0] in\nlet feedback = inputs[1] in\nlet error = setpoint - feedback in\nlet Kp = 1.5 in\nreturn error * Kp;\n"},
+            {"POWER CALCULATOR", "# Power Calculator Template\n# INPUTS: voltage, current\n# OUTPUTS: power\nlet v = inputs[0] in\nlet i = inputs[1] in\nreturn v * i;\n"},
+            {"PWM GENERATOR", "# PWM Generator Template\n# INPUTS: duty_v\n# OUTPUTS: out\nlet raw = inputs[0] in\nlet duty = if raw > 1.0 then 1.0 else (if raw < 0.0 then 0.0 else raw) in\nlet freq = 1000.0 in\nlet period = 1.0 / freq in\nlet local_t = t - (floor(t / period) * period) in\nreturn if local_t < (period * duty) then 5.0 else 0.0;\n"},
+            {"SIGNAL DIFFERENCER", "# Signal Differencer Template\n# INPUTS: sig_a, sig_b\n# OUTPUTS: diff\nlet a = inputs[0] in\nlet b = inputs[1] in\nreturn a - b;\n"},
+            {"LOGIC COMPARATOR", "# Logic Comparator Template\n# INPUTS: sig, ref\n# OUTPUTS: out\nlet s = inputs[0] in\nlet r = inputs[1] in\nreturn if s > r then 1.0 else 0.0;\n"}
+        };
+        for (const auto& bt : builtins) {
+            auto* item = new QListWidgetItem(bt.name);
+            item->setData(Qt::UserRole + 1, QString::fromUtf8(bt.content));
+            item->setToolTip("Built-in Flux template");
+            item->setForeground(QColor("#4ade80"));
+            m_templateList->addItem(item);
         }
-        
-        m_templateList->addItem(item);
     }
 }
 
 void LogicEditorPanel::onTemplateDoubleClicked(QListWidgetItem* item) {
     if (!item || !m_targetBlock) return;
 
-    const QString path = item->data(Qt::UserRole).toString();
-    QFile file(path);
-    if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
-        m_statusLabel->setText("Error: Could not open template file.");
-        return;
+    QString content;
+    const QString builtinCode = item->data(Qt::UserRole + 1).toString();
+    if (!builtinCode.isEmpty()) {
+        content = builtinCode;
+    } else {
+        const QString path = item->data(Qt::UserRole).toString();
+        QFile file(path);
+        if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+            m_statusLabel->setText("Error: Could not open template file.");
+            return;
+        }
+        content = QTextStream(&file).readAll();
     }
-
-    const QString content = QTextStream(&file).readAll();
     loadInlineFluxScript(content, "Template loaded: " + item->text());
     
     // Auto-Shape block based on metadata in the script

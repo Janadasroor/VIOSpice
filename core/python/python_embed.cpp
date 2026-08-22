@@ -62,10 +62,8 @@ void initEmbeddedPython() {
     PyConfig_Clear(&config);
 
     // Compute the path to the VioSpice python/ directory
-    // Compute the path to the VioSpice python/ directory
     // AppImage layout: /usr/bin/viospice -> /usr/python/
     // Dev layout: /build/viospice -> /python/
-    QString appDir = QCoreApplication::applicationDirPath();
     QStringList candidates = {
         QDir(appDir).absoluteFilePath("../python"),  // AppImage
         QDir(appDir).absoluteFilePath("../../python"), // Dev build/

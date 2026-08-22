@@ -7,4 +7,5 @@
 
 let a = inputs[0] in
 let b = inputs[1] in
-a - b
+return a - b;
+

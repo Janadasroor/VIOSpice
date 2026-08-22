@@ -7,5 +7,6 @@
 
 let v = inputs[0] in
 let i = inputs[1] in
-v * i
+return v * i;
+
 

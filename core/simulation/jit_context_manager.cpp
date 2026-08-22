@@ -153,12 +153,24 @@ bool JITContextManager::compileAndLoad(const QString& id, const QString& source,
     } else {
         // Search for def update(... anywhere in the source (may be preceded by comments/blank lines).
         // Use \b anchor instead of ^ so leading comments don't defeat the check.
-        static const QRegularExpression updateDefRe(R"(\bdef\s+update\s*[\({])");
-        if (!transformedSource.contains(updateDefRe)) {
-            wrapped = QString("def %1(t, inputs) {\n%2\n}").arg(uniqueFuncName, transformedSource);
+        static const QRegularExpression updateDefWithParen(R"(\bdef\s+update\s*\()");
+        static const QRegularExpression updateDefNoParen(R"(\bdef\s+update\s*\{)");
+        
+        if (transformedSource.contains(updateDefWithParen)) {
+            wrapped = transformedSource;
+            wrapped.replace(updateDefWithParen, QString("def %1(").arg(uniqueFuncName));
+        } else if (transformedSource.contains(updateDefNoParen)) {
+            wrapped = transformedSource;
+            wrapped.replace(updateDefNoParen, QString("def %1() {").arg(uniqueFuncName));
         } else {
-            // Rename 'update' to uniqueFuncName
-            wrapped.replace(updateDefRe, QString("def %1(").arg(uniqueFuncName));
+            // Raw expression or statements: automatically wrap in function
+            QString body = transformedSource.trimmed();
+            if (!body.contains("return ") && !body.startsWith("return")) {
+                // If the body doesn't explicitly contain return, prepend return for expression bodies
+                body = "return " + body;
+                if (!body.endsWith(';')) body += ';';
+            }
+            wrapped = QString("def %1(t, inputs) {\n%2\n}").arg(uniqueFuncName, body);
         }
     }
 
