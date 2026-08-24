@@ -33,7 +33,9 @@ while [[ $# -gt 0 ]]; do
     case "$1" in
         --clean)     DO_CLEAN=1; shift ;;
         --no-test|--skip-tests) RUN_TESTS=0; shift ;;
+        -j[0-9]*)    JOBS="${1#-j}"; shift ;;
         -j|--jobs)   JOBS="$2"; shift 2 ;;
+        --jobs=*)    JOBS="${1#--jobs=}"; shift ;;
         --help|-h)
             cat <<HELP
 Usage: ./scripts/build_macos.sh [options]

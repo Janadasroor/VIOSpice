@@ -156,6 +156,9 @@ if(VIOSPICE_DEV_MODE OR VIOSPICE_BUILD_VIOMATRIXC)
         message(STATUS "VioMATRIXC: using local ../VioMATRIXC")
         set(viomatrixc_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../VioMATRIXC")
     else()
+        if(POLICY CMP0169)
+            cmake_policy(SET CMP0169 OLD)
+        endif()
         FetchContent_Declare(
             viomatrixc
             GIT_REPOSITORY https://github.com/Janadasroor/VioMATRIXC.git
