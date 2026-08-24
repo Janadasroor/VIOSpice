@@ -147,7 +147,7 @@ jobs:
 
       - name: Configure (Linux)
         if: runner.os == 'Linux'
-        run: cmake --preset release
+        run: cmake --preset release -DVIOSPICE_BUILD_VIOMATRIXC=OFF -DVIOSPICE_BUILD_FLUXSCRIPT=ON
 
       - name: Fetch ViospiceLib for bundling (Linux / macOS)
         if: runner.os != 'Windows'
