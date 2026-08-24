@@ -167,7 +167,17 @@ jobs:
         if: runner.os == 'Linux'
         run: cmake --preset release
 
-      - name: Fetch ViospiceLib for bundling
+      - name: Fetch ViospiceLib for bundling (Linux / macOS)
+        if: runner.os != 'Windows'
+        run: |
+          if [ ! -d "$HOME/viora-libs" ]; then
+            git clone --depth 1 https://github.com/Janadasroor/viora-libs.git "$HOME/viora-libs"
+          fi
+          echo "Library size: $(du -sh "$HOME/viora-libs" | cut -f1)"
+
+      - name: Fetch ViospiceLib for bundling (Windows)
+        if: runner.os == 'Windows'
+        shell: msys2 {0}
         run: |
           if [ ! -d "$HOME/viora-libs" ]; then
             git clone --depth 1 https://github.com/Janadasroor/viora-libs.git "$HOME/viora-libs"

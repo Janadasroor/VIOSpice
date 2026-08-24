@@ -65,15 +65,20 @@ if ! command -v brew >/dev/null 2>&1; then
     die "Homebrew is required. Please install it from https://brew.sh and run this script again."
 fi
 
+export HOMEBREW_NO_REQUIRE_TAP_TRUST=1
+export HOMEBREW_NO_AUTO_UPDATE=1
+
 # Ensure essential tools are present
 MISSING_BREW=()
 for pkg in cmake autoconf automake libtool bison flex eigen pkg-config; do
-    brew list "$pkg" >/dev/null 2>&1 || MISSING_BREW+=("$pkg")
+    if ! brew list "$pkg" >/dev/null 2>&1; then
+        MISSING_BREW+=("$pkg")
+    fi
 done
 
 if [ "${#MISSING_BREW[@]}" -gt 0 ]; then
     info "Installing missing dependencies: ${MISSING_BREW[*]} ..."
-    brew install "${MISSING_BREW[@]}" || true
+    brew install "${MISSING_BREW[@]}" 2>/dev/null || true
 fi
 
 # Locate Bison
@@ -84,9 +89,9 @@ for bp in /usr/local/opt/bison/bin /opt/homebrew/opt/bison/bin; do
     fi
 done
 
-# Locate LLVM 15 or system LLVM
+# Locate LLVM
 LLVM_DIR=""
-for lp in /usr/local/opt/llvm@15 /opt/homebrew/opt/llvm@15 /usr/local/opt/llvm /opt/homebrew/opt/llvm; do
+for lp in /usr/local/opt/llvm@21 /opt/homebrew/opt/llvm@21 /usr/local/opt/llvm /opt/homebrew/opt/llvm /usr/local/opt/llvm@15 /opt/homebrew/opt/llvm@15; do
     if [ -d "$lp" ]; then
         export PATH="$lp/bin:$PATH"
         LLVM_DIR="$lp"
@@ -96,13 +101,19 @@ done
 
 # Locate Qt 6
 QT_DIR=""
-for qp in "$HOME/Qt/6.6.3/macos" "$HOME/Qt/6.*/macos" /usr/local/opt/qt@6 /opt/homebrew/opt/qt@6 /usr/local/opt/qt /opt/homebrew/opt/qt; do
-    if [ -d "$qp" ]; then
-        QT_DIR="$qp"
-        export Qt6_DIR="$qp/lib/cmake/Qt6"
-        break
-    fi
-done
+if [ -n "${Qt6_DIR:-}" ] && [ -d "$Qt6_DIR" ]; then
+    QT_DIR="$(cd "$Qt6_DIR/../../.." 2>/dev/null && pwd || true)"
+fi
+
+if [ -z "$QT_DIR" ]; then
+    for qp in ${RUNNER_TEMP:-/tmp}/Qt/6.*/macos "$HOME/Qt/6.6.3/macos" "$HOME/Qt/6.*/macos" /usr/local/opt/qt@6 /opt/homebrew/opt/qt@6 /usr/local/opt/qt /opt/homebrew/opt/qt; do
+        if [ -d "$qp" ]; then
+            QT_DIR="$qp"
+            export Qt6_DIR="$qp/lib/cmake/Qt6"
+            break
+        fi
+    done
+fi
 
 if [ -z "$QT_DIR" ]; then
     info "Installing Qt 6 from Homebrew..."
