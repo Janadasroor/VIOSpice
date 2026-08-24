@@ -170,13 +170,14 @@ jobs:
       - name: Configure (macOS)
         if: runner.os == 'macOS'
         run: |
-          LLVM_DIR="$(brew --prefix llvm 2>/dev/null)/lib/cmake/llvm"
-          [ -d "$LLVM_DIR" ] || LLVM_DIR="/opt/homebrew/opt/llvm/lib/cmake/llvm"
-          [ -d "$LLVM_DIR" ] || LLVM_DIR="/usr/local/opt/llvm/lib/cmake/llvm"
-          echo "Using LLVM_DIR: $LLVM_DIR"
-          cmake --preset release \
+          LLVM_PATH="$(brew --prefix llvm 2>/dev/null || echo /opt/homebrew/opt/llvm)"
+          cmake -B build \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_PREFIX_PATH="$Qt6_DIR;$(brew --prefix zstd 2>/dev/null || true)" \
+            -DQt6_DIR="$Qt6_DIR" \
+            -DLLVM_DIR="$LLVM_PATH/lib/cmake/llvm" \
             -DVIOSPICE_BUILD_VIOMATRIXC=OFF \
-            -DLLVM_DIR="$LLVM_DIR" \
+            -DVIOSPICE_BUILD_FLUXSCRIPT=ON \
             -DFETCHCONTENT_TRY_FIND_PACKAGE_MODE=NEVER
 
       - name: Install and link dependencies (macOS)
