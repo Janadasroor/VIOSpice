@@ -571,34 +571,15 @@ if(VIOSPICE_DEV_MODE OR VIOSPICE_BUILD_FLUXSCRIPT)
         add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../fluxscript FluxScript EXCLUDE_FROM_ALL)
         set(FLUXSCRIPT_LIB_DIR "${CMAKE_BINARY_DIR}/FluxScript")
     else()
-        if(POLICY CMP0169)
-            cmake_policy(SET CMP0169 OLD)
-        endif()
+        set(FLUX_VIO_MATRIXC_LIB_DIR "" CACHE STRING "Path to VioMATRIXC libngspice directory" FORCE)
+        set(NGSPICE_INCLUDE_DIR "${VIOSPICE_ENGINE_INCLUDE_DIRS}" CACHE PATH "VioMATRIXC ngspice include dir" FORCE)
+        set(NGSPICE_LIBRARY "${VIOSPICE_PREFERRED_ENGINE_LIB}" CACHE FILEPATH "VioMATRIXC ngspice library" FORCE)
         FetchContent_Declare(
             FluxScript
             GIT_REPOSITORY https://github.com/Janadasroor/fluxscript.git
             GIT_TAG        b943cd882cf1653732fe9cf8572cace01e8478d8
         )
-        FetchContent_GetProperties(FluxScript)
-        if(NOT fluxscript_POPULATED)
-            FetchContent_Populate(FluxScript)
-        endif()
-        # When using prebuilt VioMATRIXC, fix FluxScript's ngspice path computation
-        # so it uses the correct include/lib paths from the prebuilt archive.
-        if(NOT VIOSPICE_DEV_MODE)
-            file(READ "${fluxscript_SOURCE_DIR}/CMakeLists.txt" _fs_cmake)
-            string(REPLACE
-                "set(NGSPICE_INCLUDE_DIR \"\${FLUX_VIO_MATRIXC_LIB_DIR}/../../../src/include\""
-                "set(NGSPICE_INCLUDE_DIR \"${VIOSPICE_ENGINE_INCLUDE_DIRS}\""
-                _fs_cmake "${_fs_cmake}")
-            string(REPLACE
-                "set(NGSPICE_LIBRARY \"\${FLUX_VIO_MATRIXC_LIB_DIR}/libngspice.so.0\""
-                "set(NGSPICE_LIBRARY \"${VIOSPICE_PREFERRED_ENGINE_LIB}\""
-                _fs_cmake "${_fs_cmake}")
-            file(WRITE "${fluxscript_SOURCE_DIR}/CMakeLists.txt" "${_fs_cmake}")
-            unset(_fs_cmake)
-        endif()
-        add_subdirectory(${fluxscript_SOURCE_DIR} ${fluxscript_BINARY_DIR} EXCLUDE_FROM_ALL)
+        FetchContent_MakeAvailable(FluxScript)
         set(FLUXSCRIPT_LIB_DIR "${fluxscript_BINARY_DIR}")
     endif()
     add_compile_definitions(HAVE_FLUXSCRIPT FLUXSCRIPT_EXAMPLES_DIR="${fluxscript_SOURCE_DIR}/examples")
