@@ -29,7 +29,7 @@ static int runAndWait(SimManager& sim, const QString& netlist, const QString& la
 
     SimAnalysisConfig config;
     config.type = SimAnalysisType::Transient;
-    config.tStop = 10e-3;
+    config.tStop = 1e-3;
     config.tStep = 1e-6;
     sim.runNgspiceSimulation(netlist, config);
 

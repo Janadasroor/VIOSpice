@@ -27,7 +27,7 @@ int main(int argc, char** argv) {
         "V1 1 0 10\n"
         "R1 1 2 1k\n"
         "C1 2 0 1u\n"
-        ".tran 1u 100m\n"
+        ".tran 1u 2m\n"
         ".end\n";
 
     QSignalSpy errorSpy(&sim, &SimManager::errorOccurred);
@@ -35,7 +35,7 @@ int main(int argc, char** argv) {
 
     SimAnalysisConfig config;
     config.type = SimAnalysisType::Transient;
-    config.tStop = 0.1;
+    config.tStop = 0.002;
     config.tStep = 1e-6;
     sim.runNgspiceSimulation(validNetlist, config);
 

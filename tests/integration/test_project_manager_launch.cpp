@@ -33,7 +33,7 @@ static SchematicEditor* lastEditor() {
     return editor;
 }
 
-static void settle(int ms = 400) {
+static void settle(int ms = 200) {
     QEventLoop loop;
     QTimer::singleShot(ms, &loop, &QEventLoop::quit);
     loop.exec();
