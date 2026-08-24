@@ -157,6 +157,14 @@ if [ "${#PREFIX_DIRS[@]}" -gt 0 ]; then
     CMAKE_ARGS+=(-DCMAKE_PREFIX_PATH="$(IFS=';'; echo "${PREFIX_DIRS[*]}")")
 fi
 
+BREW_PREFIX="$(brew --prefix 2>/dev/null || true)"
+if [ -n "$BREW_PREFIX" ] && [ -d "$BREW_PREFIX/lib" ]; then
+    CMAKE_ARGS+=(
+        "-DCMAKE_EXE_LINKER_FLAGS=-L$BREW_PREFIX/lib"
+        "-DCMAKE_SHARED_LINKER_FLAGS=-L$BREW_PREFIX/lib"
+    )
+fi
+
 info "Configuring project with CMake..."
 cmake "${CMAKE_ARGS[@]}"
 
