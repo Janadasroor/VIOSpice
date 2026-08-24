@@ -172,7 +172,10 @@ cmake "${CMAKE_ARGS[@]}"
 # 4) Compilation
 # ---------------------------------------------------------------------------
 ok "Building VioraEDA.app, viora CLI, and flux_runner..."
-cmake --build "$ROOT/build" -j"$JOBS"
+if ! cmake --build "$ROOT/build" -j"$JOBS"; then
+    warn "Compilation failed. Retrying with verbose output to identify cause..."
+    cmake --build "$ROOT/build" -v -j1
+fi
 
 # Stage native dylibs
 if [ -f "$ROOT/build/_deps/viomatrixc-src/src/.libs/libngspice.dylib" ]; then
