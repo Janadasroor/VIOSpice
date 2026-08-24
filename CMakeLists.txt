@@ -571,15 +571,18 @@ if(VIOSPICE_DEV_MODE OR VIOSPICE_BUILD_FLUXSCRIPT)
         add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../fluxscript FluxScript EXCLUDE_FROM_ALL)
         set(FLUXSCRIPT_LIB_DIR "${CMAKE_BINARY_DIR}/FluxScript")
     else()
-        message(STATUS "FluxScript: fetching from GitHub")
-        # Use FetchContent_Populate to patch FluxScript's CMake before add_subdirectory
-        cmake_policy(SET CMP0169 OLD)
+        if(POLICY CMP0169)
+            cmake_policy(SET CMP0169 OLD)
+        endif()
         FetchContent_Declare(
             FluxScript
             GIT_REPOSITORY https://github.com/Janadasroor/fluxscript.git
             GIT_TAG        b943cd882cf1653732fe9cf8572cace01e8478d8
         )
-        FetchContent_Populate(FluxScript)
+        FetchContent_GetProperties(FluxScript)
+        if(NOT fluxscript_POPULATED)
+            FetchContent_Populate(FluxScript)
+        endif()
         # When using prebuilt VioMATRIXC, fix FluxScript's ngspice path computation
         # so it uses the correct include/lib paths from the prebuilt archive.
         if(NOT VIOSPICE_DEV_MODE)
