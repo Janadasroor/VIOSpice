@@ -117,7 +117,7 @@ if [ ! -d "$LIB_DIR/sym" ]; then
     if [ -d "$HOME/viora-libs" ]; then
         info "Linking component library from ~/viora-libs to ~/ViospiceLib..."
         mkdir -p "$LIB_DIR"
-        cp -Rf "$HOME/viora-libs/"* "$LIB_DIR/" 2>/dev/null || true
+        cp -Rf "$HOME/viora-libs/." "$LIB_DIR/" 2>/dev/null || true
     fi
 fi
 
@@ -137,6 +137,10 @@ CMAKE_ARGS=(
     -DVIOSPICE_BUILD_FLUXSCRIPT=ON
     -DFETCHCONTENT_TRY_FIND_PACKAGE_MODE=NEVER
 )
+
+if [ -n "${Qt6_DIR:-}" ]; then
+    CMAKE_ARGS+=(-DQt6_DIR="$Qt6_DIR")
+fi
 
 PREFIX_DIRS=()
 [ -n "$QT_DIR" ] && PREFIX_DIRS+=("$QT_DIR")
