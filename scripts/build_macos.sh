@@ -89,12 +89,14 @@ done
 
 # Locate Qt 6
 QT_DIR=""
-if [ -n "${Qt6_DIR:-}" ] && [ -d "$Qt6_DIR" ]; then
-    QT_DIR="$(cd "$Qt6_DIR/../../.." 2>/dev/null && pwd || true)"
+if [ -n "${Qt6_DIR:-}" ]; then
+    if [ -d "$Qt6_DIR" ]; then
+        QT_DIR="$(cd "$Qt6_DIR/../../.." 2>/dev/null && pwd || true)"
+    fi
 fi
 
 if [ -z "$QT_DIR" ]; then
-    for qp in ${RUNNER_TEMP:-/tmp}/Qt/6.*/macos "$HOME/Qt/6.6.3/macos" "$HOME/Qt/6.*/macos" /usr/local/opt/qt@6 /opt/homebrew/opt/qt@6 /usr/local/opt/qt /opt/homebrew/opt/qt; do
+    for qp in ${RUNNER_TEMP:-/tmp}/Qt/6.*/macos* /Users/runner/work/_temp/Qt/6.*/macos* "$HOME/Qt/6.*/macos*" "$HOME/Qt/6.6.3/macos" /opt/homebrew/opt/qt@6 /opt/homebrew/opt/qt /usr/local/opt/qt@6 /usr/local/opt/qt; do
         if [ -d "$qp" ]; then
             QT_DIR="$qp"
             export Qt6_DIR="$qp/lib/cmake/Qt6"
@@ -107,6 +109,7 @@ if [ -z "$QT_DIR" ]; then
     info "Installing Qt 6 from Homebrew..."
     brew install qt@6 2>/dev/null || true
     QT_DIR="$(brew --prefix qt@6 2>/dev/null || brew --prefix qt 2>/dev/null || true)"
+    [ -n "$QT_DIR" ] && export Qt6_DIR="$QT_DIR/lib/cmake/Qt6"
 fi
 
 # ---------------------------------------------------------------------------
