@@ -57,7 +57,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ${{ runner.temp }}/Qt
-          key: ${{ runner.os }}-qt-6.10.0-clang_64
+          key: ${{ runner.os }}-qt-6.10.0-clang_64-v2
 
       - name: Install Qt (macOS)
         if: runner.os == 'macOS' && steps.cache-qt-macos.outputs.cache-hit != 'true'
@@ -65,7 +65,7 @@ jobs:
           brew install python@3.12
           python3 -m venv /tmp/qt-env
           /tmp/qt-env/bin/pip install aqtinstall
-          /tmp/qt-env/bin/aqt install-qt --outputdir "${{ runner.temp }}/Qt" mac desktop 6.10.0 clang_64 -m qtcharts qtpdf qtwebsockets qtmultimedia qt5compat qtshadertools
+          /tmp/qt-env/bin/aqt install-qt --outputdir "${{ runner.temp }}/Qt" mac desktop 6.10.0 clang_64 -m qtcharts qtpdf qtwebsockets qtmultimedia qt5compat qtshadertools qtdeclarative
 
       - name: Set Qt6_DIR (macOS)
         if: runner.os == 'macOS'
