@@ -554,6 +554,25 @@ endif()
 set(FLUX_VIO_MATRIXC_LIB_DIR "${VIOSPICE_PREFERRED_ENGINE_DIR}" CACHE STRING "Path to VioMATRIXC libngspice directory" FORCE)
 
 if(VIOSPICE_DEV_MODE OR VIOSPICE_BUILD_FLUXSCRIPT)
+    # Auto-discover LLVM_DIR across common system and brew paths if not explicitly set
+    if(NOT LLVM_DIR)
+        foreach(_llvm_candidate
+            "/usr/lib/llvm-21/lib/cmake/llvm"
+            "/usr/lib/llvm-20/lib/cmake/llvm"
+            "/usr/lib/llvm-19/lib/cmake/llvm"
+            "/usr/lib/llvm-18/lib/cmake/llvm"
+            "/usr/lib/llvm-17/lib/cmake/llvm"
+            "/opt/homebrew/opt/llvm/lib/cmake/llvm"
+            "/usr/local/opt/llvm/lib/cmake/llvm"
+            "/mingw64/lib/cmake/llvm"
+        )
+            if(EXISTS "${_llvm_candidate}")
+                set(LLVM_DIR "${_llvm_candidate}" CACHE PATH "LLVM cmake directory" FORCE)
+                message(STATUS "Auto-detected LLVM_DIR: ${LLVM_DIR}")
+                break()
+            endif()
+        endforeach()
+    endif()
     # --- Build FluxScript from source (local repo or FetchContent) ---
     if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/../fluxscript/CMakeLists.txt")
         message(STATUS "FluxScript: using local ../fluxscript")
