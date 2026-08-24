@@ -154,7 +154,9 @@ jobs:
       - name: Install system deps (macOS)
         if: runner.os == 'macOS'
         run: |
-          brew install cmake curl python@3.12 ccache libedit autoconf automake libtool bison flex
+          export HOMEBREW_NO_REQUIRE_TAP_TRUST=1
+          brew untap aws/tap 2>/dev/null || true
+          brew install cmake curl python@3.12 ccache libedit zstd llvm libomp || true
 
       - name: Setup ccache
         uses: hendrikmuhs/ccache-action@v1.2
@@ -165,17 +167,14 @@ jobs:
         if: runner.os == 'Linux'
         run: cmake --preset release
 
-      - name: Install LLVM (macOS)
-        if: runner.os == 'macOS'
-        run: |
-          brew install llvm libomp
-
       - name: Configure (macOS)
         if: runner.os == 'macOS'
         run: |
+          export HOMEBREW_NO_REQUIRE_TAP_TRUST=1
+          LLVM_PATH="$(brew --prefix llvm 2>/dev/null || echo /opt/homebrew/opt/llvm)"
           cmake --preset release \
             -DVIOSPICE_BUILD_VIOMATRIXC=OFF \
-            -DLLVM_DIR="$(brew --prefix llvm)/lib/cmake/llvm" \
+            -DLLVM_DIR="$LLVM_PATH/lib/cmake/llvm" \
             -DFETCHCONTENT_TRY_FIND_PACKAGE_MODE=NEVER
 
       - name: Install and link dependencies (macOS)
