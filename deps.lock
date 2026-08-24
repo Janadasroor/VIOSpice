@@ -25,5 +25,5 @@ FluxScript v1.2.0 macos   fluxscript-macos-arm64.tar.gz     6754b5fcf8a380530beb
 [git]
 VioMATRIXC v0.2.3 https://github.com/Janadasroor/VioMATRIXC.git
 VioAVR     v0.2.5 https://github.com/Janadasroor/VioAVR.git
-FluxScript f623fcddef6597742c9b19e789281a74cc1b8779 https://github.com/Janadasroor/fluxscript.git
+FluxScript 4d120b5c18161005e719a9827cd085bc5aae834e https://github.com/Janadasroor/fluxscript.git
 slang      d9c9603ca6908d5b2e55e9b535fcdf28099789ad https://github.com/MikePopoloski/slang.git
