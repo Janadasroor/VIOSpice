@@ -159,27 +159,7 @@ jobs:
 
       - name: Configure (Linux)
         if: runner.os == 'Linux'
-        run: cmake --preset release -DVIOSPICE_BUILD_VIOMATRIXC=OFF
-
-      - name: Configure (macOS)
-        if: runner.os == 'macOS'
-        run: |
-          LLVM_PATH="$(brew --prefix llvm 2>/dev/null || echo /opt/homebrew/opt/llvm)"
-          cmake -B build \
-            -DCMAKE_BUILD_TYPE=Release \
-            -DCMAKE_PREFIX_PATH="$Qt6_DIR;$(brew --prefix zstd 2>/dev/null || true)" \
-            -DQt6_DIR="$Qt6_DIR" \
-            -DLLVM_DIR="$LLVM_PATH/lib/cmake/llvm" \
-            -DVIOSPICE_BUILD_VIOMATRIXC=OFF \
-            -DVIOSPICE_BUILD_FLUXSCRIPT=ON \
-            -DFETCHCONTENT_TRY_FIND_PACKAGE_MODE=NEVER
-
-      - name: Install and link dependencies (macOS)
-        if: runner.os == 'macOS'
-        run: |
-          brew install zstd
-          mkdir -p build/fluxscript-prebuilt/lib
-          cp -v $(brew --prefix zstd)/lib/libzstd*.dylib build/fluxscript-prebuilt/lib/ 2>/dev/null || true
+        run: cmake --preset release
 
       - name: Configure (Windows)
         if: runner.os == 'Windows'
@@ -191,14 +171,15 @@ jobs:
           EIGEN_PATH="$(cygpath -m /mingw64/include/eigen3)"
           cmake --preset msys2-mingw64 -DEIGEN3_INCLUDE_DIR="$EIGEN_PATH"
 
-      - name: Build (Linux / macOS)
-        if: runner.os != 'Windows'
+      - name: Build (Linux)
+        if: runner.os == 'Linux'
+        run: cmake --build --preset release --parallel $(nproc)
+
+      - name: Build (macOS)
+        if: runner.os == 'macOS'
         run: |
-          if [ "${{ runner.os }}" = "macOS" ]; then
-            cmake --build build -j3
-          else
-            cmake --build --preset release --parallel $(nproc)
-          fi
+          chmod +x scripts/build_macos.sh
+          ./scripts/build_macos.sh --no-test -j3
 
       - name: Build (Windows)
         if: runner.os == 'Windows'

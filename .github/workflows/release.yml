@@ -165,47 +165,9 @@ jobs:
 
       - name: Configure (Linux)
         if: runner.os == 'Linux'
-        run: cmake --preset release -DVIOSPICE_BUILD_VIOMATRIXC=OFF
+        run: cmake --preset release
 
-      - name: Configure (macOS)
-        if: runner.os == 'macOS'
-        run: |
-          LLVM_PATH="$(brew --prefix llvm 2>/dev/null || echo /opt/homebrew/opt/llvm)"
-          cmake -B build \
-            -DCMAKE_BUILD_TYPE=Release \
-            -DCMAKE_PREFIX_PATH="$Qt6_DIR;$(brew --prefix zstd 2>/dev/null || true)" \
-            -DQt6_DIR="$Qt6_DIR" \
-            -DLLVM_DIR="$LLVM_PATH/lib/cmake/llvm" \
-            -DVIOSPICE_BUILD_VIOMATRIXC=OFF \
-            -DVIOSPICE_BUILD_FLUXSCRIPT=ON \
-            -DFETCHCONTENT_TRY_FIND_PACKAGE_MODE=NEVER
-
-      - name: Install and link dependencies (macOS)
-        if: runner.os == 'macOS'
-        run: |
-          brew install zstd
-          mkdir -p build/fluxscript-prebuilt/lib
-          cp -v $(brew --prefix zstd)/lib/libzstd*.dylib build/fluxscript-prebuilt/lib/ 2>/dev/null || true
-
-      - name: Fetch ViospiceLib for bundling (macOS)
-        if: runner.os == 'macOS'
-        run: |
-          if [ ! -d "$HOME/viora-libs" ]; then
-            git clone --depth 1 https://github.com/Janadasroor/viora-libs.git "$HOME/viora-libs"
-          fi
-          echo "Library size: $(du -sh "$HOME/viora-libs" | cut -f1)"
-
-      - name: Fetch ViospiceLib for bundling (Linux)
-        if: runner.os == 'Linux'
-        run: |
-          if [ ! -d "$HOME/viora-libs" ]; then
-            git clone --depth 1 https://github.com/Janadasroor/viora-libs.git "$HOME/viora-libs"
-          fi
-          echo "Library size: $(du -sh "$HOME/viora-libs" | cut -f1)"
-
-      - name: Fetch ViospiceLib for bundling (Windows)
-        if: runner.os == 'Windows'
-        shell: msys2 {0}
+      - name: Fetch ViospiceLib for bundling
         run: |
           if [ ! -d "$HOME/viora-libs" ]; then
             git clone --depth 1 https://github.com/Janadasroor/viora-libs.git "$HOME/viora-libs"
@@ -224,13 +186,16 @@ jobs:
             -DPython3_EXECUTABLE="$PYPATH" -DPython_EXECUTABLE="$PYPATH" \
             -DEIGEN3_INCLUDE_DIR="$EIGEN_PATH" \
             -DVIOSPICE_BUNDLED_LIB="$HOME/viora-libs"
+
       - name: Build (Linux)
         if: runner.os == 'Linux'
         run: cmake --build --preset release --parallel $(nproc)
 
       - name: Build (macOS)
         if: runner.os == 'macOS'
-        run: cmake --build build -j2
+        run: |
+          chmod +x scripts/build_macos.sh
+          ./scripts/build_macos.sh --no-test -j2
 
       - name: Build (Windows)
         if: runner.os == 'Windows'
