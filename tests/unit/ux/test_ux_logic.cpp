@@ -3,6 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+#include "test_ux_logic.h"
 #include <QtTest>
 #include "../../../schematic/editor/schematic_menu_registry.h"
 #include "../../../schematic/editor/schematic_view.h"
@@ -17,6 +18,10 @@
 #include "../../../core/project/config_manager.h"
 #include "../../../symbols/models/symbol_definition.h"
 #include "../../../symbols/models/symbol_primitive.h"
+#include "../../../schematic/items/smart_signal_item.h"
+#include "../../../schematic/ui/logic_editor_panel.h"
+#include "../../../core/simulation/jit_context_manager.h"
+#include "../../../simulator/bridge/sim_manager.h"
 #include <cmath>
 #include <QRegularExpression>
 #include <QGraphicsScene>
@@ -131,17 +136,16 @@ QString repoRootFromThisFile() {
 
 } // namespace
 
-class TestUXLogic : public QObject {
-    Q_OBJECT
+void TestUXLogic::initTestCase() {
+    // Initialize the registry
+    SchematicMenuRegistry::instance().initializeDefaultActions();
+    SchematicToolRegistryBuiltIn::registerBuiltInTools();
+}
 
-private Q_SLOTS:
-    void initTestCase() {
-        // Initialize the registry
-        SchematicMenuRegistry::instance().initializeDefaultActions();
-        SchematicToolRegistryBuiltIn::registerBuiltInTools();
-    }
+void TestUXLogic::cleanupTestCase() {
+}
 
-    void testMenuRegistry_SingleSelection() {
+void TestUXLogic::testMenuRegistry_SingleSelection() {
         ResistorItem resistor;
         QList<SchematicItem*> selection = { &resistor };
         
@@ -158,7 +162,7 @@ private Q_SLOTS:
         QVERIFY(hasFlip);
     }
 
-    void testMenuRegistry_MixedSelection() {
+void TestUXLogic::testMenuRegistry_MixedSelection() {
         ResistorItem resistor;
         WireItem wire;
         QList<SchematicItem*> selection = { &resistor, &wire };
@@ -180,7 +184,7 @@ private Q_SLOTS:
         QVERIFY(!hasEditNet);
     }
 
-    void testEngineeringNotationRegex() {
+void TestUXLogic::testEngineeringNotationRegex() {
         // Testing the regex used in SmartPropertiesDialog::validateAll
         QRegularExpression re(R"(^([\-+]?\d*\.?\d+)([kMGTunpfμ]?[ΩFHV]?)$)");
         
@@ -196,7 +200,7 @@ private Q_SLOTS:
         QVERIFY(!re.match("10xx").hasMatch());
     }
 
-    void testDoubleClickRouting_PrioritizesLabels() {
+void TestUXLogic::testDoubleClickRouting_PrioritizesLabels() {
         // This test simulates the logic we added to SchematicView::mouseDoubleClickEvent
         ResistorItem resistor;
         resistor.createLabels(QPointF(-20, -20), QPointF(-20, 20));
@@ -233,7 +237,7 @@ private Q_SLOTS:
         QCOMPARE(getTarget(&resistor), &resistor);
     }
 
-    void testSelectDrag_ConnectedWireChainRemainsAttachedRealtime() {
+void TestUXLogic::testSelectDrag_ConnectedWireChainRemainsAttachedRealtime() {
         ConfigManager::instance().setRealtimeWireUpdateEnabled(true);
 
         QGraphicsScene scene;
@@ -277,7 +281,7 @@ private Q_SLOTS:
         QVERIFY2(near(trunkStartAfter, stubJunctionAfter), "Connected trunk wire endpoint must follow moved stub junction.");
     }
 
-    void testSelectDrag_ResistorKeepsNearSegmentJunctionAttached() {
+void TestUXLogic::testSelectDrag_ResistorKeepsNearSegmentJunctionAttached() {
         ConfigManager::instance().setRealtimeWireUpdateEnabled(true);
 
         QGraphicsScene scene;
@@ -336,7 +340,7 @@ private Q_SLOTS:
             "Stub junction must stay attached to nearby trunk segment when dragging resistor.");
     }
 
-    void testSelect_ClickOnComponentPrimitiveEdgeSelectsOwner() {
+void TestUXLogic::testSelect_ClickOnComponentPrimitiveEdgeSelectsOwner() {
         QGraphicsScene scene;
         TestSchematicView view;
         view.resize(900, 700);
@@ -360,7 +364,7 @@ private Q_SLOTS:
         QVERIFY2(comp->isSelected(), "Clicking on symbol primitive edge should select the owning component.");
     }
 
-    void testSelect_ClickOnConnectedResistorPinPrefersComponentCapture() {
+void TestUXLogic::testSelect_ClickOnConnectedResistorPinPrefersComponentCapture() {
         QGraphicsScene scene;
         TestSchematicView view;
         view.resize(900, 700);
@@ -385,7 +389,7 @@ private Q_SLOTS:
                  "Select tool should stay active when clicking connected pin.");
     }
 
-    void testSelect_ProbeClickOnComponentBodyEmitsCurrentWaveform() {
+void TestUXLogic::testSelect_ProbeClickOnComponentBodyEmitsCurrentWaveform() {
         QGraphicsScene scene;
         TestSchematicView view;
         view.resize(900, 700);
@@ -413,7 +417,7 @@ private Q_SLOTS:
         QCOMPARE(spy.takeFirst().at(0).toString(), QString("I(U1)"));
     }
 
-    void testSelect_DragTransistorKeepsTJunctionBranchesAttached() {
+void TestUXLogic::testSelect_DragTransistorKeepsTJunctionBranchesAttached() {
         ConfigManager::instance().setRealtimeWireUpdateEnabled(true);
 
         QGraphicsScene scene;
@@ -470,7 +474,7 @@ private Q_SLOTS:
             "Dragging transistor should move the branch T-junction endpoint.");
     }
 
-    void testSelectDrag_SequentialMovesKeepWireEndpointsAttached() {
+void TestUXLogic::testSelectDrag_SequentialMovesKeepWireEndpointsAttached() {
         ConfigManager::instance().setRealtimeWireUpdateEnabled(true);
 
         QGraphicsScene scene;
@@ -546,7 +550,7 @@ private Q_SLOTS:
         assertAttached();
     }
 
-    void testSelectDrag_HorizontalMovePrefersHorizontalFirstElbow() {
+void TestUXLogic::testSelectDrag_HorizontalMovePrefersHorizontalFirstElbow() {
         ConfigManager::instance().setRealtimeWireUpdateEnabled(true);
 
         QGraphicsScene scene;
@@ -588,7 +592,7 @@ private Q_SLOTS:
                  "Elbow should not remain at the old pin x after horizontal move.");
     }
 
-    void testConnectivity_JunctionDotsFollowRules() {
+void TestUXLogic::testConnectivity_JunctionDotsFollowRules() {
         QGraphicsScene scene;
 
         auto* wireA = new WireItem();
@@ -630,7 +634,7 @@ private Q_SLOTS:
         QVERIFY2(containsPointNear(wireC->junctions(), threeWay), "3-way endpoint must create junction dot on wire C.");
     }
 
-    void testSelectDrag_AnchoredWireBetweenComponentsStaysAttached() {
+void TestUXLogic::testSelectDrag_AnchoredWireBetweenComponentsStaysAttached() {
         ConfigManager::instance().setRealtimeWireUpdateEnabled(true);
 
         QGraphicsScene scene;
@@ -696,7 +700,7 @@ private Q_SLOTS:
         assertAnchored();
     }
 
-    void testSelectDrag_RebuildsSimpleLWireBetweenComponents() {
+void TestUXLogic::testSelectDrag_RebuildsSimpleLWireBetweenComponents() {
         ConfigManager::instance().setRealtimeWireUpdateEnabled(true);
 
         QGraphicsScene scene;
@@ -760,7 +764,7 @@ private Q_SLOTS:
         assertShape();
     }
 
-    void testSelectDrag_WirePointsRemainGridAlignedAfterMoves() {
+void TestUXLogic::testSelectDrag_WirePointsRemainGridAlignedAfterMoves() {
         ConfigManager::instance().setRealtimeWireUpdateEnabled(true);
 
         QGraphicsScene scene;
@@ -793,7 +797,7 @@ private Q_SLOTS:
         QVERIFY2(pointsGridAligned(wire->points()), "Wire points must stay grid aligned after second drag.");
     }
 
-    void testSelectDrag_MultiSegmentWirePreservesPointCount() {
+void TestUXLogic::testSelectDrag_MultiSegmentWirePreservesPointCount() {
         ConfigManager::instance().setRealtimeWireUpdateEnabled(true);
 
         QGraphicsScene scene;
@@ -831,7 +835,7 @@ private Q_SLOTS:
         QCOMPARE(wire->points().size(), originalCount);
     }
 
-    void testSelectDrag_LWireAvoidsObstacleByFlippingElbow() {
+void TestUXLogic::testSelectDrag_LWireAvoidsObstacleByFlippingElbow() {
         ConfigManager::instance().setRealtimeWireUpdateEnabled(true);
 
         QGraphicsScene scene;
@@ -893,7 +897,7 @@ private Q_SLOTS:
         QVERIFY2(!collides, "L wire should avoid obstacle after drag.");
     }
 
-    void testSelectDrag_LWireNudgesWhenBothPathsBlocked() {
+void TestUXLogic::testSelectDrag_LWireNudgesWhenBothPathsBlocked() {
         ConfigManager::instance().setRealtimeWireUpdateEnabled(true);
 
         QGraphicsScene scene;
@@ -962,7 +966,7 @@ private Q_SLOTS:
         QVERIFY2(!collides, "L wire should nudge to avoid obstacles when both paths blocked.");
     }
 
-    void testSelectDrag_CollinearChainMovesWithEndpoint() {
+void TestUXLogic::testSelectDrag_CollinearChainMovesWithEndpoint() {
         ConfigManager::instance().setRealtimeWireUpdateEnabled(true);
 
         QGraphicsScene scene;
@@ -997,7 +1001,7 @@ private Q_SLOTS:
         QVERIFY2(qAbs(pts[3].y() - y0) < 0.5, "Collinear point 3 should move with endpoint.");
     }
 
-    void testTransistor_PinsAreGridAligned() {
+void TestUXLogic::testTransistor_PinsAreGridAligned() {
         TransistorItem npn(QPointF(225.0, 225.0), "2N2222", TransistorItem::NPN);
         for (const QPointF& pinLocal : npn.connectionPoints()) {
             const QPointF pinScene = npn.mapToScene(pinLocal);
@@ -1013,12 +1017,15 @@ private Q_SLOTS:
         }
     }
 
-    void testLtspiceAscImport_BasicFixture() {
+void TestUXLogic::testLtspiceAscImport_BasicFixture() {
         QGraphicsScene scene;
         QString pageSize;
         TitleBlockData titleBlock;
 
         const QString path = repoRootFromThisFile() + "/tests/examples/Educational/2ndOrderAllpass.asc";
+        if (!QFileInfo::exists(path)) {
+            QSKIP("LTspice example fixture not present; skipping.");
+        }
         QString script;
         QMap<QString, QList<QString>> busAliases;
         QSet<QString> ercExclusions;
@@ -1049,7 +1056,7 @@ private Q_SLOTS:
         QVERIFY(componentCount > 3);
     }
 
-    void testLtspiceAscImport_ShapeAndPortTokens() {
+void TestUXLogic::testLtspiceAscImport_ShapeAndPortTokens() {
         QGraphicsScene scene;
         QString pageSize;
         TitleBlockData titleBlock;
@@ -1057,6 +1064,9 @@ private Q_SLOTS:
         const QString root = repoRootFromThisFile();
         const QString arcAndShapesPath = root + "/tests/examples/Applications/LT3086.asc";
         const QString ioPinPath = root + "/tests/examples/Applications/AD4130-8.asc";
+        if (!QFileInfo::exists(arcAndShapesPath) || !QFileInfo::exists(ioPinPath)) {
+            QSKIP("LTspice example fixtures not present; skipping.");
+        }
 
         QString script;
         QMap<QString, QList<QString>> busAliases;
@@ -1093,7 +1103,87 @@ private Q_SLOTS:
         }
         QVERIFY(portCount > 0);
     }
-};
+
+void TestUXLogic::testSmartSignal_DefaultFluxCodeCompilesCleanly() {
+        SmartSignalItem item(QPointF(0, 0));
+        QCOMPARE(item.engineType(), SmartSignalItem::EngineType::FluxScript);
+        QString rawCode = item.fluxCode();
+        QVERIFY(!rawCode.isEmpty());
+
+        QString normalized = normalizeFluxSmartBlockSource(rawCode, item.inputPins());
+        QMap<int, QString> errors;
+        bool ok = Flux::JITContextManager::instance().compileAndLoad("test_default_block", normalized, errors);
+        QVERIFY2(ok, qPrintable(errors.value(0)));
+        
+        double output = Flux::JITContextManager::instance().runUpdate("test_default_block", 0.0001, {0.5});
+        QVERIFY(output == 5.0 || output == 0.0);
+    }
+
+void TestUXLogic::testSmartSignal_BareUpdateAndDefSignatures() {
+        Flux::JITContextManager& jit = Flux::JITContextManager::instance();
+        
+        // Form 1: bare update(t, inputs) { ... }
+        QString codeBare = "update(t, inputs) {\n    return inputs[0] * 3.0;\n}";
+        QMap<int, QString> errors;
+        bool ok1 = jit.compileAndLoad("test_bare_update", codeBare, errors);
+        QVERIFY2(ok1, qPrintable(errors.value(0)));
+        
+        double out1 = jit.runUpdate("test_bare_update", 0.0, {4.0});
+        QCOMPARE(out1, 12.0);
+
+        // Form 2: def update(t, inputs) { ... }
+        QString codeDef = "def update(t, inputs) {\n    return inputs[0] + 10.0;\n}";
+        bool ok2 = jit.compileAndLoad("test_def_update", codeDef, errors);
+        QVERIFY2(ok2, qPrintable(errors.value(0)));
+        
+        double out2 = jit.runUpdate("test_def_update", 0.0, {5.0});
+        QCOMPARE(out2, 15.0);
+
+        // Form 3: bare expression without return keyword (auto-wrapped return)
+        QString codeExpr = "inputs[0] * 2.5";
+        bool ok3 = jit.compileAndLoad("test_auto_return", codeExpr, errors);
+        QVERIFY2(ok3, qPrintable(errors.value(0)));
+        
+        double out3 = jit.runUpdate("test_auto_return", 0.0, {8.0});
+        QCOMPARE(out3, 20.0);
+    }
+
+void TestUXLogic::testSmartSignal_PinVoltageMappingAndCaseInsensitivity() {
+        Flux::JITContextManager& jit = Flux::JITContextManager::instance();
+        jit.setInputPinMapping("UB1", {"In1", "In2"});
+        
+        // Voltage pin access syntax V("In1") + V('In2')
+        QString raw = "let a = V(\"In1\");\nlet b = V('In2');\nreturn a + b;";
+        QString normalized = normalizeFluxSmartBlockSource(raw, {"In1", "In2"});
+        QMap<int, QString> errors;
+        bool ok = jit.compileAndLoad("UB1", normalized, errors);
+        QVERIFY2(ok, qPrintable(errors.value(0)));
+        
+        // Case-insensitive lookup (UB1 vs ub1)
+        double outUpper = jit.runUpdate("UB1", 0.0, {3.5, 6.5});
+        QCOMPARE(outUpper, 10.0);
+
+        double outLower = jit.runUpdate("ub1", 0.0, {3.5, 6.5});
+        QCOMPARE(outLower, 10.0);
+    }
+
+void TestUXLogic::testSmartSignal_LogicEditorPanel_InstantiationAndPreview() {
+        QGraphicsScene scene;
+        auto* smartBlock = new SmartSignalItem(QPointF(100, 100));
+        scene.addItem(smartBlock);
+        
+        LogicEditorPanel panel(&scene, nullptr, nullptr);
+        panel.setTargetBlock(smartBlock);
+        
+        // Trigger preview update
+        QMetaObject::invokeMethod(&panel, "updatePreview", Qt::DirectConnection);
+        QVERIFY(panel.isActive());
+        
+        // Modify code in block and update preview again
+        smartBlock->setFluxCode("return inputs[0] * 5.0;");
+        panel.setTargetBlock(smartBlock);
+        QMetaObject::invokeMethod(&panel, "updatePreview", Qt::DirectConnection);
+        QVERIFY(panel.isActive());
+    }
 
 QTEST_MAIN(TestUXLogic)
-#include "test_ux_logic.moc"

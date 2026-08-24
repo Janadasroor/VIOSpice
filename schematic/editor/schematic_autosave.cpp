@@ -88,12 +88,12 @@ SchematicAutosaveManager::findRecoveryCandidates(const QString& projectDir) {
     };
 
     if (!projectDir.isEmpty()) {
-        QDirIterator sidecarIt(projectDir, QStringList() << "*.flxsch~", QDir::Files,
+        QDirIterator sidecarIt(projectDir, QStringList() << "*.flxsch~" << "*.sch~", QDir::Files,
                                QDirIterator::Subdirectories | QDirIterator::FollowSymlinks);
         while (sidecarIt.hasNext()) consider(sidecarIt.next());
     }
 
-    QDirIterator untitledIt(autosaveDir(), QStringList() << "*.flxsch~", QDir::Files,
+    QDirIterator untitledIt(autosaveDir(), QStringList() << "*.flxsch~" << "*.sch~", QDir::Files,
                             QDirIterator::Subdirectories | QDirIterator::FollowSymlinks);
     while (untitledIt.hasNext()) consider(untitledIt.next());
 

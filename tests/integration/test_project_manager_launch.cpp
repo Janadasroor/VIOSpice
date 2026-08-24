@@ -40,6 +40,7 @@ static void settle(int ms = 400) {
 }
 
 int main(int argc, char** argv) {
+    qputenv("QT_QPA_PLATFORM", "offscreen");
     QApplication app(argc, argv);
 
     QTemporaryDir tmp;

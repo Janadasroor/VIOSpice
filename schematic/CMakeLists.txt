@@ -27,6 +27,8 @@ target_include_directories(VioSchematic PRIVATE
 
 # New Phase 2 Components
 target_sources(VioSchematic PRIVATE
+    ui/logic_editor_panel.cpp
+    ui/logic_editor_panel.h
     ui/schematic_minimap.cpp
     ui/schematic_minimap.h
     ui/simulation/simulation_generator_panel.cpp

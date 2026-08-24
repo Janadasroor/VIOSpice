@@ -75,5 +75,7 @@ int main(int argc, char** argv) {
 
     bool ok = (starts >= 1) && (errs == 0);
     fprintf(stderr, "RESULT ok=%d\n", ok ? 1 : 0);
+    sim.stopAll();
+    app.processEvents();
     return ok ? 0 : 2;
 }

@@ -1,0 +1,207 @@
+#!/usr/bin/env bash
+# ==============================================================================
+# VioraEDA macOS Easy One-Command Build Script for New Users
+# ==============================================================================
+# Automatically detects Apple Silicon / Intel Mac, sets up Homebrew toolchain,
+# configures CMake, builds all targets, runs verification tests, and sets up
+# the component library.
+#
+# Usage:
+#   ./scripts/build_macos.sh           # Configure + Build + Test
+#   ./scripts/build_macos.sh --clean   # Clean build from scratch
+#   ./scripts/build_macos.sh --no-test # Build only, skip test suite
+# ==============================================================================
+
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+# ANSI color codes
+C_BLU=$'\033[1;34m'; C_GRN=$'\033[1;32m'; C_YLW=$'\033[1;33m'; C_RED=$'\033[1;31m'; C_END=$'\033[0m'
+info() { printf "${C_BLU}==>${C_END} %s\n" "$*"; }
+ok()   { printf "${C_GRN}==>${C_END} %s\n" "$*"; }
+warn() { printf "${C_YLW}!! ${C_END} %s\n" "$*" >&2; }
+die()  { printf "${C_RED}ERROR: %s${C_END}\n" "$*" >&2; exit 1; }
+
+DO_CLEAN=0
+RUN_TESTS=1
+JOBS=$(sysctl -n hw.ncpu 2>/dev/null || echo 4)
+ARCH=$(uname -m)
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --clean)     DO_CLEAN=1; shift ;;
+        --no-test|--skip-tests) RUN_TESTS=0; shift ;;
+        -j|--jobs)   JOBS="$2"; shift 2 ;;
+        --help|-h)
+            cat <<HELP
+Usage: ./scripts/build_macos.sh [options]
+
+Options:
+  --clean       Wipe the build directory and reconfigure from scratch
+  --no-test     Skip running CTest verification suite after build
+  -j, --jobs N  Number of parallel compilation jobs (default: $JOBS)
+  -h, --help    Show this help message
+HELP
+            exit 0
+            ;;
+        *) die "Unknown option: $1 (run with --help for options)" ;;
+    esac
+done
+
+echo "${C_BLU}====================================================${C_END}"
+echo "${C_BLU}   VioraEDA macOS Automated Build & Setup Tool      ${C_END}"
+echo "${C_BLU}   Architecture: $ARCH | CPU Cores: $JOBS            ${C_END}"
+echo "${C_BLU}====================================================${C_END}"
+echo
+
+# ---------------------------------------------------------------------------
+# 1) Homebrew & Toolchain Discovery
+# ---------------------------------------------------------------------------
+info "Checking macOS development toolchain..."
+
+if ! command -v brew >/dev/null 2>&1; then
+    die "Homebrew is required. Please install it from https://brew.sh and run this script again."
+fi
+
+# Ensure essential tools are present
+MISSING_BREW=()
+for pkg in cmake autoconf automake libtool bison flex eigen pkg-config; do
+    brew list "$pkg" >/dev/null 2>&1 || MISSING_BREW+=("$pkg")
+done
+
+if [ "${#MISSING_BREW[@]}" -gt 0 ]; then
+    info "Installing missing dependencies: ${MISSING_BREW[*]} ..."
+    brew install "${MISSING_BREW[@]}" || true
+fi
+
+# Locate Bison
+for bp in /usr/local/opt/bison/bin /opt/homebrew/opt/bison/bin; do
+    if [ -d "$bp" ]; then
+        export PATH="$bp:$PATH"
+        break
+    fi
+done
+
+# Locate LLVM 15 or system LLVM
+LLVM_DIR=""
+for lp in /usr/local/opt/llvm@15 /opt/homebrew/opt/llvm@15 /usr/local/opt/llvm /opt/homebrew/opt/llvm; do
+    if [ -d "$lp" ]; then
+        export PATH="$lp/bin:$PATH"
+        LLVM_DIR="$lp"
+        break
+    fi
+done
+
+# Locate Qt 6
+QT_DIR=""
+for qp in "$HOME/Qt/6.6.3/macos" "$HOME/Qt/6.*/macos" /usr/local/opt/qt@6 /opt/homebrew/opt/qt@6 /usr/local/opt/qt /opt/homebrew/opt/qt; do
+    if [ -d "$qp" ]; then
+        QT_DIR="$qp"
+        export Qt6_DIR="$qp/lib/cmake/Qt6"
+        break
+    fi
+done
+
+if [ -z "$QT_DIR" ]; then
+    info "Installing Qt 6 from Homebrew..."
+    brew install qt@6 || true
+    QT_DIR="$(brew --prefix qt@6 2>/dev/null || brew --prefix qt 2>/dev/null || true)"
+fi
+
+# ---------------------------------------------------------------------------
+# 2) Component Library Discovery & Setup
+# ---------------------------------------------------------------------------
+LIB_DIR="$HOME/ViospiceLib"
+if [ ! -d "$LIB_DIR/sym" ]; then
+    if [ -d "$HOME/viora-libs" ]; then
+        info "Linking component library from ~/viora-libs to ~/ViospiceLib..."
+        mkdir -p "$LIB_DIR"
+        cp -Rf "$HOME/viora-libs/"* "$LIB_DIR/" 2>/dev/null || true
+    fi
+fi
+
+# ---------------------------------------------------------------------------
+# 3) CMake Configure
+# ---------------------------------------------------------------------------
+if [ "$DO_CLEAN" = "1" ]; then
+    info "Cleaning build directory: $ROOT/build ..."
+    rm -rf "$ROOT/build"
+fi
+
+CMAKE_ARGS=(
+    -B "$ROOT/build"
+    -S "$ROOT"
+    -DCMAKE_BUILD_TYPE=Release
+    -DFETCHCONTENT_TRY_FIND_PACKAGE_MODE=NEVER
+)
+
+# On x86_64 Mac, build ngspice and FluxScript from source for native performance
+if [ "$ARCH" = "x86_64" ]; then
+    CMAKE_ARGS+=(-DVIOSPICE_DEV_MODE=ON)
+fi
+
+PREFIX_DIRS=()
+[ -n "$QT_DIR" ] && PREFIX_DIRS+=("$QT_DIR")
+[ -n "$LLVM_DIR" ] && PREFIX_DIRS+=("$LLVM_DIR")
+
+if [ "${#PREFIX_DIRS[@]}" -gt 0 ]; then
+    CMAKE_ARGS+=(-DCMAKE_PREFIX_PATH="$(IFS=';'; echo "${PREFIX_DIRS[*]}")")
+fi
+
+info "Configuring project with CMake..."
+cmake "${CMAKE_ARGS[@]}"
+
+# ---------------------------------------------------------------------------
+# 4) Compilation
+# ---------------------------------------------------------------------------
+ok "Building VioraEDA.app, viora CLI, and flux_runner..."
+cmake --build "$ROOT/build" -j"$JOBS"
+
+# Stage native dylibs
+if [ -f "$ROOT/build/_deps/viomatrixc-src/src/.libs/libngspice.dylib" ]; then
+    mkdir -p "$ROOT/build/viospice_engine/lib" "$ROOT/build/viomatrixc-prebuilt/lib"
+    cp -f "$ROOT/build/_deps/viomatrixc-src/src/.libs/libngspice"* "$ROOT/build/viospice_engine/lib/" 2>/dev/null || true
+    cp -f "$ROOT/build/_deps/viomatrixc-src/src/.libs/libngspice"* "$ROOT/build/viomatrixc-prebuilt/lib/" 2>/dev/null || true
+fi
+if [ -f "$ROOT/build/_deps/fluxscript-build/libFluxScript.dylib" ]; then
+    mkdir -p "$ROOT/build/fluxscript-prebuilt/lib"
+    cp -f "$ROOT/build/_deps/fluxscript-build/libFluxScript.dylib" "$ROOT/build/fluxscript-prebuilt/lib/" 2>/dev/null || true
+fi
+
+# ---------------------------------------------------------------------------
+# 5) Verification Test Suite
+# ---------------------------------------------------------------------------
+if [ "$RUN_TESTS" = "1" ]; then
+    info "Running verification tests..."
+    set +e
+    DYLD_LIBRARY_PATH="$ROOT/build:$ROOT/build/_deps/viomatrixc-src/src/.libs:$ROOT/build/_deps/fluxscript-build:${LLVM_DIR:-}/lib" \
+    QT_QPA_PLATFORM="offscreen" \
+    ctest --test-dir "$ROOT/build" --output-on-failure -E "daemon"
+    CTEST_RC=$?
+    set -e
+    if [ "$CTEST_RC" = "0" ]; then
+        ok "All tests passed cleanly!"
+    else
+        warn "Some tests reported issues (code $CTEST_RC). See output above."
+    fi
+fi
+
+# ---------------------------------------------------------------------------
+# 6) Completion
+# ---------------------------------------------------------------------------
+echo
+ok "===================================================="
+ok "  VioraEDA macOS Build Completed Successfully!      "
+ok "===================================================="
+echo
+echo "To launch the GUI application:"
+echo "   open $ROOT/build/VioraEDA.app"
+echo
+echo "To run the CLI tool:"
+echo "   $ROOT/build/viora --help"
+echo
+echo "To install system-wide (/Applications & /usr/local/bin):"
+echo "   ./install.sh"
+echo

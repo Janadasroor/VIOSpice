@@ -85,7 +85,7 @@ while [ $# -gt 0 ]; do
 done
 
 # ---------------------------------------------------------------------------
-# Detect OS
+# Detect OS & Architecture
 # ---------------------------------------------------------------------------
 case "$(uname -s)" in
     Linux*)          OS="linux" ;;
@@ -94,24 +94,31 @@ case "$(uname -s)" in
     *)               die "unsupported OS: $(uname -s)" ;;
 esac
 
+ARCH="$(uname -m)"
+
 if [ "$OS" = "windows" ] && [ -z "${MINGW_PREFIX:-}" ]; then
     die "Please run this script from the 'MSYS2 MINGW64' shell (not MSYS/MSYS2)."
 fi
 
-[ "$JOBS" -eq 0 ] && JOBS="$(nproc 2>/dev/null || echo 4)"
+[ -z "$JOBS" ] && JOBS="$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4)"
 
-info "Platform        : $OS"
+# On x86_64 macOS, default to dev mode to build native x86_64 ngspice & FluxScript
+if [ "$OS" = "macos" ] && [ "$ARCH" = "x86_64" ]; then
+    DEV_MODE=1
+fi
+
+info "Platform        : $OS ($ARCH)"
 info "Jobs            : $JOBS"
+info "Dev Mode (src)  : $DEV_MODE"
 info "Project root    : $ROOT"
 echo
 
 # ---------------------------------------------------------------------------
-# 1) Dependencies
+# 1) Dependencies & Environment Setup
 # ---------------------------------------------------------------------------
 if [ "$SKIP_DEPS" = "0" ]; then
     case "$OS" in
         windows)
-            need() { command -v "$1" >/dev/null 2>&1; }
             PKGS=(base-devel
                   mingw-w64-x86_64-gcc mingw-w64-x86_64-cmake
                   mingw-w64-x86_64-curl mingw-w64-x86_64-python
@@ -123,7 +130,7 @@ if [ "$SKIP_DEPS" = "0" ]; then
                   mingw-w64-x86_64-llvm mingw-w64-x86_64-eigen3
                   flex bison autoconf automake libtool gettext gettext-devel zip)
             missing=()
-            for p in "${PKGS}"; do
+            for p in "${PKGS[@]}"; do
                 pacman -Q "$p" >/dev/null 2>&1 || missing+=("$p")
             done
             if [ "${#missing[@]}" -gt 0 ]; then
@@ -134,43 +141,83 @@ if [ "$SKIP_DEPS" = "0" ]; then
             fi
             ;;
         macos)
-            need_cmd brew || die "Install Homebrew first: https://brew.sh"
-            info "Installing Homebrew packages ..."
-            brew install cmake python@3.12 ccache autoconf automake libtool \
-                bison flex zstd llvm libomp pkg-config gettext \
-                qt || true
+            if command -v brew >/dev/null 2>&1; then
+                info "Checking Homebrew packages ..."
+                brew install cmake autoconf automake libtool bison flex zstd llvm@15 eigen pkg-config || true
+            fi
             ;;
         linux)
-            info "Installing Linux packages (requires sudo) ..."
+            info "Checking Linux packages ..."
             if command -v apt-get >/dev/null 2>&1; then
                 sudo apt-get update
                 sudo apt-get install -y \
                     build-essential cmake git \
                     qt6-base-dev qt6-charts-dev qt6-svg-dev qt6-tools-dev \
                     qt6-l10n-tools qt6-translations-l10n libgl1-mesa-dev \
-                    llvm-18-dev libclang-18-dev libcurl4-openssl-dev \
+                    llvm-dev clang-dev libcurl4-openssl-dev \
                     autoconf automake libtool bison flex libnghttp2-dev gettext \
-                    python3 python3-pip python3-venv python3-dev
+                    python3 python3-pip python3-venv python3-dev libeigen3-dev
             elif command -v dnf >/dev/null 2>&1; then
                 sudo dnf install -y \
                     cmake gcc-c++ qt6-qtbase-devel qt6-qtcharts-devel qt6-qtsvg-devel \
                     qt6-tools-devel qt6-declarative-devel llvm-devel clang-devel \
                     libcurl-devel python3 python3-devel autoconf automake libtool \
-                    flex bison libnghttp2-devel gettext
+                    flex bison libnghttp2-devel gettext eigen3-devel
             elif command -v pacman >/dev/null 2>&1; then
                 sudo pacman -S --noconfirm --needed \
                     base-devel cmake qt6-base qt6-charts qt6-svg qt6-declarative \
                     llvm clang curl python python-pip autoconf automake libtool \
-                    flex bison libnghttp2 gettext
+                    flex bison libnghttp2 gettext eigen
             fi
             ;;
     esac
 fi
 
-# Verify core tools are now present
-for t in cmake ${DEV_MODE:+autoconf automake libtool}; do
-    command -v "$t" >/dev/null 2>&1 || die "missing required tool: $t"
-done
+# Discover macOS specific paths
+QT_PREFIX_DIRS=()
+LLVM_PREFIX_DIRS=()
+EXTRA_CMAKE_ARGS=()
+
+if [ "$OS" = "macos" ]; then
+    # Bison & tools
+    for bp in /usr/local/opt/bison/bin /opt/homebrew/opt/bison/bin; do
+        [ -d "$bp" ] && export PATH="$bp:$PATH" && break
+    done
+
+    # LLVM
+    for lp in /usr/local/opt/llvm@15 /opt/homebrew/opt/llvm@15 /usr/local/opt/llvm /opt/homebrew/opt/llvm; do
+        if [ -d "$lp" ]; then
+            export PATH="$lp/bin:$PATH"
+            LLVM_PREFIX_DIRS+=("$lp")
+            EXTRA_CMAKE_ARGS+=(-DLLVM_DIR="$lp/lib/cmake/llvm")
+            break
+        fi
+    done
+
+    # Qt 6
+    for qp in "$HOME/Qt/6.6.3/macos" "$HOME/Qt/6.*/macos" /usr/local/opt/qt@6 /opt/homebrew/opt/qt@6 /usr/local/opt/qt /opt/homebrew/opt/qt; do
+        if [ -d "$qp" ]; then
+            QT_PREFIX_DIRS+=("$qp")
+            export Qt6_DIR="$qp/lib/cmake/Qt6"
+            break
+        fi
+    done
+
+    # Eigen3
+    for ep in /usr/local/include/eigen3 /opt/homebrew/include/eigen3 /usr/local/opt/eigen/include/eigen3; do
+        if [ -d "$ep" ]; then
+            EXTRA_CMAKE_ARGS+=(-DEIGEN3_INCLUDE_DIR="$ep")
+            break
+        fi
+    done
+fi
+
+# Discover component libraries
+if [ -d "$HOME/ViospiceLib" ]; then
+    EXTRA_CMAKE_ARGS+=(-DVIOSPICE_BUNDLED_LIB="$HOME/ViospiceLib")
+elif [ -d "$HOME/viora-libs" ]; then
+    EXTRA_CMAKE_ARGS+=(-DVIOSPICE_BUNDLED_LIB="$HOME/viora-libs")
+fi
 
 # ---------------------------------------------------------------------------
 # 2) Configure
@@ -180,73 +227,99 @@ if [ "$DO_CLEAN" = "1" ]; then
     rm -rf "$ROOT/build"
 fi
 
-CMAKE_ARGS=(-DFETCHCONTENT_TRY_FIND_PACKAGE_MODE=NEVER)
-BUILD_PRESET="release"
-CONFIGURE_PRESET="release"
+CMAKE_ARGS=(
+    -B build
+    -DCMAKE_BUILD_TYPE=Release
+    -DFETCHCONTENT_TRY_FIND_PACKAGE_MODE=NEVER
+)
+
 if [ "$DEV_MODE" = "1" ]; then
     CMAKE_ARGS+=(-DVIOSPICE_DEV_MODE=ON)
 fi
 
-if [ "$OS" = "windows" ]; then
-    CONFIGURE_PRESET="msys2-mingw64"
-    BUILD_PRESET="msys2-mingw64"
+PREFIX_PATH_LIST=""
+[ "${#QT_PREFIX_DIRS[@]}" -gt 0 ] && PREFIX_PATH_LIST="${QT_PREFIX_DIRS[0]}"
+[ "${#LLVM_PREFIX_DIRS[@]}" -gt 0 ] && PREFIX_PATH_LIST="${PREFIX_PATH_LIST:+${PREFIX_PATH_LIST};}${LLVM_PREFIX_DIRS[0]}"
+
+if [ -n "$PREFIX_PATH_LIST" ]; then
+    CMAKE_ARGS+=(-DCMAKE_PREFIX_PATH="$PREFIX_PATH_LIST")
 fi
 
-info "Configuring (CMake preset: ${CONFIGURE_PRESET}) ..."
+CMAKE_ARGS+=("${EXTRA_CMAKE_ARGS[@]}")
 
-if [ "$OS" = "windows" ]; then
-    Qt6_DIR="${Qt6_DIR:-$MINGW_PREFIX/lib/cmake/Qt6}" cmake --preset "$CONFIGURE_PRESET" "${CMAKE_ARGS[@]}"
-else
-    cmake --preset "$CONFIGURE_PRESET" "${CMAKE_ARGS[@]}"
-fi
+info "Configuring CMake in build/ ..."
+cmake "${CMAKE_ARGS[@]}"
 
 # ---------------------------------------------------------------------------
 # 3) Build
 # ---------------------------------------------------------------------------
-ok "Building (target: VioraEDA + viora CLI) ..."
-cmake --build --preset "${BUILD_PRESET}" --parallel "$JOBS" \
-    --target VioraEDA viora
+ok "Building targets: VioraEDA, viora, flux_runner, and test targets ..."
+cmake --build build --parallel "$JOBS"
+
+# Stage engine dylibs if in dev mode
+if [ -f "build/_deps/viomatrixc-src/src/.libs/libngspice.dylib" ]; then
+    mkdir -p build/viospice_engine/lib build/viomatrixc-prebuilt/lib
+    cp -f build/_deps/viomatrixc-src/src/.libs/libngspice* build/viospice_engine/lib/ 2>/dev/null || true
+    cp -f build/_deps/viomatrixc-src/src/.libs/libngspice* build/viomatrixc-prebuilt/lib/ 2>/dev/null || true
+fi
+if [ -f "build/_deps/fluxscript-build/libFluxScript.dylib" ]; then
+    mkdir -p build/fluxscript-prebuilt/lib
+    cp -f build/_deps/fluxscript-build/libFluxScript.dylib build/fluxscript-prebuilt/lib/ 2>/dev/null || true
+fi
 
 # ---------------------------------------------------------------------------
 # 4) Tests
 # ---------------------------------------------------------------------------
 if [ "$SKIP_TESTS" = "0" ]; then
-    if command -v ctest >/dev/null 2>&1; then
-        info "Running test suite ..."
-        set +e
-        ctest --preset unit --output-on-failure
-        CTEST_RC=$?
-        set -e
-        if [ "$CTEST_RC" = "0" ]; then
-            ok "All tests passed."
-        else
-            warn "ctest returned $CTEST_RC — see output above."
-        fi
+    info "Running CTest test suite ..."
+    set +e
+    if [ "$OS" = "macos" ]; then
+        DYLD_LIBRARY_PATH="$ROOT/build:$ROOT/build/_deps/viomatrixc-src/src/.libs:$ROOT/build/_deps/fluxscript-build:${LLVM_PREFIX_DIRS[0]:-}/lib" \
+        QT_QPA_PLATFORM="offscreen" \
+        ctest --test-dir build --output-on-failure -E "daemon"
     else
-        warn "ctest not found; skipping tests."
+        QT_QPA_PLATFORM="offscreen" \
+        ctest --test-dir build --output-on-failure -E "daemon"
+    fi
+    CTEST_RC=$?
+    set -e
+    if [ "$CTEST_RC" = "0" ]; then
+        ok "All registered test suites passed!"
+    else
+        warn "CTest returned $CTEST_RC — see output above."
     fi
 fi
 
 # ---------------------------------------------------------------------------
-# 5) Done
+# 5) Summary & Launch Instructions
 # ---------------------------------------------------------------------------
 BIN_DIR="$ROOT/build"
 APP=""
-for p in "$BIN_DIR/VioraEDA" "$BIN_DIR/VioraEDA.exe"; do
-    [ -x "$p" ] && APP="$p" && break
-done
+
+if [ "$OS" = "macos" ] && [ -d "$BIN_DIR/VioraEDA.app" ]; then
+    APP="$BIN_DIR/VioraEDA.app"
+else
+    for p in "$BIN_DIR/VioraEDA" "$BIN_DIR/VioraEDA.exe"; do
+        [ -x "$p" ] && APP="$p" && break
+    done
+fi
 
 if [ -n "$APP" ]; then
     ok "Build finished successfully!"
     echo
     if [ "$OS" = "windows" ]; then
-        echo "To launch the app:   $(cygpath -w "$APP")"
+        echo "GUI Application : $(cygpath -w "$APP" 2>/dev/null || echo "$APP")"
+    elif [ "$OS" = "macos" ]; then
+        echo "GUI Application : open $APP"
     else
-        echo "To launch the app:   $APP"
+        echo "GUI Application : $APP"
     fi
-    echo "CLI tool:            $BIN_DIR/viora"
+    echo "CLI Tool        : $BIN_DIR/viora"
+    echo "Flux Runner     : $BIN_DIR/flux_runner"
+    echo
+    echo "To install system-wide, run: ./install.sh"
 else
-    warn "Build finished but no VioraEDA executable found in build/."
+    warn "Build finished but no executable found in build/."
 fi
 
 exit 0

@@ -172,7 +172,11 @@ QString socketBase() {
 }
 
 QString socketName() {
+#ifdef Q_OS_WIN
     return QStringLiteral("%1-p%2").arg(socketBase()).arg(kDaemonProtocol);
+#else
+    return QStringLiteral("%1/%2-p%3").arg(QDir::tempPath(), socketBase()).arg(kDaemonProtocol);
+#endif
 }
 
 // Per-user directory for daemon logs; created on demand.
@@ -414,104 +418,6 @@ int cliRunCommand(QCoreApplication* app, const QStringList& arguments,
 // Client side
 // ---------------------------------------------------------------------------
 
-#ifndef Q_OS_WIN
-int forwardCommand(const QStringList& arguments) {
-    int fd = socket(AF_UNIX, SOCK_STREAM, 0);
-    if (fd < 0) {
-        return -1;
-    }
-
-    struct sockaddr_un addr;
-    memset(&addr, 0, sizeof(addr));
-    addr.sun_family = AF_UNIX;
-    QByteArray nameBytes = socketName().toUtf8();
-    if (!nameBytes.startsWith('/')) {
-        nameBytes.prepend("/tmp/");
-    }
-    strncpy(addr.sun_path, nameBytes.constData(), sizeof(addr.sun_path) - 1);
-
-    if (::connect(fd, (struct sockaddr*)&addr, sizeof(addr)) < 0) {
-        ::close(fd);
-        return -1;
-    }
-
-    QJsonObject request;
-    QJsonArray argvArr;
-    for (const QString& a : arguments) {
-        argvArr.append(a);
-    }
-    request["proto"] = kDaemonProtocol;
-    request["argv"] = argvArr;
-    request["cwd"] = QDir::currentPath();
-    request["timeout"] = commandTimeoutMs();
-
-    const QByteArray payload =
-        QJsonDocument(request).toJson(QJsonDocument::Compact) + "\n";
-    if (::write(fd, payload.constData(), payload.size()) != payload.size()) {
-        ::close(fd);
-        return -1;
-    }
-
-    const qint64 deadline =
-        QDateTime::currentMSecsSinceEpoch() + commandTimeoutMs() +
-        kWorkerInitAllowanceMs;
-
-    std::string response;
-    char buffer[4096];
-    while (response.find('\n') == std::string::npos) {
-        if (QDateTime::currentMSecsSinceEpoch() > deadline) {
-            ::close(fd);
-            return -2;
-        }
-        struct pollfd pfd;
-        pfd.fd = fd;
-        pfd.events = POLLIN;
-        int ret = ::poll(&pfd, 1, 500);
-        if (ret > 0 && (pfd.revents & POLLIN)) {
-            ssize_t n = ::read(fd, buffer, sizeof(buffer));
-            if (n <= 0) {
-                break;
-            }
-            response.append(buffer, n);
-        } else if (ret > 0 && (pfd.revents & (POLLERR | POLLHUP | POLLNVAL))) {
-            break;
-        }
-    }
-    ::close(fd);
-
-    size_t newline = response.find('\n');
-    if (newline == std::string::npos) {
-        return -1;
-    }
-    response.resize(newline);
-
-    QJsonParseError parseError;
-    const QJsonDocument doc =
-        QJsonDocument::fromJson(QByteArray::fromRawData(response.data(), response.size()), &parseError);
-    if (parseError.error != QJsonParseError::NoError || !doc.isObject()) {
-        return -1;
-    }
-
-    const QJsonObject obj = doc.object();
-    const QJsonValue exitVal = obj.value("exit");
-    if (!exitVal.isDouble()) {
-        return -1;
-    }
-    const int exitCode = exitVal.toInt();
-
-    const QByteArray out = obj.value("stdout").toString().toUtf8();
-    const QByteArray err = obj.value("stderr").toString().toUtf8();
-    if (!out.isEmpty()) {
-        std::cout.write(out.constData(), out.size());
-        std::cout.flush();
-    }
-    if (!err.isEmpty()) {
-        std::cerr.write(err.constData(), err.size());
-        std::cerr.flush();
-    }
-    return exitCode;
-}
-#else
 int forwardCommand(const QStringList& arguments) {
     QLocalSocket socket;
     socket.connectToServer(socketName());
@@ -585,67 +491,11 @@ int forwardCommand(const QStringList& arguments) {
     }
     return exitCode;
 }
-#endif
 
 namespace {
 
 bool spawnDaemon(const QString& program) {
-#ifdef Q_OS_WIN
-    QString path = program;
-    QString arg = "\"" + path.replace("\"", "\\\"") + "\" serve";
-    std::wstring cmdLine = arg.toStdWString();
-
-    STARTUPINFOW si;
-    memset(&si, 0, sizeof(si));
-    si.cb = sizeof(si);
-    si.dwFlags = STARTF_USESHOWWINDOW;
-    si.wShowWindow = SW_HIDE;
-
-    PROCESS_INFORMATION pi;
-    memset(&pi, 0, sizeof(pi));
-
-    if (!CreateProcessW(nullptr, cmdLine.data(), nullptr, nullptr, FALSE,
-                        CREATE_NO_WINDOW, nullptr, nullptr, &si, &pi)) {
-        return false;
-    }
-    CloseHandle(pi.hThread);
-    CloseHandle(pi.hProcess);
-    return true;
-#else
-    pid_t pid = fork();
-    if (pid < 0) {
-        return false;
-    }
-    if (pid > 0) {
-        int status = 0;
-        waitpid(pid, &status, 0);
-        return WIFEXITED(status) && (WEXITSTATUS(status) == 0);
-    }
-    setsid();
-    pid_t pid2 = fork();
-    if (pid2 < 0) {
-        _exit(1);
-    }
-    if (pid2 > 0) {
-        _exit(0);
-    }
-    int devNull = open("/dev/null", O_RDWR);
-    if (devNull >= 0) {
-        dup2(devNull, STDIN_FILENO);
-        dup2(devNull, STDOUT_FILENO);
-        dup2(devNull, STDERR_FILENO);
-        if (devNull > 2) {
-            close(devNull);
-        }
-    }
-    for (int fd = 3; fd < 1024; ++fd) {
-        close(fd);
-    }
-    QByteArray progBytes = program.toUtf8();
-    char* args[] = {progBytes.data(), const_cast<char*>("serve"), nullptr};
-    execv(progBytes.constData(), args);
-    _exit(1);
-#endif
+    return QProcess::startDetached(program, { QStringLiteral("serve") });
 }
 
 } // namespace
@@ -664,7 +514,7 @@ bool spawnAndForward(const QStringList& arguments, int* exitCode) {
     }
 
     const qint64 deadline =
-        QDateTime::currentMSecsSinceEpoch() + 150000; // covers one-time init
+        QDateTime::currentMSecsSinceEpoch() + 5000; // fast fallback if daemon cannot connect
     while (true) {
         const int rc = forwardCommand(arguments);
         if (rc >= 0) {
@@ -728,7 +578,7 @@ bool readWorkerFrame(QProcess* worker, QByteArray* line) {
         if (worker->state() == QProcess::NotRunning) {
             return false; // worker crashed / exited without the frame
         }
-        if (worker->waitForReadyRead(10000)) {
+        if (worker->waitForReadyRead(kWorkerInitAllowanceMs)) {
             continue;
         }
         // Ready-read timed out or the pipe closed. If the process has since
@@ -1235,7 +1085,7 @@ int startServer() {
     // No daemon is currently listening; clear a socket left by a crashed
     // daemon (if any) before taking over the name.
     QLocalServer::removeServer(socketName());
-    QFile::remove(QDir::tempPath() + QStringLiteral("/") + socketName());
+    QFile::remove(socketName());
 #ifdef Q_OS_WIN
     // Restrict the named pipe to the owning user only. On Windows the default
     // DACL lets any local account connect; without this, a colleague (or
@@ -1249,7 +1099,7 @@ int startServer() {
             return 1;
         }
         QLocalServer::removeServer(socketName());
-        QFile::remove(QDir::tempPath() + QStringLiteral("/") + socketName());
+        QFile::remove(socketName());
         if (!server.listen(socketName())) {
             std::cerr << "viora: daemon failed to listen on "
                       << socketName().toStdString() << ": "

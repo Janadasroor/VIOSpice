@@ -1,5 +1,6 @@
 add_executable(test_ux_logic
     test_ux_logic.cpp
+    test_ux_logic.h
 )
 
 vioraeda_configure_cli_target(test_ux_logic)

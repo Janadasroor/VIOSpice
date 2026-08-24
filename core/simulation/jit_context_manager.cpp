@@ -155,6 +155,7 @@ bool JITContextManager::compileAndLoad(const QString& id, const QString& source,
         // Use \b anchor instead of ^ so leading comments don't defeat the check.
         static const QRegularExpression updateDefWithParen(R"(\bdef\s+update\s*\()");
         static const QRegularExpression updateDefNoParen(R"(\bdef\s+update\s*\{)");
+        static const QRegularExpression updateBareWithParen(R"(\bupdate\s*\(\s*t\s*,\s*inputs\s*\)\s*\{)");
         
         if (transformedSource.contains(updateDefWithParen)) {
             wrapped = transformedSource;
@@ -162,6 +163,9 @@ bool JITContextManager::compileAndLoad(const QString& id, const QString& source,
         } else if (transformedSource.contains(updateDefNoParen)) {
             wrapped = transformedSource;
             wrapped.replace(updateDefNoParen, QString("def %1() {").arg(uniqueFuncName));
+        } else if (transformedSource.contains(updateBareWithParen)) {
+            wrapped = transformedSource;
+            wrapped.replace(updateBareWithParen, QString("def %1(t, inputs) {").arg(uniqueFuncName));
         } else {
             // Raw expression or statements: automatically wrap in function
             QString body = transformedSource.trimmed();
@@ -195,6 +199,9 @@ bool JITContextManager::compileAndLoad(const QString& id, const QString& source,
     if (func) {
         std::lock_guard<std::mutex> lock(m_funcMutex);
         m_updateFunctions[id] = func;
+        m_updateFunctions[cleanId(id)] = func;
+        m_updateFunctions[id.toLower()] = func;
+        m_updateFunctions[cleanId(id).toLower()] = func;
         qDebug() << "FluxScript: Loaded logic for" << id << "at" << func << "(symbol:" << uniqueFuncName << ")";
     } else {
         errors[0] = QString("FluxScript: Failed to find generated function %1").arg(uniqueFuncName);
@@ -315,10 +322,23 @@ void* JITContextManager::getFunctionAddress(const QString& id) {
         std::lock_guard<std::mutex> lock(m_intMutex);
         auto it = m_interpreterFunctions.find(id);
         if (it != m_interpreterFunctions.end()) return it.value();
+        for (auto i = m_interpreterFunctions.begin(); i != m_interpreterFunctions.end(); ++i) {
+            if (i.key().compare(id, Qt::CaseInsensitive) == 0 ||
+                cleanId(i.key()).compare(cleanId(id), Qt::CaseInsensitive) == 0) {
+                return i.value();
+            }
+        }
     }
 #ifdef HAVE_FLUXSCRIPT
     std::lock_guard<std::mutex> lock(m_funcMutex);
-    return m_updateFunctions.value(id);
+    if (m_updateFunctions.contains(id)) return m_updateFunctions.value(id);
+    for (auto it = m_updateFunctions.begin(); it != m_updateFunctions.end(); ++it) {
+        if (it.key().compare(id, Qt::CaseInsensitive) == 0 ||
+            cleanId(it.key()).compare(cleanId(id), Qt::CaseInsensitive) == 0) {
+            return it.value();
+        }
+    }
+    return nullptr;
 #else
     return nullptr;
 #endif

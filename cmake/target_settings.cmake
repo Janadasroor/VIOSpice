@@ -32,6 +32,9 @@ set(VIORAEDA_COMMON_INCLUDE_DIRS
     ${CMAKE_SOURCE_DIR}/pcb/ui
     ${CMAKE_SOURCE_DIR}/pcb/dialogs
 )
+if(fluxscript_SOURCE_DIR)
+    list(APPEND VIORAEDA_COMMON_INCLUDE_DIRS ${fluxscript_SOURCE_DIR}/include)
+endif()
 list(REMOVE_DUPLICATES VIORAEDA_COMMON_INCLUDE_DIRS)
 
 set(VIORAEDA_QT_LINK_LIBS
@@ -119,6 +122,7 @@ function(vioraeda_configure_cli_target target)
     if(VIORAEDA_ENABLE_PCH)
         target_precompile_headers(${target} PRIVATE "$<$<COMPILE_LANGUAGE:CXX>:${VIORAEDA_PCH_HEADER}>")
     endif()
+    vioraeda_setup_rpath(${target})
 endfunction()
 
 # Setup platform-aware RPATH for an executable target.
@@ -135,8 +139,8 @@ function(vioraeda_setup_rpath target)
         set(_origin "\$ORIGIN")
     endif()
     set_target_properties(${target} PROPERTIES
-        BUILD_RPATH "${CMAKE_BINARY_DIR};${VIOSPICE_PREFERRED_ENGINE_DIR};${FLUXSCRIPT_LIB_DIR}"
-        INSTALL_RPATH "${_origin};${VIOSPICE_PREFERRED_ENGINE_DIR};${FLUXSCRIPT_LIB_DIR}"
+        BUILD_RPATH "${CMAKE_BINARY_DIR};${CMAKE_BINARY_DIR}/_deps/fluxscript-build;${CMAKE_BINARY_DIR}/_deps/viomatrixc-src/src/.libs;${CMAKE_BINARY_DIR}/fluxscript-prebuilt/lib;${CMAKE_BINARY_DIR}/viomatrixc-prebuilt/lib;${VIOSPICE_PREFERRED_ENGINE_DIR};${FLUXSCRIPT_LIB_DIR};/usr/local/opt/llvm@15/lib"
+        INSTALL_RPATH "${_origin};${CMAKE_BINARY_DIR}/_deps/fluxscript-build;${CMAKE_BINARY_DIR}/_deps/viomatrixc-src/src/.libs;${CMAKE_BINARY_DIR}/fluxscript-prebuilt/lib;${CMAKE_BINARY_DIR}/viomatrixc-prebuilt/lib;${VIOSPICE_PREFERRED_ENGINE_DIR};${FLUXSCRIPT_LIB_DIR};/usr/local/opt/llvm@15/lib"
     )
 endfunction()
 
