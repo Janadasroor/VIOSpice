@@ -18,9 +18,9 @@ VioMATRIXC v0.1.0 macos   viomatrixc-macos-arm64.tar.gz    9ba34d19a9975b8182a49
 VioAVR     v0.2.5 linux   vioavr-v0.2.5-linux-x86_64.tar.gz   a1c862b132035bedfba2d74f381f83078ed85ff7288e3a2cd0ecf1a8a3b5d400 https://github.com/Janadasroor/VioAVR/releases/download/v0.2.5/vioavr-v0.2.5-linux-x86_64.tar.gz
 VioAVR     v0.2.5 windows vioavr-v0.2.5-windows-x64.zip     b370ad578466f6229663c55422728ed83799e2cb2e155db4ed9a6129f8256d43 https://github.com/Janadasroor/VioAVR/releases/download/v0.2.5/vioavr-v0.2.5-windows-x64.zip
 VioAVR     v0.2.5 macos   vioavr-v0.2.5-macos-arm64.tar.gz   2f79a0afac03187553d25bf8508e4b27d514a1df5e87c14ef3d33f24b64b6d8c https://github.com/Janadasroor/VioAVR/releases/download/v0.2.5/vioavr-v0.2.5-macos-arm64.tar.gz
-FluxScript v1.2.0 linux   fluxscript-linux-x86_64.tar.gz    35d5629afbbfc2e17437869a506eb1afd45e654034f101ec9a5d3e0bf40e9cca https://github.com/Janadasroor/fluxscript/releases/download/v1.2.0/fluxscript-linux-x86_64.tar.gz
+FluxScript v1.2.0 linux   fluxscript-linux-x86_64.tar.gz    693ebaee4e0a64e86d0224e79b9d9ff19d11e34f08f66a561886ec02f142946c https://github.com/Janadasroor/fluxscript/releases/download/v1.2.0/fluxscript-linux-x86_64.tar.gz
 FluxScript v1.2.0 windows fluxscript-windows-x86_64.zip     deb5d098e0fa7419da0d032aaf337f5c1dd629713f435f187866610d8d86d41f https://github.com/Janadasroor/fluxscript/releases/download/v1.2.0/fluxscript-windows-x86_64.zip
-FluxScript v1.2.0 macos   fluxscript-macos-arm64.tar.gz     6754b5fcf8a380530beb0512815218334e3ed48bf820310ea2a774c3801a1f5f https://github.com/Janadasroor/fluxscript/releases/download/v1.2.0/fluxscript-macos-arm64.tar.gz
+FluxScript v1.2.0 macos   fluxscript-macos-arm64.tar.gz     64440628be5da62a5440a070e1dfaa0a491bab8b618911789192d1a45a9bf411 https://github.com/Janadasroor/fluxscript/releases/download/v1.2.0/fluxscript-macos-arm64.tar.gz
 
 [git]
 VioMATRIXC v0.2.3 https://github.com/Janadasroor/VioMATRIXC.git
