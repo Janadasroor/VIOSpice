@@ -67,19 +67,7 @@ fi
 
 export HOMEBREW_NO_REQUIRE_TAP_TRUST=1
 export HOMEBREW_NO_AUTO_UPDATE=1
-
-# Ensure essential tools are present
-MISSING_BREW=()
-for pkg in cmake autoconf automake libtool bison flex eigen pkg-config; do
-    if ! brew list "$pkg" >/dev/null 2>&1; then
-        MISSING_BREW+=("$pkg")
-    fi
-done
-
-if [ "${#MISSING_BREW[@]}" -gt 0 ]; then
-    info "Installing missing dependencies: ${MISSING_BREW[*]} ..."
-    brew install "${MISSING_BREW[@]}" 2>/dev/null || true
-fi
+brew untap aws/tap 2>/dev/null || true
 
 # Locate Bison
 for bp in /usr/local/opt/bison/bin /opt/homebrew/opt/bison/bin; do
@@ -117,7 +105,7 @@ fi
 
 if [ -z "$QT_DIR" ]; then
     info "Installing Qt 6 from Homebrew..."
-    brew install qt@6 || true
+    brew install qt@6 2>/dev/null || true
     QT_DIR="$(brew --prefix qt@6 2>/dev/null || brew --prefix qt 2>/dev/null || true)"
 fi
 
@@ -145,17 +133,16 @@ CMAKE_ARGS=(
     -B "$ROOT/build"
     -S "$ROOT"
     -DCMAKE_BUILD_TYPE=Release
+    -DVIOSPICE_BUILD_VIOMATRIXC=OFF
+    -DVIOSPICE_BUILD_FLUXSCRIPT=ON
     -DFETCHCONTENT_TRY_FIND_PACKAGE_MODE=NEVER
 )
-
-# On x86_64 Mac, build ngspice and FluxScript from source for native performance
-if [ "$ARCH" = "x86_64" ]; then
-    CMAKE_ARGS+=(-DVIOSPICE_DEV_MODE=ON)
-fi
 
 PREFIX_DIRS=()
 [ -n "$QT_DIR" ] && PREFIX_DIRS+=("$QT_DIR")
 [ -n "$LLVM_DIR" ] && PREFIX_DIRS+=("$LLVM_DIR")
+ZSTD_PREFIX="$(brew --prefix zstd 2>/dev/null || true)"
+[ -n "$ZSTD_PREFIX" ] && PREFIX_DIRS+=("$ZSTD_PREFIX")
 
 if [ "${#PREFIX_DIRS[@]}" -gt 0 ]; then
     CMAKE_ARGS+=(-DCMAKE_PREFIX_PATH="$(IFS=';'; echo "${PREFIX_DIRS[*]}")")
