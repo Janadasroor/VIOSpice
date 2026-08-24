@@ -165,7 +165,7 @@ jobs:
 
       - name: Configure (Linux)
         if: runner.os == 'Linux'
-        run: cmake --preset release
+        run: cmake --preset release -DVIOSPICE_BUILD_VIOMATRIXC=OFF
 
       - name: Configure (macOS)
         if: runner.os == 'macOS'
