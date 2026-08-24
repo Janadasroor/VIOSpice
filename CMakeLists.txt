@@ -577,7 +577,7 @@ if(VIOSPICE_DEV_MODE OR VIOSPICE_BUILD_FLUXSCRIPT)
         FetchContent_Declare(
             FluxScript
             GIT_REPOSITORY https://github.com/Janadasroor/fluxscript.git
-            GIT_TAG        4d120b5c18161005e719a9827cd085bc5aae834e
+            GIT_TAG        b943cd882cf1653732fe9cf8572cace01e8478d8
         )
         FetchContent_Populate(FluxScript)
         # When using prebuilt VioMATRIXC, fix FluxScript's ngspice path computation

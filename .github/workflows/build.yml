@@ -163,13 +163,8 @@ jobs:
         if: runner.os == 'macOS'
         run: |
           brew install llvm libomp
-          # brew's bison/flex are keg-only; expose them so ngspice's autotools
-          # configure (run at cmake-configure time) can find AC_PROG_LEX/YACC.
-          export PATH="/opt/homebrew/opt/bison/bin:/opt/homebrew/opt/flex/bin:$PATH"
-          # ngspice builds with -fopenmp; expose libomp so omp.h is found.
-          export CPPFLAGS="-I$(brew --prefix libomp)/include $CPPFLAGS"
-          export LDFLAGS="-L$(brew --prefix libomp)/lib $LDFLAGS"
           cmake --preset release \
+            -DVIOSPICE_BUILD_VIOMATRIXC=OFF \
             -DLLVM_DIR="$(brew --prefix llvm)/lib/cmake/llvm" \
             -DFETCHCONTENT_TRY_FIND_PACKAGE_MODE=NEVER
 
