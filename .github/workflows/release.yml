@@ -53,24 +53,12 @@ jobs:
         if: runner.os == 'Linux'
         run: echo "Qt6_DIR=${{ runner.temp }}/Qt/6.10.0/${{ matrix.qt_dir_suffix }}/lib/cmake/Qt6" >> $GITHUB_ENV
 
-      - name: Cache Qt (macOS)
+      - name: Install system deps (macOS)
         if: runner.os == 'macOS'
-        id: cache-qt-macos
-        uses: actions/cache@v4
-        with:
-          path: ${{ runner.temp }}/Qt
-          key: ${{ runner.os }}-qt-6.10.0-clang_64-v2
-
-      - name: Install Qt (macOS)
-        if: runner.os == 'macOS' && steps.cache-qt-macos.outputs.cache-hit != 'true'
         run: |
-          python3 -m venv /tmp/qt-env
-          /tmp/qt-env/bin/pip install aqtinstall
-          /tmp/qt-env/bin/aqt install-qt --outputdir "${{ runner.temp }}/Qt" ${{ matrix.qt_host }} desktop 6.10.0 ${{ matrix.qt_arch }} -m qtcharts qtpdf qtwebsockets qtmultimedia qt5compat qtshadertools qtdeclarative
-
-      - name: Set Qt6_DIR (macOS)
-        if: runner.os == 'macOS'
-        run: echo "Qt6_DIR=${{ runner.temp }}/Qt/6.10.0/${{ matrix.qt_dir_suffix }}/lib/cmake/Qt6" >> $GITHUB_ENV
+          brew install cmake curl ccache libedit zstd llvm libomp qt@6 || true
+          QT_PREFIX="$(brew --prefix qt@6 2>/dev/null || brew --prefix qt)"
+          echo "Qt6_DIR=$QT_PREFIX/lib/cmake/Qt6" >> $GITHUB_ENV
 
       - name: Setup MSYS2 + Install deps (Windows)
         if: runner.os == 'Windows'
@@ -151,12 +139,6 @@ jobs:
             http://archive.ubuntu.com/ubuntu/pool/main/n/nghttp2/libnghttp2-14_1.64.0-1ubuntu1_amd64.deb
           sudo dpkg -i /tmp/libnghttp2-14.deb
 
-      - name: Install system deps (macOS)
-        if: runner.os == 'macOS'
-        run: |
-          export HOMEBREW_NO_REQUIRE_TAP_TRUST=1
-          brew untap aws/tap 2>/dev/null || true
-          brew install cmake curl python@3.12 ccache libedit zstd llvm libomp || true
 
       - name: Setup ccache
         uses: hendrikmuhs/ccache-action@v1.2
