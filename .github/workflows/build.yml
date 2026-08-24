@@ -195,7 +195,7 @@ jobs:
         if: runner.os != 'Windows'
         run: |
           if [ "${{ runner.os }}" = "macOS" ]; then
-            cmake --build --preset release --parallel 3
+            cmake --build build -j3
           else
             cmake --build --preset release --parallel $(nproc)
           fi

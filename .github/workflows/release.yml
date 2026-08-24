@@ -230,7 +230,7 @@ jobs:
 
       - name: Build (macOS)
         if: runner.os == 'macOS'
-        run: cmake --build --preset release --parallel 2
+        run: cmake --build build -j2
 
       - name: Build (Windows)
         if: runner.os == 'Windows'
