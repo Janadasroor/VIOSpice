@@ -577,13 +577,7 @@ if(VIOSPICE_DEV_MODE OR VIOSPICE_BUILD_FLUXSCRIPT)
         FetchContent_Declare(
             FluxScript
             GIT_REPOSITORY https://github.com/Janadasroor/fluxscript.git
-            # v1.2.0 ships a legacy src/compiler/codegen.cpp that still calls the
-            # removed llvm::Intrinsic::getDeclaration, breaking the MSYS2 (LLVM 21+)
-            # source build on Windows. Pin to flux main, which already uses
-            # getOrInsertDeclaration and compiles against LLVM 21/22. c6ab58c also
-            # merges all top-level statements into a single anon_expr scope so
-            # variables declared before def/struct/enum stay visible after them.
-            GIT_TAG        c6ab58cca4994a61f61d12cab6e472460fbc6293
+            GIT_TAG        f623fcddef6597742c9b19e789281a74cc1b8779
         )
         FetchContent_Populate(FluxScript)
         # When using prebuilt VioMATRIXC, fix FluxScript's ngspice path computation
