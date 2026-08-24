@@ -12,7 +12,7 @@
 #   ./scripts/build_macos.sh --no-test # Build only, skip test suite
 # ==============================================================================
 
-set -euo pipefail
+set -eo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"

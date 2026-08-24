@@ -5,7 +5,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # ==============================================================================
 
-set -euo pipefail
+set -eo pipefail
 
 C_RED=$'\033[31m'; C_GRN=$'\033[32m'; C_YLW=$'\033[33m'; C_CYN=$'\033[36m'; C_END=$'\033[0m'
 info() { printf "${C_CYN}==>${C_END} %s\n" "$*"; }
